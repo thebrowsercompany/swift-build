@@ -71,10 +71,11 @@ jobs:
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\swift-windows-amd64 --target install
-      - task: UniversalPackages@0
+      - task: ArchiveFiles@2
         inputs:
-          command: publish
-          publishDirectory: $(Build.StagingDirectory)\Developer
-          vstsFeedPublish: org.compnerd.dt
-          vstsFeedPackagePublish: $(Build.BuildNumber)
-          packagePublishDescription: windows nightly toolchain
+          rootFolderOrFile: $(Build.StagingDirectory)\Developer
+          archiveFile: $(Build.StagingDirectory)\toolchain-$(Build.BuildId).zip
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\toolchain-$(Build.BuildId).zip
+          artifactName: toolchain
