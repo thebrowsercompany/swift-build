@@ -1,4 +1,6 @@
 name: swift
+variables:
+  Install.Directory: $(Build.StagingDirectory)\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr
 jobs:
   - job: windows
     # NOTE(compnerd) this is an open source project built on hosted machines, so
@@ -15,20 +17,25 @@ jobs:
           git clone --quiet --depth 1 https://github.com/apple/swift-clang clang
           git clone --quiet --depth 1 https://github.com/apple/swift swift
           git clone --quiet --depth 1 https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+        displayName: 'Fetch Sources'
       # TODO(compnerd) remove this once this is merged after the tree is
       # unlocked
       - script: |
+          git config --global user.name "builder"
+          git config --global user.email "builder@compnerd.org"
+
           cd $(Build.SourcesDirectory)/swift
-          git config --local user.name "builder"
-          git config --local user.email "builder@compnerd.org"
           git fetch origin pull/21552/head
           git cherry-pick FETCH_HEAD
+
           git fetch origin pull/21561/head
           git cherry-pick FETCH_HEAD
+        displayName: 'Apply Temporary Patches'
       - powershell: |
           (New-Object System.Net.WebClient).DownloadFile("http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu4c-63_1-Win64-MSVC2017.zip")
           Add-Type -A System.IO.Compression.FileSystem
           [IO.Compression.ZipFile]::ExtractToDirectory("$(Build.StagingDirectory)\\icu4C-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu-63.1")
+        displayName: 'Fetch ICU'
       - task: BatchScript@1
         inputs:
           filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
@@ -42,6 +49,7 @@ jobs:
           mklink "%VCToolsInstallDir%\include\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap"
           mklink "%VCToolsInstallDir%\include\visualc.apinotes" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes"
           mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap"
+        displayName: 'Configure SDK'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\cmark-windows-amd64
@@ -52,7 +60,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\llvm-windows-amd64
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_FLAGS="/GS- /Oy" -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr -DLLVM_ENABLE_ASSERTIONS=YES -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64" -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_PROJECTS=clang
+          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_FLAGS="/GS- /Oy" -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_ENABLE_ASSERTIONS=YES -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64" -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_PROJECTS=clang
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\llvm-windows-amd64
@@ -61,7 +69,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\swift-windows-amd64
-          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_CXX_FLAGS="-Wno-c++98-compat -Wno-c++98-compat-pedantic /GS- /Oy" -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr -DSWIFT_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)\llvm-windows-amd64 -DSWIFT_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark-windows-amd64 -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DSWIFT_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)\llvm-windows-amd64 -DSWIFT_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)\llvm -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(Build.StagingDirectory)\icu-63.1\include\unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(Build.StagingDirectory)\icu-63.1\lib64\icuuc.lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(Build.StagingDirectory)\icu-63.1\include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(Build.StagingDirectory)\icu-63.1\lib64\icuin.lib
+          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_CXX_FLAGS="-Wno-c++98-compat -Wno-c++98-compat-pedantic /GS- /Oy" -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DSWIFT_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)\llvm-windows-amd64 -DSWIFT_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark-windows-amd64 -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DSWIFT_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)\llvm-windows-amd64 -DSWIFT_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)\llvm -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(Build.StagingDirectory)\icu-63.1\include\unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(Build.StagingDirectory)\icu-63.1\lib64\icuuc.lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(Build.StagingDirectory)\icu-63.1\include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(Build.StagingDirectory)\icu-63.1\lib64\icuin.lib
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\swift-windows-amd64
@@ -71,11 +79,7 @@ jobs:
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\swift-windows-amd64 --target install
-      - task: ArchiveFiles@2
-        inputs:
-          rootFolderOrFile: $(Build.StagingDirectory)\Developer
-          archiveFile: $(Build.StagingDirectory)\toolchain-$(Build.BuildId).zip
       - task: PublishBuildArtifacts@1
         inputs:
-          pathtoPublish: $(Build.StagingDirectory)\toolchain-$(Build.BuildId).zip
+          pathtoPublish: $(Build.StagingDirectory)\Library
           artifactName: toolchain
