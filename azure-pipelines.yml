@@ -12,11 +12,12 @@ jobs:
     steps:
       - checkout: none
       - script: |
-          git clone --quiet --depth 1 https://github.com/apple/swift-cmark cmark
-          git clone --quiet --depth 1 https://github.com/apple/swift-llvm llvm
-          git clone --quiet --depth 1 https://github.com/apple/swift-clang clang
-          git clone --quiet --depth 1 https://github.com/apple/swift swift
-          git clone --quiet --depth 1 https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
+          git clone --quiet --depth 1 --single-branch -b release_70 https://github.com/llvm-mirror/lld lld
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
         displayName: 'Fetch Sources'
       - powershell: |
           (New-Object System.Net.WebClient).DownloadFile("http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu4c-63_1-Win64-MSVC2017.zip")
@@ -47,7 +48,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\llvm-windows-amd64
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_FLAGS="/GS- /Oy" -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_ENABLE_ASSERTIONS=YES -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64" -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_PROJECTS=clang -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES
+          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_FLAGS="/GS- /Oy" -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_ENABLE_ASSERTIONS=YES -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64" -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\llvm-windows-amd64
