@@ -33,21 +33,6 @@ jobs:
       - task: UsePythonVersion@0
         inputs:
           versionSpec: '2.7.x'
-      - script: |
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap"
-          mklink "%VCToolsInstallDir%\include\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap"
-          mklink "%VCToolsInstallDir%\include\visualc.apinotes" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes"
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap"
-        displayName: 'Configure SDK'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\cmark-windows-amd64
-          cmakeArgs: $(Build.SourcesDirectory)\cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO -DCMAKE_INSTALL_PREFIX="
-        displayName: 'Configure CMark'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\cmark-windows-amd64
-        displayName: 'Build CMark'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\llvm-windows-amd64
@@ -64,6 +49,21 @@ jobs:
       - script: |
           echo "##vso[task.setvariable variable=PATH]%PATH%;$(Install.Directory)\\bin"
         displayName: 'Update PATH'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\cmark-windows-amd64
+          cmakeArgs: $(Build.SourcesDirectory)\cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO -DCMAKE_INSTALL_PREFIX="
+        displayName: 'Configure CMark'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\cmark-windows-amd64
+        displayName: 'Build CMark'
+      - script: |
+          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap"
+          mklink "%VCToolsInstallDir%\include\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap"
+          mklink "%VCToolsInstallDir%\include\visualc.apinotes" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes"
+          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap"
+        displayName: 'Configure SDK'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\swift-windows-amd64
