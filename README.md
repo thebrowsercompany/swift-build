@@ -9,7 +9,7 @@ Windows nightlies built on Azure
 | **Windows SDK** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Windows%20SDK?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=2?branchName=master) |
 | **Android SDK** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/android%20SDK?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=4?branchName=master) |
 
-### Instructions
+### Getting Started
 
 #### Installing the nightlies
 
@@ -29,7 +29,7 @@ curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Plat
 2. You will need to have the tools in the `PATH` environment variable to use the toolchain.
 
 ```cmd
-set PATH=C:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin;%PATH%
+path C:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin;%PATH%
 set LIB=%LIB%;C:\Library\Platforms\Windows.platform\Developer\SDKs\Windows.sdk\usr\lib
 ```
 
@@ -37,6 +37,6 @@ set LIB=%LIB%;C:\Library\Platforms\Windows.platform\Developer\SDKs\Windows.sdk\u
 
 The `PATH` environment variable must contain the path to the directory containing the ICU DLLs.
 
-```
-set PATH=%PATH%;C:\Library\Platforms\Windows.platform\usr\lib
+```cmd
+path %PATH%;C:\Library\Platforms\Windows.platform\usr\lib
 ```
