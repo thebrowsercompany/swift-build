@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Windows Swift Runtime" Language="1033" Version="0.0.0.0" Manufacturer="dt.compnerd.org" UpgradeCode="bed47738-52ef-4af7-a47b-b81cf238e0c8">
+    <Package Compressed="yes" InstallScope="perMachine" Manufacturer="dt.compnerd.org" Description="Windows Swift Runtime" Comments="Copyright 2019 Saleem Abdulrasool &lt;compnerd@compnerd.org&gt;" />
+    <!--
+    NOTE(compnerd) use the pre-3.8 schema for better compatibility.  If we
+    are guaranteed WIX 3.8+ we could write this as:
+
+    <MediaTemplate EmbedCab="yes" />
+    -->
+    <Media Id="1" Cabinet="WindowsRuntimeAMD64.cab" EmbedCab="yes" />
+
+    <!-- Directory Structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="WINDOWSVOLUME">
+        <Directory Id="LIBRARY" Name="Library">
+          <Directory Id="SWIFT" Name="Swift">
+            <Directory Id="VERSION" Name="Current">
+              <Directory Id="BIN" Name="bin">
+              </Directory>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <SetDirectory Id="WINDOWSVOLUME" Value="[WindowsVolume]" />
+
+    <!-- Components -->
+    <DirectoryRef Id="BIN">
+      <Component Id="WINDOWS_SWIFT_RUNTIME" Guid="f6fc8d9b-1931-46b3-9701-534f21862a62">
+        <File Id="SWIFTCORE_DLL" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftCore.dll" />
+        <File Id="SWIFTDEMANGLE_DLL" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftDemangle.dll" />
+        <File Id="SWIFTMSVCRT_DLL" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftMSVCRT.dll" />
+        <File Id="SWIFTREMOTEMIRROR_DLL" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftRemoteMirror.dll" />
+        <File Id="SWIFTSIMDOPERATORS_DLL" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftSIMDOperators.dll" />
+        <File Id="SWIFTSWIFTONONESUPPORT_DLL" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftSwiftOnoneSupport.dll" />
+        <File Id="SWIFTWINSDK_DLL" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftWinSDK.dll" />
+      </Component>
+
+      <Component Id="WINDOWS_SWIFT_RUNTIME_DEBUGINFO" Guid="c74899fe-1d0c-48ac-bc74-505102e865ad">
+        <File Id="SWIFTCORE_PDB" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftCore.pdb" />
+        <File Id="SWIFTDEMANGLE_PDB" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftDemangle.pdb" />
+        <File Id="SWIFTMSVCRT_PDB" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftMSVCRT.pdb" />
+        <File Id="SWIFTREMOTEMIRROR_PDB" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftRemoteMirror.pdb" />
+        <File Id="SWIFTSIMDOPERATORS_PDB" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftSIMDOperators.pdb" />
+        <File Id="SWIFTSWIFTONONESUPPORT_PDB" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftSwiftOnoneSupport.pdb" />
+        <File Id="SWIFTWINSDK_PDB" Source="$(var.SWIFT_BUILD_DIR)\bin\swiftWinSDK.pdb" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Feature -->
+    <Feature Id="RUNTIME" Level="1">
+      <ComponentRef Id="WINDOWS_SWIFT_RUNTIME" />
+    </Feature>
+
+    <Feature Id="DEBUGINFO" Level="0">
+      <Condition Level="1">INSTALL_DEBUGINFO</Condition>
+      <ComponentRef Id="WINDOWS_SWIFT_RUNTIME_DEBUGINFO" />
+    </Feature>
+
+    <!-- UI -->
+    <UI />
+  </Product>
+</Wix>
