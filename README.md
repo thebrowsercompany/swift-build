@@ -21,22 +21,26 @@ curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Plat
 curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
 curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
 ```
-3. You will need to add the ICU libraries for the target.  The nightlies are built against ICU 63.1 from the ICU project.  You can download the binaries for that from http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip.  
+3. You will need to add the ICU libraries for the target.  The nightlies are built against ICU 63.1 from the ICU project.  You can download the binaries for that from http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip.
+In these instructions we assume you rename the extracted icu folder `icu4c-63_1-Win64-MSVC2017` to `icu` and move it to `C:\Library`.  
 
-#### Building swift code
+#### Building and running swift code
 
-1. The path to the import libraries needs to be added to the `LIB` environment variable.
-2. You will need to have the tools in the `PATH` environment variable to use the toolchain.
+1. To have the required Visual Studio toolchain available ensure you use the `x64 Native Tools Command Prompt for VS 2017` that came with Visual Studio. Search inside the Visual Studio application folder to find it.
+2. You need to add the folder containing `swiftc.exe` to the `PATH` environment variable to use the toolchain.
+3. You also need to add the folder containing the icu dlls to the `PATH` environment variable. 
 
+This can be achieved by entering the following into the command line.
 ```cmd
-path C:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin;%PATH%
-set LIB=%LIB%;C:\Library\Platforms\Windows.platform\Developer\SDKs\Windows.sdk\usr\lib
+path %PATH%;C:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin
+path %PATH%;C:\Library\icu\bin64`
 ```
 
-#### Running swift code
-
-The `PATH` environment variable must contain the path to the directory containing the ICU DLLs.
+Alternatively, to make these changes persistent go to the Windows environment variables edit dialog found in System_Properties > Advanced > Environment_Variables and edit the path variable to add the following two new items.
 
 ```cmd
-path %PATH%;C:\Library\Platforms\Windows.platform\usr\lib
+C:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin
+C:\Library\icu\bin64
 ```
+
+NB. when editing the environment variables using this dialog Windows must be restarted in order for changes to take effect.
