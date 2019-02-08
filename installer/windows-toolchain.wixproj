@@ -1,23 +1,61 @@
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <SchemaVersion>2.0</SchemaVersion>
-    <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' ">$(MSBuildExtensionsPath)\Microsoft\WiX\v3.x\wix.targets</WixTargetsPath>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' ">$(MSBuildExtensionsPath)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
+  </PropertyGroup>
+
   <PropertyGroup>
     <ProjectGuid>6c7a4772-77e1-4d3e-a7e8-ebf01a8965ef</ProjectGuid>
     <ProductVersion>0.0.0</ProductVersion>
     <OutputName>toolchain</OutputName>
     <OutputType>Package</OutputType>
   </PropertyGroup>
+
   <PropertyGroup>
     <OutputPath>build\</OutputPath>
     <IntermediateOutputPath>obj\</IntermediateOutputPath>
+    <DefineSolutionProperties>false</DefineSolutionProperties>
   </PropertyGroup>
+
   <PropertyGroup>
-    <DefineConstants>LLVM_BUILD_DIR=$(LLVM_BUILD_DIR);CLANG_BUILD_DIR=$(CLANG_BUILD_DIR);LLDB_BUILD_DIR=$(LLDB_BUILD_DIR);SWIFT_BUILD_DIR=$(SWIFT_BUILD_DIR)</DefineConstants>
+    <CLANG_BUILD_DIR Condition=" '$(CLANG_BUILD_DIR)' == '' ">S:\b\llvm</CLANG_BUILD_DIR>
+    <LLDB_BUILD_DIR Condition=" '$(LLDB_BUILD_DIR)' == '' ">S:\b\lldb</LLDB_BUILD_DIR>
+    <LLVM_BUILD_DIR Condition=" '$(LLVM_BUILD_DIR)' == '' ">S:\b\llvm</LLVM_BUILD_DIR>
+    <SWIFT_BUILD_DIR Condition=" '$(SWIFT_BUILD_DIR)' == '' ">S:\b\swift</SWIFT_BUILD_DIR>
   </PropertyGroup>
+
+  <Import Project="$(WixTargetsPath)" />
+
+  <PropertyGroup>
+    <DefineConstants>LLVM_BUILD_DIR=$(LLVM_BUILD_DIR);CLANG_BUILD_DIR=$(CLANG_BUILD_DIR);LLDB_BUILD_DIR=$(LLDB_BUILD_DIR);SWIFT_BUILD_DIR=$(SWIFT_BUILD_DIR);SWIFT_BUILD_DIR_LIB_SWIFT_SHIMS=$(SWIFT_BUILD_DIR)\lib\swift\shims;CLANG_BUILD_DIR_LIB_CLANG=$(CLANG_BUILD_DIR)\lib\clang</DefineConstants>
+    <HarvestDirectoryAutogenerateGuids>false</HarvestDirectoryAutogenerateGuids>
+    <HarvestDirectoryGenerateGuidsNow>true</HarvestDirectoryGenerateGuidsNow>
+    <HarvestDirectoryNoLogo>true</HarvestDirectoryNoLogo>
+    <HarvestDirectorySuppressCom>true</HarvestDirectorySuppressCom>
+    <HarvestDirectorySuppressFragments>true</HarvestDirectorySuppressFragments>
+    <HarvestDirectorySuppressRegistry>true</HarvestDirectorySuppressRegistry>
+    <HarvestDirectorySuppressRootDirectory>true</HarvestDirectorySuppressRootDirectory>
+  </PropertyGroup>
+
+  <Target Name="BeforeBuild">
+    <ItemGroup>
+      <HarvestDirectory Include="$(SWIFT_BUILD_DIR)\lib\swift\shims">
+        <ComponentGroupName>SWIFT_SHIMS</ComponentGroupName>
+        <DirectoryRefId>USR_LIB_SWIFT_SHIMS</DirectoryRefId>
+        <PreprocessorVariable>var.SWIFT_BUILD_DIR_LIB_SWIFT_SHIMS</PreprocessorVariable>
+      </HarvestDirectory>
+      <HarvestDirectory Include="$(CLANG_BUILD_DIR)\lib\clang">
+        <ComponentGroupName>CLANG_RESOURCES</ComponentGroupName>
+        <DirectoryRefId>USR_LIB_CLANG</DirectoryRefId>
+        <PreprocessorVariable>var.CLANG_BUILD_DIR_LIB_CLANG</PreprocessorVariable>
+      </HarvestDirectory>
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <Compile Include="windows-toolchain.wxs" />
   </ItemGroup>
-  <Import Project="$(WixTargetsPath)" />
 </Project>
