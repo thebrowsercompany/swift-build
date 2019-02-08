@@ -138,8 +138,20 @@ jobs:
 
           candle -nologo -dCLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -dLLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -dLLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -dSWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift $(Build.SourcesDirectory)\installer\windows-runtime.wxs -out $(Build.StagingDirectory)\MSIs\windows-sdk.wixobj
           light -nologo -out $(Build.StagingDirectory)\windows-sdk.msi $(Build.StagingDirectory)\MSIs\windows-sdk.wixobj
+      - task: PublishBuildArtifacts@1
+        inputs:
+            pathtoPublish: $(Build.StagingDirectory)\windows-toolchain-amd64.msi
+            artifactName: windows-toolchain-installer
+      - task: PublishBuildArtifacts@1
+        inputs:
+            pathtoPublish: $(Build.StagingDirectory)\windows-sdk.msi
+            artifactName: windows-sdk-installer
+      - task: PublishBuildArtifacts@1
+        inputs:
+            pathtoPublish: $(Build.StagingDirectory)\windows-runtime-amd64.msi
+            artifactName: windows-runtime-installer
       - script: |
-          echo "##vso[task.setvariable variable=PATH]%PATH%;$(Build.StagingDirectory)\\icu-63.1\\bin64;%ProgramFiles(x86)%\GnuWin32\bin;%ALLUSERSPROFILE%\chocolatey\lib\diffutils\tools;%ALLUSERSPROFILE%\chocolatey\lib\grep\tools\install;;%ALLUSERSPROFILE%\chocolatey\lib\sed\tools"
+          echo "##vso[task.setvariable variable=PATH]%PATH%;$(Build.StagingDirectory)\\icu-63.1\\bin64;%ProgramFiles(x86)%\\GnuWin32\bin;%ALLUSERSPROFILE%\\chocolatey\\lib\\diffutils\\tools;%ALLUSERSPROFILE%\\chocolatey\\lib\\grep\\tools\\install;%ALLUSERSPROFILE%\\chocolatey\\lib\\sed\tools"
         displayName: 'Update PATH'
       - task: CMake@1
         inputs:
