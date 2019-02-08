@@ -1,4 +1,4 @@
-# **swift on Windows**
+# **Swift on Windows**
 Windows nightlies built on Azure
 
 ### Status
@@ -36,11 +36,11 @@ path %PATH%;C:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolch
 path %PATH%;C:\Library\icu\bin64`
 ```
 
-Alternatively, to make these changes persistent go to the Windows environment variables edit dialog found in System_Properties > Advanced > Environment_Variables and edit the path variable to add the following two new items.
+Alternatively, to make these changes persistent go to the Windows environment variables edit dialog found in `System Properties` > `Advanced` > `Environment Variables` and edit the path variable to add the following two new items.
 
 ```cmd
 C:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin
 C:\Library\icu\bin64
 ```
 
-NB. when editing the environment variables using this dialog Windows must be restarted in order for changes to take effect.
+**Note:** After modifying the environment variables using this dialog, running applications must be restarted in order for changes to take effect.
