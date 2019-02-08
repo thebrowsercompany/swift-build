@@ -126,38 +126,30 @@ jobs:
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
           artifactName: toolchain
-      - script: |
-          heat dir $(Build.StagingDirectory)\llvm\lib\clang -nologo -indent 2 -cg CLANG_RESOURCES -gg -scom -sreg -sfrag -srd -dr USR_LIB_CLANG -g1 -var var.CLANG_BUILD_DIR_LIB_CLANG -out $(Build.StagingDir)\MSIs\clang-resource-dir.wxs
-          candle -nologo -dCLANG_BUILD_DIR_LIB_CLANG=$(Build.StagingDir)\lib\clang $(Build.StagingDir)\MSIs\clang-resource-dir.wxs -out $(Build.StagingDirectory)\MSIs\clang-resource-dir.wixobj
-
-          heat dir $(Build.StagingDirectory)\swift\lib\swift\shims -nologo -indent 2 -cg SWIFT_SHIMS -gg -scom -sreg -sfrag -srd -dr USR_LIB_SWIFT_SHIMS -g1 -var var.SWIFT_BUILD_DIR_LIB_SWIFT_SHIMS -out $(Build.StagingDir)\MSIs\swift-shims.wxs
-          candle -nologo -dSWIFT_BUILD_DIR_LIB_SWIFT_SHIMS=$(Build.StagingDir)\swift\lib\swift\shims $(Build.StagingDir)\MSIs\swift-shims.wxs -out $(Build.StagingDirectory)\MSIs\swift-shims.wixobj
-
-          candle -nologo -dCLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -dLLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -dLLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -dSWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift $(Build.SourcesDirectory)\installer\windows-toolchain.wxs -out $(Build.StagingDirectory)\MSIs\windows-toolchain.wixobj
-          light -nologo -out $(Build.StagingDirectory)\windows-toolchain-amd64.msi $(Build.StagingDirectory)\MSIs\windows-toolchain.wixobj $(Build.StagingDirectory)\MSIs\clang-resource-dir.wixobj $(Build.StagingDirectory)\MSIs\swift-shims.wixobj
-
-          candle -nologo -dCLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -dLLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -dLLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -dSWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift $(Build.SourcesDirectory)\installer\windows-runtime.wxs -out $(Build.StagingDirectory)\MSIs\windows-runtime.wixobj
-          light -nologo -out $(Build.StagingDirectory)\windows-runtime-amd64.msi $(Build.StagingDirectory)\MSIs\windows-runtime.wixobj
-
-          candle -nologo -dCLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -dLLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -dLLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -dSWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift $(Build.SourcesDirectory)\installer\windows-runtime.wxs -out $(Build.StagingDirectory)\MSIs\windows-sdk.wixobj
-          light -nologo -out $(Build.StagingDirectory)\windows-sdk.msi $(Build.StagingDirectory)\MSIs\windows-sdk.wixobj
-        displayName: 'Build MSIs'
-        enabled: false
+      - task: MSBuild@1
+        inputs:
+          solution: $(Build.SourcesDirectory)\installer\windows-toolchain.wixproj
+        displayName: "Build windows-toolchain-amd64.msi"
       - task: PublishBuildArtifacts@1
         inputs:
-            pathtoPublish: $(Build.StagingDirectory)\windows-toolchain-amd64.msi
-            artifactName: windows-toolchain-installer
-        enabled: false
+          pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-toolchain-amd64.msi
+          artifactName: windows-toolchain-amd64.msi
+      - task: MSBuild@1
+        inputs:
+          solution: $(Build.SourcesDirectory)\installer\windows-runtime.wixproj
+        displayName: "Build windows-runtime-amd64.msi"
       - task: PublishBuildArtifacts@1
         inputs:
-            pathtoPublish: $(Build.StagingDirectory)\windows-sdk.msi
-            artifactName: windows-sdk-installer
-        enabled: false
+          pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-runtime-amd64.msi
+          artifactName: windows-runtime-amd64.msi
+      - task: MSBuild@1
+        inputs:
+          solution: $(Build.SourcesDirectory)\installer\windows-sdk.wixproj
+        displayName: "Build windows-sdk.msi"
       - task: PublishBuildArtifacts@1
         inputs:
-            pathtoPublish: $(Build.StagingDirectory)\windows-runtime-amd64.msi
-            artifactName: windows-runtime-installer
-        enabled: false
+          pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-sdk.msi
+          artifactName: windows-sdk.msi
       - script: |
           echo "##vso[task.setvariable variable=PATH]%PATH%;$(Build.StagingDirectory)\\icu-63.1\\bin64;%ProgramFiles(x86)%\\GnuWin32\bin;%ALLUSERSPROFILE%\\chocolatey\\lib\\diffutils\\tools;%ALLUSERSPROFILE%\\chocolatey\\lib\\grep\\tools\\install;%ALLUSERSPROFILE%\\chocolatey\\lib\\sed\tools"
         displayName: 'Update PATH'
