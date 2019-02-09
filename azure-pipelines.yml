@@ -2,6 +2,7 @@ name: swift
 variables:
   Install.Directory: $(Build.StagingDirectory)\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr
 jobs:
+  - checkout: none
   - job: windows
     # NOTE(compnerd) this is an open source project built on hosted machines, so
     # this time out is actually 6 hours.  Sadly, this is not very long given the
@@ -128,28 +129,37 @@ jobs:
           solution: $(Build.SourcesDirectory)\installer\windows-toolchain.wixproj
           msbuildArguments: -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
         displayName: "Build windows-toolchain-amd64.msi"
+        enabled: false
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-toolchain-amd64.msi
           artifactName: windows-toolchain-amd64.msi
+        displayName: "Publish windows-toolchain-amd64.msi"
+        enabled: false
       - task: MSBuild@1
         inputs:
           solution: $(Build.SourcesDirectory)\installer\windows-runtime.wixproj
           msbuildArguments: -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
         displayName: "Build windows-runtime-amd64.msi"
+        enabled: false
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-runtime-amd64.msi
           artifactName: windows-runtime-amd64.msi
+        displayName: "Publish windows-runtime-amd64.msi"
+        enabled: false
       - task: MSBuild@1
         inputs:
           solution: $(Build.SourcesDirectory)\installer\windows-sdk.wixproj
           msbuildArguments: -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
         displayName: "Build windows-sdk.msi"
+        enabled: false
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-sdk.msi
           artifactName: windows-sdk.msi
+        displayName: "Publish windows-sdk.msi"
+        enabled: false
       - script: |
           echo "##vso[task.setvariable variable=PATH]%PATH%;$(Build.StagingDirectory)\\icu-63.1\\bin64;%ProgramFiles(x86)%\\GnuWin32\bin;%ALLUSERSPROFILE%\\chocolatey\\lib\\diffutils\\tools;%ALLUSERSPROFILE%\\chocolatey\\lib\\grep\\tools\\install;%ALLUSERSPROFILE%\\chocolatey\\lib\\sed\tools"
         displayName: 'Update PATH'
