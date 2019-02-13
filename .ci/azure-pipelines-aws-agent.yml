@@ -25,19 +25,25 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
         displayName: 'Fetch Sources'
+        enabled: false
       - powershell: |
           (New-Object System.Net.WebClient).DownloadFile("http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu4c-63_1-Win64-MSVC2017.zip")
           Add-Type -A System.IO.Compression.FileSystem
           [IO.Compression.ZipFile]::ExtractToDirectory("$(Build.StagingDirectory)\\icu4C-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu-63.1")
         displayName: 'Fetch ICU'
+        enabled: false
       - script: choco install -y gnuwin32-coreutils.install
         displayName: 'Install GNU coreutils'
+        enabled: false
       - script: choco install -y diffutils
         displayName: 'Install GNU diffutils'
+        enabled: false
       - script: choco install -y grep
         displayName: 'Install GNU grep'
+        enabled: false
       - script: choco install -y sed
         displayName: 'Install GNU sed'
+        enabled: false
       - task: BatchScript@1
         inputs:
           filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\Common7\\Tools\\VsDevCmd.bat
@@ -52,14 +58,17 @@ jobs:
           workingDirectory: $(Build.StagingDirectory)\llvm
           cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_FLAGS="/GS- /Oy" -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_ENABLE_ASSERTIONS=YES -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64" -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_PROJECTS="clang" -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DLLVM_TOOLCHAIN_TOOLS="dsymutil;llvm-ar;llvm-cov;llvm-cvtres;llvm-cxxdump;llvm-cxxfilt;llvm-dlltool;llvm-dwp;llvm-ranlib;llvm-lib;llvm-mt;llvm-nm;llvm-objdump;llvm-pdbutil;llvm-profdata;llvm-rc;llvm-readelf;llvm-readobj;llvm-size;llvm-strip;llvm-symbolizer;llvm-undname"
         displayName: 'Configure LLVM/clang'
+        enabled: false
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\llvm
         displayName: 'Build LLVM/clang'
+        enabled: false
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\llvm --target install
         displayName: 'Install LLVM/clang'
+        enabled: false
       - script: |
           echo "##vso[task.setvariable variable=PATH]%PATH%;$(Install.Directory)\\bin"
         displayName: 'Update PATH'
@@ -68,15 +77,18 @@ jobs:
           workingDirectory: $(Build.StagingDirectory)\cmark
           cmakeArgs: $(Build.SourcesDirectory)\cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_EXE_LINKER_FLAGS="/INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS="/INCREMENTAL:NO -DCMAKE_INSTALL_PREFIX="
         displayName: 'Configure CMark'
+        enabled: false
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\cmark
         displayName: 'Build CMark'
+        enabled: false
       - script: |
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap" "%VCToolsInstallDir%\include\module.modulemap"
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes" "%VCToolsInstallDir%\include\visualc.apinotes"
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
+          echo copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
+          echo copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap" "%VCToolsInstallDir%\include\module.modulemap"
+          echo copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes" "%VCToolsInstallDir%\include\visualc.apinotes"
+          echo copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
+          exit 1
         displayName: 'Configure SDK'
       - task: CMake@1
         inputs:
