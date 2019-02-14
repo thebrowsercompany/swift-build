@@ -1,0 +1,57 @@
+name: android-sdk
+variable:
+  Install.Directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk\usr
+jobs:
+  - job: SDK
+    timeoutInMinutes: 0
+    pool:
+      vmImage: 'vs2017-win2016'
+    steps:
+      - script: |
+          git config --global user.name 'builder'
+          git config --global user.email 'root@compnerd.org'
+
+          git -c core.autocrlf=false clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
+          git -c core.autocrlf=false clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+          git -c core.autocrlf=false clone --quiet --branch release-63-1 --depth 1 --single-branch https://github.com/unicode-org/icu.git icu
+        displayName: 'Fetch Sources'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 1
+          artifactName: 'toolchain'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: "Install Toolchain"
+      - script: |
+          echo "##vso[task.setvariable variable=PATH]$(System.ArtifactsDirectory)\\toolchain\\Developer\\Toolchains\\unknown-Asserts-development.xctoolchain\\usr\\bin;%PATH%"
+        displayName: 'Update PATH'
+      - script: |
+          copy /y $(Build.SourcesDirectory)\cmake\ICU\CMakeLists.txt $(Build.SourcesDirectory)\icu\icu4c
+        displayName: "CMake-ify ICU"
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\icu
+          cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DCMAKE_SYSTEM_NAME=Android -CMAKE_SYSTEM_VERSION=21 -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a -DCMAKE_ANDROID_NDK=C:/Microsoft/AndroidNDK64/android-r15c -DCMAKE_ANDROID_NDK_TOOLCHAIN_VERSION=clang
+        displayName: 'Configure ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu
+        displayName: 'Build ICU'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\swift
+          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -CMAKE_INSTALL_PREFIX=$(Install.Directory) -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang -DSWIFT_INCLUDE_TOOLS=NO -DSWIFT_PRIMARY_VARIANT_SDK=ANDROID -DSWIFT_PRIMARY_VARIANT_ARCH=aarch64 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DSWIFT_ANDROID_aarch64_ICU_UC_INCLUDE=$(Build.SourcesDirectory)\icu\icu4c\common -DSWIFT_ANDROID_aarch64_ICU_UC=$(Build.StagingDirectory)\icu\libicuuc.a -DSWIFT_ANDROID_aarch64_ICU_I18N_INCLUDE=$(Build.SourcesDirectory)\icu\icu4c\i8n -DSWIFT_ANDROID_aarch64_ICU_I18N=$(Build.StagingDirectory)\icu\libicuin.a
+        displayName: 'Configure Swift Standard Library'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\swift
+        displayName: 'Building Swift Standard Library'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\swift --target install
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          artifactName: android-aarch64-sdk
+
