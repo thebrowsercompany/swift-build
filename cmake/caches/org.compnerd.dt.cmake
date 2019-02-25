@@ -90,12 +90,3 @@ set(CLANG_TOOLS
       clang-tidy
     CACHE STRING "")
 
-set(LLVM_DISTRIBUTION_COMPONENTS
-      LTO
-      IndexStore
-      libclang
-      libclang-headers
-      ${LLVM_TOOLCHAIN_TOOLS}
-      ${CLANG_TOOLS}
-    CACHE STRING "")
-
