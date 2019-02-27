@@ -13,7 +13,16 @@ jobs:
           git config --global user.email 'root@compnerd.org'
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
+
+          git clone --quiet --depth 1 --single-branch https://gitlab.gnome.org/GNOME/libxml2.git libxml2
+          git clone --quiet --depth 1 --single-branch https://github.com/curl/curl.git curl
         displayName: 'Fetch Sources'
+      - powershell: |
+          (New-Object System.Net.WebClient).DownloadFile("http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu4c-63_1-Win64-MSVC2017.zip")
+          Add-Type -A System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory("$(Build.StagingDirectory)\\icu4C-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu-63.1")
       - task: BatchScript@1
         inputs:
           filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
@@ -47,6 +56,19 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
         displayName: 'Install libdispatch'
+      - script: |
+          cd $(Build.SourcesDirectory)\libxml2\win32
+          cscript configure.js iconv=no
+          nmake /f Makefile.msvc
+        displayName: 'build libxml2'
+      - script: |
+          cd $(Build.SourcesDirectory)\curl\winbuild
+          nmake /f Makefile.vc mode=static VC=15 MACHINE=x64
+        displayName: 'build curl'
+      - task: CMake@1
+          workingDirectory: $(Build.StagingDirectory)\foundation
+          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCURL_LIBRARY="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/lib/libcurl_a.lib" -DCURL_INCLUDE_DIR="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/include"^ -DICU_ROOT="$(Build.StagingDirectory)\\icu-63.1" -DLIBXML2_LIBRARY="$(Build.SourcesDirectory/libxml2/win32/bin.msvc/libxml2_a.lib" -DLIBXML2_INCLUDE_DIR="$(Build.SourcesDirectory)/libxml2/include" -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\\libdispatch $(Build.SourcesDirectory)\\swift-corelibs-foundation
+        displayName: 'Configure Foundation'
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
