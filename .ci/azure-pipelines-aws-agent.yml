@@ -1,5 +1,6 @@
 name: swift
 variables:
+  system.debug: true
   Install.Directory: $(Build.StagingDirectory)\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr
 jobs:
   - job: windows
@@ -10,26 +11,26 @@ jobs:
     pool:
       name: Default
     steps:
-      - script: |
-          git config --global core.autocrlf false
+      # - script: |
+      #     git config --global core.autocrlf false
 
-          git config --global user.name 'root'
-          git config --global user.email 'root@compnerd.org'
+      #     git config --global user.name 'root'
+      #     git config --global user.email 'root@compnerd.org'
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
-          git clone --quiet --depth 1 --single-branch -b release_70 https://github.com/llvm-mirror/lld lld
+      #     git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
+      #     git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
+      #     git clone --quiet --depth 1 --single-branch -b release_70 https://github.com/llvm-mirror/lld lld
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
-        displayName: 'Fetch Sources'
-      - powershell: |
-          (New-Object System.Net.WebClient).DownloadFile("http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu4c-63_1-Win64-MSVC2017.zip")
-          Add-Type -A System.IO.Compression.FileSystem
-          [IO.Compression.ZipFile]::ExtractToDirectory("$(Build.StagingDirectory)\\icu4C-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu-63.1")
-        displayName: 'Fetch ICU'
+      #     git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
+      #     git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
+      #     git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
+      #     git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+      #   displayName: 'Fetch Sources'
+      # - powershell: |
+      #     (New-Object System.Net.WebClient).DownloadFile("http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu4c-63_1-Win64-MSVC2017.zip")
+      #     Add-Type -A System.IO.Compression.FileSystem
+      #     [IO.Compression.ZipFile]::ExtractToDirectory("$(Build.StagingDirectory)\\icu4C-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu-63.1")
+      #   displayName: 'Fetch ICU'
       #- script: choco install -y gnuwin32-coreutils.install
       #  displayName: 'Install GNU coreutils'
       #- script: choco install -y diffutils
@@ -64,7 +65,7 @@ jobs:
           echo "##vso[task.setvariable variable=PATH]%PATH%;$(Install.Directory)\\bin"
         displayName: 'Update PATH'
       - script: |
-          Write-Host $env:PATH
+          echo %PATH%
         displayName: Print PATH
       # - task: CMake@1
       #   inputs:
@@ -159,7 +160,7 @@ jobs:
           echo "##vso[task.setvariable variable=PATH]$(Build.StagingDirectory)\icu-63.1\bin64;$(Install.Directory)\bin;$(Build.StagingDirectory)\swift\libdispatch-prefix\bin;%PATH%;%ProgramFiles%\Git\usr\bin"
         displayName: 'Update PATH'
       - script: |
-          Write-Host $env:PATH
+          echo %PATH%
         displayName: Print PATH
       # - task: CMake@1
       #   inputs:
