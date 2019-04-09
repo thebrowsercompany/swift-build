@@ -44,6 +44,12 @@ jobs:
       - script: |
           echo "##vso[task.setvariable variable=PATH]$(System.ArtifactsDirectory)\\toolchain\\Developer\\Toolchains\\unknown-Asserts-development.xctoolchain\\usr\\bin;%PATH%"
         displayName: 'Update PATH'
+      - script: |
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%\include\module.modulemap"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
+        displayName: 'Configure SDK'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\libdispatch
@@ -66,11 +72,8 @@ jobs:
           cd $(Build.SourcesDirectory)\curl
           cmd /c .\buildconf.bat
           cd winbuild
-          cd
           nmake /f Makefile.vc mode=static VC=15 MACHINE=x64 GEN_PDB=yes
         displayName: 'build curl'
-      - script: |
-          dir "$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/include"
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\\foundation
