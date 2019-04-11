@@ -88,6 +88,19 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\foundation --target install
         displayName: 'Install Foundation'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\xctest
+          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)\foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=S(Build.StagingDirectory)\libdispatch $(Build.SourcesDirectory)\swift-corelibs-xctest
+        displayName: 'Configure XCTest'
+      - task: CMake@1
+        inputs:
+          cmadArgs: --build $(Build.StagingDirectory)\xctest
+        displayName: 'Build XCTest'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\xctest --target install
+        displayName: 'Install XCTest'
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
