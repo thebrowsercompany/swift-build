@@ -16,6 +16,8 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
 
+          git -C swift-corelibs-xctest pull origin pull/262/head
+
           git clone --quiet --depth 1 --single-branch https://gitlab.gnome.org/GNOME/libxml2.git libxml2
           git clone --quiet --depth 1 --single-branch https://github.com/curl/curl.git curl
         displayName: 'Fetch Sources'
@@ -91,7 +93,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\xctest
-          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang-cl -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)\foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=S(Build.StagingDirectory)\libdispatch $(Build.SourcesDirectory)\swift-corelibs-xctest
+          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang-cl -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=NO -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)\foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=S(Build.StagingDirectory)\libdispatch $(Build.SourcesDirectory)\swift-corelibs-xctest
         displayName: 'Configure XCTest'
         continueOnError: true
       - task: CMake@1
