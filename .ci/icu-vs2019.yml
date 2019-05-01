@@ -1,0 +1,64 @@
+name: icu
+variables:
+  Install.Directory: $(Build.StagingDirectory)\Library\ICU-development
+jobs:
+  - job: windows-arm64
+    pool: 'windows-2019'
+    steps:
+      - script: |
+          git clone --quiet --depth 1 --single-branch https://github.com/unicode-org/icu.git
+          copy $(Build.SourcesDirectory)\cmake\ICU\CMakeLists.txt icu\icu4c
+        displayName: 'Fetch Sources'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
+          arguments: -no_logo -arch=arm64 -host_arch=x64
+          modifyEnvironment: true
+        displayName: 'vcvarsall.bat'
+      - task: CMake@1
+        inputs:
+          workingDirctory: $(Build.StagingDirectory)\icu
+          cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=YES
+        displayName: 'Configure ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu
+        displayName: 'Build ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu --target install
+        displayName: 'Install ICU'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          artifactName: icu-win-arm64
+  - job: windows-x64
+    pool: 'windows-2019'
+    steps:
+      - script: |
+          git clone --quiet --depth 1 --single-branch https://github.com/unicode-org/icu.git
+          copy $(Build.SourcesDirectory)\cmake\ICU\CMakeLists.txt icu\icu4c
+        displayName: 'Fetch Sources'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
+          arguments: -no_logo -arch=x64
+          modifyEnvironment: true
+        displayName: 'vcvarsall.bat'
+      - task: CMake@1
+        inputs:
+          workingDirctory: $(Build.StagingDirectory)\icu
+          cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=YES
+        displayName: 'Configure ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu
+        displayName: 'Build ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu --target install
+        displayName: 'Install ICU'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          artifactName: icu-win-x64
