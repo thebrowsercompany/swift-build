@@ -2,20 +2,25 @@ cmake_minimum_required(VERSION 3.12.3)
 
 project(ICU LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
-  if(CMAKE_CXX_COMPILER_ID STREQUAL MSVC)
-    add_definitions(/D_HAS_EXCEPTIONS=0)
-    add_compile_options(/EHs-c-)
-  endif()
+  add_definitions(-D_HAS_EXCEPTIONS=0)
   add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
+  add_definitions(-DU_PLATFORM_USES_ONLY_WIN32_API=1)
+  add_compile_options(/EHs-c-)
   add_compile_options(/utf-8)
+  add_compile_options(/GF)
+  add_compile_options(/Gy)
 endif()
 
 add_definitions(-DU_ATTRIBUTE_DEPRECATED=)
 add_definitions(-DU_DISABLE_RENAMING=1)
+# add_definitions(-DU_HIDE_DRAFT_API=1)
+# add_definitions(-DU_HIDE_DEPRECATED_API=1)
 add_definitions(-DU_ENABLE_DYLOAD=0)
 
 if(CMAKE_SYSTEM_NAME STREQUAL Linux OR CMAKE_SYSTEM_NAME STREQUAL Android)
@@ -85,6 +90,7 @@ add_library(icuuc
             source/common/resbund.cpp
             source/common/resbund_cnv.cpp
             source/common/ucurr.cpp
+            source/common/localebuilder.cpp
             source/common/messagepattern.cpp
             source/common/ucat.cpp
             source/common/locmap.cpp
@@ -217,6 +223,9 @@ add_library(icuuc
             source/common/ubiditransform.cpp
             source/common/pluralmap.cpp
             source/common/static_unicode_sets.cpp)
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+  target_sources(icuuc PRIVATE source/common/common.rc)
+endif()
 target_compile_definitions(icuuc PRIVATE U_COMMON_IMPLEMENTATION)
 target_link_libraries(icuuc PRIVATE icudt)
 
@@ -416,12 +425,12 @@ add_library(icuin
             source/i18n/number_longnames.cpp
             source/i18n/number_modifiers.cpp
             source/i18n/number_notation.cpp
+            source/i18n/number_output.cpp
             source/i18n/number_padding.cpp
             source/i18n/number_patternmodifier.cpp
             source/i18n/number_patternstring.cpp
             source/i18n/number_rounding.cpp
             source/i18n/number_scientific.cpp
-            source/i18n/number_stringbuilder.cpp
             source/i18n/number_utils.cpp
             source/i18n/number_asformat.cpp
             source/i18n/number_mapper.cpp
@@ -436,7 +445,7 @@ add_library(icuin
             source/i18n/double-conversion-diy-fp.cpp
             source/i18n/double-conversion-fast-dtoa.cpp
             source/i18n/double-conversion-strtod.cpp
-            source/i18n/numparse_stringsegment.cpp
+            source/i18n/string_segment.cpp
             source/i18n/numparse_parsednumber.cpp
             source/i18n/numparse_impl.cpp
             source/i18n/numparse_symbols.cpp
@@ -448,8 +457,23 @@ add_library(icuin
             source/i18n/numparse_validators.cpp
             source/i18n/numrange_fluent.cpp
             source/i18n/numrange_impl.cpp
-            source/i18n/erarules.cpp)
+            source/i18n/erarules.cpp
+            source/i18n/formattedvalue.cpp
+            source/i18n/formattedval_iterimpl.cpp
+            source/i18n/formattedval_sbimpl.cpp
+            source/i18n/formatted_string_builder.cpp)
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+  target_sources(icuin PRIVATE source/i18n/i18n.rc)
+endif()
 target_include_directories(icuin PRIVATE source/i18n)
 target_compile_definitions(icuin PRIVATE U_I18N_IMPLEMENTATION)
 target_link_libraries(icuin PRIVATE icuuc)
 
+install(TARGETS icuuc icuin
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin)
+install(DIRECTORY source/common/unicode
+        DESTINATION ${CMAKE_INSTALL_FULL_INCLUDEDIR})
+install(DIRECTORY source/i18n/unicode
+        DESTINATION ${CMAKE_INSTALL_FULL_INCLUDEDIR})
