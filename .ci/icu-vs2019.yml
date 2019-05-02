@@ -64,3 +64,65 @@ jobs:
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
           artifactName: icu-win-x64
+  - job: android_armeabi
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+      - script: |
+          git clone --quiet --depth 1 --single-branch https://github.com/unicode-org/icu.git
+          copy $(Build.SourcesDirectory)\cmake\ICU\CMakeLists.txt icu\icu4c
+        displayName: 'Fetch Sources'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
+          arguments: -no_logo -arch=x64
+          modifyEnvironment: true
+        displayName: 'vcvarsall.bat'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\icu
+          cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=YES -DCMAKE_SYSTEM_NAME=Android -DCMAKE_SYSTEM_VERSION=21 -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a -DCMAKE_ANDROID_NDK=C:/Microsoft/AndroidNDK64/android-ndk-r16b -DCMAKE_ANDROID_NDK_TOOLCHAIN_VERSION=clang -DCMAKE_ANDROID_STL_TYPE=c++_shared -DCMAKE_ANDROID_ARM_NODE=NO -DCMAKE_ANDROID_ARM_NEON=YES
+        displayName: 'Configure ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu
+        displayName: 'Build ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu --target install
+        displayName: 'Install ICU'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          artifactName: icu-android-arm
+  - job: android_arm64
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+      - script: |
+          git clone --quiet --depth 1 --single-branch https://github.com/unicode-org/icu.git
+          copy $(Build.SourcesDirectory)\cmake\ICU\CMakeLists.txt icu\icu4c
+        displayName: 'Fetch Sources'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
+          arguments: -no_logo -arch=x64
+          modifyEnvironment: true
+        displayName: 'vcvarsall.bat'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\icu
+          cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=YES -DCMAKE_SYSTEM_NAME=Android -DCMAKE_SYSTEM_VERSION=21 -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a -DCMAKE_ANDROID_NDK=C:/Microsoft/AndroidNDK64/android-ndk-r16b -DCMAKE_ANDROID_NDK_TOOLCHAIN_VERSION=clang -DCMAKE_ANDROID_STL_TYPE=c++_shared
+        displayName: 'Configure ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu
+        displayName: 'Build ICU'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\icu --target install
+        displayName: 'Install ICU'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          artifactName: icu-android-arm64
