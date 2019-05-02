@@ -473,7 +473,7 @@ target_include_directories(icuin PRIVATE source/i18n)
 target_compile_definitions(icuin PRIVATE U_I18N_IMPLEMENTATION)
 target_link_libraries(icuin PRIVATE icuuc)
 
-install(TARGETS icuuc icuin
+install(TARGETS icuuc icuin icudt
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin)
