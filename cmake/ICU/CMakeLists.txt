@@ -31,6 +31,10 @@ include_directories(source/common)
 
 add_library(icudt
             source/stubdata/stubdata.cpp)
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+  target_sources(icudt PRIVATE source/data/misc/icudata.rc)
+endif()
+target_compile_definitions(icudt PRIVATE STUBDATA_BUILD)
 
 add_library(icuuc
             source/common/errorcode.cpp
