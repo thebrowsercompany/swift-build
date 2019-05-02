@@ -18,7 +18,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
 endif()
 
 add_definitions(-DU_ATTRIBUTE_DEPRECATED=)
-add_definitions(-DU_DISABLE_RENAMING=1)
+add_definitions(-DU_DISABLE_RENAMING=0)
 # add_definitions(-DU_HIDE_DRAFT_API=1)
 # add_definitions(-DU_HIDE_DEPRECATED_API=1)
 add_definitions(-DU_ENABLE_DYLOAD=0)
