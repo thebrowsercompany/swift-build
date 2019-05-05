@@ -435,6 +435,7 @@ add_library(icuin
             source/i18n/number_patternstring.cpp
             source/i18n/number_rounding.cpp
             source/i18n/number_scientific.cpp
+            source/i18n/number_stringbuilder.cpp
             source/i18n/number_utils.cpp
             source/i18n/number_asformat.cpp
             source/i18n/number_mapper.cpp
@@ -449,7 +450,7 @@ add_library(icuin
             source/i18n/double-conversion-diy-fp.cpp
             source/i18n/double-conversion-fast-dtoa.cpp
             source/i18n/double-conversion-strtod.cpp
-            source/i18n/string_segment.cpp
+            source/i18n/numparse_stringsegment.cpp
             source/i18n/numparse_parsednumber.cpp
             source/i18n/numparse_impl.cpp
             source/i18n/numparse_symbols.cpp
@@ -464,8 +465,7 @@ add_library(icuin
             source/i18n/erarules.cpp
             source/i18n/formattedvalue.cpp
             source/i18n/formattedval_iterimpl.cpp
-            source/i18n/formattedval_sbimpl.cpp
-            source/i18n/formatted_string_builder.cpp)
+            source/i18n/formattedval_sbimpl.cpp)
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   target_sources(icuin PRIVATE source/i18n/i18n.rc)
 endif()
