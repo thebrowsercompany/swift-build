@@ -24,10 +24,14 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
         displayName: 'Fetch Sources'
-      - powershell: |
-          (New-Object System.Net.WebClient).DownloadFile("http://download.icu-project.org/files/icu4c/63.1/icu4c-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu4c-63_1-Win64-MSVC2017.zip")
-          Add-Type -A System.IO.Compression.FileSystem
-          [IO.Compression.ZipFile]::ExtractToDirectory("$(Build.StagingDirectory)\\icu4C-63_1-Win64-MSVC2017.zip", "$(Build.StagingDirectory)\\icu-63.1")
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: 'specific'
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 9
+          allowPartiallySucceededBuilds: true
+          artifactName: 'icu-win-arm64'
+          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Fetch ICU'
       - task: BatchScript@1
         inputs:
@@ -41,7 +45,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\llvm
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake
+          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake
         displayName: 'Configure LLVM/clang'
       - task: CMake@1
         inputs:
