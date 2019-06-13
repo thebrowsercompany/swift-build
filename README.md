@@ -27,7 +27,7 @@ curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Plat
 curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
 curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
 ```
-3. You will need to add the ICU libraries for the target.  The nightlies are built against ICU 63.1 from the ICU project.  You can download the binaries for that from http://download.icu-project.org/files/icu4c/63.1/icu4c-64_2-Win64-MSVC2017.zip.
+3. You will need to add the ICU libraries for the target.  The nightlies are built against ICU 64.2 from the ICU project.  You can download the binaries for that from http://download.icu-project.org/files/icu4c/64.2/icu4c-64_2-Win64-MSVC2017.zip.
 In these instructions we assume you rename the extracted icu folder `icu4c-64_2-Win64-MSVC2017` to `icu-64.2` and move it to `C:\Library` and that you rename `bin64` to `bin`.
 
 #### Building and running swift code
