@@ -1,6 +1,7 @@
 name: 'android SDK'
 variables:
   install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk\usr
+  icu.directory: $(Build.ArtifactsDirectory)\icu-android-aarch64\ICU-64
 jobs:
   - job: android
     timeoutInMinutes: 0
@@ -10,8 +11,9 @@ jobs:
       - script: |
           git config --global user.name 'builder'
           git config --global user.email 'root@compnerd.org'
-          git config --global core.autocrlf false
 
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
+          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
         displayName: 'Fetch Sources'
       - task: BatchScript@1
@@ -32,9 +34,35 @@ jobs:
           artifactName: 'toolchain'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install toolchain'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 9
+          artifactName: 'icu-android-arm64'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install ICU'
       - script: |
           echo "##vso[task.setvariable variable=PATH]$(System.ArtifactsDirectory)\\toolchain\\Developer\\Toolchains\\unknown-Asserts-development.xctoolchain\\usr\\bin;%PATH%"
         displayName: 'Update PATH'
+      - task: CMake@1
+          workingDirectory: $(Build.StagingDirectory)\llvm
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake $(Build.SourcesDirectory)\llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_BUILD_HOST=aarch64-unknown-linux-android
+        displayName: 'Configure LLVM'
+      - task: CMake@1
+          workingDirectory: $(Build.StagingDirectory)\swift-stdlib
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake -C $(Build.SourcesDirectory)\cmake\caches\swift-stdlib-android-aarch64.cmake $(Build.SourcesDirectory)\swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_INCLUDE_TOOLS=NO -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_INCLUDE_TESTS=NO -DSWIFT_ANDROID_aarch64_ICU_UC_INCLUDE=$(icu.directory)\usr\include\unicode -DSWIFT_ANDROID_aarch64_ICU_UC=$(icu.directory)\usr\lib\libicuuc.so -DSWIFT_ANDROID_aarch64_ICU_I18N_INCLUDE=$(icu.directory)\usr\include -DSWIFT_ANDROID_aarch64_ICU_I18N=$(icu.directory)\usr\lib\libicuin.so
+        displayName: 'Configure Swift standard library'
+        continueOnError: true
+      - task: CMake@1
+          cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib
+        displayName: 'Build Swift standard library'
+        continueOnError: true
+      - task: CMake@1
+          cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib --target install
+        displayName: 'Install Swift standard library'
+        continueOnError: true
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\swift-corelibs-libdispatch-android-aarch64
