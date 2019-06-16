@@ -1,6 +1,7 @@
 name: 'Windows SDK'
 variables:
   install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk\usr
+  curl.directory: $(System.ArtifactsDirectory)\curl-win-x64\libcurl-development
   icu.directory: $(System.ArtifactsDirectory)\icu-win-x64\ICU-64
   xml2.directory: $(System.ArtifactsDirectory)\xml2-win-x64\libxml2-development
   toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
@@ -18,8 +19,6 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
-
-          git clone --quiet --depth 1 --single-branch https://github.com/curl/curl.git curl
         displayName: 'Fetch Sources'
       - task: BatchScript@1
         inputs:
@@ -57,6 +56,15 @@ jobs:
           artifactName: 'xml2-win-x64'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Download/Install XML2'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 11
+          allowPartiallySucceededBuilds: true
+          artifactName: 'curl-win-x64'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Download/Install CURL'
       - script: |
           echo "##vso[task.setvariable variable=PATH]$(System.ArtifactsDirectory)\\toolchain\\Developer\\Toolchains\\unknown-Asserts-development.xctoolchain\\usr\\bin;%PATH%"
         displayName: 'Update PATH'
@@ -79,16 +87,10 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
         displayName: 'Install libdispatch'
-      - script: |
-          cd $(Build.SourcesDirectory)\curl
-          cmd /c .\buildconf.bat
-          cd winbuild
-          nmake /f Makefile.vc mode=static VC=15 MACHINE=x64 GEN_PDB=yes
-        displayName: 'build curl'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\\foundation
-          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_LINKER=link -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/lib/libcurl_a.lib" -DCURL_INCLUDE_DIR="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/include" -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\icuuc.lib -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\icuin.lib -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\\libdispatch $(Build.SourcesDirectory)\\swift-corelibs-foundation
+          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_LINKER=link -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\icuuc.lib -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\icuin.lib -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\\libdispatch $(Build.SourcesDirectory)\\swift-corelibs-foundation
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:
