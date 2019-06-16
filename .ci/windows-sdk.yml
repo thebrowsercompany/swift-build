@@ -1,6 +1,9 @@
 name: 'Windows SDK'
 variables:
   install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk\usr
+  icu.directory: $(System.ArtifactsDirectory)\icu-win-x64\ICU-64
+  xml2.directory: $(System.ArtifactsDirectory)\xml2-win-x64\libxml2-development
+  toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
 jobs:
   - job: windows
     timeoutInMinutes: 0
@@ -15,8 +18,6 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
-
-          git clone --quiet --depth 1 --single-branch https://gitlab.gnome.org/GNOME/libxml2.git libxml2
 
           git clone --quiet --depth 1 --single-branch https://github.com/curl/curl.git curl
         displayName: 'Fetch Sources'
@@ -47,6 +48,15 @@ jobs:
           artifactName: 'icu-win-x64'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Download/Install ICU4C'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 10
+          allowPartiallySucceededBuilds: true
+          artifactName: 'xml2-win-x64'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Download/Install XML2'
       - script: |
           echo "##vso[task.setvariable variable=PATH]$(System.ArtifactsDirectory)\\toolchain\\Developer\\Toolchains\\unknown-Asserts-development.xctoolchain\\usr\\bin;%PATH%"
         displayName: 'Update PATH'
@@ -70,11 +80,6 @@ jobs:
           cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
         displayName: 'Install libdispatch'
       - script: |
-          cd $(Build.SourcesDirectory)\libxml2\win32
-          cscript configure.js iconv=no
-          nmake /f Makefile.msvc
-        displayName: 'build libxml2'
-      - script: |
           cd $(Build.SourcesDirectory)\curl
           cmd /c .\buildconf.bat
           cd winbuild
@@ -83,7 +88,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\\foundation
-          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang-cl -DCMAKE_LINKER=link -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/lib/libcurl_a.lib" -DCURL_INCLUDE_DIR="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/include" -DICU_ROOT="$(System.ArtifactsDirectory)\\icu-win-x64\\ICU-64\\usr" -DLIBXML2_LIBRARY="$(Build.SourcesDirectory)/libxml2/win32/bin.msvc/libxml2_a.lib" -DLIBXML2_INCLUDE_DIR="$(Build.SourcesDirectory)/libxml2/include" -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\\libdispatch $(Build.SourcesDirectory)\\swift-corelibs-foundation
+          cmakeArgs: cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang-cl -DCMAKE_LINKER=link -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/lib/libcurl_a.lib" -DCURL_INCLUDE_DIR="$(Build.SourcesDirectory)/curl/builds/libcurl-vc15-x64-release-static-ipv6-sspi-winssl/include" -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\icuuc.lib -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\icuin.lib -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\\libdispatch $(Build.SourcesDirectory)\\swift-corelibs-foundation
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:

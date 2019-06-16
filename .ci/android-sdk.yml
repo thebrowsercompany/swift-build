@@ -2,6 +2,7 @@ name: 'android SDK'
 variables:
   install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk\usr
   icu.directory: $(System.ArtifactsDirectory)\icu-android-arm64\ICU-64
+  xml2.directory: $(System.ArtifactsDirectory)\xml2-android-arm64\libxml2-development
   toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
 jobs:
   - job: android
@@ -18,9 +19,6 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
-
-          # git clone --quiet --depth 1 --single-branch https://gitlab.gnome.org/GNOME/libxml2.git libxml2
-          git clone --quiet --depth 1 --single-branch --branch cmake https://github.com/compnerd/libxml2.git libxml2
 
           git clone --quiet --depth 1 --single-branch https://github.com/curl/curl.git curl
         displayName: 'Fetch Sources'
@@ -42,6 +40,15 @@ jobs:
           artifactName: 'icu-android-arm64'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install ICU'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 10
+          allowPartiallySucceededBuilds: true
+          artifactName: 'xml2-android-arm64'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install XML2'
       - task: BatchScript@1
         inputs:
           filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
@@ -87,19 +94,6 @@ jobs:
         displayName: 'Install libdispatch'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)\libxml2
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake $(Build.SourcesDirectory)\libxml2 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=NO -DLIBXML2_WITH_ICONV=NO -DLIBXML2_WITH_PYTHON=NO
-        displayName: 'Configure libxml2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2
-        displayName: 'Build libxml2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2 --target install
-        displayName: 'Install libxml2'
-      - task: CMake@1
-        inputs:
           workingDirectory: $(Build.StagingDirectory)\curl
           cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake $(Build.SourcesDirectory)\curl -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO
         displayName: 'Configure libcurl'
@@ -114,7 +108,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\foundation
-          cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(Build.StagingDirectory)\curl\lib\libcurl.so -DCURL_INCLUDE_DIR=$(Build.SourcesDirectory)\curl\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(Build.StagingDirectory)\libxml2\libxml2.so -DLIBXML2_INCLUDE_DIR=$(Build.SourcesDirectory)\libxml2\include -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+          cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(Build.StagingDirectory)\curl\lib\libcurl.so -DCURL_INCLUDE_DIR=$(Build.SourcesDirectory)\curl\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
         displayName: 'Configure Foundation'
       - task: PublishBuildArtifacts@1
         inputs:
