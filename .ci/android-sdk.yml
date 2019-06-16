@@ -111,6 +111,11 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\curl --target install
         displayName: 'Install libcurl'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\foundation
+          cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(Build.StagingDirectory)\curl\lib\libcurl.so -DCURL_INCLUDE_DIR=$(Build.SourcesDirectory)\curl\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(Build.StagingDirectory)\libxml2\libxml2.so -DLIBXML2_INCLUDE_DIR=$(Build.SourcesDirectory)\libxml2\include -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+        displayName: 'Configure Foundation'
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
