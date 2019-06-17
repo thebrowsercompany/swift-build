@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.12.3)
 project(ICU LANGUAGES C CXX VERSION 64.2)
 
 option(BUILD_SHARED_LIBS "build shared libaries" YES)
+option(BUILD_TOOLS "build tools" NO)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -244,6 +245,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
 endif()
 target_compile_definitions(icuuc PRIVATE
   U_COMMON_IMPLEMENTATION)
+target_include_directories(icuuc PUBLIC
+  source/common)
 target_link_libraries(icuuc PRIVATE
   icudt)
 
@@ -485,12 +488,107 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   target_sources(icuin PRIVATE
     source/i18n/i18n.rc)
 endif()
-target_include_directories(icuin PRIVATE
+target_include_directories(icuin PUBLIC
   source/i18n)
 target_compile_definitions(icuin PRIVATE
   U_I18N_IMPLEMENTATION)
 target_link_libraries(icuin PRIVATE
   icuuc)
+
+if(BUILD_TOOLS)
+  add_library(icutu SHARED
+    source/tools/toolutil/collationinfo.cpp
+    source/tools/toolutil/denseranges.cpp
+    source/tools/toolutil/filestrm.cpp
+    source/tools/toolutil/filetools.cpp
+    source/tools/toolutil/flagparser.cpp
+    source/tools/toolutil/package.cpp
+    source/tools/toolutil/pkg_genc.cpp
+    source/tools/toolutil/pkg_gencmn.cpp
+    source/tools/toolutil/pkg_icu.cpp
+    source/tools/toolutil/pkgitems.cpp
+    source/tools/toolutil/ppucd.cpp
+    source/tools/toolutil/swapimpl.cpp
+    source/tools/toolutil/toolutil.cpp
+    source/tools/toolutil/ucbuf.cpp
+    source/tools/toolutil/ucm.cpp
+    source/tools/toolutil/ucmstate.cpp
+    source/tools/toolutil/unewdata.cpp
+    source/tools/toolutil/uoptions.cpp
+    source/tools/toolutil/uparse.cpp
+    source/tools/toolutil/writesrc.cpp
+    source/tools/toolutil/xmlparser.cpp
+    source/tools/toolutil/dbgutil.cpp
+    source/tools/toolutil/udbgutil.cpp
+    source/tools/toolutil/ucln_tu.cpp)
+  target_compile_definitions(icutu PRIVATE
+    U_TOOLUTIL_IMPLEMENTATION)
+  target_include_directories(icutu PUBLIC
+    source/tools/toolutil)
+  target_link_libraries(icutu PRIVATE
+    icuuc icuin)
+
+  add_executable(gencnval
+    source/tools/gencnval/gencnval.c)
+  target_link_libraries(gencnval PRIVATE
+    icuuc icutu)
+
+  add_executable(gencfu
+    source/tools/gencfu/gencfu.cpp)
+  target_link_libraries(gencfu PRIVATE
+    icuuc icuin icutu)
+
+  add_executable(makeconv
+    source/tools/makeconv/gencnvex.c
+    source/tools/makeconv/genmbcs.cpp
+    source/tools/makeconv/makeconv.cpp
+    source/tools/makeconv/ucnvstat.c)
+  target_link_libraries(makeconv PRIVATE
+    icuuc icutu)
+
+  add_executable(genbrk
+    source/tools/genbrk/genbrk.cpp)
+  target_link_libraries(genbrk PRIVATE
+    icuuc icutu)
+
+  add_executable(gensprep
+    source/tools/gensprep/gensprep.c
+    source/tools/gensprep/store.c)
+  target_link_libraries(gensprep PRIVATE
+    icuuc icutu)
+
+  add_executable(gendict
+    source/tools/gendict/gendict.cpp)
+  target_link_libraries(gendict PRIVATE
+    icuuc icutu)
+
+  add_executable(icupkg
+    source/tools/icupkg/icupkg.cpp)
+  target_link_libraries(icupkg PRIVATE
+    icuuc icutu)
+
+  add_executable(genrb
+    source/tools/genrb/errmsg.c
+    source/tools/genrb/filterrb.cpp
+    source/tools/genrb/genrb.cpp
+    source/tools/genrb/parse.cpp
+    source/tools/genrb/prscmnts.cpp
+    source/tools/genrb/rbutil.c
+    source/tools/genrb/read.c
+    source/tools/genrb/reslist.cpp
+    source/tools/genrb/rle.c
+    source/tools/genrb/ustr.c
+    source/tools/genrb/wrtjava.cpp
+    source/tools/genrb/wrtxml.cpp)
+  target_link_libraries(genrb PRIVATE
+    icuuc icuin icutu)
+
+  add_executable(pkgdata
+    source/tools/pkgdata/pkgdata.cpp
+    source/tools/pkgdata/pkgtypes.c)
+  target_link_libraries(pkgdata PRIVATE
+    icuuc icutu)
+endif()
 
 install(TARGETS icuuc icuin icudt
   ARCHIVE DESTINATION lib
