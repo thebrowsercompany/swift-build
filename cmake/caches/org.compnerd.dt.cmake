@@ -3,6 +3,7 @@
 
 set(LLVM_ENABLE_PROJECTS
       clang
+      lld
     CACHE STRING "")
 
 # --- LLVM ---
