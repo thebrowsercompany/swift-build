@@ -10,6 +10,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(GNUInstallDirs)
 
+if(BUILD_TOOLS)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+endif()
+
 if(NOT BUILD_SHARED_LIBS)
   add_compile_definitions(U_STATIC_IMPLEMENTATION)
 endif()
@@ -588,9 +592,39 @@ if(BUILD_TOOLS)
     source/tools/pkgdata/pkgtypes.c)
   target_link_libraries(pkgdata PRIVATE
     icuuc icutu)
+
+  include(TestBigEndian)
+  test_big_endian(IS_BIG_ENDIAN_HOST)
+
+  set(U_ICUDATA_NAME icudt${PROJECT_VERSION_MAJOR})
+  set(U_ICUDATA_PKGN icudt${PROJECT_VERSION_MAJOR}$<IF:$<BOOL:${IS_BIG_ENDIAN_HOST}>,b,l>)
+
+  add_custom_target(icudata_lst
+    COMMAND ${Python3_EXECUTABLE} -B -m buildtool
+      --mode $<IF:$<STREQUAL:${CMAKE_HOST_SYSTEM_NAME},Windows>,windows-exec,unix-exec>
+      --src_dir ${PROJECT_SOURCE_DIR}/source/data
+      --tool_dir ${CMAKE_CURRENT_BINARY_DIR}
+      # NOTE(compnerd) setting the configuration allows us to move back into the
+      # binary directory as we emit all the tools into the binary directory.
+      --tool_cfg ..
+      --out_dir ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}
+      --tmp_dir ${CMAKE_CURRENT_BINARY_DIR}/data/tmp
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/source/data)
+  add_dependencies(icudata_lst
+    gencnval gencfu makeconv genbrk gensprep gendict icupkg genrb)
+
+  add_custom_target(icudata
+    COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m dll -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s . ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
+  add_dependencies(icudata pkgdata icudata_lst)
+
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/icudt.lib
+    DESTINATION lib)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/${U_ICUDATA_NAME}.dll
+    DESTINATION bin)
 endif()
 
-install(TARGETS icuuc icuin icudt
+install(TARGETS icuuc icuin
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
