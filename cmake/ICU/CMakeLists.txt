@@ -618,8 +618,6 @@ if(BUILD_TOOLS)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
   add_dependencies(icudata pkgdata icudata_lst)
 
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/icudt.lib
-    DESTINATION lib)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/${U_ICUDATA_NAME}.dll
     DESTINATION bin)
 endif()
