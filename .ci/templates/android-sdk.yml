@@ -1,24 +1,22 @@
-parameters:
-  name: ''
+# parameters:
 # arch: [ 'armv7' | 'arm64' ]
 # arch.alt: [ 'armv7' | 'aarch64' ]
 # triple: [ 'armv7-unknown-linux-gnu' | 'aarch64-unknown-linux-android' ]
 
-variables:
-  toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
-  curl.directory: $(System.ArtifactsDirectory)\curl-android-${{ parameters.arch }}\libcurl-development
-  icu.directory: $(System.ArtifactsDirectory)\icu-android-${{ parameters.arch }}\ICU-64
-  xml2.directory: $(System.ArtifactsDirectory)\xml2-android-${{ parameters.arch }}\libxml2-development
-  install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk\usr
-
 jobs:
-  - job: ${{ parameters.name }}
-    - pool:
+  - job: android_${{ parameters.arch }}
+    variables:
+      toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
+      curl.directory: $(System.ArtifactsDirectory)\curl-android-${{ parameters.arch }}\libcurl-development
+      icu.directory: $(System.ArtifactsDirectory)\icu-android-${{ parameters.arch }}\ICU-64
+      xml2.directory: $(System.ArtifactsDirectory)\xml2-android-${{ parameters.arch }}\libxml2-development
+      install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk\usr
+    pool:
       # NOTE(compnerd) use Windows 2019 to get VS2019 which provides android NDK
       # revision r16c which is the first version to provide glob.h which is needed
       # for the SDK
       vmImage: 'windows-2019'
-    - steps:
+    steps:
       - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
