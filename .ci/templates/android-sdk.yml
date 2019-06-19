@@ -1,0 +1,134 @@
+parameters:
+  name: ''
+# arch: [ 'armv7' | 'arm64' ]
+# arch.alt: [ 'armv7' | 'aarch64' ]
+# triple: [ 'armv7-unknown-linux-gnu' | 'aarch64-unknown-linux-android' ]
+
+variables:
+  toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
+  curl.directory: $(System.ArtifactsDirectory)\curl-android-${{ parameters.arch }}\libcurl-development
+  icu.directory: $(System.ArtifactsDirectory)\icu-android-${{ parameters.arch }}\ICU-64
+  xml2.directory: $(System.ArtifactsDirectory)\xml2-android-${{ parameters.arch }}\libxml2-development
+  install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk\usr
+
+jobs:
+  - job: ${{ parameters.name }}
+    - pool:
+      # NOTE(compnerd) use Windows 2019 to get VS2019 which provides android NDK
+      # revision r16c which is the first version to provide glob.h which is needed
+      # for the SDK
+      vmImage: 'windows-2019'
+    - steps:
+      - script: |
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
+
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
+          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
+
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
+          git -C swift-corelibs-foundation fetch origin pull/2364/head
+          git -C swift-corelibs-foundation cherry-pick FETCH_HEAD
+
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
+        displayName: 'Fetch Sources'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 1
+          artifactName: 'toolchain'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install toolchain'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 9
+          artifactName: 'icu-android-${{ parameters.arch }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install ICU'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 10
+          allowPartiallySucceededBuilds: true
+          artifactName: 'xml2-android-${{ paramters.arch }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install XML2'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 11
+          allowPartiallySucceededBuilds: true
+          artifactName: 'curl-android-${{ parameters.arch }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install CURL'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
+          arguments: -no_logo -arch=x64 -host_arch=x64
+          modifyEnvironment: true
+        displayName: 'vsvarsall.bat'
+        - task: UsePythonVersion@0
+          inputs:
+            versionSpec: '2.7.x'
+        - script: |
+            echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)\usr\bin;%PATH%"
+          displayName: 'Update PATH'
+        - task: CMake@1
+          inputs:
+            workingDirectory: $(Build.StagingDirectory)\llvm
+            cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ paramters.arch.alt }}.cmake $(Build.SourcesDirectory)\llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+          displayName: 'Configure LLVM'
+        - task: CMake@1
+          inputs:
+            workingDirectory: $(Build.StagingDirectory)\swift-stdlib
+            cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake -C $(Build.SourcesDirectory)\cmake\caches\swift-stdlib-android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)\usr\bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_UC_INCLUDE=$(icu.directory)\usr\include\unicode -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_UC=$(icu.directory)\usr\lib\libicuuc.so -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_I18N_INCLUDE=$(icu.directory)\usr\include -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_I18N=$(icu.directory)\usr\lib\libicuin.so
+          displayName: 'Configure Swift standard library'
+        - task: CMake@1
+          inputs:
+            cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib
+          displayName: 'Build Swift standard library'
+        - task: CMake@1
+          inputs:
+            cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib --target install
+          displayName: 'Install Swift standard library'
+        - task: CMake@1
+          inputs:
+            workingDirectory: $(Build.StagingDirectory)\libdispatch
+            cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-libdispatch -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=NO -DENABLE_SWIFT=YES
+          displayName: 'Configure libdispatch'
+        - task: CMake@1
+          inputs:
+            cmakeArgs: --build $(Build.StagingDirectory)\libdispatch
+          displayName: 'Build libdispatch'
+        - task: CMake@1
+          inputs:
+            cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
+          displayName: 'Install libdispatch'
+        - task: CMake@1
+          inputs:
+            workingDirectory: $(Build.StagingDirectory)\foundation
+            cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+          displayName: 'Configure Foundation'
+        - task: CMake@1
+          inputs:
+            cmakeArgs: --build $(Build.StagingDirectory)\foundation
+          displayName: 'Build Foundation'
+          continueOnError: true
+        - task: CMake@1
+          inputs:
+            cmakeArgs: --build $(Build.StagingDirectory)\foundation --target install
+          displayName: 'Install Foundation'
+          continueOnError: true
+        - task: PublishBuildArtifacts@1
+          inputs:
+            pathtoPublish: $(Build.StagingDirectory)\Library
+            artifactName: sdk-android-${{ parameters.arch }}
