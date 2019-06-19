@@ -1,10 +1,11 @@
 # parameters:
 # arch: [ 'armv7' | 'arm64' ]
 # arch.alt: [ 'armv7' | 'aarch64' ]
+# build: [ 'armeabi' | 'arm64' ]
 # triple: [ 'armv7-unknown-linux-gnu' | 'aarch64-unknown-linux-android' ]
 
 jobs:
-  - job: android_${{ parameters.arch }}
+  - job: android_${{ parameters.build }}
     variables:
       toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
       curl.directory: $(System.ArtifactsDirectory)\curl-android-${{ parameters.arch }}\libcurl-development
@@ -47,7 +48,7 @@ jobs:
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           allowPartiallySucceededBuilds: true
           pipeline: 9
-          artifactName: 'icu-android-${{ parameters.arch }}'
+          artifactName: 'icu-android-${{ parameters.build }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install ICU'
       - task: DownloadBuildArtifacts@0
@@ -56,7 +57,7 @@ jobs:
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 10
           allowPartiallySucceededBuilds: true
-          artifactName: 'xml2-android-${{ parameters.arch }}'
+          artifactName: 'xml2-android-${{ parameters.build }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install XML2'
       - task: DownloadBuildArtifacts@0
@@ -65,7 +66,7 @@ jobs:
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 11
           allowPartiallySucceededBuilds: true
-          artifactName: 'curl-android-${{ parameters.arch }}'
+          artifactName: 'curl-android-${{ parameters.build }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install CURL'
       - task: BatchScript@1
@@ -114,7 +115,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\foundation
-          cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+          cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\libicuuc.so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:
@@ -129,4 +130,4 @@ jobs:
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: sdk-android-${{ parameters.arch }}
+          artifactName: sdk-android-${{ parameters.build }}
