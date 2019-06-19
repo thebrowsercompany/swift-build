@@ -253,6 +253,8 @@ target_include_directories(icuuc PUBLIC
   source/common)
 target_link_libraries(icuuc PRIVATE
   icudt)
+set_target_properties(icuuc PROPERTIES
+  OUTPUT_NAME icuuc${PROJECT_VERSION_MAJOR})
 
 # icu internationalization (i18n)
 add_library(icuin
@@ -498,6 +500,8 @@ target_compile_definitions(icuin PRIVATE
   U_I18N_IMPLEMENTATION)
 target_link_libraries(icuin PRIVATE
   icuuc)
+set_target_properties(icuin PROPERTIES
+  OUTPUT_NAME icuin${PROJECT_VERSION_MAJOR})
 
 if(BUILD_TOOLS)
   add_library(icutu SHARED
