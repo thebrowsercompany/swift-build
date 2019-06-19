@@ -110,10 +110,6 @@ jobs:
         displayName: 'Build libdispatch'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
-        displayName: 'Install libdispatch'
-      - task: CMake@1
-        inputs:
           workingDirectory: $(Build.StagingDirectory)\foundation
           cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.alt_arch }}.cmake -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.alt_arch }}-swift-flags.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\libicuuc.so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
         displayName: 'Configure Foundation'
@@ -122,6 +118,10 @@ jobs:
           cmakeArgs: --build $(Build.StagingDirectory)\foundation
         displayName: 'Build Foundation'
         continueOnError: true
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
+        displayName: 'Install libdispatch'
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\foundation --target install
