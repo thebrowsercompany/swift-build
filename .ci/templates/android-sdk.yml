@@ -74,59 +74,59 @@ jobs:
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
         displayName: 'vsvarsall.bat'
-        - task: UsePythonVersion@0
-          inputs:
-            versionSpec: '2.7.x'
-        - script: |
-            echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)\usr\bin;%PATH%"
-          displayName: 'Update PATH'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\llvm
-            cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ paramters.arch.alt }}.cmake $(Build.SourcesDirectory)\llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
-          displayName: 'Configure LLVM'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\swift-stdlib
-            cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake -C $(Build.SourcesDirectory)\cmake\caches\swift-stdlib-android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)\usr\bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_UC_INCLUDE=$(icu.directory)\usr\include\unicode -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_UC=$(icu.directory)\usr\lib\libicuuc.so -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_I18N_INCLUDE=$(icu.directory)\usr\include -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_I18N=$(icu.directory)\usr\lib\libicuin.so
-          displayName: 'Configure Swift standard library'
-        - task: CMake@1
-          inputs:
-            cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib
-          displayName: 'Build Swift standard library'
-        - task: CMake@1
-          inputs:
-            cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib --target install
-          displayName: 'Install Swift standard library'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\libdispatch
-            cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-libdispatch -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=NO -DENABLE_SWIFT=YES
-          displayName: 'Configure libdispatch'
-        - task: CMake@1
-          inputs:
-            cmakeArgs: --build $(Build.StagingDirectory)\libdispatch
-          displayName: 'Build libdispatch'
-        - task: CMake@1
-          inputs:
-            cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
-          displayName: 'Install libdispatch'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\foundation
-            cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
-          displayName: 'Configure Foundation'
-        - task: CMake@1
-          inputs:
-            cmakeArgs: --build $(Build.StagingDirectory)\foundation
-          displayName: 'Build Foundation'
-          continueOnError: true
-        - task: CMake@1
-          inputs:
-            cmakeArgs: --build $(Build.StagingDirectory)\foundation --target install
-          displayName: 'Install Foundation'
-          continueOnError: true
-        - task: PublishBuildArtifacts@1
-          inputs:
-            pathtoPublish: $(Build.StagingDirectory)\Library
-            artifactName: sdk-android-${{ parameters.arch }}
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '2.7.x'
+      - script: |
+          echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)\usr\bin;%PATH%"
+        displayName: 'Update PATH'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\llvm
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ paramters.arch.alt }}.cmake $(Build.SourcesDirectory)\llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+        displayName: 'Configure LLVM'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\swift-stdlib
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake -C $(Build.SourcesDirectory)\cmake\caches\swift-stdlib-android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)\usr\bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_UC_INCLUDE=$(icu.directory)\usr\include\unicode -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_UC=$(icu.directory)\usr\lib\libicuuc.so -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_I18N_INCLUDE=$(icu.directory)\usr\include -DSWIFT_ANDROID_${{ parameters.arch.alt }}_ICU_I18N=$(icu.directory)\usr\lib\libicuin.so
+        displayName: 'Configure Swift standard library'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib
+        displayName: 'Build Swift standard library'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\swift-stdlib --target install
+        displayName: 'Install Swift standard library'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\libdispatch
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-libdispatch -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)\Library\Developer\Platforms\Android.platform\Developer\SDKs\Android.sdk -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=NO -DENABLE_SWIFT=YES
+        displayName: 'Configure libdispatch'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\libdispatch
+        displayName: 'Build libdispatch'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\libdispatch --target install
+        displayName: 'Install libdispatch'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\foundation
+          cmakeArgs: cmake -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch.alt }}.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_SWIFT_COMPILER=swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\libicuuc.so -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\libicuin.so -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+        displayName: 'Configure Foundation'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\foundation
+        displayName: 'Build Foundation'
+        continueOnError: true
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\foundation --target install
+        displayName: 'Install Foundation'
+        continueOnError: true
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          artifactName: sdk-android-${{ parameters.arch }}
