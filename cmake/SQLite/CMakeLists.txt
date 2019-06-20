@@ -6,8 +6,8 @@ project(SQLite LANGUAGES C)
 add_library(SQLite3
   sqlite3.c)
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
-  target_compile_definitions(SQLite3
-    SQLITE_API=__declspec(dllexport))
+  target_compile_definitions(SQLite3 PRIVATE
+    "SQLITE_API=__declspec(dllexport)")
 endif()
 
 install(TARGETS SQLite3
