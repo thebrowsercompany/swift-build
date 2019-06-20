@@ -1,44 +1,30 @@
 name: sqlite
-variables:
-  sqlite.version: 3.28.0
-  install.directory: $(Build.StagingDirectory)\Library\sqlite-$(sqlite.version)
-  sqlite.release: 3280000
 jobs:
-  - job: windows_x64
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - powershell: |
-          Invoke-WebRequest -UseBasicParsing -Uri https://sqlite.org/2019/sqlite-amalgamation-$(sqlite.release).zip -OutFile $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release).zip
-          New-Item -Path $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release) -ItemType Directory
-          Copy-Item -Path $(Build.SourcesDirectory)\cmake\SQLite\CMakeLists.txt -Destination $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release)\CMakeLists.txt
-        displayName: 'Download Sources'
-      - task: ExtractFiles@1
-        inputs:
-          archiveFilePatterns: $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release).zip
-          destinationFolder: $(Build.SourcesDirectory)
-          cleanDestinationFolder: false
-        displayName: 'Extract Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\sqlite
-          cmakeArgs: $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release) -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO
-        displayName: 'Configure SQLite3'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\sqlite
-        displayName: 'Build SQLite3'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\sqlite --target install
-        displayName: 'Install SQLite3'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: sqlite-win-x64
+  - template: template/sqlite3.yml
+    parameters:
+      build: arm64
+      platform: 'windows'
+      alt_platform: 'win'
+
+  - template: template/sqlite3.yml
+    parameters:
+      build: x64
+      platform: 'windows'
+      alt_platform: 'win'
+
+  - template: template/sqlite3.yml
+    parameters:
+      arch: 'armeabi'
+      alt_arch: 'armv7'
+      build: armeabi
+      platform: 'android'
+      alt_platform: 'android'
+
+  - template: template/sqlite3.yml
+    parameters:
+      arch: 'arm64'
+      alt_arch: 'arm64'
+      build: arm64
+      platform: 'android'
+      alt_platform: 'android'
+
