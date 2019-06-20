@@ -1,0 +1,35 @@
+name: sqlite
+variables:
+  sqlite.version: 3.28.0
+  install.directory: $(Build.StagingDirectory)\Library\sqlite-$(sqlite.version)
+  sqlite.release: 3280000
+jobs:
+  - job: windows_x86
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+      - powershell: |
+          Invoke-WebRequest -UseBasicParsing -Uri https://sqlite.org/2019/sqlite-amalgamation-$(sqlite.release).zip -OutFile $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release).zip
+          Copy-Item -Path $(Build.SourcesDirectory)\cmake\SQLite\CMakeLists.txt -Destination $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release)
+        displayName: 'Download Sources'
+      - task: ExtractFiles@1
+        inputs:
+          destinationFolder: $(Build.SourcesDirectory)
+        displayName: 'Extract Sources'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\sqlite
+          cmakeArgs: $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release) -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO
+        displayName: 'Configure SQLite3'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\sqlite
+        displayName: 'Build SQLite3'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\sqlite --target install
+        displayName: 'Install SQLite3'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          artifactName: sqlite-win-x64
