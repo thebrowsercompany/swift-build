@@ -10,10 +10,12 @@ jobs:
     steps:
       - powershell: |
           Invoke-WebRequest -UseBasicParsing -Uri https://sqlite.org/2019/sqlite-amalgamation-$(sqlite.release).zip -OutFile $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release).zip
-          Copy-Item -Path $(Build.SourcesDirectory)\cmake\SQLite\CMakeLists.txt -Destination $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release)
+          New-Item -Path $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release) -ItemType Directory
+          Copy-Item -Path $(Build.SourcesDirectory)\cmake\SQLite\CMakeLists.txt -Destination $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release)\CMakeLists.txt
         displayName: 'Download Sources'
       - task: ExtractFiles@1
         inputs:
+          archiveFilePatterns: $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release).zip
           destinationFolder: $(Build.SourcesDirectory)
           cleanDestinationFolder: false
         displayName: 'Extract Sources'
