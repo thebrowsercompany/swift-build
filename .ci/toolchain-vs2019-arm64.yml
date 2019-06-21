@@ -121,14 +121,17 @@ jobs:
           workingDirectory: $(Build.StagingDirectory)\lldb
           cmakeArgs: $(Build.SourcesDirectory)\lldb -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLDB_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DLLDB_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)/clang -DLLDB_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)/llvm -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
         displayName: 'Configure lldb'
+        continueOnError: true
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\lldb
         displayName: 'Build lldb'
+        continueOnError: true
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\lldb --target install
         displayName: 'Install lldb'
+        continueOnError: true
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
