@@ -88,6 +88,9 @@ jobs:
           arguments: -no_logo -arch=${{ parameters.build }} -host_arch=x64
           modifyEnvironment: true
         displayName: 'vcvarsall.bat'
+      - script: |
+          echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)\usr\bin;%PATH%"
+        displayName: 'Update PATH'
       - task: UsePythonVersion@0
         inputs:
           versionSpec: '2.7.x'
@@ -105,7 +108,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\stdlib
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)\cmake\caches\swift-stdlib-windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)\usr\bin\clang-cl.exe -DCMAKE_CXX_COMPILER=$(toolchain.directory)\usr\bin\clang-cl.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)\usr\bin\swiftc.exe -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)\usr\bin -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)\usr\include\unicode -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC=$(icu.directory)\usr\lib\icuuc$(icu.version).lib -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)\usr\include -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N=$(icu.directory)\usr\lib\icuin$(icu.version).lib
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)\cmake\caches\swift-stdlib-windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=swiftc.exe -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)\usr\bin -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)\usr\include\unicode -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC=$(icu.directory)\usr\lib\icuuc$(icu.version).lib -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)\usr\include -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N=$(icu.directory)\usr\lib\icuin$(icu.version).lib
         displayName: 'Configure Swift Standard Library'
       - task: CMake@1
         inputs:
@@ -118,7 +121,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\libdispatch
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)\usr\bin\clang-cl.exe -DCMAKE_CXX_COMPILER=$(toolchain.directory)\usr\bin\clang-cl.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)\usr\bin\swiftc.exe -DENABLE_TESTING=NO -DENABLE_SWIFT=YES
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=swiftc.exe -DENABLE_TESTING=NO -DENABLE_SWIFT=YES
         displayName: 'Configure libdispatch'
       - task: CMake@1
         inputs:
@@ -127,7 +130,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\foundation
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)\usr\bin\clang-cl.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_C_COMPILER_TARGET=${{ parameters.triple }} -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)\usr\bin\swiftc.exe -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)\usr\lib\icuin$(icu.version).lib -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_C_COMPILER_TARGET=${{ parameters.triple }} -DCMAKE_SWIFT_COMPILER=swiftc.exe -DCURL_LIBRARY=$(curl.directory)\usr\lib\libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)\usr\include -DICU_UC_LIBRARY=$(icu.directory)\usr\lib\icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)\usr\lib\icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)\usr\lib\icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)\usr\lib\icuin$(icu.version).lib -DICU_INCLUDE_DIR=$(icu.directory)\usr\include -DLIBXML2_LIBRARY=$(xml2.directory)\usr\lib\libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)\usr\include\libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:
@@ -136,7 +139,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\xctest
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)\usr\bin\swiftc.exe -DENABLE_TESTING=NO -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)\foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DCMAKE_SWIFT_COMPILER=swiftc.exe -DENABLE_TESTING=NO -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)\foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
         displayName: 'Configure XCTest'
       - task: CMake@1
         inputs:
@@ -145,7 +148,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\llbuild
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\llbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(llbuild.install.directory) -DSWIFTC_EXECUTABLE=$(toolchain.directory)\usr\bin\swiftc.exe -DLLBUILD_SUPPORT_BINDINGS=Swift -DFOUNDATION_BUILD_DIR=$(Build.StagingDirectory)\foundation -DLIBDISPATCH_BUILD_DIR=$(Build.StagingDirectory)\libdispatch -DLIBDISPATCH_SOURCE_DIR=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DSQLite3_LIBRARY=$(sqlite.directory)\usr\lib\SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)\usr\include
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\llbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(llbuild.install.directory) -DSWIFTC_EXECUTABLE=swiftc.exe -DLLBUILD_SUPPORT_BINDINGS=Swift -DFOUNDATION_BUILD_DIR=$(Build.StagingDirectory)\foundation -DLIBDISPATCH_BUILD_DIR=$(Build.StagingDirectory)\libdispatch -DLIBDISPATCH_SOURCE_DIR=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DSQLite3_LIBRARY=$(sqlite.directory)\usr\lib\SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)\usr\include
         displayName: 'Configure llbuild'
         continueOnError: true
       - task: CMake@1
