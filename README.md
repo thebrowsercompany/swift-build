@@ -7,16 +7,16 @@ Windows nightlies built on Azure
 
 | Build | Status |
 | :-: | - |
-| **x64 VS2017** | [![Build Status](https://compnerd.visualstudio.com/windows-swift/_apis/build/status/Windows%20Toolchain?branchName=master)](https://compnerd.visualstudio.com/windows-swift/_build/latest?definitionId=1&branchName=master) |
-| **x64 VS2019** | [![Build Status](https://compnerd.visualstudio.com/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2019)?branchName=master)](https://compnerd.visualstudio.com/windows-swift/_build/latest?definitionId=7&branchName=master) |
+| **x64 VS2017** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2017)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=1&branchName=master) |
+| **x64 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=7&branchName=master) |
 | **ARM64 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/ARM64%20Toolchain%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=8&branchName=master) |
 
 **SDKs**
 
 | Build | Status |
 | :-: | - |
-| **Windows x64 SDK** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Windows%20SDK?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=2?branchName=master) |
-| **Android SDK (ARM/ARM64)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/android%20SDK?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=4?branchName=master) |
+| **Windows x64 SDK** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Windows%20x64%20SDK%20(VS2017)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=2&branchName=master) |
+| **Android SDK (ARM/ARM64)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/android%20SDK%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=4&branchName=master) |
 
 **Dependencies**
 
@@ -25,6 +25,7 @@ Windows nightlies built on Azure
 | **ICU VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/ICU%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=9&branchName=master) |
 | **XML2 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/XML2%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=10&branchName=master) |
 | **CURL VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/CURL%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=11&branchName=master) |
+| **SQLite3 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/SQLite%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=12&branchName=master) |
 
 ### Getting Started
 #### Downloading the nightlies
