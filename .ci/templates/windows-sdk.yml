@@ -139,7 +139,8 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\xctest
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DCMAKE_SWIFT_COMPILER=swiftc.exe -DENABLE_TESTING=NO -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)\foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
+          # NOTE(compnerd) we need to pass `-DCMAKE_C_COMPILER=cl` for now as until CMake 3.15, the project sets the language to C
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DCMAKE_SWIFT_COMPILER=swiftc.exe -DENABLE_TESTING=NO -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)\foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)\libdispatch
         displayName: 'Configure XCTest'
       - task: CMake@1
         inputs:
