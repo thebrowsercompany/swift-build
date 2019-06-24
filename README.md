@@ -16,7 +16,7 @@ Windows nightlies built on Azure
 | Build | Status |
 | :-: | - |
 | **Windows SDK (ARM64/X64)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Windows%20x64%20SDK%20(VS2017)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=2&branchName=master) |
-| **Android SDK (ARM/ARM64)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/android%20SDK%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=4&branchName=master) |
+| **Android SDK (ARM/ARM64/X64)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/android%20SDK%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=4&branchName=master) |
 
 **Dependencies**
 
