@@ -1,126 +1,37 @@
 name: curl
-variables:
-  CURL.Version: development
-  Install.Directory: $(Build.StagingDirectory)\Library\libcurl-$(CURL.Version)
-  CURL.Release: master
 jobs:
-  - job: windows_arm64
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(CURL.Release) https://github.com/curl/curl.git curl
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=arm64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\curl
-          cmakeArgs: $(Build.SourcesDirectory)\curl -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
-        displayName: 'Configure CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl
-        displayName: 'Build CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl --target install
-        displayName: 'Install CURL'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: curl-win-arm64
-  - job: windows_x64
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(CURL.Release) https://github.com/curl/curl.git curl
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\curl
-          cmakeArgs: $(Build.SourcesDirectory)\curl -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
-        displayName: 'Configure CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl
-        displayName: 'Build CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl --target install
-        displayName: 'Install CURL'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: curl-win-x64
-  - job: android_armeabi
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(CURL.Release) https://github.com/curl/curl.git curl
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\curl
-          cmakeArgs: $(Build.SourcesDirectory)\curl -C $(Build.SourcesDirectory)\cmake\caches\android-armv7.cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
-        displayName: 'Configure CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl
-        displayName: 'Build CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl --target install
-        displayName: 'Install CURL'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: curl-android-arm
-  - job: android_arm64
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(CURL.Release) https://github.com/curl/curl.git curl
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\curl
-          cmakeArgs: $(Build.SourcesDirectory)\curl -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
-        displayName: 'Configure CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl
-        displayName: 'Build CURL'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\curl --target install
-        displayName: 'Install CURL'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: curl-android-arm64
+  - template: templates/curl.yml
+    parameters:
+      build: 'arm64'
+      platform: 'windows'
+      alt_platform: 'win'
+
+  - template: templates/curl.yml
+    parameters:
+      build: 'x64'
+      platform: 'windows'
+      alt_platform: 'win'
+
+  - template: templates/curl.yml
+    parameters:
+      arch: 'armeabi'
+      alt_arch: 'armv7'
+      build: 'armeabi'
+      platform: 'android'
+      alt_platform: 'android'
+
+  - template: templates/curl.yml
+    parameters:
+      arch: 'arm64'
+      alt_arch: 'aarch64'
+      build: arm64
+      platform: 'android'
+      alt_platform: 'android'
+
+  - template: templates/curl.yml
+    parameters:
+      arch: 'x64'
+      alt_arch: 'x86_64'
+      build: 'x64'
+      platform: 'android'
+      alt_platform: 'android'
