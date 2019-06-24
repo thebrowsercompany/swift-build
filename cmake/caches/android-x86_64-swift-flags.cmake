@@ -1,21 +1,14 @@
 
-set(SWIFT_HOST_VARIANT_SDK ANDROID CACHE STRING "")
-set(SWIFT_HOST_VARIANT_ARCH x86_64 CACHE STRING "")
+set(CMAKE_SWIFT_FLAGS
+      -resource-dir ${SWIFT_ANDROID_SDK}/usr/lib/swift
+      -Xcc --sysroot=${CMAKE_ANDROID_NDK}/sysroot
+    CACHE STRING "")
+set(CMAKE_SWIFT_LINK_FLAGS
+      -resource-dir ${SWIFT_ANDROID_SDK}/usr/lib/swift
+      -tools-directory ${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/windows-x86_64/bin
+      -Xclang-linker --gcc-toolchain=${CMAKE_ANDROID_NDK}/toolchains/x86_64-4.9/prebuilt/windows-x86_64
+      -Xclang-linker --sysroot=${CMAKE_ANDROID_NDK}/platforms/android-${CMAKE_ANDROID_API}/arch-x86_64
+      -Xclang-linker -fuse-ld=gold.exe
+    CACHE STRING "")
 
-# build just the standard library
-set(SWIFT_INCLUDE_TOOLS NO CACHE BOOL "")
-set(SWIFT_INCLUDE_TESTS NO CACHE BOOL "")
-set(SWIFT_INCLUDE_DOCS NO CACHE BOOL "")
-
-# build with the host compiler
-set(SWIFT_BUILD_RUNTIME_WITH_HOST_COMPILER YES CACHE BOOL "")
-
-# android configuration
-set(SWIFT_ANDROID_API_LEVEL ${CMAKE_ANDROID_API} CACHE STRING "")
-set(SWIFT_ANDROID_NDK_PATH ${CMAKE_ANDROID_NDK} CACHE STRING "")
-set(SWIFT_ANDROID_NDK_GCC_VERSION 4.9 CACHE STRING "")
-
-# TODO(compnerd) we should fix the lld.exe spelling
-set(SWIFT_ENABLE_LLD_LINKER FALSE CACHE BOOL "")
-set(SWIFT_ENABLE_GOLD_LINKER TRUE CACHE BOOL "")
 
