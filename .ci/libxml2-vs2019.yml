@@ -1,127 +1,38 @@
 name: libxml2
-variables:
-  XML2.Version: development
-  Install.Directory: $(Build.StagingDirectory)\Library\libxml2-$(XML2.Version)
-  XML2.Release: cmake
 jobs:
-  - job: windows_arm64
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(XML2.Release) https://github.com/compnerd/libxml2.git libxml2
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=arm64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\libxml2
-          cmakeArgs: $(Build.SourcesDirectory)\libxml2 -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO -DLIBXML2_WITH_ICONV=NO -DLIBXML2_WITH_PYTHON=NO -DLIBXML2_WITH_LZMA=NO -DLIBXML2_WITH_ZLIB=NO
-        displayName: 'Configure XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2
-        displayName: 'Build XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2 --target install
-        displayName: 'Install XML2'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: xml2-win-arm64
-  - job: windows_x64
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(XML2.Release) https://github.com/compnerd/libxml2.git libxml2
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\libxml2
-          cmakeArgs: $(Build.SourcesDirectory)\libxml2 -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO -DLIBXML2_WITH_ICONV=NO -DLIBXML2_WITH_PYTHON=NO -DLIBXML2_WITH_LZMA=NO -DLIBXML2_WITH_ZLIB=NO
-        displayName: 'Configure XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2
-        displayName: 'Build XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2 --target install
-        displayName: 'Install XML2'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: xml2-win-x64
-  - job: android_armeabi
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(XML2.Release) https://github.com/compnerd/libxml2.git libxml2
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\libxml2
-          cmakeArgs: $(Build.SourcesDirectory)\libxml2 -C $(Build.SourcesDirectory)\cmake\caches\android-armv7.cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO -DLIBXML2_WITH_ICONV=NO -DLIBXML2_WITH_PYTHON=NO -DLIBXML2_WITH_LZMA=NO -DLIBXML2_WITH_ZLIB=NO
-        displayName: 'Configure XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2
-        displayName: 'Build XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2 --target install
-        displayName: 'Install XML2'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: xml2-android-arm
-  - job: android_arm64
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(XML2.Release) https://github.com/compnerd/libxml2.git libxml2
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\libxml2
-          cmakeArgs: $(Build.SourcesDirectory)\libxml2 -C $(Build.SourcesDirectory)\cmake\caches\android-aarch64.cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(Install.Directory)\usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO -DLIBXML2_WITH_ICONV=NO -DLIBXML2_WITH_PYTHON=NO -DLIBXML2_WITH_LZMA=NO -DLIBXML2_WITH_ZLIB=NO
-        displayName: 'Configure XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2
-        displayName: 'Build XML2'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\libxml2 --target install
-        displayName: 'Install XML2'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: xml2-android-arm64
+  - template: templates/libxml2.yml
+    parameters:
+      build: arm64
+      platform: 'windows'
+      alt_platform: 'win'
+
+  - template: templates/libxml2.yml
+    parameters:
+      build: x64
+      platform: 'windows'
+      alt_platform: 'win'
+
+  - template: templates/libxml2.yml
+    parameters:
+      arch: 'armeabi'
+      alt_arch: 'armv7'
+      build: armeabi
+      platform: 'android'
+      alt_platform: 'android'
+
+  - template: templates/libxml2.yml
+    parameters:
+      arch: 'arm64'
+      alt_arch: 'aarch64'
+      build: arm64
+      platform: 'android'
+      alt_platform: 'android'
+
+  - template: templates/libxml2.yml
+    parameters:
+      arch: 'x64'
+      alt_arch: 'x86_64'
+      build: 'x64'
+      platform: 'android'
+      alt_platform: 'android'
 
