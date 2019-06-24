@@ -5,10 +5,6 @@ variables:
   ICU.Directory: $(System.ArtifactsDirectory)\icu-win-x64\ICU-$(ICU.Version)
 jobs:
   - job: windows
-    # NOTE(compnerd) this is an open source project built on hosted machines, so
-    # this time out is actually 6 hours.  Sadly, this is not very long given the
-    # complexity of this build and the speed of the hosted machines
-    timeoutInMinutes: 0
     pool:
       vmImage: 'windows-2019'
     steps:
@@ -42,8 +38,8 @@ jobs:
         displayName: 'Download/Install ICU4C'
       - task: BatchScript@1
         inputs:
-          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
-          arguments: -no_logo -arch=x64
+          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
+          arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
         displayName: 'vcvarsall.bat'
       - task: UsePythonVersion@0
@@ -110,6 +106,8 @@ jobs:
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
+          parallel: true
+          parallelCount: 8
           artifactName: toolchain
       - task: CMake@1
         inputs:
