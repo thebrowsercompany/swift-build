@@ -1,17 +1,17 @@
 # parameters:
 # arch: [ 'armv7' | 'arm64' ]
 # alt_arch: [ 'armv7' | 'aarch64' ]
-# build: [ 'arm' | 'arm64' ]
+# host: [ 'arm' | 'arm64' ]
 # triple: [ 'armv7-unknown-linux-gnu' | 'aarch64-unknown-linux-android' ]
 
 jobs:
-  - job: android_${{ parameters.build }}
+  - job: android_${{ parameters.host }}
     variables:
       toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-      curl.directory: $(System.ArtifactsDirectory)/curl-android-${{ parameters.build }}/libcurl-development
+      curl.directory: $(System.ArtifactsDirectory)/curl-android-${{ parameters.host }}/libcurl-development
       icu.version: 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-android-${{ parameters.build }}/ICU-$(icu.version)
-      xml2.directory: $(System.ArtifactsDirectory)/xml2-android-${{ parameters.build }}/libxml2-development
+      icu.directory: $(System.ArtifactsDirectory)/icu-android-${{ parameters.host }}/ICU-$(icu.version)
+      xml2.directory: $(System.ArtifactsDirectory)/xml2-android-${{ parameters.host }}/libxml2-development
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/Library/XCTest-development/usr
     pool:
@@ -50,7 +50,7 @@ jobs:
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           allowPartiallySucceededBuilds: true
           pipeline: 9
-          artifactName: 'icu-android-${{ parameters.build }}'
+          artifactName: 'icu-android-${{ parameters.host }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install ICU'
       - task: DownloadBuildArtifacts@0
@@ -59,7 +59,7 @@ jobs:
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 10
           allowPartiallySucceededBuilds: true
-          artifactName: 'xml2-android-${{ parameters.build }}'
+          artifactName: 'xml2-android-${{ parameters.host }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install XML2'
       - task: DownloadBuildArtifacts@0
@@ -68,7 +68,7 @@ jobs:
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 11
           allowPartiallySucceededBuilds: true
-          artifactName: 'curl-android-${{ parameters.build }}'
+          artifactName: 'curl-android-${{ parameters.host }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install CURL'
       - task: BatchScript@1
@@ -143,5 +143,5 @@ jobs:
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: sdk-android-${{ parameters.build }}
+          artifactName: sdk-android-${{ parameters.host }}
 
