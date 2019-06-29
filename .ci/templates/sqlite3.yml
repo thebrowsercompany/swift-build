@@ -28,19 +28,19 @@ jobs:
           filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
           arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
           modifyEnvironment: true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        condition: ${{ eq( variables['Agent.OS'], 'Windows_NT' ) }}
         displayName: 'vcvarsall.bat'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\sqlite
           cmakeArgs: $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release) -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO
-        condition: eq( parameters['platform'], 'win' )
+        condition: ${{ eq( parameters['platform'], 'win' ) }}
         displayName: 'Configure SQLite3 (windows)'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\sqlite
           cmakeArgs: $(Build.SourcesDirectory)\sqlite-amalgamation-$(sqlite.release) -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO
-        condition: eq( parameters['platform'], 'android' )
+        condition: ${{ eq( parameters['platform'], 'android' ) }}
         displayName: 'Configure SQLite3 (android)'
       - task: CMake@1
         inputs:

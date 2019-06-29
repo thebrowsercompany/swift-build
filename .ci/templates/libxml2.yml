@@ -20,19 +20,19 @@ jobs:
           filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
           arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
           modifyEnvironment: true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        condition: ${{ eq( variables['Agent.OS'], 'Windows_NT' ) }}
         displayName: 'vcvarsall.bat'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\libxml2
           cmakeArgs: $(Build.SourcesDirectory)\libxml2 -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO -DLIBXML2_WITH_ICONV=NO -DLIBXML2_WITH_PYTHON=NO -DLIBXML2_WITH_LZMA=NO -DLIBXML2_WITH_ZLIB=NO
-        condition: eq( parameters['platform'], 'win' )
+        condition: ${{ eq( parameters['platform'], 'win' ) }}
         displayName: 'Configure XML2 (windows)'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\libxml2
           cmakeArgs: $(Build.SourcesDirectory)\libxml2 -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO -DLIBXML2_WITH_ICONV=NO -DLIBXML2_WITH_PYTHON=NO -DLIBXML2_WITH_LZMA=NO -DLIBXML2_WITH_ZLIB=NO
-        condition: eq( parameters['platform'], 'android' )
+        condition: ${{ eq( parameters['platform'], 'android' ) }}
         displayName: 'Configure XML2 (android)'
       - task: CMake@1
         inputs:
