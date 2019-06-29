@@ -17,30 +17,25 @@ jobs:
       - script: |
           git clone --quiet --depth 1 --single-branch --branch $(curl.release) https://github.com/curl/curl.git curl
         displayName: 'Fetch Sources'
-      - ${{ if eq(parameters['platform'], 'windows') }}:
-        - task: BatchScript@1
-          inputs:
-            filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\\Tools\VsDevCmd.bat
-            arguments: -no_logo -arch=${{ parameters.build }} -host_arch=x64
-            modifyEnvironment: true
-          displayName: 'vcvarsall.bat'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\curl
-            cmakeArgs: $(Build.SourcesDirectory)\curl -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
-          displayName: 'Configure curl'
-      - ${{ if eq(parameters['platform'], 'android') }}:
-        - task: BatchScript@1
-          inputs:
-            filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\\Tools\VsDevCmd.bat
-            arguments: -no_logo -arch=x64 -host_arch=x64
-            modifyEnvironment: true
-          displayName: 'vcvarsall.bat'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\curl
-            cmakeArgs: $(Build.SourcesDirectory)\curl -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.alt_arch }}.cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
-          displayName: 'Configure curl'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\\Tools\VsDevCmd.bat
+          arguments: -no_logo -arch=${{ parameters.build }} -host_arch=x64
+          modifyEnvironment: true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'vcvarsall.bat'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\curl
+          cmakeArgs: $(Build.SourcesDirectory)\curl -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
+        condition: eq( parameters['platform'], 'windows' )
+        displayName: 'Configure curl (windows)'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\curl
+          cmakeArgs: $(Build.SourcesDirectory)\curl -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.alt_arch }}.cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO -DBUILD_CURL_EXE=NO -DCMAKE_USE_OPENSSL=NO -DCMAKE_USE_LIBSSH2=NO -DHAVE_POLL_FINE=NO -DCURL_DISABLE_LDAP=YES -DCURL_DISABLE_TELNET=YES -DCURL_DISABLE_DICT=YES -DCURL_DISABLE_FILE=YES -DCURL_DISABLE_TFTP=YES -DCURL_DISABLE_LDAPS=YES -DCURL_DISABLE_RTSP=YES -DCURL_DISABLE_PROXY=YES -DCURL_DISABLE_POP3=YES -DCURL_DISABLE_IMAP=YES -DCURL_DISABLE_SMTP=YES -DCURL_DISABLE_GOPHER=YES
+        condition: eq( parameters['platform'], 'android' )
+        displayName: 'Configure curl (android)'
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\curl
