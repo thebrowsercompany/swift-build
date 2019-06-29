@@ -17,30 +17,25 @@ jobs:
           git clone --quiet --depth 1 --single-branch --branch $(ICU.Release) https://github.com/unicode-org/icu.git
           copy $(Build.SourcesDirectory)\cmake\ICU\CMakeLists.txt icu\icu4c
         displayName: 'Fetch Sources'
-      - ${{ if eq(parameters['platform'], 'windows') }}:
-        - task: BatchScript@1
-          inputs:
-            filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\\Tools\VsDevCmd.bat
-            arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
-            modifyEnvironment: true
-          displayName: 'vcvarsall.bat'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\icu
-            cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=YES -DBUILD_TOOLS=$(icu.build_tools)
-          displayName: 'Configure ICU'
-      - ${{ if eq(parameters['platform'], 'android') }}:
-        - task: BatchScript@1
-          inputs:
-            filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\\Tools\VsDevCmd.bat
-            arguments: -no_logo -arch=x64 -host_arch=x64
-            modifyEnvironment: true
-          displayName: 'vcvarsall.bat'
-        - task: CMake@1
-          inputs:
-            workingDirectory: $(Build.StagingDirectory)\icu
-            cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=YES
-          displayName: 'Configure ICU'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\\Tools\VsDevCmd.bat
+          arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
+          modifyEnvironment: true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'vcvarsall.bat'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\icu
+          cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=YES -DBUILD_TOOLS=$(icu.build_tools)
+        condition: eq( parameters['platform'], 'win' )
+        displayName: 'Configure ICU (windows)'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\icu
+          cmakeArgs: $(Build.SourcesDirectory)\icu\icu4c -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\android-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)\usr -DBUILD_SHARED_LIBS=YES
+        condition: eq( parameters['platform'], 'android' )
+        displayName: 'Configure ICU (android)k'
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\icu
