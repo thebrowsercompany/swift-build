@@ -1,7 +1,7 @@
 # parameters:
 # arch: [ 'aarch64' | 'x86_64' ]
 # host: [ 'arm' | 'arm64' | 'x64' ]
-# platform: [ 'android | 'win' ]
+# platform: [ 'android | 'linux' | 'win' ]
 
 jobs:
   - job: ${{ parameters.platform }}_${{ parameters.host }}
@@ -13,7 +13,7 @@ jobs:
       icu.build_tools: ${{ eq( variables['Agent.OSArchitecture'], 'X64' ) }}
     steps:
       - script: |
-          git clone --quiet --depth 1 --single-branch --branch $(ICU.Release) https://github.com/unicode-org/icu.git
+          git clone --quiet --depth 1 --single-branch --branch $(icu.release) https://github.com/unicode-org/icu.git
           copy $(Build.SourcesDirectory)/cmake/ICU/CMakeLists.txt icu/icu4c
         displayName: 'Fetch Sources'
       - task: BatchScript@1
@@ -39,7 +39,7 @@ jobs:
         inputs:
           workingDirectory: $(Build.StagingDirectory)/icu
           cmakeArgs: $(Build.SourcesDirectory)/icu/icu4c -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=YES
-        condition: ${{ eq( parameters['platform'], 'android' ) }}
+        condition: ${{ eq( parameters['platform'], 'linux' ) }}
         displayName: 'Configure ICU (linux)'
       - task: CMake@1
         inputs:
