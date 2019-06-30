@@ -1,9 +1,12 @@
 # parameters:
 # host: [ 'x64' ]
 # platform: [ 'linux' | 'win' ]
+# triple: [ 'x86_64-unknown-linux-gnu' | 'x86_64-unknown-windows-msvc' ]
 
 jobs:
   - job: ${{ parameters.platform }}_${{ parameters.host }}
+    variables:
+      install.directory: $(Build.StagingDirectory)/Library/Deveoper/Toolchains/unknown-Asserts-development.xctoolchain/usr
     # NOTE(compnerd) this is an open source project built on hosted machines, so
     # this time out is actually 6 hours.  Sadly, this is not very long given the
     # complexity of this build and the speed of the hosted machines
@@ -37,3 +40,24 @@ jobs:
           displayName: 'vcvarsall.bat'
       - script: python -m pip install --upgrade flake8
         displayName: 'Install flake8'
+        enabled: 'false'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\llvm
+          # TODO(compnerd) make the cache dependent on the host
+          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLVM_DEFAULT_TARGET_TRIPLE=$(parameters.triple) -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\$(parameters.platform)-x86_64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake
+        displayName: 'Configure LLVM/clang'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\llvm
+        displayName: 'Build LLVM/clang'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\llvm --target install
+        displayName: 'Install LLVM/clang'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)\Library
+          parallel: true
+          parallelCount: 8
+          artifactName: toolchain
