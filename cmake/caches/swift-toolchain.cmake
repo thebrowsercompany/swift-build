@@ -12,7 +12,7 @@ set(SWIFT_BUILD_DYNAMIC_SDK_OVERLAY NO CACHE BOOL "")
 set(SWIFT_INSTALL_COMPONENTS
       autolink-driver
       compiler
-      clang-resource-dir-symlink
+      clang-builtin-headers
       editor-integration
       tools
       sourcekit-inproc
