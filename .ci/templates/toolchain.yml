@@ -55,6 +55,15 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/llvm --target install
         displayName: 'Install LLVM/clang'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/cmark
+          cmakeArgs: $(Build.SourcesDirectory)/cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="" -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake
+        displayName: 'Configure CMark'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/cmark
+        displayName: 'Build CMark'
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)/Library
