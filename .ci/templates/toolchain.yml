@@ -78,6 +78,19 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/swift --target install
         displayName: 'Install swift'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/lldb
+          cmakeArgs: $(Build.SourcesDirectory)/lldb -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLDB_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DLLDB_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)/clang -DLLDB_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)/llvm -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES
+        displayName: 'Configure lldb'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/lldb
+        displayName: 'Build lldb'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/lldb --target install
+        displayName: 'Install lldb'
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)/Library
