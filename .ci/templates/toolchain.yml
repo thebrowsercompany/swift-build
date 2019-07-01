@@ -64,6 +64,20 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/cmark
         displayName: 'Build CMark'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/swift
+          cmakeArgs: $(Build.SourcesDirectory)/swift -G Ninja -C cmake/caches/swift-toolchain.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DClang_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES
+        displayName: 'Configure swift'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/swift
+        displayName: 'Build swift'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/swift --target install
+        displayName: 'Install swift'
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)/Library
