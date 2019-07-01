@@ -10,6 +10,7 @@ Windows nightlies built on Azure
 | **x64 VS2017** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2017)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=1&branchName=master) |
 | **x64 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=7&branchName=master) |
 | **ARM64 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/ARM64%20Toolchain%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=8&branchName=master) |
+| **x64 (Ubuntu 18.04)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20toolchain%20(FlowKey%20-%20Ubuntu%2018.04)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=14&branchName=master) |
 
 **SDKs**
 
@@ -27,7 +28,8 @@ Windows nightlies built on Azure
 | **CURL VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/CURL%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=11&branchName=master) |
 | **SQLite3 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/SQLite%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=12&branchName=master) |
 
-### Getting Started
+### Getting Started (Windows)
+
 #### Downloading the nightlies
 
 1. We assume you are reading these instructions on the Azure DevOps page for windows-swift at <https://dev.azure.com/compnerd/windows-swift>.
