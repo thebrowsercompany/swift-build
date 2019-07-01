@@ -43,21 +43,21 @@ jobs:
         enabled: 'false'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)\llvm
+          workingDirectory: $(Build.StagingDirectory)/llvm
           # TODO(compnerd) make the cache dependent on the host
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLVM_DEFAULT_TARGET_TRIPLE=$(parameters.triple) -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\$(parameters.platform)-x86_64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake
+          cmakeArgs: $(Build.SourcesDirectory)/llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLVM_DEFAULT_TARGET_TRIPLE=$(parameters.triple) -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake -C $(Build.SourcesDirectory)/cmake/caches/org.compnerd.dt.cmake
         displayName: 'Configure LLVM/clang'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm
+          cmakeArgs: --build $(Build.StagingDirectory)/llvm
         displayName: 'Build LLVM/clang'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm --target install
+          cmakeArgs: --build $(Build.StagingDirectory)/llvm --target install
         displayName: 'Install LLVM/clang'
       - task: PublishBuildArtifacts@1
         inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
+          pathtoPublish: $(Build.StagingDirectory)/Library
           parallel: true
           parallelCount: 8
           artifactName: toolchain
