@@ -1,8 +1,13 @@
 steps:
-  - powershell: |
+  - script: |
       git clone --quiet --depth 1 --single-branch --branch $(icu.release) https://github.com/unicode-org/icu.git
-      Copy-Item -Path $(Build.SourcesDirectory)\cmake\ICU\CMakeLists.txt -Destination icu\icu4c
     displayName: 'Fetch Sources'
+  - task: CopyFiles@2
+    inputs:
+      sourceFolder: $(Build.SourcesDirectory)\cmake\ICU
+      contents: CMakeLists.txt
+      targetFolder: icu\icu4c
+    displayName: 'Prepare'
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/icu
