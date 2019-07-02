@@ -1,29 +1,76 @@
 name: icu
 jobs:
-  - template: templates/icu.yml
-    parameters:
-      host: 'arm64'
-      platform: 'win'
-
-  - template: templates/icu.yml
-    parameters:
-      host: 'x64'
-      platform: 'win'
-
-  - template: templates/icu.yml
-    parameters:
-      arch: 'armv7'
-      host: 'arm'
-      platform: 'android'
-
-  - template: templates/icu.yml
-    parameters:
-      arch: 'aarch64'
+  - job: windows_arm64
+    pool:
+      vmImage: 'windows-2019'
+    variables:
+      arch: aarch64
       host: arm64
-      platform: 'android'
+      platform: windows
 
-  - template: templates/icu.yml
-    parameters:
-      arch: 'x86_64'
-      host: 'x64'
-      platform: 'android'
+      icu.version: 64
+      install.directory: $(Build.StagingDirectory)/Library/icu-$(icu.version)
+      icu.release: maint/maint-$(icu.version)
+      icu.build_tools: false
+    steps:
+    - template: templates/icu.yml
+
+  - job: windows_x64
+    pool:
+      vmImage: 'windows-2019'
+    variables:
+      arch: x86_64
+      host: x64
+      platform: windows
+
+      icu.version: 64
+      install.directory: $(Build.StagingDirectory)/Library/icu-$(icu.version)
+      icu.release: maint/maint-$(icu.version)
+      icu.build_tools: true
+    steps:
+    - template: templates/icu.yml
+
+  - job: android_armv7
+    pool:
+      vmImage: 'windows-2019'
+    variables:
+      arch: armv7
+      host: arm
+      platform: android
+
+      icu.version: 64
+      install.directory: $(Build.StagingDirectory)/Library/icu-$(icu.version)
+      icu.release: maint/maint-$(icu.version)
+      icu.build_tools: false
+    steps:
+    - template: templates/icu.yml
+
+  - job: android_aarch64
+    pool:
+      vmImage: 'windows-2019'
+    variables:
+      arch: aarch64
+      host: arm64
+      platform: android
+
+      icu.version: 64
+      install.directory: $(Build.StagingDirectory)/Library/icu-$(icu.version)
+      icu.release: maint/maint-$(icu.version)
+      icu.build_tools: false
+    steps:
+    - template: templates/icu.yml
+
+  - job: android_x64
+    pool:
+      vmImage: 'windows-2019'
+    variables:
+      arch: x86_64
+      host: x64
+      platform: android
+
+      icu.version: 64
+      install.directory: $(Build.StagingDirectory)/Library/icu-$(icu.version)
+      icu.release: maint/maint-$(icu.version)
+      icu.build_tools: false
+    steps:
+    - template: templates/icu.yml
