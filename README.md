@@ -1,4 +1,4 @@
-# **Swift on Windows (& more) **
+# **Swift on Windows (& more)**
 
 ### Status
 
