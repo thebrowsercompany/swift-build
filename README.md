@@ -7,6 +7,7 @@
 | Provider | Build | Status |
 | - | :-: | - |
 | Facebook | **x64 (VS2017)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(Facebook%20-%20VS2017)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=5&branchName=master) |
+| Microsoft | **x64 (VS2017)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2017)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=1&branchName=master) |
 | Microsoft | **x64 (VS2019)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=7&branchName=master) |
 | Microsoft | **ARM64 (VS2019)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/ARM64%20Toolchain%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=8&branchName=master) |
 
