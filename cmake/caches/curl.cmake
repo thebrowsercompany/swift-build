@@ -6,6 +6,7 @@ set(BUILD_CURL_EXE NO CACHE BOOL "")
 # universally available, and we do not yet build our own OpenSSL to build
 # against
 set(CMAKE_USE_OPENSSL NO CACHE BOOL "")
+set(CURL_CA_PATH "" CACHE STRING "")
 
 # FIXME(compnerd) should we enable this?  I don't believe that ssh is a
 # supported protocol for Foundation
