@@ -34,15 +34,6 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
         displayName: 'Fetch Sources'
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 9
-          allowPartiallySucceededBuilds: true
-          artifactName: 'icu-windows-arm64'
-          downloadPath: '$(System.ArtifactsDirectory)'
-        displayName: 'Fetch ICU'
       - task: BatchScript@1
         inputs:
           fileName: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
@@ -107,7 +98,7 @@ jobs:
         inputs:
           workingDirectory: $(Build.StagingDirectory)\swift
           # NOTE(compnerd) cannot build libdispatch currently, so disable SyntaxParser and SourceKit
-          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DClang_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_WINDOWS_aarch64_ICU_UC_INCLUDE=$(icu.directory)\usr\include\unicode -DSWIFT_WINDOWS_aarch64_ICU_UC=$(icu.directory)\usr\lib\icuuc$(icu.version).lib -DSWIFT_WINDOWS_aarch64_ICU_I18N_INCLUDE=$(icu.directory)\usr\include -DSWIFT_WINDOWS_aarch64_ICU_I18N=$(icu.directory)\usr\lib\icuin$(icu.version).lib -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe -DSWIFT_BUILD_DYNAMIC_STDLIB=NO -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DSWIFT_INCLUDE_TESTS=NO -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DSWIFT_BUILD_SOURCEKIT=YES -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_INSTALL_COMPONENTS="autolink-driver;compiler;clang-resource-dir-symlink;editor-integration;tools;swift-remote-mirror;swift-remote-mirror-headers" -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO
+          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DClang_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_INCLUDE_DOCS=NO -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe -DSWIFT_BUILD_DYNAMIC_STDLIB=NO -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DSWIFT_INCLUDE_TESTS=NO -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DSWIFT_BUILD_SOURCEKIT=YES -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_INSTALL_COMPONENTS="autolink-driver;compiler;clang-resource-dir-symlink;editor-integration;tools;swift-remote-mirror;swift-remote-mirror-headers" -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO
         displayName: 'Configure swift'
       - task: CMake@1
         inputs:
