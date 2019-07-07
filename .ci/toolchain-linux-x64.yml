@@ -7,8 +7,18 @@ schedules:
     always: true
     displayName: "Hourly Build"
 jobs:
-  - template: templates/toolchain.yml
-    parameters:
+  - job: linux_x64
+    pool: FlowKey
+    variables:
+      arch: x86_64
       host: x64
       platform: linux
+
       triple: x86_64-unknown-linux-gnu
+
+      install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+    steps:
+    - script: |
+        echo ##vso[task.setvariable variable=SCCACHE_REDIS]redis://localhost
+      displayName: 'Configure Environment'
+    - template: templates/toolchain.yml

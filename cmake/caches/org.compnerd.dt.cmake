@@ -8,6 +8,10 @@ set(LLVM_ENABLE_PROJECTS
 
 # --- LLVM ---
 
+# NOTE(compnerd) enable assertions always, the toolchain will not provide enough
+# context to resolve issues otherwise and may silently generate invalid output.
+set(LLVM_ENABLE_ASSERTIONS YES CACHE BOOL "")
+
 set(PACKAGE_VENDOR "compnerd.org" CACHE STRING "")
 set(CLANG_VENDOR "compnerd.org" CACHE STRING "")
 set(CLANG_VENDOR_UTI "org.compnerd.dt" CACHE STRING "")
@@ -91,3 +95,32 @@ set(CLANG_TOOLS
       clang-tidy
     CACHE STRING "")
 
+# --- swift ---
+
+# NOTE(compnerd) don't bother building the documentation, this is not user
+# facing documentation
+set(SWIFT_INCLUDE_DOCS NO CACHE BOOL "")
+
+# NOTE(compnerd) enable SourceKit, we want to provide this as part of the
+# toolchain to enable semantic completion
+set(SWIFT_BUILD_SOURCEKIT YES CACHE BOOL "")
+
+# NOTE(compnerd) do not build the standard library (static or shared) nor the
+# SDK overlay as part of the toolchain.  They will be provided as part of the
+# SDK.
+set(SWIFT_BUILD_STATIC_STDLIB NO CACHE BOOL "")
+set(SWIFT_BUILD_STATIC_SDK_OVERLAY NO CACHE BOOL "")
+
+set(SWIFT_BUILD_DYNAMIC_STDLIB NO CACHE BOOL "")
+set(SWIFT_BUILD_DYNAMIC_SDK_OVERLAY NO CACHE BOOL "")
+
+set(SWIFT_INSTALL_COMPONENTS
+      autolink-driver
+      compiler
+      clang-builtin-headers
+      editor-integration
+      tools
+      sourcekit-inproc
+      swift-remote-mirror
+      swift-remote-mirror-headers
+    CACHE STRING "")

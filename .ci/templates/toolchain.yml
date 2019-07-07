@@ -1,92 +1,75 @@
-# parameters:
-# host: [ 'x64' ]
-# platform: [ 'linux' | 'win' ]
-# triple: [ 'x86_64-unknown-linux-gnu' | 'x86_64-unknown-windows-msvc' ]
+steps:
+  - script: |
+      git config --global user.name 'root'
+      git config --global user.email 'root@compnerd.org'
 
-jobs:
-  - job: ${{ parameters.platform }}_${{ parameters.host }}
-    variables:
-      install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
-    # NOTE(compnerd) this is an open source project built on hosted machines, so
-    # this time out is actually 6 hours.  Sadly, this is not very long given the
-    # complexity of this build and the speed of the hosted machines
-    timeoutInMinutes: 0
-    steps:
-      - script: |
-          git config --global user.name 'root'
-          git config --global user.email 'root@compnerd.org'
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
+      # NOTE(compnerd) this cannot be a shallow clone since we need to go back in time to around
+      # when the branch was cut
+      git clone --quiet --single-branch https://github.com/llvm-mirror/lld lld
+      # NOTE(compnerd) This corresponds to SVN r350253 which is the commit closes to SVN r350374
+      # where the current stable branch was cut.
+      git -C lld checkout 997d79fe31b96246ca4ef54cb082a8ec0d756ede
 
-          # NOTE(compnerd) this cannot be a shallow clone since we need to go back in time to around
-          # when the branch was cut
-          git clone --quiet --single-branch https://github.com/llvm-mirror/lld lld
-          # NOTE(compnerd) This corresponds to SVN r350253 which is the commit closes to SVN r350374
-          # where the current stable branch was cut.
-          git -C lld checkout 997d79fe31b96246ca4ef54cb082a8ec0d756ede
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
-        displayName: 'Fetch Sources'
-      - script: |
-          echo ##vso[task.setvariable variable=SCCACHE_REDIS]redis://localhost
-        displayName: 'Configure Environment'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/llvm
-          # TODO(compnerd) make the cache dependent on the host
-          cmakeArgs: $(Build.SourcesDirectory)/llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }} -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake -C $(Build.SourcesDirectory)/cmake/caches/org.compnerd.dt.cmake
-        displayName: 'Configure LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/llvm
-        displayName: 'Build LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/llvm --target install
-        displayName: 'Install LLVM/clang'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/cmark
-          cmakeArgs: $(Build.SourcesDirectory)/cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="" -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake
-        displayName: 'Configure CMark'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/cmark
-        displayName: 'Build CMark'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/swift
-          cmakeArgs: $(Build.SourcesDirectory)/swift -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/swift-toolchain.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DClang_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES
-        displayName: 'Configure swift'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/swift
-        displayName: 'Build swift'
-        enabled: false
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/swift --target install
-        displayName: 'Install swift'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/lldb
-          cmakeArgs: $(Build.SourcesDirectory)/lldb -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-x86_64.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLDB_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DLLDB_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)/clang -DLLDB_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)/llvm -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES
-        displayName: 'Configure lldb'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/lldb
-        displayName: 'Build lldb'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/lldb --target install
-        displayName: 'Install lldb'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)/Library
-          parallel: true
-          parallelCount: 8
-          artifactName: toolchain
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
+      git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+    displayName: 'Fetch Sources'
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/llvm
+      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -C $(Build.SourcesDirectory)/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLVM_DEFAULT_TARGET_TRIPLE=$(triple)
+    displayName: 'Configure LLVM/clang'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/llvm
+    displayName: 'Build LLVM/clang'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/llvm --target install
+    displayName: 'Install LLVM/clang'
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/cmark
+      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -G Ninja $(Build.SourcesDirectory)/cmark -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=""
+    displayName: 'Configure CMark'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/cmark
+    displayName: 'Build CMark'
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/swift
+      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -C $(Build.SourcesDirectory)/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DClang_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/clang -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+    displayName: 'Configure swift'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/swift
+    displayName: 'Build swift'
+    enabled: false
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/swift --target install
+    displayName: 'Install swift'
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/lldb
+      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -C $(Build.SourcesDirectory)/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/lldb -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLDB_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DLLDB_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)/clang -DLLDB_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)/llvm -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift
+    displayName: 'Configure lldb'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/lldb
+    displayName: 'Build lldb'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/lldb --target install
+    displayName: 'Install lldb'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.StagingDirectory)/Library
+      parallel: true
+      parallelCount: 8
+      artifactName: toolchain
