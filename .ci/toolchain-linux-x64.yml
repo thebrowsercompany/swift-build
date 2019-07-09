@@ -18,7 +18,8 @@ jobs:
 
       install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
     steps:
-    - script: |
-        echo ##vso[task.setvariable variable=SCCACHE_REDIS]redis://localhost
-      displayName: 'Configure Environment'
+    - task: Bash@3
+      inputs:
+        script: '/usr/bin/sccache --start-server || true'
+      env: { 'SCCACHE_REDIS': 'redis://localhost' }
     - template: templates/toolchain.yml
