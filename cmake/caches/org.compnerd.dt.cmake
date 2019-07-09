@@ -95,6 +95,11 @@ set(CLANG_TOOLS
       clang-tidy
     CACHE STRING "")
 
+# --- lldb ---
+
+# NOTE(compnerd) use the pre-generated swig bindings rather than building it
+set(LLDB_ALLOW_STATIC_BINDINGS YES CACHE BOOL "")
+
 # --- swift ---
 
 # NOTE(compnerd) don't bother building the documentation, this is not user
