@@ -17,6 +17,12 @@
 | - | :-: | - |
 | FlowKey | **x64 (Ubuntu 18.04)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20toolchain%20(FlowKey%20-%20Ubuntu%2018.04)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=14&branchName=master) |
 
+**macOS Toolchains**
+
+| Provider | Build | Status |
+| - | :-: | - |
+| Microsoft | **x64 (mojave)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20toolchain%20(macOS%2010.14)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=15&branchName=master) |
+
 **SDKs**
 
 | Build | Status |
