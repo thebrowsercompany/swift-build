@@ -10,10 +10,16 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL Windows)
     set(CMAKE_ANDROID_NDK C:/Microsoft/AndroidNDK64/android-ndk-r16b CACHE FILEPATH "")
   elseif(EXISTS C:/Microsoft/AndroidNDK64/android-ndk-r15c)
     set(CMAKE_ANDROID_NDK C:/Microsoft/AndroidNDK64/android-ndk-r15c CACHE FILEPATH "")
+  else()
+    message(FATAL_ERROR "unable to find android NDK")
   endif()
+else()
+  message(FATAL_ERROR "${CMAKE_HOST_SYSTEM_NAME} is unsupported")
 endif()
 
 set(CMAKE_ANDROID_NDK_TOOLCHAIN_VERSION "clang" CACHE STRING "")
 set(CMAKE_ANDROID_STL_TYPE "c++_static" CACHE STRING "")
-set(ANDROID_STL_TYPE "c++_static" CACHE STRING "")
+
+set(ANDROID_NDK ${CMAKE_ANDROID_NDK} CACHE STRING "")
+set(ANDROID_STL_TYPE ${CMAKE_ANDROID_STL_TYPE} CACHE STRING "")
 
