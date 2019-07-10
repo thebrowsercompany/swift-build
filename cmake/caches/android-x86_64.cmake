@@ -15,4 +15,5 @@ endif()
 
 set(CMAKE_ANDROID_NDK_TOOLCHAIN_VERSION "clang" CACHE STRING "")
 set(CMAKE_ANDROID_STL_TYPE "c++_static" CACHE STRING "")
+set(ANDROID_STL_TYPE "c++_static" CACHE STRING "")
 
