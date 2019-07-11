@@ -32,6 +32,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   add_compile_options(/Gy)
 elseif(CMAKE_SYSTEM_NAME STREQUAL Linux OR CMAKE_SYSTEM_NAME STREQUAL Android)
   add_compile_options(-ffunction-sections -fdata-sections)
+
+  include(CheckIncludeFiles)
+  check_include_files(elf.h HAVE_ELF_H)
+  if(HAVE_ELF_H)
+    add_compile_definitions(U_HAVE_ELF_H=1)
+  endif()
 endif()
 
 add_compile_definitions(U_ATTRIBUTE_DEPRECATED=)
