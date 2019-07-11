@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12.3)
+ou
 
 project(ICU LANGUAGES C CXX VERSION 64.2)
 
@@ -50,6 +50,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
 endif()
 target_compile_definitions(icudt PRIVATE
   STUBDATA_BUILD)
+set_target_properties(icudt PROPERTIES
+  OUTPUT_NAME icudt${PROJECT_VERSION_MAJOR})
 
 # icu common (unicode)
 add_library(icuuc
