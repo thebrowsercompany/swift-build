@@ -11,21 +11,8 @@ steps:
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/icu
-      cmakeArgs: $(Build.SourcesDirectory)/icu/icu4c -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=YES -DBUILD_TOOLS=$(icu.build_tools)
-    condition: eq( variables['platform'], 'windows' )
-    displayName: 'Configure ICU (windows)'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/icu
-      cmakeArgs: $(Build.SourcesDirectory)/icu/icu4c -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/android-$(arch).cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=YES
-    condition: eq( variables['platform'], 'android' )
-    displayName: 'Configure ICU (android)'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/icu
-      cmakeArgs: $(Build.SourcesDirectory)/icu/icu4c -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-$(arch).cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=YES
-    condition: eq( variables['platform'], 'linux' )
-    displayName: 'Configure ICU (linux)'
+      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -G Ninja $(Build.SourcesDirectory)/icu/icu4c -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=YES -DBUILD_TOOLS=$(icu.build_tools)
+    displayName: 'Configure ICU'
   - task: CMake@1
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/icu
