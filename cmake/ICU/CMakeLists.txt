@@ -1,4 +1,5 @@
-ou
+
+cmake_minimum_required(VERSION 3.12.3)
 
 project(ICU LANGUAGES C CXX VERSION 64.2)
 
