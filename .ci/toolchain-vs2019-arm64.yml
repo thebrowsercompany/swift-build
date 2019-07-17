@@ -48,7 +48,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\llvm-tools
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DLLVM_ENABLE_ASSERTIONS=NO -DLLVM_ENABLE_PROJECTS=clang
+          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DLLVM_ENABLE_ASSERTIONS=NO -DLLVM_ENABLE_PROJECTS="clang;lldb"
         displayName: 'Configure LLVM Build Tools'
       - task: CMake@1
         inputs:
@@ -58,6 +58,10 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\llvm-tools --target clang-tblgen
         displayName: 'Build Clang Build Tools'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)\llvm-tools --target lldb-tblgen
+        displayName: 'Build LLDB Build Tools'
       - task: BatchScript@1
         inputs:
           filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
