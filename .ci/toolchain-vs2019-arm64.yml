@@ -34,6 +34,9 @@ jobs:
           git -C lld checkout 997d79fe31b96246ca4ef54cb082a8ec0d756ede
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
+          git -C lldb fetch origin pull/1815/head
+          git -C lldb cherry-pick FETCH_HEAD
+
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
@@ -116,7 +119,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\lldb
-          cmakeArgs: $(Build.SourcesDirectory)\lldb -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -DLLVM_TOOLS_BINARY_DIR=$(Build.StagingDirectory)\llvm-tools\bin
+          cmakeArgs: $(Build.SourcesDirectory)\lldb -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe
         displayName: 'Configure lldb'
         continueOnError: true
       - task: CMake@1
