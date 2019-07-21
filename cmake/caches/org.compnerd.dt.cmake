@@ -102,6 +102,8 @@ set(LLDB_ALLOW_STATIC_BINDINGS YES CACHE BOOL "")
 
 # --- swift ---
 
+set(SWIFT_VENDOR "compnerd.org" CACHE STRING "")
+
 # NOTE(compnerd) don't bother building the documentation, this is not user
 # facing documentation
 set(SWIFT_INCLUDE_DOCS NO CACHE BOOL "")
