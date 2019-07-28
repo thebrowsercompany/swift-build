@@ -1,4 +1,6 @@
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+
 # NOTE(compnerd) don't build curl tool as we don't use it
 set(BUILD_CURL_EXE NO CACHE BOOL "")
 
