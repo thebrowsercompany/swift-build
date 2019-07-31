@@ -1,4 +1,6 @@
 
+cmake_policy(SET CMP0077 NEW)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "")
 
 # NOTE(compnerd) don't build curl tool as we don't use it
@@ -50,4 +52,7 @@ set(CURL_DISABLE_GOPHER YES CACHE BOOL "")
 
 # NOTE(compnerd) use zlib for zlib decompression of HTTP streams
 set(CURL_ZLIB YES CACHE BOOL "")
+
+# NOTE(compnerd) this isn't used and we don't have Unix sockets on Windows
+set(ENABLE_UNIX_SOCKETS NO CACHE BOOL "")
 
