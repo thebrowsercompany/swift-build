@@ -1,5 +1,7 @@
 # **Swift on Windows (& more)**
 
+![](images/windows-swift.jpg)
+
 ### Status
 
 **Windows Toolchains**
