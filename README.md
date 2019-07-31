@@ -39,6 +39,7 @@
 | **XML2 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/XML2%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=10&branchName=master) |
 | **CURL VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/CURL%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=11&branchName=master) |
 | **SQLite3 VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/SQLite%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=12&branchName=master) |
+| **ZLIB VS2019** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/zlib%20(VS2019)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=16&branchName=master) |
 
 ### Getting Started
 
