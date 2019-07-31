@@ -18,4 +18,5 @@ Download-Build -BuildID  9 -ArtifactName "icu-android-arm"
 Download-Build -BuildID 10 -ArtifactName "xml2-android-arm"
 Download-Build -BuildID 11 -ArtifactName "curl-android-arm"
 Download-Build -BuildID 12 -ArtifactName "sqlite-android-arm"
+Download-Build -BuildID 16 -ArtifactName "zlib-android-arm"
 
