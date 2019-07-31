@@ -1,0 +1,22 @@
+steps:
+  - script: |
+      git clone --quiet --depth 1 --single-branch https://github.com/madler/zlib.git zlib
+      git -C zlib checkout $(zlib.release)
+    displayName: 'Fetch Sources'
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/zlib
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/zlib -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
+    displayName: 'Configure zlib'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/zlib
+    displayName: 'Build zlib'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/zlib --target install
+    displayName: 'Install zlib'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.StagingDirectory)/Library
+      artifactName: zlib-$(platform)-$(host)
