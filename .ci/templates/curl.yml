@@ -2,10 +2,19 @@ steps:
   - script: |
       git clone --quiet --depth 1 --single-branch --branch $(curl.release) https://github.com/curl/curl.git curl
     displayName: 'Fetch Sources'
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+      allowPartiallySucceededBuilds: true
+      pipeline: 16
+      artifactName: 'zlib-$(platform)-$(arch)'
+      downloadPath: '$(System.ArtifactsDirectory)'
+    displayName: 'Install ZLIB'
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/curl
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/curl -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
+      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(System.ArtifactsDirectory)/zlib-$(zlib.version) -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
     displayName: 'Configure curl'
   - task: CMake@1
     inputs:

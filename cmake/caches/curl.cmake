@@ -47,3 +47,7 @@ set(CURL_DISABLE_SMTP YES CACHE BOOL "")
 
 # NOTE(compnerd) we don't use nor support gopher, does anyone these days?
 set(CURL_DISABLE_GOPHER YES CACHE BOOL "")
+
+# NOTE(compnerd) use zlib for zlib decompression of HTTP streams
+set(CURL_ZLIB YES CACHE BOOL "")
+
