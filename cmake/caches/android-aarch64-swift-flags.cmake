@@ -1,5 +1,5 @@
 
-set(CMAKE_SWIFT_COMPILER_TARGET ${CMAKE_C_COMPILER_TARGET} CACHE STRING "")
+set(CMAKE_SWIFT_COMPILER_TARGET aarch64-unknown-linux-android CACHE STRING "")
 set(CMAKE_SWIFT_FLAGS
       -resource-dir ${SWIFT_ANDROID_SDK}/usr/lib/swift
       -Xcc --sysroot=${CMAKE_ANDROID_NDK}/sysroot
