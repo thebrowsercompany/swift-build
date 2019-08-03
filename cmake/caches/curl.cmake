@@ -56,3 +56,5 @@ set(CURL_ZLIB YES CACHE BOOL "")
 # NOTE(compnerd) this isn't used and we don't have Unix sockets on Windows
 set(ENABLE_UNIX_SOCKETS NO CACHE BOOL "")
 
+set(ENABLE_THREADED_RESOLVER NO CACHE BOOL "")
+
