@@ -22,22 +22,25 @@ jobs:
           git clone --config core.autocrlf=false --config core.symlinks=true --quiet --single-branch https://github.com/apple/swift swift
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
-          for /F %%PR in (%Dispatch.PR%) do (
-            git -C swift-corelibs-libdispatch fetch origin pull/%PR%/head
-            git -C swift-corelibs-libdispatch cherry-pick FETCH_HEAD
-          )
+          call :ApplyPatches "%Dispatch.PR%" swift-corelibs-libdispatch
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
-          for /F %%PR in (%Foundation.PR%) do (
-            git -C swift-corelibs-libdispatch fetch origin pull/%PR%/head
-            git -C swift-corelibs-libdispatch cherry-pick FETCH_HEAD
-          )
+          call :ApplyPatches "%Foundation.PR%" swift-corelibs-foundation
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
-          for /F %%PR in (%XCTest.PR%) do (
-            git -C swift-corelibs-libdispatch fetch origin pull/%PR%/head
-            git -C swift-corelibs-libdispatch cherry-pick FETCH_HEAD
-          )
+          call :ApplyPatches "%XCTest.PR%" swift-corelibs-xctest
+
+        :ApplyPatches
+        setlocal
+        set list=%~1
+        set repository=%~2
+        for /F "tokens=1" %%P in ("%list%") do (
+          git -C %repository% fetch origin pull/%%P/head
+          git -C %repositoyr% cherry-pick FETCH_HEAD
+          if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+        )
+        endlocal
+        goto :eof
         displayName: 'Fetch Sources'
       - task: DownloadBuildArtifacts@0
         inputs:
