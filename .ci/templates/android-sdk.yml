@@ -30,17 +30,17 @@ jobs:
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
           call :ApplyPatches "%XCTest.PR%" swift-corelibs-xctest
 
-        :ApplyPatches
-        setlocal
-        set list=%~1
-        set repository=%~2
-        for /F "tokens=1" %%P in ("%list%") do (
-          git -C %repository% fetch origin pull/%%P/head
-          git -C %repositoyr% cherry-pick FETCH_HEAD
-          if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
-        )
-        endlocal
-        goto :eof
+          :ApplyPatches
+          setlocal
+          set list=%~1
+          set repository=%~2
+          for /F "tokens=1" %%P in ("%list%") do (
+            git -C %repository% fetch origin pull/%%P/head
+            git -C %repositoyr% cherry-pick FETCH_HEAD
+            if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+          )
+          endlocal
+          goto :eof
         displayName: 'Fetch Sources'
       - task: DownloadBuildArtifacts@0
         inputs:
