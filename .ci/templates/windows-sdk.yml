@@ -30,14 +30,27 @@ jobs:
           git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+          call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
+
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
-          # PR2449 - CURL configuration
-          git -C swift-corelibs-foundation fetch origin pull/2449/head
-          git -C swift-corelibs-foundation cherry-pick FETCH_HEAD
+          call :ApplyPatches "%FOUNDATION_PR%" swift-corelibs-foundation
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
+          call :ApplyPatches "%XCTEST_PR%" swift-corelibs-xctest
 
           git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
+
+          :ApplyPatches
+          setlocal
+          set list=%~1
+          set repository=%~2
+          for /F "tokens=1*" %%P in ("%list%") do (
+            git -C %repository% fetch origin pull/%%P/head
+            git -C %repository% cherry-pick FETCH_HEAD
+            if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+          )
+          endlocal
+          goto :eof
         displayName: 'Fetch Sources'
       - task: DownloadBuildArtifacts@0
         inputs:
