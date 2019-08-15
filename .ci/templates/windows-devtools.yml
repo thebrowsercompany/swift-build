@@ -1,0 +1,83 @@
+
+jobs:
+  - job: windows_${{ parameters.build }}
+    variables:
+      toolchain.directory: $(System.ArtifactsDirectory)\toolchain\Developer\Toolchains\unknown-Asserts-development.xctoolchain
+      install.directory: $(Build.StagingDirectory)\Library\Developer\Platforms\Windows.platform\Developer\SharedSupport
+      llbuild.install.directory: $(install.directory)\llbuild-development\usr
+      sqlite.version: 3.28.0
+      sqlite.directory: $(System.ArtifactsDirectory)\sqlite-windows-${{ parameters.build }}\sqlite-$(sqlite.version)
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+      - script: |
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
+
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
+          call :ApplyPatches "%LLBUILD_PR%" llbuild
+
+          goto :eof
+
+          :ApplyPatches
+          setlocal
+          set list=%~1
+          set repository=%~2
+          for /F "tokens=1*" %%P in ("%list%") do (
+            git -C %repository% fetch origin pull/%%P/head
+            git -C %repository% cherry-pick FETCH_HEAD
+            if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+          )
+          endlocal
+          goto :eof
+        displayName: 'Fetch Sources'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 1
+          artifactName: 'toolchain'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install toolchain'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 2
+          artifactName: 'sdk-windows-${{ parameters.build }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 12
+          artifactName: 'sqlite-windows-${{ parameters.build }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install SQLite3'
+      - task: BatchScript@1
+        inputs:
+          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
+          arguments: -no_logo -arch=${{ parameters.build }} -host_arch=x64
+          modify_environment: true
+        displayName: 'vcvarsall.bat'
+      - script: |
+          echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)\usr\bin;%PATH%"
+        displayName: 'Update PATH'
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '2.7.x'
+      - script: |
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%\include\module.modulemap"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
+        displayName: 'Configure SDK'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)\llbuild
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)\cmake\caches\windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)\llbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)\usr\lib\SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)\usr\include
+        displayName: 'Configure llbuild'
+
