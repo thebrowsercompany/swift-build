@@ -40,12 +40,12 @@ jobs:
         modify_environment: true
       displayName: 'vcvarsall.bat'
     - script: |
+        echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
+      displayName: 'Update PATH'
+    - script: |
         curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
         curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%\include\module.modulemap"
         curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
         curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
       displayName: 'Configure SDK'
-    - script: |
-        echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
-      displayName: 'Update PATH'
     - template: templates/windows-devtools.yml
