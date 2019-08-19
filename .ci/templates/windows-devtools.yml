@@ -56,3 +56,15 @@ steps:
       workingDirectory: $(Build.StagingDirectory)/llbuild
       cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
     displayName: 'Configure llbuild'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/llbuild
+    displayName: 'Build llbuild'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
+    displayName: 'Install llbuild'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.StagingDirectory)/Library
+      artifactName: devtools
