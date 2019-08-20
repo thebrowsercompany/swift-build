@@ -1,0 +1,61 @@
+steps:
+  - script: |
+      git config --global user.name 'builder'
+      git config --global user.email 'builder@compnerd.org'
+
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
+      ApplyPatches "${LLBUILD_PR}" llbuild
+
+      function ApplyPatches() {
+        local prs=$1
+        local repository=$2
+        for pr in "${prs[@]}" ; do
+          git -C ${repository} fetch origin pull/${pr}/head
+          git -C ${repository} cherry-pick FETCH_HEAD
+        done
+      }
+    displayName: 'Fetch Sources'
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+      allowPartiallySucceededBuilds: true
+      pipeline: 1
+      artifactName: 'toolchain'
+      downloadPath: '$(System.ArtifactsDirectory)'
+    displayName: 'Install toolchain'
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+      allowPartiallySucceededBuilds: true
+      pipeline: 2
+      artifactName: 'sdk-$(platform)-$(host)'
+      downloadPath: '$(System.ArtifactsDirectory)'
+    displayName: 'Install SDK'
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+      allowPartiallySucceededBuilds: true
+      pipeline: 12
+      artifactName: 'sqlite-$(platform)-$(host)'
+      downloadPath: '$(System.ArtifactsDirectory)'
+    displayName: 'Install SQLite3'
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/llbuild
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/libSQLite3.a -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
+    displayName: 'Configure llbuild'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/llbuild
+    displayName: 'Build llbuild'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
+    displayName: 'Install llbuild'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.StagingDirectory)/Library
+      artifactName: devtools
