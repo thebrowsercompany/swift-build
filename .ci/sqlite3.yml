@@ -15,6 +15,26 @@ trigger:
       - .ci/sqlite3.yml
       - .ci/templates/sqlite3.yml
 jobs:
+  - job: windows_armv7
+    pool:
+      vmImage: 'windows-2019'
+    variables:
+      arch: armv7
+      host: arm
+      platform: windows
+
+      sqlite.version: 3.28.0
+      install.directory: $(Build.StagingDirectory)/Library/sqlite-$(sqlite.version)
+      sqlite.release: 3280000
+    steps:
+    - task: BatchScript@1
+      inputs:
+        filename: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/Common7/Tools/VsDevCmd.bat
+        arguments: -no_logo -arch=arm -host_arch=x64
+        modifyEnvironment: true
+      displayName: 'vcvarsall.bat'
+    - template: templates/sqlite3.yml
+
   - job: windows_arm64
     pool:
       vmImage: 'windows-2019'
