@@ -15,6 +15,26 @@ trigger:
       - .ci/libxml2.yml
       - .ci/templates/libxml2.yml
 jobs:
+  - job: windows_armv7
+    pool:
+      vmImage: 'windows-2019'
+    variables:
+      arch: armv7
+      host: arm
+      platform: windows
+
+      xml2.version: development
+      install.directory: $(Build.StagingDirectory)/Library/libxml2-$(XML2.Version)
+      xml2.release: cmake
+    steps:
+    - task: BatchScript@1
+      inputs:
+        filename: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/Common7/Tools/VsDevCmd.bat
+        arguments: -no_logo -arch=arm -host_arch=x64
+        modifyEnvironment: true
+      displayName: 'vcvarsall.bat'
+    - template: templates/libxml2.yml
+
   - job: windows_arm64
     pool:
       vmImage: 'windows-2019'
