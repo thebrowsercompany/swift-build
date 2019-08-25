@@ -67,7 +67,7 @@ You should use a CMake project to build a Swift program. An example CMake projec
 
 There is no need to call the compiled program from the Native Tools Command Prompt.
 
-The addition of `C:\Library\Swift\Current\bin` to the PATH environment variable Swift Windows SDK ensures that the program can be run on the development machine. `C:\Library\Swift\Current\bin` contains the DLL files needed to run a Swift program (besides the fact that the DLL files from the ICU project icudt\*.dll, icuin\*.dll, icuio\*.dll, icutu\*.dll, and icuuc\*.dll have to be in your path).
+The addition of `C:\Library\Swift\Current\bin` to the PATH environment variable by the Swift Runtime installer ensures that the program can be run on the development machine. `C:\Library\Swift\Current\bin` contains the DLL files needed to run a Swift program (besides the fact that the DLL files from the ICU project icudt\*.dll, icuin\*.dll, icuio\*.dll, icutu\*.dll, and icuuc\*.dll have to be in your path).
 
 Of course, if you place the according DLL files from those directories into the same directory beside your executable (just copy them, do not move them!), you do not need the according additions to the PATH environment variable.
 
