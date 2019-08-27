@@ -8,7 +8,7 @@ Most of the following commands are to be executed from within this Native Tools 
 
 #### Files for the Windows SDK
 
-You will need to copy a few files into the Windows SDK to make it usable for Swift development. (This is a one-time install, you do not need to update those file when you install newer versions of the Swift Toolchain.) As you might need administrator rights to copy files into the Visual Studio installation directory, for the following four commands (and for those commands only) open the Native Tools Command Prompt with administrator rights. Otherwise, you might get a "Permission denied" error for some of those commands. Be sure that all commands have been successfully executed before continuing.
+You will need to copy a few files into the Windows SDK to make it usable for Swift development. (This is a one-time install, you do not need to update those files when you install newer versions of the Swift Toolchain.) As you might need administrator rights to copy files into the Visual Studio installation directory, for the following four commands (and for those commands only) open the Native Tools Command Prompt with administrator rights. Otherwise, you might get a "Permission denied" error for some of those commands. Be sure that all commands have been successfully executed before continuing.
 
 To open the Native Tools Command Prompt with administrator rights, navigate to the according entry in the start menu, right-click on that entry and choose "Open location" in the context menu. Then right-click the according file (that is actually a link) and choose "Run as administrator".
 
