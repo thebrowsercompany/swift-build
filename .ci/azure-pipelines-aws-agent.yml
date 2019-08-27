@@ -2,6 +2,7 @@ name: swift
 variables:
   Install.Directory: $(Build.StagingDirectory)\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr
   icu.version : 64
+  icu.directory: $(System.ArtifactsDirectory)/icu-windows-x64/ICU-$(icu.version)
 jobs:
   - job: windows
     # NOTE(compnerd) this is an open source project built on hosted machines, so
@@ -82,7 +83,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)\swift
-          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DClang_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(Build.StagingDirectory)\Library\icu-$(icu.version)\include\unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(Build.StagingDirectory)\Library\icu-$(icu.version)\lib\icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(Build.StagingDirectory)\Library\icu-$(icu.version)\include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(Build.StagingDirectory)\Library\icu-$(icu.version)\lib\icuin$(icu.version).lib -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DSWIFT_BUILD_SOURCEKIT=YES -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_INSTALL_COMPONENTS="autolink-driver;compiler;clang-resource-dir-symlink;stdlib;sdk-overlay;editor-integration;tools;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers" -DSWIFT_PARALLEL_LINK_JOBS=8 -C$(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
+          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DClang_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DSWIFT_BUILD_SOURCEKIT=YES -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_INSTALL_COMPONENTS="autolink-driver;compiler;clang-resource-dir-symlink;stdlib;sdk-overlay;editor-integration;tools;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers" -DSWIFT_PARALLEL_LINK_JOBS=8 -C$(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
         displayName: 'Configure swift'
       - task: CMake@1
         inputs:
@@ -153,7 +154,7 @@ jobs:
           artifactName: windows-sdk.msi
         displayName: "Publish windows-sdk.msi"
       - script: |
-          echo ##vso[task.setvariable variable=PATH]$(Build.StagingDirectory)\Library\icu-$(icu.version)\bin;$(Install.Directory)\bin;$(Build.StagingDirectory)\swift\libdispatch-prefix\bin;%PATH%;%ProgramFiles%\Git\usr\bin
+          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Install.Directory)\bin;$(Build.StagingDirectory)\swift\libdispatch-prefix\bin;%PATH%;%ProgramFiles%\Git\usr\bin
         displayName: 'Update PATH'
       - task: CMake@1
         inputs:
