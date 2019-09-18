@@ -143,6 +143,15 @@ steps:
     displayName: 'Build XCTest'
   - task: CMake@1
     inputs:
+      workingDirectory: $(Build.StagingDirectory)/foundation
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=swiftc -DZLIB_ROOT=$(zlib.directory)/usr -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch -DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)/libdispatch -DFOUNDATION_PATH_TO_XCTEST_BUILD=$(Build.StagingDirectory)/xctest -DENABLE_TESTING=YES
+    displayName: 'Re-configure Foundation'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/foundation
+    displayName: 'Re-build Foundation'
+  - task: CMake@1
+    inputs:
       workingDirectory: $(Build.StagingDirectory)/llbuild
       cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(llbuild.install.directory) -DLLBUILD_SUPPORT_BINDINGS=Swift -DFOUNDATION_BUILD_DIR=$(Build.StagingDirectory)/foundation -DLIBDISPATCH_BUILD_DIR=$(Build.StagingDirectory)/libdispatch -DLIBDISPATCH_SOURCE_DIR=$(Build.SourcesDirectory)/swift-corelibs-libdispatch -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
     displayName: 'Configure llbuild'
