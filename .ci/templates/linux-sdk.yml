@@ -116,4 +116,14 @@ steps:
     inputs:
       pathtoPublish: $(Build.StagingDirectory)/Library
       artifactName: sdk-linux-$(host)
-
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target ExperimentalTest
+    displayName: 'Test libdispatch'
+    continueOnError: true
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: cTest
+      testResultsFiles: $(Build.StagingDirectory)/libdispatch/Testing/*/Test.xml
+    condition: succeededOrFailed()
+    displayName: Publish test results
