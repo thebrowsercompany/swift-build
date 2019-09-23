@@ -182,6 +182,9 @@ steps:
     inputs:
       pathtoPublish: $(Build.StagingDirectory)/Library
       artifactName: sdk-$(platform)-$(host)
+  - script: |
+      echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
+    displayName: 'Configure CTest'
   - task: CMake@1
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target ExperimentalTest
@@ -196,9 +199,6 @@ steps:
   - script: |
       echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.StagingDirectory)/libdispatch;$(Build.StagingDirectory)/libdispatch/src;$(Build.StagingDirectory)/foundation;$(Build.StagingDirectory)/xctest;%PATH%;%ProgramFiles(x86)%\GnuWin32\bin;%ProgramFiles%\Git\usr\bin
     displayName: 'Update PATH'
-  - script: |
-      echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
-    displayName: 'Configure CTest'
   - task: CMake@1
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/foundation --target test
