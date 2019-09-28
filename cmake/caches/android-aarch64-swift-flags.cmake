@@ -12,3 +12,6 @@ set(CMAKE_SWIFT_LINK_FLAGS
       -Xclang-linker -fuse-ld=gold.exe
     CACHE STRING "")
 
+set(CMAKE_Swift_COMPILER_TARGET aarch64-unknown-linux-android CACHE STRING "")
+set(CMAKE_Swift_FLAGS "-resource-dir ${SWIFT_ANDROID_SDK}/usr/lib/swift -Xcc --sysroot=${CMAKE_ANDROID_NDK}/sysroot" CACHE STRING "")
+
