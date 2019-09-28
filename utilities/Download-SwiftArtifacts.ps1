@@ -35,7 +35,7 @@ param (
 
     # One or more of ['toolchain', 'icu', 'xml2', 'curl', 'sqlite', 'zlib']
     # in a comma separated list
-    [string[]] $Artifacts = @('toolchain', 'icu', 'xml2', 'curl', 'sqlite', 'zlib')
+    [string[]] $Artifacts = @('toolchain', 'icu', 'xml2', 'curl', 'sqlite', 'zlib', 'windowsSDK')
 )
 
 $ErrorActionPreference = "Stop"
@@ -54,9 +54,17 @@ $SourceDirs = @{
 }
 
 function Download-Build([Int] $BuildID, [String] $ArtifactName) {
-  $LatestBuild = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds?definitions=$BuildID&resultFilter=succeeded,partiallySucceeded&`$top=1&api-version-string=5.0"
-  $LatestBuildID = $LatestBuild.value.id
-  $LatestArtifacts = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds/$LatestBuildID/artifacts?api-version-string=5.0"
+  if ($BuildID -eq 2) {
+    # TODO: This is awful, but the is no non failed sdk for all the platforms yet. Instead, hardcode a known build which has Windows x64 artifacts
+    if ($Arch -ne "x64") {
+      return "[WARNING] The windows sdk currently only supports x64, skipping download for $Arch"
+    }
+    $LatestArtifacts = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds/9704/artifacts?api-version-string=5.0"
+  } else {
+    $LatestBuild = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds?definitions=$BuildID&resultFilter=succeeded,partiallySucceeded&`$top=1&api-version-string=5.0"
+    $LatestBuildID = $LatestBuild.value.id
+    $LatestArtifacts = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds/$LatestBuildID/artifacts?api-version-string=5.0"
+  }
   $LatestArtifacts.value | ForEach-Object {
     if ($_.name -Eq $ArtifactName) {
       $TmpPath= "${env:temp}\$($_.name).zip"
@@ -91,14 +99,8 @@ function Download-Build([Int] $BuildID, [String] $ArtifactName) {
 
       $LibDir = "$($SourceDirs[$Platform])\Library"
       Expand-Archive -Force -Path $env:temp\$($_.name).zip -DestinationPath $LibDir
-      Get-ChildItem -Path "${LibDir}\$($_.name)\*" | ForEach-Object {
-        $path = "${LibDir}\$($_.Name)"
-        if (Test-Path $path) {
-          Remove-Item -Re -Fo $path
-        }
-      }
-      Move-Item -Force -Path "${LibDir}\$($_.name)\*" -Destination $LibDir
-      Remove-Item ${LibDir}\$($_.name)
+      Copy-Item -Re -Force -Path "${LibDir}\$($_.name)\*" -Destination $LibDir
+      Remove-Item -Re -Fo ${LibDir}\$($_.name)
     }
   }
 }
@@ -128,6 +130,7 @@ if (!$SupportedArches.Contains($Arch)) {
 
 $SupportedArtifacts = @{
     toolchain = 1
+    windowsSDK = 2
     icu = 9
     xml2 = 10
     curl = 11
@@ -161,5 +164,6 @@ if ($Artifacts.Contains("toolchain")) {
 }
 
 $Artifacts | ForEach-Object {
-    Download-Build -BuildID  $SupportedArtifacts[$_] -ArtifactName "$_-${Platform}-${Arch}"
+    $name = if ($_ -eq "windowsSDK") { "sdk" } else { $_ }
+    Download-Build -BuildID  $SupportedArtifacts[$_] -ArtifactName "$name-${Platform}-${Arch}"
 }
