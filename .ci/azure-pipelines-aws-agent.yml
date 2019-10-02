@@ -1,8 +1,4 @@
-name: swift
-variables:
-  Install.Directory: $(Build.StagingDirectory)\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr
-  icu.version : 64
-  icu.directory: $(System.ArtifactsDirectory)/icu-windows-x64/ICU-$(icu.version)
+name: toolchain
 pr:
   branches:
     include:
@@ -10,154 +6,92 @@ pr:
   paths:
     include:
       - .ci/azure-pipelines-aws-agent.yml
+      - .ci/templates/toolchain.yml
 jobs:
-  - job: windows
-    # NOTE(compnerd) this is an open source project built on hosted machines, so
-    # this time out is actually 6 hours.  Sadly, this is not very long given the
-    # complexity of this build and the speed of the hosted machines
-    timeoutInMinutes: 0
-    pool:
-      name: Default
+  - job: windows_x64
+    # TODO(compnerd) move to Facebook pool
+    pool: Default
+    variables:
+      arch: x86_64
+      host: x64
+      platform: windows
+
+      triple: x86_64-unknown-windows-msvc
+
+      install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+
+      icu.version : 64
+      icu.directory: $(System.ArtifactsDirectory)/icu-$(platform)-$(host)/ICU-$(icu.version)
+      swift_icu_flags: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib
     steps:
-      - script: |
-          git config --global user.name 'builder'
-          git config --global user.email 'builder@compnerd.org'
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
-
-          # NOTE(compnerd) this cannot be a shallow clone since we need to go back in time to around
-          # when the branch was cut
-          git clone --quiet --single-branch https://github.com/llvm-mirror/lld lld
-          # NOTE(compnerd) This corresponds to SVN r366273
-          git -C lld checkout a2d223a75197784c0d7f4f525e8ab3365bbe682f
-          git -C lld cherry-pick bc987e7310ce4b8c9af42187b21f3b90cc80e1b6
-          git -C lld cherry-pick 31d5cdbe7714d545c7513b2587f56045f7ff3efb
-          git -C lld revert 15a306219ce5425c77f0f2afb17870c89e560cae
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
-        displayName: 'Fetch Sources'
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: specific
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
-          pipeline: 9
-          artifactName: 'icu-windows-x64'
-          downloadPath: '$(Build.StagingDirectory)'
-        displayName: 'Install ICU'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\Common7\\Tools\\VsDevCmd.bat
-          arguments: -no_logo -arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: '2.7.x'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\llvm
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_PDB=YES -DLLVM_ENABLE_ASSERTIONS=YES -C$(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake -C$(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake
-        displayName: 'Configure LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm
-        displayName: 'Build LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm --target install
-        displayName: 'Install LLVM/clang'
-      - script: |
-          echo ##vso[task.setvariable variable=PATH]%PATH%;$(Install.Directory)\bin
-        displayName: 'Update PATH'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\cmark
-          cmakeArgs: $(Build.SourcesDirectory)\cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -C$(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
-        displayName: 'Configure CMark'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\cmark
-        displayName: 'Build CMark'
-      - script: |
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap" "%VCToolsInstallDir%\include\module.modulemap"
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes" "%VCToolsInstallDir%\include\visualc.apinotes"
-          copy /y "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
-        displayName: 'Configure SDK'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\swift
-          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DClang_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DSWIFT_BUILD_SOURCEKIT=YES -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_INSTALL_COMPONENTS="autolink-driver;compiler;clang-resource-dir-symlink;stdlib;sdk-overlay;editor-integration;tools;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers" -DSWIFT_PARALLEL_LINK_JOBS=8 -C$(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
-        displayName: 'Configure swift'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\swift
-        displayName: 'Build swift'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\swift --target install
-        displayName: 'Install swift'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\lldb
-          cmakeArgs: $(Build.SourcesDirectory)\lldb -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLDB_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DLLDB_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)/clang -DLLDB_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)/llvm -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES -C$(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
-        displayName: 'Configure lldb'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\lldb
-        displayName: 'Build lldb'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\lldb --target install
-        displayName: 'Install lldb'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: toolchain
-      - task: MSBuild@1
-        inputs:
-          solution: $(Build.SourcesDirectory)\installer\windows-toolchain.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:INCLUDE_DEBUG_INFO=INCLUDE_DEBUG_INFO -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLD_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
-        displayName: "Build windows-toolchain-amd64.msi"
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-toolchain-amd64.msi
-          artifactName: windows-toolchain-amd64.msi
-        displayName: "Publish windows-toolchain-amd64.msi"
-      - task: MSBuild@1
-        inputs:
-          solution: $(Build.SourcesDirectory)\installer\windows-runtime.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:INCLUDE_DEBUG_INFO=INCLUDE_DEBUG_INFO -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
-        displayName: "Build windows-runtime-amd64.msi"
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-runtime-amd64.msi
-          artifactName: windows-runtime-amd64.msi
-        displayName: "Publish windows-runtime-amd64.msi"
-      - task: MSBuild@1
-        inputs:
-          solution: $(Build.SourcesDirectory)\installer\windows-sdk.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:INCLUDE_DEBUG_INFO=INCLUDE_DEBUG_INFO -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
-        displayName: "Build windows-sdk.msi"
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-sdk.msi
-          artifactName: windows-sdk.msi
-        displayName: "Publish windows-sdk.msi"
-      - script: |
-          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Install.Directory)\bin;$(Build.StagingDirectory)\swift\libdispatch-prefix\bin;%PATH%;%ProgramFiles%\Git\usr\bin
-        displayName: 'Update PATH'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\swift --target check-swift-validation
-        displayName: 'test swift'
-        continueOnError: true
-      - task: PublishTestResults@2
-        inputs:
-          testResultsFormat: 'JUnit'
-          testResultsFiles: '$(Build.StagingDirectory)/swift/swift-test-results/*/*.xml'
+    - task: BatchScript@1
+      inputs:
+        filename: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\Common7\\Tools\\VsDevCmd.bat"
+        arguments: -no_logo -arch=x64 -host_arch=x64
+        modifyEnvironment: true
+      displayName: 'vcvarsall.bat'
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '2.7.x'
+    - script: |
+        echo "##vso[task.setvariable variable=PATH]$(install.directory)/bin;%PATH%"
+      displayName: 'Update PATH'
+    # TODO(compnerd) figure out how to account for patches to these files
+    - script: |
+        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%/Include/%UCRTVersion%/ucrt/module.modulemap"
+        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%/include/module.modulemap"
+        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%/include/visualc.apinotes"
+        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%/Include/%UCRTVersion%/um/module.modulemap"
+      displayName: 'Configure SDK'
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        buildType: specific
+        project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+        allowPartiallySucceededBuilds: true
+        pipeline: 9
+        artifactName: 'icu-$(platform)-$(host)'
+        downloadPath: '$(Build.StagingDirectory)'
+      displayName: 'Install ICU'
+    - template: templates/toolchain.yml
+    - task: MSBuild@1
+      inputs:
+        solution: $(Build.SourcesDirectory)\installer\windows-toolchain.wixproj
+        msbuildArguments: /p:RunWixToolsOutOfProc=true -p:INCLUDE_DEBUG_INFO=INCLUDE_DEBUG_INFO -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLD_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
+      displayName: "Build windows-toolchain-amd64.msi"
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-toolchain-amd64.msi
+        artifactName: windows-toolchain-amd64.msi
+      displayName: "Publish windows-toolchain-amd64.msi"
+    - task: MSBuild@1
+      inputs:
+        solution: $(Build.SourcesDirectory)\installer\windows-runtime.wixproj
+        msbuildArguments: /p:RunWixToolsOutOfProc=true -p:INCLUDE_DEBUG_INFO=INCLUDE_DEBUG_INFO -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
+      displayName: "Build windows-runtime-amd64.msi"
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-runtime-amd64.msi
+        artifactName: windows-runtime-amd64.msi
+      displayName: "Publish windows-runtime-amd64.msi"
+    - task: MSBuild@1
+      inputs:
+        solution: $(Build.SourcesDirectory)\installer\windows-sdk.wixproj
+        msbuildArguments: /p:RunWixToolsOutOfProc=true -p:INCLUDE_DEBUG_INFO=INCLUDE_DEBUG_INFO -p:LLVM_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:CLANG_BUILD_DIR=$(Build.StagingDirectory)\llvm -p:LLDB_BUILD_DIR=$(Build.StagingDirectory)\lldb -p:SWIFT_BUILD_DIR=$(Build.StagingDirectory)\swift -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)\swift
+      displayName: "Build windows-sdk.msi"
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: $(Build.SourcesDirectory)\installer\build\windows-sdk.msi
+        artifactName: windows-sdk.msi
+      displayName: "Publish windows-sdk.msi"
+    - script: |
+        echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(install.directory)\bin;$(Build.StagingDirectory)\swift\libdispatch-prefix\bin;%PATH%;%ProgramFiles%\Git\usr\bin
+      displayName: 'Update PATH'
+    - task: CMake@1
+      inputs:
+        cmakeArgs: --build $(Build.StagingDirectory)\swift --target check-swift-validation
+      displayName: 'test swift'
+      continueOnError: true
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '$(Build.StagingDirectory)/swift/swift-test-results/*/*.xml'
