@@ -20,46 +20,28 @@ trigger:
   paths:
     include:
       - .ci/toolchain-vs2019-amd64.yml
-variables:
-  Install.Directory: $(Build.StagingDirectory)\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr
-  ICU.Version: 64
-  ICU.Directory: $(System.ArtifactsDirectory)\icu-windows-x64\ICU-$(ICU.Version)
 jobs:
-  - job: windows
+  - job: windows_x64
     # NOTE(compnerd) this is an open source project built on hosted machines, so
     # this time out is actually 6 hours.  Sadly, this is not very long given the
     # complexity of this build and the speed of the hosted machines
     timeoutInMinutes: 0
     pool:
       vmImage: 'windows-2019'
+    variables:
+      arch: x86_64
+      host: x64
+      platform: windows
+
+      triple: x86_64-unknown-windows-msvc
+
+      install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+
+      icu.version : 64
+      icu.directory: $(System.ArtifactsDirectory)/icu-$(platform)-$(host)/ICU-$(icu.version)
+
+      swift.extra_cmake_flags: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLLVM_PARALLEL_LINK_JOBS=2 -DSWIFT_PARALLEL_LINK_JOBS=2
     steps:
-      - script: |
-          git config --global user.name 'builder'
-          git config --global user.email 'builder@compnerd.org'
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
-
-          # NOTE(compnerd) this cannot be a shallow clone since we need to go back in time to around
-          # when the branch was cut
-          git clone --quiet --single-branch https://github.com/llvm-mirror/lld lld
-          git -C lld checkout a2d223a75197784c0d7f4f525e8ab3365bbe682f
-          git -C lld cherry-pick bc987e7310ce4b8c9af42187b21f3b90cc80e1b6
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
-        displayName: 'Fetch Sources'
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: specific
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 9
-          allowPartiallySucceededBuilds: true
-          artifactName: 'icu-windows-x64'
-          downloadPath: '$(System.ArtifactsDirectory)'
-        displayName: 'Download/Install ICU4C'
       - task: BatchScript@1
         inputs:
           filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
@@ -71,70 +53,29 @@ jobs:
           versionSpec: '2.7.x'
       - script: python -m pip install --upgrade flake8
         displayName: 'Install flake8'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\llvm
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-windows-msvc -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake
-        displayName: 'Configure LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm
-        displayName: 'Build LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm --target install
-        displayName: 'Install LLVM/clang'
       - script: |
-          echo ##vso[task.setvariable variable=PATH]$(ICU.Directory)\usr\bin;$(Install.Directory)\bin;%PATH%;%ProgramFiles(x86)%\GnuWin32\bin;%ProgramFiles%\Git\usr\bin
+          echo "##vso[task.setvariable variable=PATH]$(install.directory)/bin;%PATH%"
         displayName: 'Update PATH'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\cmark
-          cmakeArgs: $(Build.SourcesDirectory)\cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX="" -C $(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
-        displayName: 'Configure CMark'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\cmark
-        displayName: 'Build CMark'
+      # TODO(compnerd) figure out how to account for patches to these files
       - script: |
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap"
-          mklink "%VCToolsInstallDir%\include\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap"
-          mklink "%VCToolsInstallDir%\include\visualc.apinotes" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes"
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%/Include/%UCRTVersion%/ucrt/module.modulemap"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%/include/module.modulemap"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%/include/visualc.apinotes"
+          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%/Include/%UCRTVersion%/um/module.modulemap"
         displayName: 'Configure SDK'
-      - task: CMake@1
+      - task: DownloadBuildArtifacts@0
         inputs:
-          workingDirectory: $(Build.StagingDirectory)\swift
-          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DClang_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_INCLUDE_DOCS=NO -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(ICU.Directory)\usr\include\unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(ICU.Directory)\usr\lib\icuuc$(ICU.Version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(ICU.Directory)\usr\include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(ICU.Directory)\usr\lib\icuin$(ICU.Version).lib -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DSWIFT_BUILD_SOURCEKIT=YES -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_INSTALL_COMPONENTS="autolink-driver;compiler;clang-resource-dir-symlink;stdlib;sdk-overlay;editor-integration;tools;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers" -C $(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
-        displayName: 'Configure swift'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\swift
-        displayName: 'Build swift'
-        enabled: false
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\swift --target install
-        displayName: 'Install swift'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\lldb
-          cmakeArgs: $(Build.SourcesDirectory)\lldb -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLDB_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)/cmark -DLLDB_PATH_TO_CLANG_SOURCE=$(Build.SourcesDirectory)/clang -DLLDB_PATH_TO_LLVM_SOURCE=$(Build.SourcesDirectory)/llvm -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)/cmark -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
-        displayName: 'Configure lldb'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\lldb
-        displayName: 'Build lldb'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\lldb --target install
-        displayName: 'Install lldb'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          parallel: true
-          parallelCount: 8
-          artifactName: toolchain
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 9
+          artifactName: 'icu-$(platform)-$(host)'
+          downloadPath: '$(Build.StagingDirectory)'
+        displayName: 'Install ICU'
+      - template: templates/toolchain.yml
+      - script: |
+          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(install.directory)\bin;$(Build.StagingDirectory)\swift\libdispatch-prefix\bin;%PATH%;%ProgramFiles%\Git\usr\bin
+        displayName: 'Update PATH'
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)\swift --target check-swift
