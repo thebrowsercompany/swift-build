@@ -49,6 +49,9 @@ set(ENABLE_X86_RELAX_RELOCATIONS YES CACHE BOOL "")
 # NOTE(compnerd) we like our Unix style names for the tools.
 set(LLVM_INSTALL_BINUTILS_SYMLINKS YES CACHE BOOL "")
 
+# NOTE(compnerd) generate PDBs when possible
+set(LLVM_ENABLE_PDB YES CACHE BOOL "")
+
 # NOTE(compnerd) install these tools and only the tools, not the static
 # libraries to reduce the size of the toolchain and only distribute the
 # supported items.
