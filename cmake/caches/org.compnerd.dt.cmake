@@ -50,7 +50,8 @@ set(ENABLE_X86_RELAX_RELOCATIONS YES CACHE BOOL "")
 set(LLVM_INSTALL_BINUTILS_SYMLINKS YES CACHE BOOL "")
 
 # NOTE(compnerd) generate PDBs when possible
-set(LLVM_ENABLE_PDB YES CACHE BOOL "")
+# TODO(compnerd) enable PDBs again; this runs up against disk limitations
+# set(LLVM_ENABLE_PDB YES CACHE BOOL "")
 
 # NOTE(compnerd) install these tools and only the tools, not the static
 # libraries to reduce the size of the toolchain and only distribute the
