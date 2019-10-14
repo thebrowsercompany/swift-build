@@ -131,6 +131,12 @@ steps:
       cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target ExperimentalTest
     displayName: 'Test libdispatch'
     continueOnError: true
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: cTest
+      testResultsFiles: $(Build.StagingDirectory)/libdispatch/Testing/*/Test.xml
+    condition: succeededOrFailed()
+    displayName: Publish test results
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/foundation
@@ -143,7 +149,7 @@ steps:
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/xctest
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DCMAKE_SWIFT_COMPILER=swiftc -DENABLE_TESTING=NO -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)/foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)/libdispatch
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DCMAKE_SWIFT_COMPILER=swiftc -DENABLE_TESTING=NO -DXCTEST_PATH_TO_FOUNDATION_BUILD=$(Build.StagingDirectory)/foundation -DXCTEST_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch -DXCTEST_PATH_TO_LIBDISPATCH_BUILD=$(Build.StagingDirectory)/libdispatch
     displayName: 'Configure XCTest'
   - task: CMake@1
     inputs:
@@ -158,6 +164,23 @@ steps:
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/foundation
     displayName: 'Re-build Foundation'
+  - script: |
+      echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
+    displayName: 'Configure CTest'
+  - script: |
+      echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.StagingDirectory)/libdispatch;$(Build.StagingDirectory)/libdispatch/src;$(Build.StagingDirectory)/foundation;$(Build.StagingDirectory)/xctest;%PATH%;%ProgramFiles(x86)%\GnuWin32\bin;%ProgramFiles%\Git\usr\bin
+    displayName: 'Update PATH'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/foundation --target test
+    displayName: 'Test Foundation'
+    continueOnError: true
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: cTest
+      testResultsFiles: $(Build.StagingDirectory)/foundation/Testing/*/Test.xml
+    condition: succeededOrFailed()
+    displayName: Publish test results
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/llbuild
@@ -190,26 +213,3 @@ steps:
     inputs:
       pathtoPublish: $(Build.StagingDirectory)/Library
       artifactName: sdk-$(platform)-$(host)
-  - script: |
-      echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
-    displayName: 'Configure CTest'
-  - task: PublishTestResults@2
-    inputs:
-      testResultsFormat: cTest
-      testResultsFiles: $(Build.StagingDirectory)/libdispatch/Testing/*/Test.xml
-    condition: succeededOrFailed()
-    displayName: Publish test results
-  - script: |
-      echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.StagingDirectory)/libdispatch;$(Build.StagingDirectory)/libdispatch/src;$(Build.StagingDirectory)/foundation;$(Build.StagingDirectory)/xctest;%PATH%;%ProgramFiles(x86)%\GnuWin32\bin;%ProgramFiles%\Git\usr\bin
-    displayName: 'Update PATH'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/foundation --target test
-    displayName: 'Test Foundation'
-    continueOnError: true
-  - task: PublishTestResults@2
-    inputs:
-      testResultsFormat: cTest
-      testResultsFiles: $(Build.StagingDirectory)/libdispatch/Testing/*/Test.xml
-    condition: succeededOrFailed()
-    displayName: Publish test results
