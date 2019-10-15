@@ -49,6 +49,9 @@ set(ENABLE_X86_RELAX_RELOCATIONS YES CACHE BOOL "")
 # NOTE(compnerd) we like our Unix style names for the tools.
 set(LLVM_INSTALL_BINUTILS_SYMLINKS YES CACHE BOOL "")
 
+set(LLVM_BUILD_LLVM_DYLIB NO CACHE BOOL "")
+set(LLVM_BUILD_LLVM_C_DYLIB NO CACHE BOOL "")
+
 # NOTE(compnerd) generate PDBs when possible
 # TODO(compnerd) enable PDBs again; this runs up against disk limitations
 # set(LLVM_ENABLE_PDB YES CACHE BOOL "")
