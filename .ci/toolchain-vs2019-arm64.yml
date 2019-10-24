@@ -30,112 +30,60 @@ jobs:
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark cmark
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
+          git clone --quiet --depth 1 --single-branch --branch swift/master https://github.com/apple/llvm-project toolchain
 
-          # NOTE(compnerd) this cannot be a shallow clone since we need to go back in time to around
-          # when the branch was cut
-          git clone --quiet --single-branch https://github.com/llvm-mirror/lld lld
-          git -C lld checkout a2d223a75197784c0d7f4f525e8ab3365bbe682f
-          git -C lld cherry-pick bc987e7310ce4b8c9af42187b21f3b90cc80e1b6
-          git -C lld cherry-pick 31d5cdbe7714d545c7513b2587f56045f7ff3efb
-          git -C lld revert 15a306219ce5425c77f0f2afb17870c89e560cae
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-lldb lldb
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-clang clang
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift swift
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-cmark toolchain/cmark
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch toolchain/swift-corelibs-libdispatch
+          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift toolchain/swift
         displayName: 'Fetch Sources'
       - task: BatchScript@1
         inputs:
-          fileName: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
+          fileName: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
         displayName: 'vcvarsall.bat'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)\llvm-tools
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DLLVM_ENABLE_ASSERTIONS=NO -DLLVM_ENABLE_PROJECTS="clang"
+          workingDirectory: $(Build.StagingDirectory)/llvm-tools
+          cmakeArgs: $(Build.SourcesDirectory)\toolchain\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DLLVM_ENABLE_ASSERTIONS=NO -DLLVM_ENABLE_PROJECTS="clang"
         displayName: 'Configure LLVM Build Tools'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm-tools --target llvm-tblgen
+          cmakeArgs: --build $(Build.StagingDirectory)/llvm-tools --target llvm-tblgen
         displayName: 'Build LLVM Build Tools'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm-tools --target clang-tblgen
+          cmakeArgs: --build $(Build.StagingDirectory)/llvm-tools --target clang-tblgen
         displayName: 'Build Clang Build Tools'
       - task: BatchScript@1
         inputs:
-          filename: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat
+          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
           arguments: -no_logo -arch=arm64 -host_arch=x64
           modifyEnvironment: true
         displayName: 'vcvarsall.bat'
       - task: UsePythonVersion@0
         inputs:
           versionSpec: '2.7.x'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\llvm
-          # NOTE(compnerd) DIA does not contain ARM64 diaguids.lib
-          cmakeArgs: $(Build.SourcesDirectory)\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_DEFAULT_TARGET_TRIPLE=aarch64-unknown-windows-msvc -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe -DCLANG_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\clang-tblgen.exe -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake -DLLVM_ENABLE_DIA_SDK=NO
-        displayName: 'Configure LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm
-        displayName: 'Build LLVM/clang'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\llvm --target install
-        displayName: 'Install LLVM/clang'
       - script: |
-          echo ##vso[task.setvariable variable=PATH]$(Install.Directory)\bin;%PATH%;%ProgramFiles(x86)%\GnuWin32\bin;%ProgramFiles%\Git\usr\bin
-        displayName: 'Update PATH'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\cmark
-          cmakeArgs: $(Build.SourcesDirectory)\cmark -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX="" -C $(Build.SourcesDirectory)\cmake\caches\Windows-x86_64.cmake
-        displayName: 'Configure CMark'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\cmark
-        displayName: 'Build CMark'
-      - script: |
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap"
-          mklink "%VCToolsInstallDir%\include\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap"
-          mklink "%VCToolsInstallDir%\include\visualc.apinotes" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes"
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap"
+          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\ucrt.modulemap"
+          mklink "%VCToolsInstallDir%\include\module.modulemap" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.modulemap"
+          mklink "%VCToolsInstallDir%\include\visualc.apinotes" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.apinotes"
+          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\winsdk.modulemap"
         displayName: 'Configure SDK'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)\swift
-          # NOTE(compnerd) cannot build libdispatch currently, so disable SyntaxParser and SourceKit
-          cmakeArgs: $(Build.SourcesDirectory)\swift -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DClang_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\clang -DSWIFT_PATH_TO_CMARK_BUILD=$(Build.StagingDirectory)\cmark -DSWIFT_PATH_TO_CMARK_SOURCE=$(Build.SourcesDirectory)\cmark -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)\swift-corelibs-libdispatch -DLLVM_DIR=$(Build.StagingDirectory)\llvm\lib\cmake\llvm -DSWIFT_INCLUDE_DOCS=NO -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe -DSWIFT_BUILD_DYNAMIC_STDLIB=NO -DSWIFT_BUILD_STATIC_STDLIB=NO -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO -DSWIFT_INCLUDE_TESTS=NO -DLLVM_INSTALL_TOOLCHAIN_ONLY=YES -DSWIFT_BUILD_SOURCEKIT=YES -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_INSTALL_COMPONENTS="autolink-driver;compiler;clang-resource-dir-symlink;editor-integration;tools;swift-remote-mirror;swift-remote-mirror-headers" -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO
-        displayName: 'Configure swift'
+          workingDirectory: $(Build.StagingDirectory)/toolchain
+          # NOTE(compnerd) DIA does not contain ARM64 diaguids.lib
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-aarch64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)\toolchain\llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_DEFAULT_TARGET_TRIPLE=aarch64-unknown-windows-msvc -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe -DCLANG_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\clang-tblgen.exe -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;cmark;swift;lldb" -DLLVM_EXTERNAL_PROJECTS="cmark;swift" -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/toolchain/swift-corelibs-libdispatch -DLLVM_ENABLE_ASSERTIONS=YES -DLLVM_ENABLE_DIA_SDK=NO -DSWIFT_INCLUDE_TESTS=NO -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO
+        displayName: 'Configure toolchain'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\swift
-        displayName: 'Build swift'
+          cmakeArgs: --build $(Build.StagingDirectory)/toolchain --target distribution
+        displayName: 'Build toolchain'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\swift --target install
-        displayName: 'Install swift'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)\lldb
-          cmakeArgs: $(Build.SourcesDirectory)\lldb -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLDB_PATH_TO_SWIFT_SOURCE=$(Build.SourcesDirectory)/swift -DLLDB_PATH_TO_CLANG_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_LLVM_BUILD=$(Build.StagingDirectory)/llvm -DLLDB_PATH_TO_SWIFT_BUILD=$(Build.StagingDirectory)/swift -DLLVM_ENABLE_ASSERTIONS=YES -C $(Build.SourcesDirectory)\cmake\caches\Windows-aarch64.cmake -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe
-        displayName: 'Configure lldb'
-        continueOnError: true
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\lldb
-        displayName: 'Build lldb'
-        continueOnError: true
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\lldb --target install
-        displayName: 'Install lldb'
-        continueOnError: true
+          cmakeArgs: --build $(Build.StagingDirectory)/toolchain --target install-distribution-stripped
+        displayName: 'Install toolchain'
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)\Library
