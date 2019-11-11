@@ -59,7 +59,7 @@ function Download-Build([Int] $BuildID, [String] $ArtifactName) {
     if ($Arch -ne "x64") {
       return "[WARNING] The windows sdk currently only supports x64, skipping download for $Arch"
     }
-    $LatestArtifacts = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds/9704/artifacts?api-version-string=5.0"
+    $LatestArtifacts = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds/13369/artifacts?api-version-string=5.0"
   } else {
     $LatestBuild = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds?definitions=$BuildID&resultFilter=succeeded,partiallySucceeded&`$top=1&api-version-string=5.0"
     $LatestBuildID = $LatestBuild.value.id
