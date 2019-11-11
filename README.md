@@ -43,6 +43,12 @@
 | **SQLite3** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/SQLite?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=12&branchName=master) |
 | **ZLIB** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/zlib?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=16&branchName=master) |
 
+**MSIs**
+
+| Build | Status |
+| :-: | - |
+| **Windows x64 Toolchain**| [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Windows%20Toolchain%20MSI?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=21&branchName=master) |
+
 ### Getting Started
 
 [Windows](docs/Windows.md)
