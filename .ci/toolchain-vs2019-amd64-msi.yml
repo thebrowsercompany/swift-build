@@ -1,0 +1,52 @@
+name: toolchain-msi
+pr:
+  branches:
+    include:
+      - 'refs/heads/*'
+  paths:
+    include:
+      - .ci/toolchain-vs2019-amd64-msi.yml
+      - wix/windows-toolchain.wixproj
+      - wix/windows-toolchain.wxs
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/toolchain-vs2019-amd64-msi.yml
+      - wix/windows-toolchain.wixproj
+      - wix/windows-toolchain.wxs
+jobs:
+  - job: windows_x64
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+      - task: BatchScript@1
+        inputs:
+          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
+          arguments: -no_logo -arch=x64 -host_arch=x64
+          modifyEnvironment: true
+        displayName: 'vcvarsall.bat'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 7
+          specificBuildWithTriggering: true
+          allowPartiallySucceededBuilds: true
+          artifactName: 'toolchain'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install toolchain'
+      - task: MSBuild@1
+        inputs:
+          solution: $(Build.SourcesDirectory)\wix\windows-toolchain.wixproj
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:TOOLCHAIN_ROOT=$(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+        displayName: 'Build windows-toolchain-amd64.msi'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.SourcesDirectory)\wix\build\windows-toolchain-amd64.msi'
+          ArtifactName: 'windows-toolchain-amd64.msi'
+        displayName: "Publish windows-toolchain-amd64.msi"
+
+
