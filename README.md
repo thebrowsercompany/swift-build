@@ -47,7 +47,8 @@
 
 | Build | Status |
 | :-: | - |
-| **Windows x64 (VS2017) Toolchain**| [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Windows%20x64%20Toolchain%20(VS2017)%20MSI?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=21&branchName=master) |
+| **Windows x64 (VS2017) Toolchain** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Windows%20x64%20Toolchain%20(VS2017)%20MSI?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=21&branchName=master) |
+| **Windows x64 (VS2019) Toolchain** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/x64%20Toolchain%20(VS2019)%20MSI?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=22&branchName=master) |
 
 ### Getting Started
 
