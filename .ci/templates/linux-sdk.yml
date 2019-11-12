@@ -1,14 +1,28 @@
 steps:
   - script: |
+      function ApplyPatches() {
+        local repository=${1} ; shift
+        for PR in "${@}" ; do
+          git -C ${repository} fetch origin pull/${PR}/head
+          git -C ${repository} cherry-pick FETCH_HEAD
+        done
+      }
+
       git config --global user.name 'builder'
       git config --global user.email 'builder@compnerd.org'
 
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
       git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
+      ApplyPatches swift ${SWIFT_PR}
 
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+      ApplyPatches swift-corelibs-libdispatch ${DISPATCH_PR}
+
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
+      ApplyPatches swift-corelibs-foundation ${FOUNDATION_PR}
+
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
+      ApplyPatches swift-corelibs-xctest ${XCTEST_PR}
     displayName: 'Fetch Sources'
   - task: DownloadBuildArtifacts@0
     inputs:
