@@ -1,15 +1,8 @@
 
-Add-Type -A System.IO.Compression.FileSystem
-
-$Builds = Invoke-RestMethod -Uri 'https://dev.azure.com/compnerd/windows-swift/_apis/build/builds?definitions=5&resultFilter=succeeded,partiallySucceeded&$top=1&api-version-string=5.0' -Method GET -UseDefaultCredentials
-$BuildID = $Builds.value.id
-
-$Components = @( "windows-toolchain-amd64.msi", "windows-runtime-amd64.msi", "windows-sdk.msi" )
-$Artifacts = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds/$BuildID/artifacts?apiversion-string=2.0" -Method GET -UseDefaultCredentials
-$Artifacts.value | ForEach-Object {
-  if ($Components -Contains $_.name) {
-    Invoke-WebRequest $_.resource.downloadUrl -OutFile "C:\TEMP\$($_.name)"
-    [IO.Compression.ZipFile]::ExtractToDirectory("C:\TEMP\$($_.name)", "C:\TEMP")
-    Start-Process msiexec -Wait -ArgumentList '/i', "C:\TEMP\$($_.name)", '/q'
-  }
-}
+$ToolchainBuild = Invoke-RestMethod -Uri 'https://dev.azure.com/compnerd/windows-swift/_apis/build/builds?definitions=22&resultFilter=succeeded,partiallySucceeded&$top=1&api-version-string=5.0' -Method GET -UseDefaultCredentials
+$ToolchainBuildID = $ToolchainBuild.value.id
+$ToolchainArtifacts = Invoke-RestMethod -Uri "https://dev.azure.com/compnerd/windows-swift/_apis/build/builds/$ToolchainBuildID/artifacts?apiversion-string=2.0" -Method GET -UseDefaultCredentials
+$ProgressPreference = 'SilentlyContinue'
+Invoke-WebRequest $ToolchainArtifacts.value[0].resource.downloadUrl -OutFile "${env:temp}\$($ToolchainArtifacts.value[0].name)" -UseBasicParsing
+Start-Process "${env:temp}\$($ToolchainArtifacts.value[0].name)" -ArgumentList "/qn" -Wait
+# Remove-Item "${env:temp}\$($ToolchainArtifacts.value[0].name)" -Force
