@@ -1,0 +1,110 @@
+name: x64-toolchain-deb
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/toolchain-linux-x64-deb.yml
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/toolchain-linux-x64-deb.yml
+jobs:
+  - job: linux_x64
+    variables:
+      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+    pool: FlowKey
+    steps:
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 14
+          specificBuildWithTriggering: true
+          allowPartiallySucceededBuilds: true
+          artifactName: 'toolchain'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install toolchain'
+      - script: |
+          rm $(toolchain.directory)/usr/bin/complete-test
+          rm $(toolchain.directory)/usr/bin/lldb-moduleimport-test
+          rm $(toolchain.directory)/usr/bin/sil-func-extractor
+          rm $(toolchain.directory)/usr/bin/sil-llvm-gen
+          rm $(toolchain.directory)/usr/bin/sil-nm
+          rm $(toolchain.directory)/usr/bin/sil-opt
+          rm $(toolchain.directory)/usr/bin/sil-passpipeline-dumper
+          rm $(toolchain.directory)/usr/bin/sourcekitd-repl
+          rm $(toolchain.directory)/usr/bin/sourcekitd-test
+          rm $(toolchain.directory)/usr/bin/swift-api-dump.py
+          rm $(toolchain.directory)/usr/bin/swift-ast-script
+          rm $(toolchain.directory)/usr/bin/swift-demangle-yamldump
+          rm $(toolchain.directory)/usr/bin/swift-ide-test
+          rm $(toolchain.directory)/usr/bin/swift-indent
+          rm $(toolchain.directory)/usr/bin/swift-llvm-opt
+          rm $(toolchain.directory)/usr/bin/swift-reflection-dump
+          rm $(toolchain.directory)/usr/bin/swift-remoteast-test
+          rm $(toolchain.directory)/usr/bin/swift-syntax-parser-test
+          rm $(toolchain.directory)/usr/bin/swift-syntax-test
+
+          chmod +x $(toolchain.directory)/usr/bin/*
+          chmod +x $(toolchain.directory)/usr/lib/*.so*
+
+          rm -rf $(toolchain.directory)/usr/share/docs/swift
+
+          mv -a $(toolchain.directory)/usr/local/include/indexstore $(toolchain.directory)/usr/include
+          rmdir $(toolchain.directory)/usr/local
+
+          cd $(toolchain.directory)/usr/lib/swift
+          rm -rf clang
+          ln -s ../clang/*/include clang
+
+          cd $(toolchain.directory)/usr/lib
+          rm libLTO.so ; ln -s libLTO.so.* libLTO.so
+          rm libIndexStore.so ; ln -s libIndexStore.so.* libIndexStore.so
+          rm libclang.so ; ln -s libclang.so.* libclang.so
+
+          cd $(toolchain.directory)/usr/bin
+          rm addr2line ; ln -s llvm-symbolizer addr2line
+          rm ar ; ln -s llvm-ar ar
+          rm c++filt ; ln -s llvm-cxxfilt c++filt
+          rm clang ; ln -s clang-[0-9]* clang
+          rm clang++ ; ln -s clang-[0-9]* clang++
+          rm clang-cl ; ln -s clang-[0-9]* clang-cl
+          rm clang-cpp ; ln -s clang-[0-9]* clang-cpp
+          rm dwp ; ln -s llvm-dwp dwp
+          rm ld64.lld ; ln -s lld ld64.lld
+          rm ld.lld ; ln -s lld ld.lld
+          rm lld-link ; ln -s lld lld-link
+          rm llvm-dlltool ; ln -s llvm-ar llvm-dlltool
+          rm llvm-lib ; ln -s llvm-ar llvm-lib
+          rm llvm-ranlib ; ln -s llvm-ar llvm-ranlib
+          rm llvm-readelf ; ln -s llvm-readobj llvm-readelf
+          rm llvm-strip ; ln -s llvm-objcopy llvm-strip
+          rm nm ; ln -s llvm-nm nm
+          rm objcopy ; ln -s llvm-objcopy objcopy
+          rm objdump ; ln -s llvm-objdump objdump
+          rm ranlib ; ln -s llvm-ranlib ranlib
+          rm readelf ; ln -s llvm-readelf readelf
+          rm size ; ln -s llvm-size size
+          rm strings ; ln -s llvm-strings strings
+          rm strip ; ln -s llvm-strip strip
+          rm swift-autolink-extract ; ln -s swift swift-autolink-extract
+          rm swiftc ; ln -s swift swiftc
+          rm wasm-ld ; ln -s lld wasm-ld
+        displayName: 'cleanup image'
+      - script: |
+          cd $(System.ArtifactsDirectory)
+          mkdir toolchain/DEBIAN
+          cp $(Build.SourcesDirectory)/debian/control toolchain/DEBIAN
+          sed -e "s/version:/& $(date +%Y%m%d).$(Build.BuildId)/" -i toolchain/DEBIAN/control
+          fakeroot dpkg-deb --build toolchain
+        displayName: 'package image'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(System.ArtifactsDirectory)\toolchain.deb'
+          ArtifactName: 'linux-toolchain-amd64.deb'
+        displayName: "Publish linux-toolchain-amd64.deb"
