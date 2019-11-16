@@ -1,0 +1,60 @@
+name: 'Linux SDK (deb)'
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/linux-sdk-deb.yml
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/linux-sdk-deb.yml
+jobs:
+  - job: linux_x64
+    pool: FlowKey
+    steps:
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/sdk
+        displayName: 'setup'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 13
+          artifactName: 'sdk-linux-x64'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install x64 SDK'
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/sdk/Library/Developer/Platforms/Linux.platform/Developer/XCTest-development/usr/lib/swift/linux/x86_64
+          mv $(System.ArtifactsDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift/linux/x86_64/XCTest.swift* $(Build.StagingDirectory)/sdk/Library/Developer/Platforms/Linux.platform/Developer/XCTest-development/usr/lib/swift/linux/x86_64
+          mv $(System.ArtifactsDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift/linux/libXCTest.so $(Build.StagingDirectory)/sdk/Library/Developer/Platforms/Linux.platform/Developer/XCTest-development/usr/lib/swift/linux
+          rm -rf $(System.ArtifactsDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/bin
+          rm -rf $(System.ArtifactsDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/share
+          rm -rf $(System.ArtifactsDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift/FrameworkABIBaseline
+
+          sed -e '/sourceLocation/d' -i $(System.ArtifactsDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift/linux/x86_64/glibc.modulemap
+
+          cd $(System.ArtifactsDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift
+          rm -rf clang
+          ln -s ../clang/*/include clang
+
+          mv $(System.ArtifactsDirectory)/Library $(Build.StagingDirectory)/sdk
+        displayName: 'cleanup image'
+      - script: |
+          cd $(Build.StagingDirectory)
+          mkdir sdk/DEBIAN
+          cp $(Build.SourcesDirectory)/debian/sdk sdk/DEBIAN/control
+          sed -e "s/version:/& $(date +%Y%m%d).$(Build.BuildId)/" -i toolchain/DEBIAN/control
+          fakeroot dpkg-deb --build sdk
+        displayName: 'package image'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.StagingDirectory)/sdk.deb'
+          ArtifactName: 'linux-swift-sdk.deb'
+        displayName: "Publish linux-swift-sdk.deb"
+
