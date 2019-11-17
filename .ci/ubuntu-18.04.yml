@@ -1,0 +1,33 @@
+name: 'Ubuntu 18.04'
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/ubuntu-18.04.yml
+      - docker/Ubuntu-18.04/.dockerignore
+      - docker/Ubuntu-18.04/Dockerfile
+schedules:
+  - cron: "0 8 * * *"
+    branches:
+      include:
+        - master
+      always: true
+      displayName: "Nightly (8:00 AM) build"
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/ubuntu-18.04.yml
+      - docker/Ubuntu-18.04/.dockerignore
+      - docker/Ubuntu-18.04/Dockerfile
+jobs:
+  steps:
+    - task: Docker@2
+      inputs:
+        command: buildAndPush
+        repository: compnerd/swift
+        Dockerfile: docker/Ubuntu-18.04/Dockerfile
