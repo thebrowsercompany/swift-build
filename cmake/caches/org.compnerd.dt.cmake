@@ -128,7 +128,7 @@ set(LLDB_TOOLS
       lldb
       lldb-server
       lldb-vscode
-      # repl_swift
+      repl_swift
     CACHE STRING "")
 
 # --- swift ---
