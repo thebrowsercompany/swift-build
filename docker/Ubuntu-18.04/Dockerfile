@@ -4,8 +4,8 @@ FROM ubuntu:18.04 as ubuntu
 
 LABEL maintainer="compnerd@compnerd.org"
 
-ARG TOOLCHAIN=https://compnerd.visualstudio.com/3133d6ab-80a8-4996-ac4f-03df25cd3224/_apis/build/builds/14589/artifacts?artifactName=linux-toolchain-amd64.deb&api-version=5.1&%24format=zip
-ARG SDK=https://compnerd.visualstudio.com/3133d6ab-80a8-4996-ac4f-03df25cd3224/_apis/build/builds/14590/artifacts?artifactName=linux-swift-sdk.deb&api-version=5.1&%24format=zip
+ARG TOOLCHAIN=https://compnerd.visualstudio.com/3133d6ab-80a8-4996-ac4f-03df25cd3224/_apis/build/builds/14681/artifacts?artifactName=linux-toolchain-amd64.deb&api-version=5.1&%24format=zip
+ARG SDK=https://compnerd.visualstudio.com/3133d6ab-80a8-4996-ac4f-03df25cd3224/_apis/build/builds/14682/artifacts?artifactName=linux-swift-sdk.deb&api-version=5.1&%24format=zip
 ARG CODE_SERVER=https://github.com/cdr/code-server/releases/download/2.1692-vsc1.39.2/code-server2.1692-vsc1.39.2-linux-x86_64.tar.gz
 
 ENV LANG=C.UTF-8 SHELL=/bin/bash
