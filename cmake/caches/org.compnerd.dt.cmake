@@ -124,6 +124,7 @@ set(LLDB_ALLOW_STATIC_BINDINGS YES CACHE BOOL "")
 set(LLDB_USE_STATIC_BINDINGS YES CACHE BOOL "")
 
 set(LLDB_TOOLS
+      liblldb
       lldb
       lldb-server
       lldb-vscode
