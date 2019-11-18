@@ -11,26 +11,26 @@ ARG CODE_SERVER=https://github.com/cdr/code-server/releases/download/2.1692-vsc1
 ENV LANG=C.UTF-8 SHELL=/bin/bash
 
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get -yq update                                                        \
- && apt-get -yq upgrade                                                       \
- && apt-get -yq install --no-install-recommends ca-certificates curl unzip    \
- && apt-get -yq install --no-install-recommends dumb-init libatomic1 libedit2 \
- && curl -L ${TOOLCHAIN} -o linux-toolchain-amd64.zip                         \
- && curl -L ${SDK} -o linux-swift-sdk.zip                                     \
- && curl -OL ${CODE_SERVER}                                                   \
- && unzip linux-toolchain-amd64.zip                                           \
- && unzip linux-swift-sdk.zip                                                 \
- && tar zxf code-server*.tar.gz                                               \
- && dpkg -i linux-toolchain-amd64.deb/toolchain.deb                           \
- && dpkg -i linux-swift-sdk.deb/sdk.deb                                       \
- && cp code-server*/code-server /usr/local/bin/code-server                    \
- && rm -rf linux-toolchain-amd64*                                             \
- && rm -rf linux-swift-sdk*                                                   \
- && rm -rf code-server*                                                       \
- && apt-get -yq purge ca-certificates curl unzip                              \
- && apt autoremove -yq                                                        \
- && apt-get clean                                                             \
- && rm -rf /tmp/* /var/tmp/* /var/lib/apt/archive/* /var/lib/apt/lists/*      \
+RUN apt-get -yq update                                                                      \
+ && apt-get -yq upgrade                                                                     \
+ && apt-get -yq install --no-install-recommends ca-certificates curl unzip                  \
+ && apt-get -yq install --no-install-recommends dumb-init libatomic1 libedit2 libpython2.7  \
+ && curl -L ${TOOLCHAIN} -o linux-toolchain-amd64.zip                                       \
+ && curl -L ${SDK} -o linux-swift-sdk.zip                                                   \
+ && curl -OL ${CODE_SERVER}                                                                 \
+ && unzip linux-toolchain-amd64.zip                                                         \
+ && unzip linux-swift-sdk.zip                                                               \
+ && tar zxf code-server*.tar.gz                                                             \
+ && dpkg -i linux-toolchain-amd64.deb/toolchain.deb                                         \
+ && dpkg -i linux-swift-sdk.deb/sdk.deb                                                     \
+ && cp code-server*/code-server /usr/local/bin/code-server                                  \
+ && rm -rf linux-toolchain-amd64*                                                           \
+ && rm -rf linux-swift-sdk*                                                                 \
+ && rm -rf code-server*                                                                     \
+ && apt-get -yq purge ca-certificates curl unzip                                            \
+ && apt autoremove -yq                                                                      \
+ && apt-get clean                                                                           \
+ && rm -rf /tmp/* /var/tmp/* /var/lib/apt/archive/* /var/lib/apt/lists/*                    \
  && mkdir -p /SourceCache "/Library/Application Support/com.coder.code-server"
 
 WORKDIR /SourceCache
