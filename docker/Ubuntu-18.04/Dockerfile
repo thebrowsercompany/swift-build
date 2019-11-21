@@ -49,9 +49,14 @@ RUN apt-get -yq update                                                          
  && apt-get clean                                                               \
  && rm -rf /tmp/* /var/tmp/* /var/lib/apt/archive/* /var/lib/apt/lists/*        \
  && mkdir -p /SourceCache /BinaryCache                                          \
- && mkdir -p /Users/Shared
+ && mkdir -p /root/.local/share/CMakeTools                                      \
+ && mkdir -p "/Users/Shared/Library/Application Support/com.coder.code-server"
+
+ADD cmake-tools-kits.json /root/.local/share/CMakeTools/cmake-tools-kits.json
+ADD ["settings.json", "/Users/Shared/Library/Application Support/com.coder.code-server/User/settings.json"]
+ADD cmake/ /Users/Shared/cmake
 
 VOLUME ["/SourceCache", "/BinaryCache"]
 
 EXPOSE 8080
-ENTRYPOINT ["dumb-init", "--", "code-server", "--host", "0.0.0.0", "--auth", "none", "--user-data-dir", "/Users/Shared/Library/Application Support/com.coder.code-server", "--extra-extensions-dir", "/Library/Application Support/com.coder.code-server/extensions", "/SourceCache"]
+ENTRYPOINT ["dumb-init", "--", "code-server", "--host", "0.0.0.0", "--auth", "none", "--user-data-dir", "/Users/Shared/Library/Application Support/com.coder.code-server", "--extra-extensions-dir", "/Library/Application Support/com.coder.code-server/extensions"]
