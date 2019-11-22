@@ -18,7 +18,7 @@ RUN apt-get -yq update                                                          
  && apt-get -yq upgrade                                                         \
  && apt-get -yq install --no-install-recommends                                 \
      ca-certificates curl gnupg software-properties-common unzip                \
-     dumb-init libatomic1 libedit2 libncurses6 libpython2.7                     \
+     dumb-init libatomic1 libedit2 libpython2.7                                 \
      git ninja-build                                                            \
      libc6-dev libgcc-8-dev libncurses-dev libstdc++-8-dev                      \
  && ( curl -qL https://apt.kitware.com/keys/kitware-archive-latest.asc |        \
