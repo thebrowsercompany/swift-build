@@ -23,7 +23,7 @@ set(LLVM_VERSION_SUFFIX "" CACHE STRING "")
 
 # NOTE(compnerd) currently the x86 and ARM targets are the ones that we are
 # building, so only enable the backends for those architectures.
-set(LLVM_TARGETS_TO_BUILD AArch64 ARM X86 CACHE STRING "")
+set(LLVM_TARGETS_TO_BUILD AArch64 ARM WebAssembly X86 CACHE STRING "")
 
 set(LLVM_INCLUDE_BENCHMARKS NO CACHE BOOL "")
 set(LLVM_INCLUDE_DOCS NO CACHE BOOL "")
