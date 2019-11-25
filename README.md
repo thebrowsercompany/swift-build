@@ -62,7 +62,7 @@
 
 | Build | Status |
 | :-: | - |
-| **Ubuntu 18.04 VSCode | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Ubuntu%2018.04%20Image?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=25&branchName=master) |
+| **Ubuntu 18.04 VSCode** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Ubuntu%2018.04%20Image?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=25&branchName=master) |
 
 ### Getting Started
 
