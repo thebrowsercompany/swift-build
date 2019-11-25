@@ -58,6 +58,12 @@
 | **Linux Swift SDK (Ubuntu 18.04)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Linux%20Swift%20SDK%20(DEB)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=24&branchName=master) |
 | **Android Swift SDK (Ubuntu 18.04)** | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Android%20(AArch64)%20SDK%20(DEB)?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=26&branchName=master) |
 
+**docker images**
+
+| Build | Status |
+| :-: | - |
+| **Ubuntu 18.04 VSCode | [![Build Status](https://dev.azure.com/compnerd/windows-swift/_apis/build/status/Ubuntu%2018.04%20Image?branchName=master)](https://dev.azure.com/compnerd/windows-swift/_build/latest?definitionId=25&branchName=master) |
+
 ### Getting Started
 
 [Windows](docs/Windows.md)
