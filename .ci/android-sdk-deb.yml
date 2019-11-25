@@ -1,0 +1,55 @@
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/android-sdk-deb.yml
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/android-sdk-deb.yml
+jobs:
+  - job: android_aarch64
+    pool:
+      vmImage: ubuntu-18.04
+    steps:
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/sdk/Library
+        displayName: 'setup'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 4
+          artifactName: 'sdk-android-aarch64'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install AArch64 SDK'
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/sdk/Library/Developer/Platforms/Android.platform/Developer/XCTest-development/usr/lib/swift/android/aarch64
+          mv $(System.ArtifactsDirectory)/sdk-android-aarch64/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/XCTest.swift* $(Build.StagingDirectory)/sdk/Library/Developer/Platforms/Android.platform/Developer/XCTest-development/usr/lib/swift/android/aarch64
+          mv $(System.ArtifactsDirectory)/sdk-android-aarch64/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/libXCTest.so $(Build.StagingDirectory)/sdk/Library/Developer/Platforms/Android.platform/Developer/XCTest-development/usr/lib/swift/android
+          rm -rf $(System.ArtifactsDirectory)/sdk-android-aarch64/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/bin
+          rm -rf $(System.ArtifactsDirectory)/sdk-android-aarch64/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/share
+          rm -rf $(System.ArtifactsDirectory)/sdk-android-aarch64/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/FrameworkABIBaseline
+
+          sed -e '/sourceLocation/d' -i $(System.ArtifactsDirectory)/sdk-android-aarch64/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/glibc.modulemap
+          rsync -val $(System.ArtifactsDirectory)/sdk-android-aarch64/Developer $(Build.StagingDirectory)/sdk/Library
+        displayName: 'cleanup image'
+      - script: |
+          cd $(Build.StagingDirectory)
+          mkdir sdk/DEBIAN
+          cp $(Build.SourcesDirectory)/debian/android-sdk sdk/DEBIAN/control
+          sed -e "s/version:/& $(date +%Y%m%d).$(Build.BuildId)/" -i sdk/DEBIAN/control
+          fakeroot dpkg-deb --build sdk
+        displayName: 'package image'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.StagingDirectory)/sdk.deb'
+          ArtifactName: 'android-swift-sdk.deb'
+        displayName: "Publish android-swift-sdk.deb"
+
