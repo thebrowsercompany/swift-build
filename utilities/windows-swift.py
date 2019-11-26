@@ -60,18 +60,18 @@ def main():
   for build in args.build_id:
     definition = int(build) if unicode(build).isnumeric() else pipelines[build]
     if args.latest_id:
-      print get_latest_build(definition)
+      print(get_latest_build(definition))
     elif args.latest_artifacts:
       artifacts = get_artifacts(get_latest_build(definition))
       if args.filter:
         artifacts = filter(lambda artifact: re.search(args.filter, artifact[0]), artifacts)
-      print tabulate(artifacts, tablefmt = 'plain')
+      print(tabulate(artifacts, tablefmt = 'plain'))
       if args.download:
         for artifact in artifacts:
             urllib.urlretrieve(artifact[1], "{0:s}.zip".format(artifact[0]),
                                lambda n, bs, s:
                                  sys.stdout.write("\r{0:s}.zip {1:d} bytes".format(artifact[0], (n * bs))))
-            print ""
+            print("")
 
 if __name__ == '__main__':
   main()
