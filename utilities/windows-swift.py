@@ -3,7 +3,6 @@
 
 from msrest.authentication import BasicAuthentication
 from azure.devops.connection import Connection
-from azure.devops.v5_1.pipelines import PipelinesClient
 
 from tabulate import tabulate
 import argparse
