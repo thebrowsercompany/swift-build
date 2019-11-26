@@ -11,6 +11,10 @@ import urllib
 import sys
 import re
 
+import sys
+if sys.version_info.major == 3:
+  unicode = str
+
 base_url = 'https://dev.azure.com/compnerd'
 project = 'windows-swift'
 creds = BasicAuthentication('', '')
