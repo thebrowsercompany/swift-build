@@ -43,7 +43,8 @@ def main():
                       dest = 'list_builds',
                       help = 'print the known builds')
   parser.add_argument('--build-id', action = 'append', dest = 'build_id',
-                      help = 'the build identifier (may be repeated)')
+                      help = 'the build identifier (may be repeated)',
+                      default = [])
   parser.add_argument('--latest-id', action = 'store_true', dest = 'latest_id',
                       help = 'print the latest completed id')
   parser.add_argument('--latest-artifacts', action = 'store_true',
