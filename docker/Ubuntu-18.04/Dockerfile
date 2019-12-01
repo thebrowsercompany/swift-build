@@ -12,7 +12,7 @@ ARG CODE_SERVER=https://github.com/cdr/code-server/releases/download/2.1692-vsc1
 # TODO(compnerd) why can this not be installed by name? (ms-vscode.cmake-tools)
 ARG MS_VSCODE_CMAKE_TOOLS=https://github.com/microsoft/vscode-cmake-tools/releases/download/v1.2.2/cmaketools.vsix
 
-ENV LANG=C.UTF-8 SHELL=/bin/bash
+ENV LANG=C.UTF-8 SHELL="/bin/bash"
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG DEBCONF_NONINTERACTIVE_SEEN=true
@@ -44,10 +44,11 @@ RUN apt-get -yq update                                                          
  && dpkg -i windows-swift-sdk.deb/sdk.deb                                       \
  && cp code-server*/code-server /bin/code-server                                \
  && curl -OL ${MS_VSCODE_CMAKE_TOOLS}                                           \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix    \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension twxs.cmake         \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension xaver.clang-format \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension vscodevim.vim      \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension vscodevim.vim         \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix       \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension ms-vscode.cpptools    \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension xaver.clang-format    \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension twxs.cmake            \
  && rm -rf linux-toolchain-amd64*                                               \
  && rm -rf linux-swift-sdk*                                                     \
  && rm -rf android-swift-sdk*                                                   \
@@ -58,15 +59,18 @@ RUN apt-get -yq update                                                          
         ca-certificates curl gnupg software-properties-common unzip             \
  && apt-get clean                                                               \
  && rm -rf /tmp/* /var/tmp/* /var/lib/apt/archive/* /var/lib/apt/lists/*        \
- && mkdir -p /SourceCache /BinaryCache                                          \
- && mkdir -p /root/.local/share/CMakeTools                                      \
- && mkdir -p "/Users/Shared/Library/Application Support/com.coder.code-server"
+ && mkdir -p /SourceCache /BinaryCache
 
-ADD cmake-tools-kits.json /root/.local/share/CMakeTools/cmake-tools-kits.json
-ADD ["settings.json", "/Users/Shared/Library/Application Support/com.coder.code-server/User/settings.json"]
-ADD cmake/ /Users/Shared/cmake
+RUN adduser --home /Users/Shared --gecos '' --disabled-password swift
+USER swift
+
+ENV HOME=/Users/Shared XDG_DATA_HOME="/Users/Shared/Library/Application Support"
+
+ADD --chown=swift:swift ["cmake-tools-kits.json", "/Users/Shared/Library/Application Support/CMakeTools/cmake-tools-kits.json"]
+ADD --chown=swift:swift ["settings.json", "/Users/Shared/Library/Application Support/com.coder.code-server/User/settings.json"]
+ADD --chown=swift:swift cmake/ /Users/Shared/cmake
 
 VOLUME ["/SourceCache", "/BinaryCache"]
 
 EXPOSE 8080
-ENTRYPOINT ["dumb-init", "--", "code-server", "--host", "0.0.0.0", "--auth", "none", "--user-data-dir", "/Users/Shared/Library/Application Support/com.coder.code-server", "--extra-extensions-dir", "/Library/Application Support/com.coder.code-server/extensions"]
+ENTRYPOINT ["dumb-init", "--", "code-server", "--host", "0.0.0.0", "--auth", "none", "--user-data-dir", "/Users/Shared/Library/Application Support/com.coder.code-server", "--extra-extensions-dir", "/Library/Application Support/com.coder.code-server/extensions", "/SourceCache"]
