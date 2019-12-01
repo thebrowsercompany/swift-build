@@ -47,7 +47,6 @@ RUN apt-get -yq update                                                          
  && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension vscodevim.vim         \
  && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix       \
  && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension ms-vscode.cpptools    \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension xaver.clang-format    \
  && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension twxs.cmake            \
  && rm -rf linux-toolchain-amd64*                                               \
  && rm -rf linux-swift-sdk*                                                     \
