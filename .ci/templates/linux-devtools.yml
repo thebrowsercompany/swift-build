@@ -14,6 +14,12 @@ steps:
 
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
       ApplyPatches "${LLBUILD_PR}" llbuild
+
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
+      ApplyPatches "${TSC_PR}" tools-support-core
+
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swift-package-manager
+      ApplyPatches "${SPM_PR}" spm
     displayName: 'Fetch Sources'
   - task: DownloadBuildArtifacts@0
     inputs:
@@ -65,6 +71,11 @@ steps:
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
     displayName: 'Install llbuild'
+  - task: CMake#1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/tsc
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/tsc -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/Library/TSC-$(tsc.version)/usr -DBUILD_SHARED_LIBS=YES
+    displayName: 'Configue TSC'
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: $(Build.StagingDirectory)/Library
