@@ -1,10 +1,9 @@
 steps:
   - script: |
       function ApplyPatches() {
-        local prs=$1
-        local repository=$2
-        for pr in "${prs[@]}" ; do
-          git -C ${repository} fetch origin pull/${pr}/head
+        local repository=${1} ; shift
+        for PR in "${@}" ; do
+          git -C ${repository} fetch origin pull/${PR}/head
           git -C ${repository} cherry-pick FETCH_HEAD
         done
       }
@@ -13,13 +12,13 @@ steps:
       git config --global user.email 'builder@compnerd.org'
 
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
-      ApplyPatches "${LLBUILD_PR}" llbuild
+      ApplyPatches llbuild ${LLBUILD_PR}
 
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
-      ApplyPatches "${TSC_PR}" tools-support-core
+      ApplyPatches tools-support-core ${TSC_PR}
 
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swift-package-manager
-      ApplyPatches "${SPM_PR}" spm
+      ApplyPatches spm ${SPM_PR}
     displayName: 'Fetch Sources'
   - task: DownloadBuildArtifacts@0
     inputs:
