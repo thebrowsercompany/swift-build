@@ -63,7 +63,7 @@ RUN apt-get -yq update                                                          
 RUN adduser --home /Users/Shared --gecos '' --disabled-password swift
 USER swift
 
-ENV HOME=/Users/Shared XDG_DATA_HOME="/Users/Shared/Library/Application Support"
+ENV HOME=/Users/Shared XDG_DATA_HOME="/Users/Shared/Library/Application Support" CMAKE_EXPORT_COMPILE_COMMANDS=YES
 
 ADD --chown=swift:swift ["cmake-tools-kits.json", "/Users/Shared/Library/Application Support/CMakeTools/cmake-tools-kits.json"]
 ADD --chown=swift:swift ["settings.json", "/Users/Shared/Library/Application Support/com.coder.code-server/User/settings.json"]
