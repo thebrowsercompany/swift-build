@@ -5,6 +5,7 @@ from msrest.authentication import BasicAuthentication
 from azure.devops.connection import Connection
 
 from tabulate import tabulate
+from itertools import chain
 import argparse
 import urllib
 import sys
@@ -13,6 +14,10 @@ import re
 import sys
 if sys.version_info.major == 3:
   unicode = str
+  from itertools import filterfalse
+else:
+  import itertools
+  itertools.filterfalse = itertools.ifilterfalse
 
 base_url = 'https://dev.azure.com/compnerd'
 project = 'windows-swift'
@@ -72,21 +77,29 @@ def main():
     return 0
 
   pipelines = dict((value, key) for (key, value) in definitions)
-  for build in args.build_id:
-    definition = int(build) if unicode(build).isnumeric() else pipelines[build]
-    if args.latest_id:
-      print(get_latest_build(definition))
-    elif args.latest_artifacts:
-      artifacts = get_artifacts(get_latest_build(definition))
-      if args.filter:
-        artifacts = filter(lambda artifact: re.search(args.filter, artifact[0]), artifacts)
-      print(tabulate(artifacts, tablefmt = 'plain'))
-      if args.download:
-        for artifact in artifacts:
-            urllib.urlretrieve(artifact[1], "{0:s}.zip".format(artifact[0]),
-                               lambda n, bs, s:
-                                 sys.stdout.write("\r{0:s}.zip {1:d} bytes".format(artifact[0], (n * bs))))
-            print("")
+  build_ids = (
+      int(build) if unicode(build).isnumeric() else pipelines[build] for
+          build in args.build_id
+  )
+
+  if args.latest_id:
+    print(get_latest_build(definition) for definition in build_ids)
+  elif args.latest_artifacts:
+    artifacts = (
+        get_artifacts(get_latest_build(definition)) for definition in build_ids
+    )
+    if args.filter:
+      artifacts = itertools.ifilterfalse(lambda artifact: not re.search(args.filter, artifact[0]), chain.from_iterable(artifacts))
+    else:
+      artifacts = chain.from_iterable(artifacts)
+    artifacts = [artifact for artifact in artifacts]
+    print(tabulate(artifacts, tablefmt = 'plain'))
+    if args.download:
+      for artifact in artifacts:
+        urllib.urlretrieve(artifact[1], "{0:s}.zip".format(artifact[0]),
+                           lambda n, bs, s:
+                             sys.stdout.write("\r{0:s}.zip {1:d} bytes".format(artifact[0], (n * bs))))
+        print("")
 
 if __name__ == '__main__':
   main()
