@@ -5,7 +5,7 @@ from msrest.authentication import BasicAuthentication
 from azure.devops.connection import Connection
 
 from tabulate import tabulate
-from itertools import chain
+import itertools
 import argparse
 import urllib
 import sys
@@ -14,9 +14,8 @@ import re
 import sys
 if sys.version_info.major == 3:
   unicode = str
-  from itertools import filterfalse
+  urllib.urlretrieve = urllib.request.urlretrieve
 else:
-  import itertools
   itertools.filterfalse = itertools.ifilterfalse
 
 base_url = 'https://dev.azure.com/compnerd'
@@ -89,9 +88,9 @@ def main():
         get_artifacts(get_latest_build(definition)) for definition in build_ids
     )
     if args.filter:
-      artifacts = itertools.ifilterfalse(lambda artifact: not re.search(args.filter, artifact[0]), chain.from_iterable(artifacts))
+      artifacts = itertools.filterfalse(lambda artifact: not re.search(args.filter, artifact[0]), itertools.chain.from_iterable(artifacts))
     else:
-      artifacts = chain.from_iterable(artifacts)
+      artifacts = itertools.chain.from_iterable(artifacts)
     artifacts = [artifact for artifact in artifacts]
     print(tabulate(artifacts, tablefmt = 'plain'))
     if args.download:
