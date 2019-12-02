@@ -1,0 +1,47 @@
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/linux-devtools-deb.yml
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/linux-devtools-deb.yml
+jobs:
+  - job: linux_x64
+    pool: FlowKey
+    steps:
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/sdk/Library
+        displayName: 'setup'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 19
+          artifactName: 'devtools'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install x64 devtools'
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/devtools/Library
+          rsync -val $(System.ArtifactsDirectory)/devtools/Developer $(Build.StagingDirectory)/devtools/Library
+        displayName: 'cleanup image'
+      - script: |
+          cd $(Build.StagingDirectory)
+          mkdir devtools/DEBIAN
+          cp $(Build.SourcesDirectory)/debian/linux-devtools sdk/DEBIAN/control
+          sed -e "s/version:/& $(date +%Y%m%d).$(Build.BuildId)/" -i sdk/DEBIAN/control
+          fakeroot dpkg-deb --build devtools
+        displayName: 'package image'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.StagingDirectory)/devtools.deb'
+          ArtifactName: 'linux-swift-devtools.deb'
+        displayName: "Publish linux-swift-devtools.deb"
+
