@@ -21,10 +21,7 @@ creds = BasicAuthentication('', '')
 connection = Connection(base_url = base_url, creds = creds)
 builds = connection.clients.get_build_client()
 
-definitions = (
-  (definition.id, definition.name) for definition in
-      builds.get_definitions(project).value
-)
+definitions = ()
 
 def get_latest_build(definition):
   return builds.get_builds(project, definitions = [definition],
@@ -42,6 +39,8 @@ def main():
   parser.add_argument('--list-builds', action = 'store_true',
                       dest = 'list_builds',
                       help = 'print the known builds')
+  parser.add_argument('--order-by', action = 'store', dest = 'order_by',
+                      choices = ['id', 'name'], default = 'id')
   parser.add_argument('--build-id', action = 'append', dest = 'build_id',
                       help = 'the build identifier (may be repeated)',
                       default = [])
@@ -56,6 +55,18 @@ def main():
                       help = 'filter the artifacts matching')
 
   args = parser.parse_args()
+
+  def _get_query_order(args):
+    if args.order_by == 'id':
+      return None
+    if args.order_by == 'name':
+      return 'definitionNameAscending'
+    assert False, "unexpected ORDER_BY"
+
+  definitions = ( (definition.id, definition.name) for definition in
+      builds.get_definitions(project, query_order = _get_query_order(args)).value
+  )
+
   if args.list_builds:
     print(tabulate(definitions, headers = ['ID', 'Name']))
     return 0
