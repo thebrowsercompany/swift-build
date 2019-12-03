@@ -7,6 +7,9 @@ steps:
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
       call :ApplyPatches "%LLBUILD_PR%" llbuild
 
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
+      call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
+
       goto :eof
 
       :ApplyPatches
@@ -65,6 +68,19 @@ steps:
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
     displayName: 'Install llbuild'
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/indexstore-db
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/IndexStoreDB-$(IndexStoreDB.version)/usr
+    displayName: 'Configure IndexStoreDB'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
+    displayName: 'Build IndexStoreDB'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
+    displayName: 'Install IndexStoreDB'
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: $(Build.StagingDirectory)/Library
