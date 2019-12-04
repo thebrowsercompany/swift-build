@@ -19,6 +19,9 @@ steps:
 
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swift-package-manager
       ApplyPatches spm ${SPM_PR}
+
+      git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
+      ApplyPatches indexstore-db ${INDEXSTOREDB_PR}
     displayName: 'Fetch Sources'
   - task: DownloadBuildArtifacts@0
     inputs:
@@ -84,6 +87,19 @@ steps:
       cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
     displayName: 'Install tools-support-core'
     enabled: false
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/indexstore-db
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/IndexStoreDB-$(IndexStoreDB.version)/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift/Block"
+    displayName: 'Configure IndexStoreDB'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
+    displayName: 'Build IndexStoreDB'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
+    displayName: 'Install IndexStoreDB'
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: $(Build.StagingDirectory)/Library
