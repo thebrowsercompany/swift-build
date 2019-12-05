@@ -7,6 +7,9 @@ steps:
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
       call :ApplyPatches "%LLBUILD_PR%" llbuild
 
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
+      call :ApplyPatches "%TSC_PR%" tools-support-core
+
       git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
       call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
 
@@ -24,13 +27,12 @@ steps:
       endlocal
       goto :eof
     displayName: 'Fetch Sources'
-  # NOTE: use the Facebook builder results as that builds the SDK every hour
   - task: DownloadBuildArtifacts@0
     inputs:
       buildType: specific
       project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
       allowPartiallySucceededBuilds: true
-      pipeline: 5
+      pipeline: 1
       artifactName: 'toolchain'
       downloadPath: '$(System.ArtifactsDirectory)'
     displayName: 'Install toolchain'
