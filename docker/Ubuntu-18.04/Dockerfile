@@ -48,10 +48,11 @@ RUN apt-get -yq update                                                          
  && dpkg -i linux-swift-devtools.deb/devtools.deb                               \
  && cp code-server*/code-server /bin/code-server                                \
  && curl -OL ${MS_VSCODE_CMAKE_TOOLS}                                           \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension vscodevim.vim         \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix       \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension ms-vscode.cpptools    \
- && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension twxs.cmake            \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix          \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension ms-vscode.cpptools       \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension ms-vscode.vs-keybindings \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension vscodevim.vim            \
+ && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension twxs.cmake               \
  && rm -rf linux-toolchain-amd64*                                               \
  && rm -rf linux-swift-sdk*                                                     \
  && rm -rf android-swift-sdk*                                                   \
