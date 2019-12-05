@@ -10,6 +10,9 @@ steps:
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
       call :ApplyPatches "%TSC_PR%" tools-support-core
 
+      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swiftpm
+      call :ApplyPatches "%SPM_PR%" swiftpm
+
       git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
       call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
 
@@ -83,6 +86,20 @@ steps:
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
     displayName: 'Install tools-support-core'
+    enabled: false
+  - task: CMake@1
+    inputs:
+      workingDirectory: $(Build.StagingDirectory)/spm
+      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swiftpm -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/SwiftPM-$(SwiftPM.version)/usr -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" -DTSC_DIR=$(Build.StagingDirectory)/tsc/cmake/modules -DLLBuild_DIR=$(Build.StagingDirectory)/llbuild/cmake/modules
+    displayName: 'Configure SwiftPM'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/spm
+    displayName: 'Build SwiftPM'
+  - task: CMake@1
+    inputs:
+      cmakeArgs: --build $(Build.StagingDirectory)/spm --target install
+    displayName: 'Install SwiftPM'
     enabled: false
   - task: CMake@1
     inputs:
