@@ -31,6 +31,7 @@ jobs:
         displayName: 'Install x64 ICU'
       - script: |
           rsync -val $(System.ArtifactsDirectory)/icu-linux-x64/icu-64 $(Build.StagingDirectory)/icu/Library
+          echo '/Library/icu-64/usr/lib' > $(Build.StagingDirectory)/icu/etc/ld.so.conf.d/swift-icu.conf
           rm -rf $(Build.StagingDirectory)/icu/Library/icu-64/usr/include
         displayName: 'cleanup image'
       - script: |
@@ -38,6 +39,7 @@ jobs:
           mkdir icu/DEBIAN
           cp $(Build.SourcesDirectory)/debian/linux-icu icu/DEBIAN/control
           sed -e "s/version:/& $(date +%Y%m%d).$(Build.BuildId)/" -i icu/DEBIAN/control
+          echo "activate-noawait ldconfig" > icu/DEBIAN/triggers
           fakeroot dpkg-deb --build icu
         displayName: 'package image'
       - task: PublishBuildArtifacts@1
