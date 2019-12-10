@@ -1,0 +1,47 @@
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/icu-deb.yml
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .ci/icu-deb.yml
+jobs:
+  - job: linux_x64
+    pool:
+      vmImage: 'ubuntu-18.04'
+    steps:
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/icu/Library
+        displayName: 'setup'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 9
+          artifactName: 'icu-linux-x64'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install x64 ICU'
+      - script: |
+          rsync -val $(System.ArtifactsDirectory)/icu-linux-x64/icu-64 $(Build.StagingDirectory)/icu/Library
+          rm -rf $(Build.StagingDirectory)/icu/Library/icu-64/usr/include
+        displayName: 'cleanup image'
+      - script: |
+          cd $(Build.StagingDirectory)
+          mkdir icu/DEBIAN
+          cp $(Build.SourcesDirectory)/debian/linux-icu icu/DEBIAN/control
+          sed -e "s/version:/& $(date +%Y%m%d).$(Build.BuildId)/" -i icu/DEBIAN/control
+          fakeroot dpkg-deb --build icu
+        displayName: 'package image'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.StagingDirectory)/icu.deb'
+          ArtifactName: 'linux-icu.deb'
+        displayName: "Publish linux-icu.deb"
