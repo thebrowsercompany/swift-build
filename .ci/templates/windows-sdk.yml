@@ -22,9 +22,6 @@ steps:
       git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
       call :ApplyPatches "%XCTEST_PR%" swift-corelibs-xctest
 
-      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
-      call :ApplyPatches "%LLBUILD_PR%" llbuild
-
       goto :eof
 
       :ApplyPatches
@@ -188,28 +185,12 @@ steps:
     displayName: Publish test results
   - task: CMake@1
     inputs:
-      workingDirectory: $(Build.StagingDirectory)/llbuild
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(llbuild.install.directory) -DLLBUILD_SUPPORT_BINDINGS=Swift -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
-    displayName: 'Configure llbuild'
-    continueOnError: true
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/llbuild
-    displayName: 'Build llbuild'
-    continueOnError: true
-  - task: CMake@1
-    inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/foundation --target install
     displayName: 'Install Foundation'
   - task: CMake@1
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/xctest --target install
     displayName: 'Install XCTest'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
-    displayName: 'Install llbuild'
-    continueOnError: true
   - task: CMake@1
     inputs:
       cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target install
