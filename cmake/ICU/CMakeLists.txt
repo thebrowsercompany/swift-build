@@ -610,7 +610,11 @@ if(BUILD_TOOLS)
   test_big_endian(IS_BIG_ENDIAN_HOST)
 
   set(U_ICUDATA_NAME icudt${PROJECT_VERSION_MAJOR})
-  set(U_ICUDATA_PKGN icudt${PROJECT_VERSION_MAJOR}$<IF:$<BOOL:${IS_BIG_ENDIAN_HOST}>,b,l>)
+  if(IS_BIG_ENDIAN_HOST)
+    set(U_ICUDATA_PKGN icudt${PROJECT_VERSION_MAJOR}b)
+  else()
+    set(U_ICUDATA_PKGN icudt${PROJECT_VERSION_MAJOR}l)
+  endif()
 
   add_custom_target(icudata_lst
     COMMAND ${Python3_EXECUTABLE} -B -m buildtool
@@ -626,13 +630,36 @@ if(BUILD_TOOLS)
   add_dependencies(icudata_lst
     gencnval gencfu makeconv genbrk gensprep gendict icupkg genrb)
 
-  add_custom_target(icudata ALL
-    COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m dll -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s . ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
-  add_dependencies(icudata pkgdata icudata_lst)
+  if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+    add_custom_target(icudata ALL
+      COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m dll -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s . ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
+    add_dependencies(icudata pkgdata icudata_lst)
 
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/${U_ICUDATA_NAME}.dll
-    DESTINATION bin)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/${U_ICUDATA_NAME}.dll
+      DESTINATION bin)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+    message(FATAL_ERROR "cannot build ICU data library")
+  else()
+    enable_language(ASM)
+
+    configure_file(icupkg.inc.cmake ${CMAKE_BINARY_DIR}/icupkg.inc)
+
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}_dat.S
+      COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m dll -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s . ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst -O ${CMAKE_BINARY_DIR}/icupkg.inc
+      DEPENDS pkgdata icudata_lst
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
+
+    add_library(${U_ICUDATA_NAME} SHARED
+      ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}_dat.S)
+    set_target_properties(${U_ICUDATA_NAME} PROPERTIES
+      LINKER_LANGUAGE C
+      LINK_OPTIONS "-nodefaultlibs;-nostdlib;-Bsymbolic"
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
+
+    install(TARGETS ${U_ICUDATA_NAME}
+      DESTINATION lib)
+  endif()
 endif()
 
 install(TARGETS icuuc icuin
