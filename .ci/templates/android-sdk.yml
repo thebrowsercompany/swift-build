@@ -18,17 +18,18 @@ jobs:
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --single-branch https://github.com/apple/swift swift
+          git clone --quiet --depth 1 --single-branch --branch swift/${{ parameters.branch }} https://github.com/apple/llvm-project llvm-project
+
+          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift swift
           call :ApplyPatches "%SWIFT_PR%" swift
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
           call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           call :ApplyPatches "%FOUNDATION_PR%" swift-corelibs-foundation
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
           call :ApplyPatches "%XCTEST_PR%" swift-corelibs-xctest
 
           :ApplyPatches
@@ -48,7 +49,7 @@ jobs:
           buildType: specific
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           allowPartiallySucceededBuilds: true
-          pipeline: 1
+          pipeline: ${{ parameters.toolchain }}
           artifactName: 'toolchain'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install toolchain'
@@ -96,7 +97,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/llvm
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
         displayName: 'Configure LLVM'
       - task: CMake@1
         inputs:
