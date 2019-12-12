@@ -1,201 +1,233 @@
 # parameters:
-# arch: [ 'aarch64' | 'x86_64' ]
-# build: [ 'arm64' | 'x64' ]
-# triple: [ 'aarch64-unknown-windows-msvc' | 'x86_64-unknown-windows-msvc' ]
+# arch: [ 'armv7' | 'aarch64' | 'x86_64' | 'i686' ]
+# host: [ 'arm' | 'arm64' | 'x64' | 'x86' ]
+# triple: [ 'armv7-unknown-windows-msvc' | 'aarch64-unknown-windows-msvc' | 'x86_64-unknown-windows-msvc' | 'i686-unknown-windows-msvc' ]
 
-steps:
-  - script: |
-      git config --global user.name 'builder'
-      git config --global user.email 'builder@compnerd.org'
+jobs:
+  - job: ${{ parameters.host }}
+    # NOTE(compnerd) disable non-x64 builds as they are currently broken :(
+    condition: eq( '${{ parameters.host }}', 'x64' )
+    pool: ${{ parameters.pool }}
+    variables:
+      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      curl.directory: $(System.ArtifactsDirectory)/curl-windows-${{ parameters.host }}/libcurl-development
+      icu.version: 64
+      icu.directory: $(System.ArtifactsDirectory)/icu-windows-${{ parameters.host }}/ICU-$(icu.version)
+      xml2.directory: $(System.ArtifactsDirectory)/xml2-windows-${{ parameters.host }}/libxml2-development
+      zlib.directory: $(System.ArtifactsDirectory)/zlib-windows-${{ parameters.host }}/zlib-1.2.11
+      install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr
+      xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/Library/XCTest-development/usr
+    steps:
+      - script: |
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
 
-      git clone --quiet --depth 1 --single-branch --branch swift/$(branch) https://github.com/apple/llvm-project llvm-project
+          git clone --quiet --depth 1 --single-branch --branch swift/${{ parameters.branch }} https://github.com/apple/llvm-project llvm-project
 
-      git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch --branch $(branch) https://github.com/apple/swift swift
-      call :ApplyPatches "%SWIFT_PR%" swift
+          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift swift
+          call :ApplyPatches "%SWIFT_PR%" swift
 
-      git clone --quiet --depth 1 --single-branch --branch $(branch) https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
-      call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
+          call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
 
-      git clone --quiet --depth 1 --single-branch --branch $(branch) https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
-      call :ApplyPatches "%FOUNDATION_PR%" swift-corelibs-foundation
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
+          call :ApplyPatches "%FOUNDATION_PR%" swift-corelibs-foundation
 
-      git clone --quiet --depth 1 --single-branch --branch $(branch) https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
-      call :ApplyPatches "%XCTEST_PR%" swift-corelibs-xctest
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
+          call :ApplyPatches "%XCTEST_PR%" swift-corelibs-xctest
 
-      goto :eof
+          goto :eof
 
-      :ApplyPatches
-      setlocal
-      set list=%~1
-      set repository=%~2
-      for /F "tokens=1*" %%P in ("%list%") do (
-        git -C %repository% fetch origin pull/%%P/head
-        git -C %repository% cherry-pick FETCH_HEAD
-        if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
-      )
-      endlocal
-      goto :eof
-    displayName: 'Fetch Sources'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      allowPartiallySucceededBuilds: true
-      pipeline: $(toolchain.pipeline)
-      artifactName: 'toolchain'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install toolchain'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      allowPartiallySucceededBuilds: true
-      pipeline: 9
-      artifactName: 'icu-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install ICU'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      pipeline: 10
-      allowPartiallySucceededBuilds: true
-      artifactName: 'xml2-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install XML2'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      pipeline: 11
-      allowPartiallySucceededBuilds: true
-      artifactName: 'curl-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install CURL'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      pipeline: 12
-      allowPartiallySucceededBuilds: true
-      artifactName: 'sqlite-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install SQLite3'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      pipeline: 16
-      allowPartiallySucceededBuilds: true
-      artifactName: 'zlib-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install ZLIB'
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '2.7.x'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/llvm
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DLLVM_HOST_TRIPLE=$(triple)
-    displayName: 'Configure LLVM'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/stdlib
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -C $(Build.SourcesDirectory)/cmake/caches/swift-stdlib-$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=swiftc -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DSWIFT_WINDOWS_$(arch)_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_$(arch)_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_$(arch)_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_$(arch)_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib
-    displayName: 'Configure Swift Standard Library'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/stdlib
-    displayName: 'Build Swift Standard Library'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/stdlib --target install
-    displayName: 'Install Swift Standard Library'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/libdispatch
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift-corelibs-libdispatch -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=swiftc -DENABLE_SWIFT=YES
-    displayName: 'Configure libdispatch'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/libdispatch
-    displayName: 'Build libdispatch'
-  - script: |
-      echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
-    displayName: 'Configure CTest'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target ExperimentalTest
-    displayName: 'Test libdispatch'
-    continueOnError: true
-  - task: PublishTestResults@2
-    inputs:
-      testResultsFormat: cTest
-      testResultsFiles: $(Build.StagingDirectory)/libdispatch/Testing/*/Test.xml
-    condition: succeededOrFailed()
-    displayName: Publish test results
-  - task: CopyFiles@2
-    inputs:
-      sourceFolder: $(Build.StagingDirectory)/libdispatch
-      contents: swiftDispatch.lib
-      targetFolder: $(Build.StagingDirectory)/libdispatch/src/swift
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/foundation
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=swiftc -DZLIB_ROOT=$(zlib.directory)/usr -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules
-    displayName: 'Configure Foundation'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/foundation
-    displayName: 'Build Foundation'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/xctest
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DCMAKE_Swift_COMPILER=swiftc -DENABLE_TESTING=YES -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules -DENABLE_TESTING=NO
-    displayName: 'Configure XCTest'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/xctest
-    displayName: 'Build XCTest'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/foundation
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCMAKE_SWIFT_COMPILER=swiftc -DZLIB_ROOT=$(zlib.directory)/usr -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DXCTest_DIR=$(Build.StagingDirectory)/xctest/cmake/modules -DENABLE_TESTING=YES
-    displayName: 'Re-configure Foundation'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/foundation
-    displayName: 'Re-build Foundation'
-  - script: |
-      echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
-    displayName: 'Configure CTest'
-  - script: |
-      echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.StagingDirectory)/stdlib/bin;$(Build.StagingDirectory)/libdispatch;$(Build.StagingDirectory)/foundation/Foundation;$(Build.StagingDirectory)/xctest;%PATH%;%ProgramFiles(x86)%\GnuWin32\bin;%ProgramFiles%\Git\usr\bin
-    displayName: 'Update PATH'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/foundation --target test
-    displayName: 'Test Foundation'
-    continueOnError: true
-  - task: PublishTestResults@2
-    inputs:
-      testResultsFormat: cTest
-      testResultsFiles: $(Build.StagingDirectory)/foundation/Testing/*/Test.xml
-    condition: succeededOrFailed()
-    displayName: Publish test results
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/foundation --target install
-    displayName: 'Install Foundation'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/xctest --target install
-    displayName: 'Install XCTest'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target install
-    displayName: 'Install libdispatch'
-  - task: PublishBuildArtifacts@1
-    inputs:
-      pathtoPublish: $(Build.StagingDirectory)/Library
-      artifactName: sdk-$(platform)-$(host)
+          :ApplyPatches
+          setlocal
+          set list=%~1
+          set repository=%~2
+          for /F "tokens=1*" %%P in ("%list%") do (
+            git -C %repository% fetch origin pull/%%P/head
+            git -C %repository% cherry-pick FETCH_HEAD
+            if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+          )
+          endlocal
+          goto :eof
+        displayName: 'Fetch Sources'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: ${{ parameters.toolchain }}
+          artifactName: 'toolchain'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install toolchain'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 9
+          artifactName: 'icu-windows-${{ parameters.host }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install ICU'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 10
+          allowPartiallySucceededBuilds: true
+          artifactName: 'xml2-windows-${{ parameters.host }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install XML2'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 16
+          allowPartiallySucceededBuilds: true
+          artifactName: 'zlib-windows-${{ parameters.host }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install ZLIB'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 11
+          allowPartiallySucceededBuilds: true
+          artifactName: 'curl-windows-${{ parameters.host }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install CURL'
+      - task: BatchScript@1
+        inputs:
+          filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
+          arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
+          modifyEnvironment: true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'vsvarsall.bat'
+      - script: |
+          echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Update PATH'
+      - script: |
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Configure SDK'
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '2.7.x'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/llvm
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+        displayName: 'Configure LLVM'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/swift-stdlib
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -C $(Build.SourcesDirectory)/cmake/caches/swift-stdlib-windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib
+        displayName: 'Configure Swift Standard Library'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/swift-stdlib
+        displayName: 'Build Swift Standard Library'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/swift-stdlib --target install
+        displayName: 'Install Swift Standard Library'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/libdispatch
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=YES -DENABLE_SWIFT=YES
+        displayName: 'Configure libdispatch'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/libdispatch
+        displayName: 'Build libdispatch'
+      - script: |
+          echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: 'Configure CTest'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target ExperimentalTest
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: 'Test libdispatch'
+        continueOnError: true
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: cTest
+          testResultsFiles: $(Build.StagingDirectory)/libdispatch/Testing/*/Test.xml
+        condition: and( eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' ), succeededOrFailed() )
+        displayName: 'Publish libdispatch test results'
+      - task: CopyFiles@2
+        inputs:
+          sourceFolder: $(Build.StagingDirectory)/libdispatch
+          contents: swiftDispatch.lib
+          targetFolder: $(Build.StagingDirectory)/libdispatch/src/swift
+        displayName: 'Workaround CMake<3.16'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/foundation
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL
+        displayName: 'Configure Foundation'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/foundation
+        displayName: 'Build Foundation'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/xctest
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules
+        displayName: 'Configure XCTest'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/xctest
+        displayName: 'Build XCTest'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/foundation
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DENABLE_TESTING=YES -DXCTest_DIR=$(Build.StagingDirectory)/xctest/cmake/modules
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: 'Re-Configure Foundation'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/foundation
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: 'Re-build Foundation'
+      - script: |
+          echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: 'Configure CTest'
+      - script: |
+          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.StagingDirectory)/swift-stdlib/bin;$(Build.StagingDirectory)/libdispatch;$(Build.StagingDirectory)/foundation/Foundation;$(Build.StagingDirectory)/xctest;%PATH%;%ProgramFiles%\Git\usr\bin
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: 'Update PATH'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/foundation --target test
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: 'Test Foundation'
+        continueOnError: true
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: cTest
+          testResultsFiles: $(Build.StagingDirectory)/foundation/Testing/*/Test.xml
+        condition: and( eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' ), succeededOrFailed() )
+        displayName: 'Publish Foundation test results'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/foundation --target install
+        displayName: 'Install Foundation'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/xctest --target install
+        displayName: 'Install XCTest'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target install
+        displayName: 'Install libdispatch'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)/Library
+          artifactName: sdk-windows-${{ parameters.host }}
+

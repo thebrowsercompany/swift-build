@@ -6,6 +6,14 @@ pr:
     include:
       - .ci/windows-sdk.yml
       - .ci/templates/windows-sdk.yml
+      - cmake/caches/Windows-aarch64-clang.cmake
+      - cmake/caches/Windows-aarch64-swift-flags.cmake
+      - cmake/caches/Windows-armv7-clang.cmake
+      - cmake/caches/Windows-armv7-swift-flags.cmake
+      - cmake/caches/Windows-i686-clang.cmake
+      - cmake/caches/Windows-i686-swift-flags.cmake
+      - cmake/caches/Windows-x86_64-clang.cmake
+      - cmake/caches/Windows-x86_64-swift-flags.cmake
 schedules:
   - cron: "0 6 * * *"
     branches:
@@ -21,218 +29,59 @@ trigger:
     include:
       - .ci/windows-sdk.yml
       - .ci/templates/windows-sdk.yml
+      - cmake/caches/Windows-aarch64-clang.cmake
+      - cmake/caches/Windows-aarch64-swift-flags.cmake
+      - cmake/caches/Windows-armv7-clang.cmake
+      - cmake/caches/Windows-armv7-swift-flags.cmake
+      - cmake/caches/Windows-i686-clang.cmake
+      - cmake/caches/Windows-i686-swift-flags.cmake
+      - cmake/caches/Windows-x86_64-clang.cmake
+      - cmake/caches/Windows-x86_64-swift-flags.cmake
 jobs:
-  - job: windows_armv7
-    condition: false
-    pool:
-      vmImage: 'windows-2019'
-    variables:
+  - template: templates/windows-sdk.yml
+    parameters:
+      VisualStudio: 2019/Enterprise
+      pool:
+        vmImage: 'windows-2019'
       branch: master
+      toolchain: 7
 
-      arch: armv7
-      host: arm
-      platform: windows
-      triple: armv7-unknown-windows-msvc
+      arch: 'armv7'
+      host: 'arm'
+      triple: 'armv7-unknown-windows-msvc'
 
-      toolchain.version: development
-      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-$(toolchain.version).xctoolchain
-
-      curl.version: development
-      curl.directory: $(System.ArtifactsDirectory)/curl-windows-$(host)/libcurl-$(curl.version)
-
-      icu.version: 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-windows-$(host)/ICU-$(icu.version)
-
-      xml2.version: development
-      xml2.directory: $(System.ArtifactsDirectory)/xml2-windows-$(host)/libxml2-$(xml2.version)
-
-      zlib.version: 1.2.11
-      zlib.directory: $(System.ArtifactsDirectory)/zlib-windows-$(host)/zlib-$(zlib.version)
-
-      platform.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform
-      install.directory: $(platform.directory)/Developer/SDKs/Windows.sdk/usr
-      xctest.version: development
-      xctest.install.directory: $(platform.directory)/Developer/Library/XCTest-$(xctest.version)/usr
-
-      sqlite.version: 3.28.0
-      sqlite.directory: $(System.ArtifactsDirectory)/sqlite-windows-$(host)/sqlite-$(sqlite.version)
-
-      toolchain.pipeline: 1
-    steps:
-    - task: BatchScript@1
-      inputs:
-        filename: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/Common7/Tools/VsDevCmd.bat
-        arguments: -no_logo -arch=arm -host_arch=x64
-        modifyEnvironment: true
-      displayName: 'vcvarsall.bat'
-    - script: |
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%\include\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
-      displayName: 'Configure SDK'
-    - script: |
-        echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
-      displayName: 'Update PATH'
-    - template: templates/windows-sdk.yml
-
-  - job: windows_arm64
-    condition: false
-    pool:
-      vmImage: 'windows-2019'
-    variables:
+  - template: templates/windows-sdk.yml
+    parameters:
+      VisualStudio: 2019/Enterprise
+      pool:
+        vmImage: 'windows-2019'
       branch: master
+      toolchain: 7
 
-      arch: aarch64
-      host: arm64
-      platform: windows
-      triple: aarch64-unknown-windows-msvc
+      arch: 'aarch64'
+      host: 'arm64'
+      triple: 'aarch64-unknown-windows-msvc'
 
-      toolchain.version: development
-      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-$(toolchain.version).xctoolchain
-
-      curl.version: development
-      curl.directory: $(System.ArtifactsDirectory)/curl-windows-$(host)/libcurl-$(curl.version)
-
-      icu.version: 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-windows-$(host)/ICU-$(icu.version)
-
-      xml2.version: development
-      xml2.directory: $(System.ArtifactsDirectory)/xml2-windows-$(host)/libxml2-$(xml2.version)
-
-      zlib.version: 1.2.11
-      zlib.directory: $(System.ArtifactsDirectory)/zlib-windows-$(host)/zlib-$(zlib.version)
-
-      platform.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform
-      install.directory: $(platform.directory)/Developer/SDKs/Windows.sdk/usr
-      xctest.version: development
-      xctest.install.directory: $(platform.directory)/Developer/Library/XCTest-$(xctest.version)/usr
-
-      sqlite.version: 3.28.0
-      sqlite.directory: $(System.ArtifactsDirectory)/sqlite-windows-$(host)/sqlite-$(sqlite.version)
-
-      toolchain.pipeline: 1
-    steps:
-    - task: BatchScript@1
-      inputs:
-        filename: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/Common7/Tools/VsDevCmd.bat
-        arguments: -no_logo -arch=arm64 -host_arch=x64
-        modifyEnvironment: true
-      displayName: 'vcvarsall.bat'
-    - script: |
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%\include\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
-      displayName: 'Configure SDK'
-    - script: |
-        echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
-      displayName: 'Update PATH'
-    - template: templates/windows-sdk.yml
-
-  - job: windows_x64
-    pool:
-      vmImage: 'windows-2019'
-    variables:
+  - template: templates/windows-sdk.yml
+    parameters:
+      VisualStudio: 2019/Enterprise
+      pool:
+        vmImage: 'windows-2019'
       branch: master
+      toolchain: 7
 
-      arch: x86_64
-      host: x64
-      platform: windows
-      triple: x86_64-unknown-windows-msvc
+      arch: 'x86_64'
+      host: 'x64'
+      triple: 'x86_64-unknown-windows-msvc'
 
-      toolchain.version: development
-      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-$(toolchain.version).xctoolchain
-
-      curl.version: development
-      curl.directory: $(System.ArtifactsDirectory)/curl-windows-x64/libcurl-$(curl.version)
-
-      icu.version: 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-windows-x64/ICU-$(icu.version)
-
-      xml2.version: development
-      xml2.directory: $(System.ArtifactsDirectory)/xml2-windows-x64/libxml2-$(xml2.version)
-
-      zlib.version: 1.2.11
-      zlib.directory: $(System.ArtifactsDirectory)/zlib-windows-x64/zlib-$(zlib.version)
-
-      platform.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform
-      install.directory: $(platform.directory)/Developer/SDKs/Windows.sdk/usr
-      xctest.version: development
-      xctest.install.directory: $(platform.directory)/Developer/Library/XCTest-$(xctest.version)/usr
-
-      sqlite.version: 3.28.0
-      sqlite.directory: $(System.ArtifactsDirectory)/sqlite-windows-x64/sqlite-$(sqlite.version)
-
-      toolchain.pipeline: 1
-    steps:
-    - task: BatchScript@1
-      inputs:
-        filename: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/Common7/Tools/VsDevCmd.bat
-        arguments: -no_logo -arch=x64 -host_arch=x64
-        modifyEnvironment: true
-      displayName: 'vcvarsall.bat'
-    - script: |
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%\include\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
-      displayName: 'Configure SDK'
-    - script: |
-        echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
-      displayName: 'Update PATH'
-    - template: templates/windows-sdk.yml
-
-  - job: windows_x86
-    condition: false
-    pool:
-      vmImage: 'windows-2019'
-    variables:
+  - template: templates/windows-sdk.yml
+    parameters:
+      VisualStudio: 2019/Enterprise
+      pool:
+        vmImage: 'windows-2019'
       branch: master
+      toolchain: 7
 
-      arch: i686
-      host: x86
-      platform: windows
-      triple: i686-unknown-windows-msvc
-
-      toolchain.version: development
-      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-$(toolchain.version).xctoolchain
-
-      curl.version: development
-      curl.directory: $(System.ArtifactsDirectory)/curl-windows-$(host)/libcurl-$(curl.version)
-
-      icu.version: 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-windows-$(host)/ICU-$(icu.version)
-
-      xml2.version: development
-      xml2.directory: $(System.ArtifactsDirectory)/xml2-windows-$(host)/libxml2-$(xml2.version)
-
-      zlib.version: 1.2.11
-      zlib.directory: $(System.ArtifactsDirectory)/zlib-windows-$(host)/zlib-$(zlib.version)
-
-      platform.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform
-      install.directory: $(platform.directory)/Developer/SDKs/Windows.sdk/usr
-      xctest.version: development
-      xctest.install.directory: $(platform.directory)/Developer/Library/XCTest-$(xctest.version)/usr
-
-      sqlite.version: 3.28.0
-      sqlite.directory: $(System.ArtifactsDirectory)/sqlite-windows-$(host)/sqlite-$(sqlite.version)
-
-      toolchain.pipeline: 1
-    steps:
-    - task: BatchScript@1
-      inputs:
-        filename: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/Common7/Tools/VsDevCmd.bat
-        arguments: -no_logo -arch=x86 -host_arch=x64
-        modifyEnvironment: true
-      displayName: 'vcvarsall.bat'
-    - script: |
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%\include\module.modulemap"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%\include\visualc.apinotes"
-        curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
-      displayName: 'Configure SDK'
-    - script: |
-        echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
-      displayName: 'Update PATH'
-    - template: templates/windows-sdk.yml
+      arch: 'i686'
+      host: 'x86'
+      triple: 'i686-unknown-windows-msvc'
