@@ -14,17 +14,21 @@ trigger:
       - .ci/linux-sdk-deb.yml
 jobs:
   - job: linux_x64
-    pool: FlowKey
+    pool:
+      vmImage: 'ubuntu-18.04'
     steps:
       - script: |
           mkdir -p $(Build.StagingDirectory)/sdk/Library
         displayName: 'setup'
       - task: DownloadBuildArtifacts@0
         inputs:
-          buildType: specific
+          buildType: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: '13'
+          specificBuildWithTriggering: true
+          buildVersionToDownload: 'latest'
           allowPartiallySucceededBuilds: true
-          pipeline: 13
+          downloadType: 'single'
           artifactName: 'sdk-linux-x64'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install x64 SDK'
@@ -51,4 +55,12 @@ jobs:
           PathtoPublish: '$(Build.StagingDirectory)/sdk.deb'
           ArtifactName: 'linux-swift-sdk.deb'
         displayName: "Publish linux-swift-sdk.deb"
-
+      - task: cURLUploader@2
+        inputs:
+          files: '$(Build.StagingDirectory)/sdk.deb'
+          authType: 'UserAndPass'
+          username: 'compnerd'
+          password: '$(BINTRAY_PASSWORD)'
+          url: 'https://api.bintray.com/content/compnerd/swift/swift-linux-sdk/$(Build.BuildId)/swift-linux-sdk_$(Build.BuildId)_amd64.deb;deb_distribution=bionic;deb_component=main;deb_architecture=amd64;publish=1'
+          remotePath:
+        displayName: 'Upload to bintray'
