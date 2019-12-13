@@ -22,10 +22,13 @@ jobs:
         displayName: 'setup'
       - task: DownloadBuildArtifacts@0
         inputs:
-          buildType: specific
+          buildType: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: '4'
+          specificBuildWithTriggering: true
+          buildVersionToDownload: 'latest'
           allowPartiallySucceededBuilds: true
-          pipeline: 4
+          downloadType: 'single'
           artifactName: 'sdk-android-arm64'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install AArch64 SDK'
@@ -52,4 +55,13 @@ jobs:
           PathtoPublish: '$(Build.StagingDirectory)/sdk.deb'
           ArtifactName: 'android-swift-sdk.deb'
         displayName: "Publish android-swift-sdk.deb"
+      - task: cURLUploader@2
+        inputs:
+          files: '$(Build.StagingDirectory)/sdk.deb'
+          authType: 'UserAndPass'
+          username: 'compnerd'
+          password: '$(BINTRAY_PASSWORD)'
+          url: 'https://api.bintray.com/content/compnerd/swift/swift-android-sdk/$(Build.BuildId)/swift-android-sdk_$(Build.BuildId)_arm64.deb;deb_distribution=bionic;deb_component=main;deb_architecture=arm64;publish=1'
+          remotePath:
+        displayName: 'upload to bintray'
 
