@@ -15,14 +15,13 @@ ARG DEBCONF_NONINTERACTIVE_SEEN=true
 RUN apt-get -yq update                                                          \
  && apt-get -yq upgrade                                                         \
  && apt-get -yq install --no-install-recommends                                 \
-     ca-certificates curl gnupg software-properties-common                      \
+     ca-certificates curl gnupg                                                 \
      dumb-init libatomic1 libedit2 libpython2.7                                 \
      git ninja-build                                                            \
      libc6-dev libgcc-8-dev libncurses-dev libstdc++-8-dev                      \
- && ( curl -qL https://apt.kitware.com/keys/kitware-archive-latest.asc |        \
-          apt-key add - )                                                       \
- && apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'        \
- && apt-add-repository 'deb https://dl.bintray.com/compnerd/swift bionic main'  \
+ && curl -qL https://apt.kitware.com/keys/kitware-archive-latest.asc | apt-key add -        \
+ && echo 'deb https://apt.kitware.com/ubuntu/ bionic main' >> /etc/apt/sources.list         \
+ && echo 'deb [trusted=yes] https://swift.apt.compnerd.org/apt/ /' >> /etc/apt/sources.list \
  && apt-get -yq update                                                          \
  && apt-get -yq install --no-install-recommends cmake                           \
  && apt-get -yq install --no-install-recommends swift-toolchain swift-icu swift-android-sdk swift-linux-sdk swift-windows-sdk swift-devtools \
@@ -33,8 +32,7 @@ RUN apt-get -yq update                                                          
  && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix  \
  && rm -rf code-server*                                                         \
  && rm -rf *.vsix                                                               \
- && apt-get -yq purge --auto-remove                                             \
-        ca-certificates curl gnupg software-properties-common                   \
+ && apt-get -yq purge --auto-remove ca-certificates curl gnupg                  \
  && apt-get clean                                                               \
  && rm -rf /tmp/* /var/tmp/* /var/lib/apt/archive/* /var/lib/apt/lists/*
 
