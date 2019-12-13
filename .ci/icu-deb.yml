@@ -22,10 +22,13 @@ jobs:
         displayName: 'setup'
       - task: DownloadBuildArtifacts@0
         inputs:
-          buildType: specific
+          buildType: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: '9'
+          specificBuildWithTriggering: true
+          buildVersionToDownload: 'latest'
           allowPartiallySucceededBuilds: true
-          pipeline: 9
+          downloadType: 'single'
           artifactName: 'icu-linux-x64'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install x64 ICU'
@@ -48,3 +51,12 @@ jobs:
           PathtoPublish: '$(Build.StagingDirectory)/icu.deb'
           ArtifactName: 'linux-icu.deb'
         displayName: "Publish linux-icu.deb"
+      - task: cURLUploader@2
+        inputs:
+          files: '$(Build.StagingDirectory)/icu.deb'
+          authType: 'UserAndPass'
+          username: 'compnerd'
+          password: '$(BINTRAY_PASSWORD)'
+          url: 'https://api.bintray.com/content/compnerd/swift/swift-icu/$(Build.BuildId)/swift-icu_$(Build.BuildId)_amd64.deb;deb_distribution=bionic;deb_component=main;deb_architecture=amd64;publish=1'
+          remotePath:
+        displayName: 'upload to bintray'
