@@ -16,7 +16,8 @@ jobs:
   - job: linux_x64
     variables:
       toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-    pool: FlowKey
+    pool:
+      vmImage: 'ubuntu-18.04'
     steps:
       - task: DownloadBuildArtifacts@0
         inputs:
@@ -106,7 +107,7 @@ jobs:
           cd $(System.ArtifactsDirectory)
           mkdir toolchain/DEBIAN
           cp $(Build.SourcesDirectory)/debian/control toolchain/DEBIAN
-          sed -e "s/version:/& $(date +%Y%m%d).$(Build.BuildId)/" -i toolchain/DEBIAN/control
+          sed -e "s/Version:/& $(Build.BuildId)/" -i toolchain/DEBIAN/control
           fakeroot dpkg-deb --build toolchain
         displayName: 'package image'
       - task: PublishBuildArtifacts@1
