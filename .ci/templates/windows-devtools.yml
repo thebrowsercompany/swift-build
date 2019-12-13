@@ -1,103 +1,141 @@
 
-steps:
-  - script: |
-      git config --global user.name 'builder'
-      git config --global user.email 'builder@compnerd.org'
+jobs:
+  - job: ${{ parameters.host }}
+    # NOTE(compnerd) disable non-x64 builds as they are currently broken :(
+    condition: eq( '${{ parameters.host }}', 'x64' )
+    pool: ${{ parameters.pool }}
+    variables:
+      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      sqlite.directory: $(System.ArtifactsDirectory)/sqlite-windows-${{ parameters.host }}/sqlite-3.28.0
+      install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Library/
+    steps:
+      - script: |
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
 
-      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
-      call :ApplyPatches "%LLBUILD_PR%" llbuild
+          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift swift
+          call :ApplyPatches "%SWIFT_PR%" swift
 
-      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
-      call :ApplyPatches "%TSC_PR%" tools-support-core
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-llbuild llbuild
+          call :ApplyPatches "%LLBUILD_PR%" llbuild
 
-      git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
-      call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
+          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-tools-support-core tools-support-core
+          call :ApplyPatches "%TSC_PR%" tools-support-core
 
-      goto :eof
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swiftpm
+          call :ApplyPatches "%SPM_PR%" swiftpm
 
-      :ApplyPatches
-      setlocal
-      set list=%~1
-      set repository=%~2
-      for /F "tokens=1*" %%P in ("%list%") do (
-        git -C %repository% fetch origin pull/%%P/head
-        git -C %repository% cherry-pick FETCH_HEAD
-        if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
-      )
-      endlocal
-      goto :eof
-    displayName: 'Fetch Sources'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      allowPartiallySucceededBuilds: true
-      pipeline: 1
-      artifactName: 'toolchain'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install toolchain'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      allowPartiallySucceededBuilds: true
-      pipeline: 2
-      artifactName: 'sdk-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install SDK'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      allowPartiallySucceededBuilds: true
-      pipeline: 12
-      artifactName: 'sqlite-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install SQLite3'
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '2.7.x'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/llbuild
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSWIFT_SDK=$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/$(platform).platform/Developer/SDKs/$(platform).sdk -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
-    displayName: 'Configure llbuild'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/llbuild
-    displayName: 'Build llbuild'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
-    displayName: 'Install llbuild'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/tsc
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/tools-support-core -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/TSC-$(tsc.version)/usr
-    displayName: 'Configure tools-support-core'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/tsc
-    displayName: 'Build tools-support-core'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
-    displayName: 'Install tools-support-core'
-    enabled: false
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/indexstore-db
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/IndexStoreDB-$(IndexStoreDB.version)/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" -DCMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
-    displayName: 'Configure IndexStoreDB'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
-    displayName: 'Build IndexStoreDB'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
-    displayName: 'Install IndexStoreDB'
-  - task: PublishBuildArtifacts@1
-    inputs:
-      pathtoPublish: $(Build.StagingDirectory)/Library
-      artifactName: devtools
+          git clone --quiet --config core.symlinks=true --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/indexstore-db indexstore-db
+          call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
+
+          goto :eof
+
+          :ApplyPatches
+          setlocal
+          set list=%~1
+          set repository=%~2
+          for /F "tokens=1*" %%P in ("%list%") do (
+            git -C %repository% fetch origin pull/%%P/head
+            git -C %repository% cherry-pick FETCH_HEAD
+            if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+          )
+          endlocal
+          goto :eof
+        displayName: 'Fetch Sources'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: ${{ parameters.toolchain }}
+          artifactName: 'toolchain'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install toolchain'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: ${{ parameters.sdk }}
+          artifactName: 'sdk-windows-${{ parameters.host }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install SDK'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 12
+          artifactName: 'sqlite-windows-${{ parameters.host }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install SQLite3'
+      - task: BatchScript@1
+        inputs:
+          filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
+          arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
+          modifyEnvironment: true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'vsvarsall.bat'
+      - script: |
+          echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Update PATH'
+      - script: |
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Configure SDK'
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '2.7.x'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/llbuild
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/llbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/llbuild-development/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
+        displayName: 'Configure llbuild'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/llbuild
+        displayName: 'Build llbuild'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
+        displayName: 'Install llbuild'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/tsc
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/tools-support-core -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/TSC-development/usr
+        displayName: 'Configure tools-support-core'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/tsc
+        displayName: 'Build tools-support-core'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
+        displayName: 'Install tools-support-core'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/indexstore-db
+          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/cmake/caches/Windows-$(arch)-clang.cmake -DSWIFT_WINDOWS_SDK=$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" -DCMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
+        displayName: 'Configure IndexStoreDB'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
+        displayName: 'Build IndexStoreDB'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
+        displayName: 'Install IndexStoreDB'
+        enabled: false
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)/Library
+          artifactName: devtools
