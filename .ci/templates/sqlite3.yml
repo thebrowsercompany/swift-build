@@ -3,7 +3,7 @@ jobs:
     pool: ${{ parameters.pool }}
     variables:
       sqlite.release: 3300100
-      install.directory: $(Build.StagingDirectory)/Library/sqlite-3.30.1
+      install.directory: $(Build.StagingDirectory)/sqlite-${{ parameters.platform }}-${{ parameters.host }}/Library/sqlite-3.30.1
     steps:
       - powershell: |
           Invoke-WebRequest -UseBasicParsing -Uri https://sqlite.org/2019/sqlite-amalgamation-$(sqlite.release).zip -OutFile $(Build.SourcesDirectory)/sqlite-amalgamation-$(sqlite.release).zip
@@ -36,18 +36,18 @@ jobs:
         displayName: 'Install Dependencies'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/sqlite
+          workingDirectory: $(Build.BinariesDirectory)/sqlite
           cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/sqlite-amalgamation-$(sqlite.release) -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO
         displayName: 'Configure SQLite3'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/sqlite
+          cmakeArgs: --build $(Build.BinariesDirectory)/sqlite
         displayName: 'Build SQLite3'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/sqlite --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/sqlite --target install
         displayName: 'Install SQLite3'
-      - task: PublishBuildArtifacts@1
+      - task: PublishPipelineArtifact@1
         inputs:
-          pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: sqlite-${{ parameters.platform }}-${{ parameters.host }}
+          path: $(Build.StagingDirectory)/sqlite-${{ parameters.platform }}-${{ parameters.host }}
+          artifact: sqlite-${{ parameters.platform }}-${{ parameters.host }}

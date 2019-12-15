@@ -6,7 +6,7 @@ jobs:
     pool: ${{ parameters.pool }}
     variables:
       toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-      sqlite.directory: $(System.ArtifactsDirectory)/sqlite-windows-${{ parameters.host }}/sqlite-3.30.1
+      sqlite.directory: $(Pipeline.Workspace)/Library/sqlite-3.30.1
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Library/
     steps:
       - script: |
@@ -60,14 +60,13 @@ jobs:
           artifactName: 'sdk-windows-${{ parameters.host }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install SDK'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
           pipeline: 12
+          runVersion: 'latest'
           artifactName: 'sqlite-windows-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install SQLite3'
       - task: BatchScript@1
         inputs:
