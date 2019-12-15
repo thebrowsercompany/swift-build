@@ -2,10 +2,10 @@ jobs:
   - job: ${{ parameters.platform}}_${{ parameters.host }}
     pool: ${{ parameters.pool }}
     variables:
-      install.directory: $(Build.StagingDirectory)/Library/libxml2-development
+      install.directory: $(Build.StagingDirectory)/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-development
     steps:
       - script: |
-          git clone --quiet --depth 1 --single-branch --branch cmake https://github.com/compnerd/libxml2.git libxml2
+          git clone --quiet --depth 1 --single-branch --branch cmake https://github.com/compnerd/libxml2.git $(Build.SourcesDirectory)/libxml2
         displayName: 'Fetch Sources'
       - task: BatchScript@1
         inputs:
@@ -23,19 +23,19 @@ jobs:
         displayName: 'Install Dependencies'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/libxml2
+          workingDirectory: $(Build.BinariesDirectory)/libxml2
           cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/libxml2.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/libxml2 -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO
         displayName: 'Configure XML2'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/libxml2
+          cmakeArgs: --build $(Build.BinariesDirectory)/libxml2
         displayName: 'Build XML2'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/libxml2 --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/libxml2 --target install
         displayName: 'Install XML2'
-      - task: PublishBuildArtifacts@1
+      - task: PublishPipelineArtifact@1
         inputs:
-          pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: xml2-${{ parameters.platform }}-${{ parameters.host }}
+          path: $(Build.StagingDirectory)/xml2-${{ parameters.platform }}-${{ parameters.host }}
+          artifact: xml2-${{ parameters.platform }}-${{ parameters.host }}
 

@@ -8,11 +8,11 @@ jobs:
     pool: ${{ parameters.pool }}
     variables:
       toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-      curl.directory: $(System.ArtifactsDirectory)/curl-android-${{ parameters.host }}/libcurl-development
+      curl.directory: $(Pipeline.Workspace)/Library/libcurl-development
       icu.version: 64
       icu.directory: $(System.ArtifactsDirectory)/icu-android-${{ parameters.host }}/ICU-$(icu.version)
-      xml2.directory: $(System.ArtifactsDirectory)/xml2-android-${{ parameters.host }}/libxml2-development
-      zlib.directory: $(System.ArtifactsDirectory)/zlib-android-${{ parameters.host }}/zlib-1.2.11
+      xml2.directory: $(Pipeline.Workspace)/Library/libxml2-development
+      zlib.directory: $(Pipeline.Workspace)/Library/zlib-1.2.11
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/Library/XCTest-development/usr
     steps:
@@ -66,32 +66,29 @@ jobs:
           artifactName: 'icu-android-${{ parameters.host }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install ICU'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 10
-          allowPartiallySucceededBuilds: true
+          runVersion: 'latest'
           artifactName: 'xml2-android-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install XML2'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 16
-          allowPartiallySucceededBuilds: true
+          runVersion: 'latest'
           artifactName: 'zlib-android-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install ZLIB'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 11
-          allowPartiallySucceededBuilds: true
+          runVersion: 'latest'
           artifactName: 'curl-android-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install CURL'
       - task: BatchScript@1
         inputs:
