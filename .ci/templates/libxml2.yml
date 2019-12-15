@@ -4,9 +4,8 @@ jobs:
     variables:
       install.directory: $(Build.StagingDirectory)/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-development
     steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch cmake https://github.com/compnerd/libxml2.git $(Build.SourcesDirectory)/libxml2
-        displayName: 'Fetch Sources'
+      - checkout: self
+      - checkout: compnerd/libxml2
       - task: BatchScript@1
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
@@ -24,7 +23,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/libxml2
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/libxml2.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/libxml2 -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO
+          cmakeArgs: -C $(Build.SourcesDirectory)/windows-swift/cmake/caches/libxml2.cmake -C $(Build.SourcesDirectory)/windows-swift/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/libxml2 -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO -DENABLE_TESTING=NO
         displayName: 'Configure XML2'
       - task: CMake@1
         inputs:
