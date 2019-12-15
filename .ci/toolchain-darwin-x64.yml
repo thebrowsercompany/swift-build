@@ -6,6 +6,25 @@ pr:
     include:
       - .ci/toolchain-darwin-x64.yml
       - .ci/templates/toolchain.yml
+resources:
+  repositories:
+    - repository: apple/llvm-project
+      type: github
+      name: apple/llvm-project
+      ref: refs/heads/swift/master
+      endpoint: GitHub
+    - repository: apple/swift-cmark
+      type: github
+      name: apple/swift-cmark
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-libdispatch
+      type: github
+      name: apple/swift-corelibs-libdispatch
+      endpoint: GitHub
+    - repository: apple/swift
+      type: github
+      name: apple/swift
+      endpoint: GitHub
 schedules:
   - cron: "0 0 * * *"
     branches:
@@ -22,15 +41,10 @@ trigger:
       - .ci/toolchain-darwin-x64.yml
       - .ci/templates/toolchain.yml
 jobs:
-  - job: darwin_x64
-    # NOTE(compnerd) this is an open source project built on hosted machines, so
-    # this time out is actually 6 hours.  Sadly, this is not very long given the
-    # complexity of this build and the speed of the hosted machines
-    timeoutInMinutes: 0
-    pool: 
-      vmImage: macOS-10.14
-    variables:
-      branch: master
+  - template: templates/toolchain.yml
+    parameters:
+      pool:
+        vmImage: 'macOS-10.14'
 
       arch: x86_64
       host: x64
@@ -38,16 +52,6 @@ jobs:
 
       triple: x86_64-apple-macosx10.14
 
-      install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
-
-      llvm.extra_cmake_flags: -DLLVM_INCLUDE_TESTS=NO
-      swift.extra_cmake_flags: ""
-      lldb.extra_cmake_flags: -DLLDB_USE_SYSTEM_DEBUGSERVER=ON -DLLDB_INCLUDE_TESTS=NO
-    steps:
-    - script: |
-        set -eu
-        curl -Ls https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-mac.zip -o ninja-mac.zip
-        unzip ninja-mac.zip
-        sudo cp -v ninja /usr/local/bin/
-      displayName: "Install Ninja"
-    - template: templates/toolchain.yml
+      LLVM_OPTIONS: -DLLVM_INCLUDE_TESTS=NO -DCLANG_INCLUDE_TEST=NO -DLLD_INCLUDE_TESTS=NO
+      LLDB_OPTIONS: -DLLDB_USE_SYSTEM_DEBUGSERVER=ON -DLLDB_INCLUDE_TESTS=NO
+      SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO

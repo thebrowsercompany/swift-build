@@ -5,7 +5,7 @@ jobs:
     condition: eq( '${{ parameters.host }}', 'x64' )
     pool: ${{ parameters.pool }}
     variables:
-      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      toolchain.directory: $(Pipeline.Workspace)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
       sqlite.directory: $(Pipeline.Workspace)/Library/sqlite-3.30.1
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Library/
     steps:
@@ -42,14 +42,13 @@ jobs:
           endlocal
           goto :eof
         displayName: 'Fetch Sources'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
           pipeline: ${{ parameters.toolchain }}
-          artifactName: 'toolchain'
-          downloadPath: '$(System.ArtifactsDirectory)'
+          runVersion: 'latest'
+          artifactName: 'toolchain-windows-${{ parameters.host }}'
         displayName: 'Install toolchain'
       - task: DownloadBuildArtifacts@0
         inputs:

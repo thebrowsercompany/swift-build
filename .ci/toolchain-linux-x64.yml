@@ -7,6 +7,25 @@ pr:
       - .ci/toolchain-linux-x64.yml
       - .ci/templates/toolchain.yml
       - cmake/caches/org.compnerd.dt.cmake
+resources:
+  repositories:
+    - repository: apple/llvm-project
+      type: github
+      name: apple/llvm-project
+      ref: refs/heads/swift/master
+      endpoint: GitHub
+    - repository: apple/swift-cmark
+      type: github
+      name: apple/swift-cmark
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-libdispatch
+      type: github
+      name: apple/swift-corelibs-libdispatch
+      endpoint: GitHub
+    - repository: apple/swift
+      type: github
+      name: apple/swift
+      endpoint: GitHub
 schedules:
   - cron: "0 * * * *"
     branches:
@@ -24,10 +43,10 @@ trigger:
       - .ci/templates/toolchain.yml
       - cmake/caches/org.compnerd.dt.cmake
 jobs:
-  - job: linux_x64
-    pool: FlowKey
-    variables:
-      branch: master
+  - template: templates/toolchain.yml
+    parameters:
+      pool: FlowKey
+      tests: true
 
       arch: x86_64
       host: x64
@@ -35,17 +54,4 @@ jobs:
 
       triple: x86_64-unknown-linux-gnu
 
-      install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
-
-      llvm.extra_cmake_flags: ""
-      swift.extra_cmake_flags: ""
-      lldb.extra_cmake_flags: ""
-    steps:
-    - task: Bash@3
-      inputs:
-        targetType: inline
-        script: '/usr/bin/sccache --start-server || true'
-      env: { 'SCCACHE_REDIS': 'redis://localhost' }
-    - script: echo "##vso[task.setvariable variable=PATH]/home/ci/cmake-3.15.3-Linux-x86_64/bin:${PATH}"
-      displayName: 'CMake PATH adjustment'
-    - template: templates/toolchain.yml
+      SWIFT_OPTIONS: -DSWIFT_LINUX_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_LINUX_x86_64_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DSWIFT_LINUX_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_LINUX_x86_64_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES

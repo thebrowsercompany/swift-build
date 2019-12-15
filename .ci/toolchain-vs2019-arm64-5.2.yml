@@ -6,6 +6,28 @@ pr:
     include:
       - .ci/toolchain-vs2019-arm64-5.2.yml
       - .ci/templates/toolchain.yml
+resources:
+  repositories:
+    - repository: apple/llvm-project
+      type: github
+      name: apple/llvm-project
+      ref: refs/heads/swift/swift-5.2-branch
+      endpoint: GitHub
+    - repository: apple/swift-cmark
+      type: github
+      name: apple/swift-cmark
+      ref: refs/heads/swift-5.2-branch
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-libdispatch
+      type: github
+      name: apple/swift-corelibs-libdispatch
+      ref: refs/heads/swift-5.2-branch
+      endpoint: GitHub
+    - repository: apple/swift
+      type: github
+      name: apple/swift
+      ref: refs/heads/swift-5.2-branch
+      endpoint: GitHub
 schedules:
   - cron: "0 17 * * *"
     branches:
@@ -21,82 +43,20 @@ trigger:
     include:
       - .ci/toolchain-vs2019-arm64-5.2.yml
       - .ci/templates/toolchain.yml
-variables:
-  Install.Directory: $(Build.StagingDirectory)\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr
 jobs:
-  - job: windows
-    # NOTE(compnerd) this is an open source project built on hosted machines, so
-    # this time out is actually 6 hours.  Sadly, this is not very long given the
-    # complexity of this build and the speed of the hosted machines
-    timeoutInMinutes: 0
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          git config --global core.autocrlf false
+  - template: templates/toolchain.yml
+    parameters:
+      VisualStudio: 2019/Enterprise
+      pool:
+        vmImage: 'windows-2019'
 
-          git config --global user.name 'builder'
-          git config --global user.email 'builder@compnerd.org'
+      arch: aarch64
+      host: arm64
+      platform: windows
 
-          git clone --quiet --depth 1 --single-branch --branch swift/swift-5.2-branch https://github.com/apple/llvm-project toolchain
+      triple: aarch64-unknown-windows-msvc
 
-          git clone --quiet --depth 1 --single-branch --branch swift-5.2-branch https://github.com/apple/swift-cmark toolchain/cmark
-          git clone --quiet --depth 1 --single-branch --branch swift-5.2-branch https://github.com/apple/swift-corelibs-libdispatch toolchain/swift-corelibs-libdispatch
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch --branch swift-5.2-branch https://github.com/apple/swift toolchain/swift
-        displayName: 'Fetch Sources'
-      - task: BatchScript@1
-        inputs:
-          fileName: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/llvm-tools
-          cmakeArgs: $(Build.SourcesDirectory)\toolchain\llvm -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DLLVM_ENABLE_ASSERTIONS=NO -DLLVM_ENABLE_PROJECTS="clang;lldb" -DLLDB_DISABLE_PYTHON=YES
-        displayName: 'Configure LLVM Build Tools'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/llvm-tools --target llvm-tblgen
-        displayName: 'Build LLVM Build Tools'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/llvm-tools --target clang-tblgen
-        displayName: 'Build Clang Build Tools'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/llvm-tools --target lldb-tblgen
-        displayName: 'Build LLDB Build Tools'
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=arm64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: '2.7.x'
-      - script: |
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\ucrt.modulemap"
-          mklink "%VCToolsInstallDir%\include\module.modulemap" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.modulemap"
-          mklink "%VCToolsInstallDir%\include\visualc.apinotes" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.apinotes"
-          mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" "$(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\winsdk.modulemap"
-        displayName: 'Configure SDK'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/toolchain
-          # NOTE(compnerd) DIA does not contain ARM64 diaguids.lib
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-aarch64.cmake -C $(Build.SourcesDirectory)\cmake\caches\org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)\toolchain\llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(Install.Directory) -DLLVM_DEFAULT_TARGET_TRIPLE=aarch64-unknown-windows-msvc -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\llvm-tblgen.exe -DCLANG_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\clang-tblgen.exe -DLLDB_TABLEGEN=$(Build.StagingDirectory)\llvm-tools\bin\lldb-tblgen.exe -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;cmark;swift;lldb;lld" -DLLVM_EXTERNAL_PROJECTS="cmark;swift" -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/toolchain/swift-corelibs-libdispatch -DLLVM_ENABLE_ASSERTIONS=YES -DLLVM_ENABLE_DIA_SDK=NO -DLLDB_DISABLE_PYTHON=YES -DSWIFT_INCLUDE_TESTS=NO -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO
-        displayName: 'Configure toolchain'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/toolchain --target distribution
-        displayName: 'Build toolchain'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/toolchain --target install-distribution-stripped
-        displayName: 'Install toolchain'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)\Library
-          artifactName: toolchain
+      # NOTE(compnerd) DIA does not contain ARM64 diaguids.lib
+      LLVM_OPTIONS: -DLLVM_ENABLE_DIA_SDK=NO -DLLVM_INCLUDE_TESTS=NO -DCLANG_INCLUDE_TESTS=NO -DLLD_INCLUDE_TESTS=NO
+      LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES -DLLDB_INCLUDE_TESTS=NO
+      SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO

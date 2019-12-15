@@ -9,7 +9,7 @@ jobs:
     condition: eq( '${{ parameters.host }}', 'x64' )
     pool: ${{ parameters.pool }}
     variables:
-      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      toolchain.directory: $(Pipeline.Workspace)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
       curl.directory: $(Pipeline.Workspace)/Library/libcurl-development
       icu.version: 64
       icu.directory: $(System.ArtifactsDirectory)/icu-windows-${{ parameters.host }}/ICU-$(icu.version)
@@ -50,14 +50,13 @@ jobs:
           endlocal
           goto :eof
         displayName: 'Fetch Sources'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
           pipeline: ${{ parameters.toolchain }}
-          artifactName: 'toolchain'
-          downloadPath: '$(System.ArtifactsDirectory)'
+          runVersion: 'latest'
+          artifactName: 'toolcahin-windows-${{ parameters.host }}'
         displayName: 'Install toolchain'
       - task: DownloadBuildArtifacts@0
         inputs:

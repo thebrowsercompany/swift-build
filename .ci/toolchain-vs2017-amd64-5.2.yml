@@ -6,6 +6,28 @@ pr:
     include:
       - .ci/toolchain-vs2017-amd64-5.2.yml
       - .ci/templates/toolchain.yml
+resources:
+  repositories:
+    - repository: apple/llvm-project
+      type: github
+      name: apple/llvm-project
+      ref: refs/heads/swift/swift-5.2-branch
+      endpoint: GitHub
+    - repository: apple/swift-cmark
+      type: github
+      name: apple/swift-cmark
+      ref: refs/heads/swift-5.2-branch
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-libdispatch
+      type: github
+      name: apple/swift-corelibs-libdispatch
+      ref: refs/heads/swift-5.2-branch
+      endpoint: GitHub
+    - repository: apple/swift
+      type: github
+      name: apple/swift
+      ref: refs/heads/swift-5.2-branch
+      endpoint: GitHub
 schedules:
   - cron: "0 17 * * *"
     branches:
@@ -22,15 +44,12 @@ trigger:
       - .ci/toolchain-vs2017-amd64-5.2.yml
       - .ci/templates/toolchain.yml
 jobs:
-  - job: windows_x64
-    # NOTE(compnerd) this is an open source project built on hosted machines, so
-    # this time out is actually 6 hours.  Sadly, this is not very long given the
-    # complexity of this build and the speed of the hosted machines
-    timeoutInMinutes: 0
-    pool:
-      vmImage: 'VS2017-Win2016'
-    variables:
-      branch: swift-5.2-branch
+  - template: templates/toolchain.yml
+    parameters:
+      VisualStudio: 2017/Enterprise
+      pool:
+        vmImage: 'VS2017-Win2016'
+      tests: true
 
       arch: x86_64
       host: x64
@@ -38,58 +57,6 @@ jobs:
 
       triple: x86_64-unknown-windows-msvc
 
-      install.directory: $(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
-
-      icu.version : 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-$(platform)-$(host)/ICU-$(icu.version)
-
-      llvm.extra_cmake_flags: -DLLVM_PARALLEL_LINK_JOBS=2 -DPYTHON_EXECUTABLE=$(pythonTools.pythonLocation)/python.exe
-      swift.extra_cmake_flags: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLLVM_PARALLEL_LINK_JOBS=2 -DSWIFT_PARALLEL_LINK_JOBS=2 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES
-      lldb.extra_cmake_flags: -DLLDB_DISABLE_PYTHON=YES
-    steps:
-      - task: BatchScript@1
-        inputs:
-          filename: C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\Common7\Tools\VsDevCmd.bat
-          arguments: -no_logo -arch=x64 -host_arch=x64
-          modifyEnvironment: true
-        displayName: 'vcvarsall.bat'
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: '2.7.x'
-        name: pythonTools
-      - script: python -m pip install --upgrade flake8
-        displayName: 'Install flake8'
-      - script: |
-          echo "##vso[task.setvariable variable=PATH]$(install.directory)/bin;%PATH%"
-        displayName: 'Update PATH'
-      # TODO(compnerd) figure out how to account for patches to these files
-      - script: |
-          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/ucrt.modulemap" -o "%UniversalCRTSdkDir%/Include/%UCRTVersion%/ucrt/module.modulemap"
-          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.modulemap" -o "%VCToolsInstallDir%/include/module.modulemap"
-          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/visualc.apinotes" -o "%VCToolsInstallDir%/include/visualc.apinotes"
-          curl -L "https://raw.githubusercontent.com/apple/swift/master/stdlib/public/Platform/winsdk.modulemap" -o "%UniversalCRTSdkDir%/Include/%UCRTVersion%/um/module.modulemap"
-        displayName: 'Configure SDK'
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: specific
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
-          pipeline: 9
-          artifactName: 'icu-$(platform)-$(host)'
-          downloadPath: '$(Build.StagingDirectory)'
-        displayName: 'Install ICU'
-      - template: templates/toolchain.yml
-      - script: |
-          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.StagingDirectory)/swift/libdispatch-prefix/bin;%PATH%;%ProgramFiles%/Git/usr/bin
-        displayName: 'Update PATH'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)\toolchain --target check-swift
-        displayName: 'test swift'
-        continueOnError: true
-      - task: PublishTestResults@2
-        inputs:
-          testResultsFormat: 'JUnit'
-          testResultsFiles: '$(Build.StagingDirectory)/toolchain/swift-test-results/*/*.xml'
-          buildPlatform: 'Windows-x86_64'
-          buildConfiguration: 'VS2017'
+      LLVM_OPTIONS: -DLLVM_PARALLEL_LINK_JOBS=2 -DPYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
+      LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES
+      SWIFT_OPTIONS: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_PARALLEL_LINK_JOBS=2 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES

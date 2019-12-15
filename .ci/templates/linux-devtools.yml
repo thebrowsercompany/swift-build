@@ -23,14 +23,13 @@ steps:
       git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
       ApplyPatches indexstore-db ${INDEXSTOREDB_PR}
     displayName: 'Fetch Sources'
-  - task: DownloadBuildArtifacts@0
+  - task: DownloadPipelineArtifact@2
     inputs:
-      buildType: specific
+      source: 'specific'
       project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      allowPartiallySucceededBuilds: true
       pipeline: 14
-      artifactName: 'toolchain'
-      downloadPath: '$(System.ArtifactsDirectory)'
+      runVersion: 'latest'
+      artifactName: 'toolchain-$(platform)-$(host)'
     displayName: 'Install toolchain'
   - script: |
       chmod +x $(toolchain.directory)/usr/bin/ar
