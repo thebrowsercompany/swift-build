@@ -5,9 +5,8 @@ jobs:
       install.directory: $(Build.StagingDirectory)/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-development
       zlib.directory: $(Pipeline.Workspace)/Library/zlib-1.2.11
     steps:
-      - script: |
-          git clone --quiet --depth 1 --single-branch --branch master https://github.com/curl/curl.git $(Build.SourcesDirectory)/curl
-        displayName: 'Fetch Sources'
+      - checkout: self
+      - checkout: curl/curl
       - task: DownloadPipelineArtifact@2
         inputs:
           source: 'specific'
@@ -31,14 +30,14 @@ jobs:
         condition: eq( variables['Agent.OS'], 'Linux' )
         displayName: 'Install Dependencies'
       - script: |
-          /usr/bin/cmake -B $(Build.BinariesDirectory)/curl -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
+          /usr/bin/cmake -B $(Build.BinariesDirectory)/curl -C $(Build.SourcesDirectory)/windows-swift/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/windows-swift/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
         # NOTE(compnerd) workaround old cmake installation on hosted agents
         condition: eq( variables['Agent.OS'], 'Linux' )
         displayName: 'Configure curl'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/curl
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
+          cmakeArgs: -C $(Build.SourcesDirectory)/windows-swift/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/windows-swift/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
         # NOTE(compnerd) workaround old cmake installation on hosted agents
         condition: not( eq( variables['Agent.OS'], 'Linux' ) )
         displayName: 'Configure curl'
