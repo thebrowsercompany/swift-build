@@ -61,14 +61,22 @@ steps:
       artifactName: 'xml2-linux-$(host)'
       downloadPath: '$(System.ArtifactsDirectory)'
     displayName: 'Install libXML2'
-  - task: DownloadBuildArtifacts@0
+  - task: DownloadPipelineArtifact@2
     inputs:
-      buildType: specific
+      source: 'specific'
       project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
       pipeline: 11
+      runVersion: 'latest'
       artifactName: 'curl-linux-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
     displayName: 'Install CURL'
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      source: 'specific'
+      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+      pipeline: 16
+      runVersion: 'latest'
+      artifactName: 'zlib-linux-$(host)'
+    displayName: 'Install ZLIB'
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/llvm
@@ -99,7 +107,7 @@ steps:
   - task: CMake@1
     inputs:
       workingDirectory: $(Build.StagingDirectory)/foundation
-      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/linux-$(arch).cmake -DCMAKE_Swift_SDK=$(install.directory)/.. -C $(Build.SourcesDirectory)/cmake/caches/linux-$(arch)-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules
+      cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/linux-$(arch).cmake -DCMAKE_Swift_SDK=$(install.directory)/.. -C $(Build.SourcesDirectory)/cmake/caches/linux-$(arch)-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL
     displayName: 'Configure Foundation'
   - task: CMake@1
     inputs:

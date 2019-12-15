@@ -2,19 +2,19 @@ jobs:
   - job: ${{ parameters.platform }}_${{ parameters.host }}
     pool: ${{ parameters.pool }}
     variables:
-      install.directory: $(Build.StagingDirectory)/Library/libcurl-development
+      install.directory: $(Build.StagingDirectory)/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-development
+      zlib.directory: $(Pipeline.Workspace)/Library/zlib-1.2.11
     steps:
       - script: |
-          git clone --quiet --depth 1 --single-branch --branch master https://github.com/curl/curl.git curl
+          git clone --quiet --depth 1 --single-branch --branch master https://github.com/curl/curl.git $(Build.SourcesDirectory)/curl
         displayName: 'Fetch Sources'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
           pipeline: 16
+          runVersion: 'latest'
           artifactName: 'zlib-${{ parameters.platform }}-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install ZLIB'
       - task: BatchScript@1
         inputs:
@@ -30,27 +30,27 @@ jobs:
           sudo apt-get -y install cmake ninja-build
         condition: eq( variables['Agent.OS'], 'Linux' )
         displayName: 'Install Dependencies'
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/curl
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(System.ArtifactsDirectory)/zlib-${{ parameters.platform }}-${{ parameters.host }}/zlib-1.2.11/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
-        # NOTE(compnerd) workaround old cmake installation on hosted agents
-        condition: not( eq( variables['Agent.OS'], 'Linux' ) )
-        displayName: 'Configure curl'
       - script: |
-          /usr/bin/cmake -B $(Build.StagingDirectory)/curl -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(System.ArtifactsDirectory)/zlib-${{ parameters.platform }}-${{ parameters.host }}/zlib-1.2.11/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
+          /usr/bin/cmake -B $(Build.BinariesDirectory)/curl -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
         # NOTE(compnerd) workaround old cmake installation on hosted agents
         condition: eq( variables['Agent.OS'], 'Linux' )
         displayName: 'Configure curl'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/curl
+          workingDirectory: $(Build.BinariesDirectory)/curl
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
+        # NOTE(compnerd) workaround old cmake installation on hosted agents
+        condition: not( eq( variables['Agent.OS'], 'Linux' ) )
+        displayName: 'Configure curl'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/curl
         displayName: 'Build CURL'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/curl --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/curl --target install
         displayName: 'Install CURL'
-      - task: PublishBuildArtifacts@1
+      - task: PublishPipelineArtifact@1
         inputs:
-          pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: curl-${{ parameters.platform }}-${{ parameters.host }}
+          path: $(Build.StagingDirectory)/curl-${{ parameters.platform }}-${{ parameters.host }}
+          artifact: curl-${{ parameters.platform }}-${{ parameters.host }}

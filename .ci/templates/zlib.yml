@@ -2,10 +2,10 @@ jobs:
   - job: ${{ parameters.platform }}_${{ parameters.host }}
     pool: ${{ parameters.pool }}
     variables:
-      install.directory: $(Build.StagingDirectory)/Library/zlib-1.2.11
+      install.directory: $(Build.StagingDirectory)/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-1.2.11
     steps:
       - script: |
-          git clone --quiet --depth 1 --single-branch --branch v1.2.11 https://github.com/madler/zlib.git zlib
+          git clone --quiet --depth 1 --single-branch --branch v1.2.11 https://github.com/madler/zlib.git $(Build.SourcesDirectory)/zlib
         displayName: 'Fetch Sources'
       - task: BatchScript@1
         inputs:
@@ -23,18 +23,18 @@ jobs:
         displayName: 'Install Dependencies'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/zlib
+          workingDirectory: $(Build.BinariesDirectory)/zlib
           cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/zlib -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
         displayName: 'Configure zlib'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/zlib
+          cmakeArgs: --build $(Build.BinariesDirectory)/zlib
         displayName: 'Build zlib'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/zlib --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/zlib --target install
         displayName: 'Install zlib'
-      - task: PublishBuildArtifacts@1
+      - task: PublishPipelineArtifact@1
         inputs:
-          pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: zlib-${{ parameters.platform }}-${{ parameters.host }}
+          path: $(Build.StagingDirectory)/zlib-${{ parameters.platform }}-${{ parameters.host }}
+          artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}

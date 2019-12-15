@@ -10,11 +10,11 @@ jobs:
     pool: ${{ parameters.pool }}
     variables:
       toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-      curl.directory: $(System.ArtifactsDirectory)/curl-windows-${{ parameters.host }}/libcurl-development
+      curl.directory: $(Pipeline.Workspace)/Library/libcurl-development
       icu.version: 64
       icu.directory: $(System.ArtifactsDirectory)/icu-windows-${{ parameters.host }}/ICU-$(icu.version)
       xml2.directory: $(System.ArtifactsDirectory)/xml2-windows-${{ parameters.host }}/libxml2-development
-      zlib.directory: $(System.ArtifactsDirectory)/zlib-windows-${{ parameters.host }}/zlib-1.2.11
+      zlib.directory: $(Pipeline.Workspace)/Library/zlib-1.2.11
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/Library/XCTest-development/usr
     steps:
@@ -77,23 +77,21 @@ jobs:
           artifactName: 'xml2-windows-${{ parameters.host }}'
           downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install XML2'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 16
-          allowPartiallySucceededBuilds: true
+          runVersion: 'latest'
           artifactName: 'zlib-windows-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install ZLIB'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          source: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 11
-          allowPartiallySucceededBuilds: true
+          runVersion: 'latest'
           artifactName: 'curl-windows-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
         displayName: 'Install CURL'
       - task: BatchScript@1
         inputs:
