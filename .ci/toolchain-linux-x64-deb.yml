@@ -14,110 +14,116 @@ trigger:
       - .ci/toolchain-linux-x64-deb.yml
 jobs:
   - job: linux_x64
-    variables:
-      toolchain.directory: $(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
     pool:
       vmImage: 'ubuntu-18.04'
+    variables:
+      toolchain.directory: $(Build.StagingDirectory)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
     steps:
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
           buildType: specific
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
           pipeline: 14
           specificBuildWithTriggering: true
           allowPartiallySucceededBuilds: true
-          artifactName: 'toolchain'
-          downloadPath: '$(System.ArtifactsDirectory)'
+          artifactName: 'toolchain-linux-x64'
         displayName: 'Install toolchain'
       - script: |
-          rm $(toolchain.directory)/usr/bin/complete-test
-          rm $(toolchain.directory)/usr/bin/lldb-moduleimport-test
-          rm $(toolchain.directory)/usr/bin/sil-func-extractor
-          rm $(toolchain.directory)/usr/bin/sil-llvm-gen
-          rm $(toolchain.directory)/usr/bin/sil-nm
-          rm $(toolchain.directory)/usr/bin/sil-opt
-          rm $(toolchain.directory)/usr/bin/sil-passpipeline-dumper
-          rm $(toolchain.directory)/usr/bin/sourcekitd-repl
-          rm $(toolchain.directory)/usr/bin/sourcekitd-test
-          rm $(toolchain.directory)/usr/bin/swift-api-dump.py
-          rm $(toolchain.directory)/usr/bin/swift-ast-script
-          rm $(toolchain.directory)/usr/bin/swift-demangle-yamldump
-          rm $(toolchain.directory)/usr/bin/swift-ide-test
-          rm $(toolchain.directory)/usr/bin/swift-indent
-          rm $(toolchain.directory)/usr/bin/swift-llvm-opt
-          rm $(toolchain.directory)/usr/bin/swift-reflection-dump
-          rm $(toolchain.directory)/usr/bin/swift-remoteast-test
-          rm $(toolchain.directory)/usr/bin/swift-syntax-parser-test
-          rm $(toolchain.directory)/usr/bin/swift-syntax-test
+          mkdir -p $(Build.StagingDirectory)/toolchain/Library
+          cp -rv $(Pipeline.Workspace)/Library/Developer $(Build.StagingDirectory)/toolchain/Library/Developer
 
-          chmod +x $(toolchain.directory)/usr/bin/*
-          chmod +x $(toolchain.directory)/usr/lib/*.so*
+          # remove testing binaries
+          rm -v $(toolchain.directory)/usr/bin/complete-test
+          rm -v $(toolchain.directory)/usr/bin/lldb-moduleimport-test
+          rm -v $(toolchain.directory)/usr/bin/sil-func-extractor
+          rm -v $(toolchain.directory)/usr/bin/sil-llvm-gen
+          rm -v $(toolchain.directory)/usr/bin/sil-nm
+          rm -v $(toolchain.directory)/usr/bin/sil-opt
+          rm -v $(toolchain.directory)/usr/bin/sil-passpipeline-dumper
+          rm -v $(toolchain.directory)/usr/bin/sourcekitd-repl
+          rm -v $(toolchain.directory)/usr/bin/sourcekitd-test
+          rm -v $(toolchain.directory)/usr/bin/swift-api-dump.py
+          rm -v $(toolchain.directory)/usr/bin/swift-ast-script
+          rm -v $(toolchain.directory)/usr/bin/swift-demangle-yamldump
+          rm -v $(toolchain.directory)/usr/bin/swift-ide-test
+          rm -v $(toolchain.directory)/usr/bin/swift-indent
+          rm -v $(toolchain.directory)/usr/bin/swift-llvm-opt
+          rm -v $(toolchain.directory)/usr/bin/swift-reflection-dump
+          rm -v $(toolchain.directory)/usr/bin/swift-remoteast-test
+          rm -v $(toolchain.directory)/usr/bin/swift-syntax-parser-test
+          rm -v $(toolchain.directory)/usr/bin/swift-syntax-test
 
-          rm -rf $(toolchain.directory)/usr/share/docs/swift
+          # remove swift docs
+          rm -vrf $(toolchain.directory)/usr/share/docs/swift
 
-          mv $(toolchain.directory)/usr/local/include/indexstore $(toolchain.directory)/usr/include
-          rmdir $(toolchain.directory)/usr/local
+          # make IndexStore headers part of `/usr` instead of `/usr/local`
+          mv -v $(toolchain.directory)/usr/local/include/indexstore $(toolchain.directory)/usr/include/indexstore
+          rmdir -v $(toolchain.directory)/usr/local
 
+          # symlink in clang resource headers
           cd $(toolchain.directory)/usr/lib/swift
-          rm -rf clang
-          ln -s ../clang/*/include clang
+          rm -vrf clang
+          ln -vs ../clang/*/include clang
 
+          # fix file permissions
+          chmod -v +x $(toolchain.directory)/usr/bin/*
+          chmod -v +x $(toolchain.directory)/usr/lib/*.so*
+
+          # fixup the symlinks being replaced with binaries
           cd $(toolchain.directory)/usr/lib
-          rm libLTO.so ; ln -s libLTO.so.* libLTO.so
-          rm libIndexStore.so ; ln -s libIndexStore.so.* libIndexStore.so
-          rm libclang.so ; ln -s libclang.so.* libclang.so
+          rm -v libLTO.so ; ln -vs libLTO.so.* libLTO.so
+          rm -v libIndexStore.so ; ln -vs libIndexStore.so.* libIndexStore.so
+          rm -v libclang.so ; ln -vs libclang.so.* libclang.so
           # TODO(compnerd) figure out how to update this automatically
-          rm liblldb.so ; ln -s liblldb.so.9 liblldb.so
-          rm liblldb.so.9 ; ln -s liblldb.so.9.0 liblldb.so.9
-          rm liblldb.so.9.0 ; ln -s liblldb.so.9.0.0 liblldb.so.9.0
+          rm -v liblldb.so ; ln -vs liblldb.so.9 liblldb.so
+          rm -v liblldb.so.9 ; ln -vs liblldb.so.9.0 liblldb.so.9
+          rm -v liblldb.so.9.0 ; ln -vs liblldb.so.9.0.0 liblldb.so.9.0
 
           cd $(toolchain.directory)/usr/bin
-          rm addr2line ; ln -s llvm-symbolizer addr2line
-          rm ar ; ln -s llvm-ar ar
-          rm c++filt ; ln -s llvm-cxxfilt c++filt
-          rm clang ; ln -s clang-[0-9]* clang
-          rm clang++ ; ln -s clang-[0-9]* clang++
-          rm clang-cl ; ln -s clang-[0-9]* clang-cl
-          rm clang-cpp ; ln -s clang-[0-9]* clang-cpp
-          rm dwp ; ln -s llvm-dwp dwp
-          rm ld64.lld ; ln -s lld ld64.lld
-          rm ld.lld ; ln -s lld ld.lld
-          rm lld-link ; ln -s lld lld-link
-          rm llvm-dlltool ; ln -s llvm-ar llvm-dlltool
-          rm llvm-lib ; ln -s llvm-ar llvm-lib
-          rm llvm-ranlib ; ln -s llvm-ar llvm-ranlib
-          rm llvm-readelf ; ln -s llvm-readobj llvm-readelf
-          rm llvm-strip ; ln -s llvm-objcopy llvm-strip
-          rm nm ; ln -s llvm-nm nm
-          rm objcopy ; ln -s llvm-objcopy objcopy
-          rm objdump ; ln -s llvm-objdump objdump
-          rm ranlib ; ln -s llvm-ranlib ranlib
-          rm readelf ; ln -s llvm-readelf readelf
-          rm size ; ln -s llvm-size size
-          rm strings ; ln -s llvm-strings strings
-          rm strip ; ln -s llvm-strip strip
-          rm swift-autolink-extract ; ln -s swift swift-autolink-extract
-          rm swiftc ; ln -s swift swiftc
-          rm wasm-ld ; ln -s lld wasm-ld
+          rm -v addr2line ; ln -vs llvm-symbolizer addr2line
+          rm -v ar ; ln -vs llvm-ar ar
+          rm -v c++filt ; ln -vs llvm-cxxfilt c++filt
+          rm -v clang ; ln -vs clang-[0-9]* clang
+          rm -v clang++ ; ln -vs clang-[0-9]* clang++
+          rm -v clang-cl ; ln -vs clang-[0-9]* clang-cl
+          rm -v clang-cpp ; ln -vs clang-[0-9]* clang-cpp
+          rm -v dwp ; ln -vs llvm-dwp dwp
+          rm -v ld64.lld ; ln -vs lld ld64.lld
+          rm -v ld.lld ; ln -vs lld ld.lld
+          rm -v lld-link ; ln -vs lld lld-link
+          rm -v llvm-dlltool ; ln -vs llvm-ar llvm-dlltool
+          rm -v llvm-lib ; ln -vs llvm-ar llvm-lib
+          rm -v llvm-ranlib ; ln -vs llvm-ar llvm-ranlib
+          rm -v llvm-readelf ; ln -vs llvm-readobj llvm-readelf
+          rm -v llvm-strip ; ln -vs llvm-objcopy llvm-strip
+          rm -v nm ; ln -vs llvm-nm nm
+          rm -v objcopy ; ln -vs llvm-objcopy objcopy
+          rm -v objdump ; ln -vs llvm-objdump objdump
+          rm -v ranlib ; ln -vs llvm-ranlib ranlib
+          rm -v readelf ; ln -vs llvm-readelf readelf
+          rm -v size ; ln -vs llvm-size size
+          rm -v strings ; ln -vs llvm-strings strings
+          rm -v strip ; ln -vs llvm-strip strip
+          rm -v swift-autolink-extract ; ln -vs swift swift-autolink-extract
+          rm -v swiftc ; ln -vs swift swiftc
+          rm -v wasm-ld ; ln -vs lld wasm-ld
 
-          mkdir -p $(System.ArtifactsDirectory)/toolchain/Library
-          mv $(System.ArtifactsDirectory)/toolchain/Developer $(System.ArtifactsDirectory)/toolchain/Library
         displayName: 'cleanup image'
       - script: |
-          cd $(System.ArtifactsDirectory)
+          cd $(Build.StagingDirectory)
           mkdir toolchain/DEBIAN
           cp $(Build.SourcesDirectory)/debian/control toolchain/DEBIAN
           sed -e "s/Version:/& $(Build.BuildId)/" -i toolchain/DEBIAN/control
           fakeroot dpkg-deb --build toolchain
         displayName: 'package image'
-      - task: PublishBuildArtifacts@1
+      - task: PublishPipelineArtifact@1
         inputs:
-          PathtoPublish: '$(System.ArtifactsDirectory)/toolchain.deb'
-          ArtifactName: 'linux-toolchain-amd64.deb'
+          path: '$(Build.StagingDirectory)/toolchain.deb'
+          artifact: 'linux-toolchain-amd64.deb'
         displayName: "Publish linux-toolchain-amd64.deb"
       - task: cURLUploader@2
         inputs:
-          files: '$(System.ArtifactsDirectory)/toolchain.deb'
+          files: '$(Build.StagingDirectory)/toolchain.deb'
           authType: 'UserAndPass'
           username: 'compnerd'
           password: '$(BINTRAY_PASSWORD)'
@@ -125,7 +131,7 @@ jobs:
           remotePath: 
         displayName: 'Upload to bintray'
       - script: |
-          cp $(System.ArtifactsDirectory)/toolchain.deb $(System.ArtifactsDirectory)/swift-toolchain_$(Build.BuildId)_amd64.deb
-          cd $(System.ArtifactsDirectory)
+          mv $(Build.StagingDirectory)/toolchain.deb $(Build.StagingDirectory)/swift-toolchain_$(Build.BuildId)_amd64.deb
+          cd $(Build.StagingDirectory)
           curl -F swift-toolchain=@swift-toolchain_$(Build.BuildId)_amd64.deb https://$(GEMFURY_PASSWORD)@push.fury.io/compnerd
         displayName: 'Upload to gemfury'
