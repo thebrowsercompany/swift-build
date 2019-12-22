@@ -27,20 +27,22 @@ jobs:
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
         displayName: 'vcvarsall.bat'
-      - task: DownloadBuildArtifacts@0
+      - task: DownloadPipelineArtifact@2
         inputs:
-          buildType: specific
+          buildType: 'specific'
           project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 1
+          definition: 1
           specificBuildWithTriggering: true
+          buildVersionToDownload: 'latest'
           allowPartiallySucceededBuilds: true
-          artifactName: 'toolchain'
-          downloadPath: '$(System.ArtifactsDirectory)'
-        displayName: 'Install toolchain'
+          allowFailedBuilds: true
+          artifactName: 'toolchain-windows-x64'
+          targetPath: '$(System.ArtifactsDirectory)'
+        displayName: 'install toolchain'
       - task: MSBuild@1
         inputs:
           solution: $(Build.SourcesDirectory)\wix\windows-toolchain.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:TOOLCHAIN_ROOT=$(System.ArtifactsDirectory)/toolchain/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:TOOLCHAIN_ROOT=$(System.ArtifactsDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
         displayName: 'Build windows-toolchain-amd64.msi'
       - task: PublishBuildArtifacts@1
         inputs:
