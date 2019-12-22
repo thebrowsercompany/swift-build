@@ -152,13 +152,19 @@ set(SWIFT_BUILD_STATIC_SDK_OVERLAY NO CACHE BOOL "")
 set(SWIFT_BUILD_DYNAMIC_STDLIB NO CACHE BOOL "")
 set(SWIFT_BUILD_DYNAMIC_SDK_OVERLAY NO CACHE BOOL "")
 
+if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  set(SOURCEKIT_COMPONENT sourcekit-xpc-service)
+else()
+  set(SOURCEKIT_COMPONENT sourcekit-inproc)
+endif()
+
 set(SWIFT_INSTALL_COMPONENTS
       autolink-driver
       compiler
       clang-builtin-headers
       editor-integration
       tools
-      sourcekit-inproc
+      ${SOURCEKIT_COMPONENT}
       swift-remote-mirror
       swift-remote-mirror-headers
     CACHE STRING "")
