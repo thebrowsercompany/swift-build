@@ -126,6 +126,7 @@ set(LLDB_USE_STATIC_BINDINGS YES CACHE BOOL "")
 set(LLDB_TOOLS
       liblldb
       lldb
+      lldb-argdumper
       lldb-server
       lldb-vscode
       repl_swift
