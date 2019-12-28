@@ -1,10 +1,8 @@
-# **Swift on Windows (& more)**
-
-![](images/windows-swift.jpg)
+# **//swift/build**
 
 ## Table of Contents
 
-- [**Swift on Windows (& more)**](#--swift-on-windows----more---)
+- [**//swift/build**](#--swift-build---)
   * [Getting Started](#getting-started)
     + [Hello World (CMake)](#hello-world--cmake-)
     + [Windows](#windows)
