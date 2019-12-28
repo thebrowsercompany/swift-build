@@ -17,21 +17,28 @@ jobs:
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/Library/XCTest-development/usr
     steps:
       - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Enable symbolic links, disable line ending conversion'
+      - checkout: self
+      - checkout: apple/llvm-project
+        displayName: 'checkout apple/llvm-project'
+      - checkout: apple/swift
+        displayName: 'checkout apple/swift'
+      - checkout: apple/swift-corelibs-libdispatch
+        displayName: 'checkout apple/swift-corelibs-libdispatch'
+      - checkout: apple/swift-corelibs-foundation
+        displayName: 'checkout apple/swift-corelibs-foundation'
+      - checkout: apple/swift-corelibs-xctest
+        displayName: 'checkout apple/swift-corelibs-xctest'
+      - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          git clone --quiet --depth 1 --single-branch --branch swift/${{ parameters.branch }} https://github.com/apple/llvm-project llvm-project
-
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift swift
           call :ApplyPatches "%SWIFT_PR%" swift
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
           call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           call :ApplyPatches "%FOUNDATION_PR%" swift-corelibs-foundation
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
           call :ApplyPatches "%XCTEST_PR%" swift-corelibs-xctest
 
           goto :eof
@@ -106,12 +113,12 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/llvm
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
         displayName: 'Configure LLVM'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/swift-stdlib
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/cmake/caches/swift-stdlib-android-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/swift -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-android-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/swift -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so
         displayName: 'Configure Swift Standard Library'
       - task: CMake@1
         inputs:
@@ -124,7 +131,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/libdispatch
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}.cmake -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=NO -DENABLE_SWIFT=YES -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}.cmake -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=NO -DENABLE_SWIFT=YES -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
         displayName: 'Configure libdispatch'
       - task: CMake@1
         inputs:
@@ -133,7 +140,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/foundation
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}.cmake -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}.cmake -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:
@@ -142,7 +149,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/xctest
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}.cmake -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk -C $(Build.SourcesDirectory)/cmake/caches/android-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}.cmake -DSWIFT_ANDROID_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/android-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
         displayName: 'Configure XCTest'
       - task: CMake@1
         inputs:
@@ -164,4 +171,3 @@ jobs:
         inputs:
           pathtoPublish: $(Build.StagingDirectory)/Library
           artifactName: sdk-android-${{ parameters.host }}
-
