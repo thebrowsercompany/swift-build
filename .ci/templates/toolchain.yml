@@ -8,13 +8,29 @@ jobs:
 
       install.directory: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
     steps:
-      - script: |
-          set -eu
-          curl -Ls https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-mac.zip -o ninja-mac.zip
-          unzip ninja-mac.zip
-          sudo cp -v ninja /usr/local/bin/
+      - task: DownloadGitHubRelease@0
+        inputs:
+          connection: 'GitHub'
+          userRepository: 'ninja-build/ninja'
+          defaultVersionType: 'specificVersion'
+          version: '15273896'
+          itemPattern: 'ninja-mac.zip'
+          downloadPath: '$(System.ArtifactsDirectory)'
         condition: eq( variables['Agent.OS'], 'Darwin' )
-        displayName: 'Install Dependencies'
+        displayName: 'download Ninja'
+      - task: ExtractFiles@1
+        inputs:
+          archiveFilePatterns: '$(System.ArtifactsDirectory)/ninja-mac.zip'
+          destinationFolder: '$(Agent.ToolsDirectory)/ninja-1.9.0'
+          cleanDestinationFolder: false
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+        displayName: 'extract Ninja'
+      - task: Bash@3
+        inputs:
+          targetType: inline
+          script: echo "##vso[task.prependpath]$(Agent.ToolsDirectory)/ninja-1.9.0"
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+        displayName: 'edit PATH'
       - task: Bash@3
         inputs:
           targetType: inline
