@@ -19,7 +19,7 @@ else:
   itertools.filterfalse = itertools.ifilterfalse
 
 base_url = 'https://dev.azure.com/compnerd'
-project = 'windows-swift'
+project = 'swift-build'
 creds = BasicAuthentication('', '')
 
 connection = Connection(base_url = base_url, creds = creds)
