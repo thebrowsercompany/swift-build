@@ -9,6 +9,10 @@ jobs:
       sqlite.directory: $(Pipeline.Workspace)/Library/sqlite-3.30.1
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Library/
     steps:
+      - download: current
+        artifact: toolchain-windows-x64
+      - download: current
+        artifact: sdk-windows-${{ parameters.host }}
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -52,23 +56,6 @@ jobs:
           endlocal
           goto :eof
         displayName: 'Apply Patches'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: ${{ parameters.toolchain }}
-          runVersion: 'latest'
-          artifactName: 'toolchain-windows-${{ parameters.host }}'
-        displayName: 'Install toolchain'
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: specific
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
-          pipeline: ${{ parameters.sdk }}
-          artifactName: 'sdk-windows-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
-        displayName: 'Install SDK'
       - task: DownloadPipelineArtifact@2
         inputs:
           source: 'specific'
