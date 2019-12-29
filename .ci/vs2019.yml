@@ -17,13 +17,23 @@ resources:
       type: github
       name: apple/swift-cmark
       endpoint: GitHub
+    - repository: apple/swift
+      type: github
+      name: apple/swift
+      endpoint: GitHub
     - repository: apple/swift-corelibs-libdispatch
       type: github
       name: apple/swift-corelibs-libdispatch
       endpoint: GitHub
-    - repository: apple/swift
+    - repository: apple/swift-corelibs-foundation
       type: github
-      name: apple/swift
+      name: apple/swift-corelibs-foundation
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-xctest
+      type: github
+      name: apple/swift-corelibs-xctest
+      ref: refs/heads/master
       endpoint: GitHub
 schedules:
   - cron: "0 0 * * *"
@@ -40,39 +50,164 @@ trigger:
     include:
       - .ci/toolchain-vs2019-amd64.yml
       - .ci/templates/toolchain.yml
-jobs:
-  - template: templates/toolchain.yml
-    parameters:
-      VisualStudio: 2019/Enterprise
-      pool:
-        vmImage: 'windows-2019'
-      tests: true
+stages:
+  - stage: toolchain
+    jobs:
+      - template: templates/toolchain.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          tests: true
 
-      arch: x86_64
-      host: x64
-      platform: windows
+          arch: x86_64
+          host: x64
+          platform: windows
 
-      triple: x86_64-unknown-windows-msvc
+          triple: x86_64-unknown-windows-msvc
 
-      LLVM_OPTIONS: -DLLVM_PARALLEL_LINK_JOBS=2 -DPYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
-      LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES
-      SWIFT_OPTIONS: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_PARALLEL_LINK_JOBS=2 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES
+          LLVM_OPTIONS: -DLLVM_PARALLEL_LINK_JOBS=2 -DPYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
+          LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES
+          SWIFT_OPTIONS: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_PARALLEL_LINK_JOBS=2 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES
 
-  - template: templates/toolchain.yml
-    parameters:
-      VisualStudio: 2019/Enterprise
-      pool:
-        vmImage: 'windows-2019'
+      - template: templates/toolchain.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
 
-      arch: aarch64
-      host: arm64
-      platform: windows
+          arch: aarch64
+          host: arm64
+          platform: windows
 
-      triple: aarch64-unknown-windows-msvc
+          triple: aarch64-unknown-windows-msvc
 
-      # NOTE(compnerd) DIA does not contain ARM64 diaguids.lib
-      LLVM_OPTIONS: -DLLVM_ENABLE_DIA_SDK=NO -DLLVM_INCLUDE_TESTS=NO -DCLANG_INCLUDE_TESTS=NO -DLLD_INCLUDE_TESTS=NO
-      LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES -DLLDB_INCLUDE_TESTS=NO
-      # NOTE(compnerd) cannot build SyntaxParserLib and SourceKit due to
-      # libdispatch's dependency on clang
-      SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO
+          # NOTE(compnerd) DIA does not contain ARM64 diaguids.lib
+          LLVM_OPTIONS: -DLLVM_ENABLE_DIA_SDK=NO -DLLVM_INCLUDE_TESTS=NO -DCLANG_INCLUDE_TESTS=NO -DLLD_INCLUDE_TESTS=NO
+          LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES -DLLDB_INCLUDE_TESTS=NO
+          # NOTE(compnerd) cannot build SyntaxParserLib and SourceKit due to
+          # libdispatch's dependency on clang
+          SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO
+
+  - stage: android_sdk
+    dependsOn: toolchain
+    displayName: 'Android SDK'
+    jobs:
+      - template: templates/android-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'armv7'
+          host: 'arm'
+          triple: 'armv7-unknown-linux-androideabi'
+
+      - template: templates/android-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'aarch64'
+          host: 'arm64'
+          triple: 'aarch64-unknown-linux-android'
+
+      - template: templates/android-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'x86_64'
+          host: 'x64'
+          triple: 'x86_64-unknown-linux-android'
+
+      - template: templates/android-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'i686'
+          host: 'x86'
+          triple: 'i686-unknown-linux-android'
+
+  - stage: windows_sdk
+    dependsOn: toolchain
+    displayName: 'Windows SDK'
+    jobs:
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'armv7'
+          host: 'arm'
+          triple: 'armv7-unknown-windows-msvc'
+
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'aarch64'
+          host: 'arm64'
+          triple: 'aarch64-unknown-windows-msvc'
+
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'x86_64'
+          host: 'x64'
+          triple: 'x86_64-unknown-windows-msvc'
+
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          toolchain: 7
+
+          arch: 'i686'
+          host: 'x86'
+          triple: 'i686-unknown-windows-msvc'
+
+  - stage: devtools
+    dependsOn: windows_sdk
+    jobs:
+      - template: templates/windows-devtools.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          branch: master
+          toolchain: 7
+          sdk: 2
+
+          arch: 'aarch64'
+          host: 'arm64'
+
+      - template: templates/windows-devtools.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+          pool:
+            vmImage: 'windows-2019'
+          branch: master
+          toolchain: 7
+          sdk: 2
+
+          arch: 'x86_64'
+          host: 'x64'
