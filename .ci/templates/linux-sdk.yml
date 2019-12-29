@@ -18,6 +18,19 @@ jobs:
         displayName: 'Enable symbolic links, disable line ending conversion'
       - download: current
         artifact: toolchain-linux-x64
+        displayName: 'download toolcahin'
+      - download: icu
+        artifact: icu-linux-${{ parameters.host }}
+        displayName: 'download ICU'
+      - download: xml2
+        artifact: xml2-linux-${{ parameters.host }}
+        displayName: 'download XML2'
+      - download: curl
+        artifact: curl-linux-${{ parameters.host }}
+        displayName: 'download CURL'
+      - download: zlib
+        artifact: zlib-linux-${{ parameters.host }}
+        displayName: 'download zlib'
       - checkout: self
       - checkout: apple/llvm-project
         displayName: 'checkout apple/llvm-project'
@@ -56,39 +69,6 @@ jobs:
           chmod +x $(toolchain.directory)/usr/bin/ld.lld
         condition: eq( variables['Agent.OS'], 'Linux' )
         displayName: 'Correct File Modes'
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: specific
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
-          pipeline: 9
-          artifactName: 'icu-linux-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
-        displayName: 'Install ICU'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 10
-          runVersion: 'latest'
-          artifactName: 'xml2-linux-${{ parameters.host }}'
-        displayName: 'Install XML2'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 11
-          runVersion: 'latest'
-          artifactName: 'curl-linux-${{ parameters.host }}'
-        displayName: 'Install CURL'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 16
-          runVersion: 'latest'
-          artifactName: 'zlib-linux-${{ parameters.host }}'
-        displayName: 'Install ZLIB'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/llvm
