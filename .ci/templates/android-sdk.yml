@@ -16,6 +16,8 @@ jobs:
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/Library/XCTest-development/usr
     steps:
+      - download: current
+        artifact: toolchain-windows-x64
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -55,14 +57,6 @@ jobs:
           endlocal
           goto :eof
         displayName: 'Fetch Sources'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: ${{ parameters.toolchain }}
-          runVersion: 'latest'
-          artifactName: 'toolchain-windows-x64'
-        displayName: 'Install toolchain'
       - task: DownloadBuildArtifacts@0
         inputs:
           buildType: specific
