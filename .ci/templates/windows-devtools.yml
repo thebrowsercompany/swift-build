@@ -10,22 +10,32 @@ jobs:
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Library/
     steps:
       - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Enable symbolic links, disable line ending conversion'
+      - checkout: self
+      - checkout: apple/swift
+        displayName: 'checkout apple/swift'
+      - checkout: apple/swift-llbuild
+        displayName: 'checkout apple/swift-llbuild'
+        path: s/llbuild
+      - checkout: apple/swift-tools-support-core
+        displayName: 'checkout apple/swift-tools-support-core'
+        path: s/tools-support-core
+      - checkout: apple/swift-package-manager
+        displayName: 'checkout apple/swift-package-manager'
+        path: s/swiftpm
+      - checkout: apple/indexstore-db
+        displayName: 'checkout apple/indexstore-db'
+      - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift swift
           call :ApplyPatches "%SWIFT_PR%" swift
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-llbuild llbuild
           call :ApplyPatches "%LLBUILD_PR%" llbuild
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-tools-support-core tools-support-core
           call :ApplyPatches "%TSC_PR%" tools-support-core
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swiftpm
           call :ApplyPatches "%SPM_PR%" swiftpm
-
-          git clone --quiet --config core.symlinks=true --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/indexstore-db indexstore-db
           call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
 
           goto :eof
@@ -41,7 +51,7 @@ jobs:
           )
           endlocal
           goto :eof
-        displayName: 'Fetch Sources'
+        displayName: 'Apply Patches'
       - task: DownloadPipelineArtifact@2
         inputs:
           source: 'specific'
