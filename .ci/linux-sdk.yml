@@ -19,19 +19,11 @@ trigger:
       - cmake/caches/linux-x86_64.cmake
       - cmake/caches/linux-x86_64-swift-flags.cmake
 jobs:
-  - job: linux_x64
-    variables:
+  - template: templates/linux-sdk.yml
+    parameters:
+      pool: FlowKey
+      toolchain: 14
+
       arch: x86_64
       host: x64
       triple: x86_64-unknown-linux-gnu
-
-      toolchain.directory: $(Pipeline.Workspace)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-      curl.directory: $(Pipeline.Workspace)/Library/libcurl-development
-      icu.version: 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-linux-$(host)/icu-$(icu.version)
-      xml2.directory: $(Pipeline.Workspace)/Library/libxml2-development
-      install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr
-      xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Linux.platform/Developer/Library/XCTest-development/usr
-      zlib.directory: $(Pipeline.Workspace)/Library/zlib-1.2.11
-    steps:
-      - template: templates/linux-sdk.yml
