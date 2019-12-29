@@ -16,6 +16,8 @@ jobs:
           git config --global --add core.symlinks true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'Enable symbolic links, disable line ending conversion'
+      - download: current
+        artifact: toolchain-linux-x64
       - checkout: self
       - checkout: apple/llvm-project
         displayName: 'checkout apple/llvm-project'
@@ -44,14 +46,6 @@ jobs:
           ApplyPatches swift-corelibs-foundation ${FOUNDATION_PR}
           ApplyPatches swift-corelibs-xctest ${XCTEST_PR}
         displayName: 'Apply Patches'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: ${{ parameters.toolchain }}
-          runVersion: 'latest'
-          artifactName: 'toolchain-linux-x64'
-        displayName: 'Install toolchain'
       - script: |
           chmod +x $(toolchain.directory)/usr/bin/ar
           chmod +x $(toolchain.directory)/usr/bin/clang
