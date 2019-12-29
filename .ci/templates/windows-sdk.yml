@@ -19,21 +19,28 @@ jobs:
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/Library/XCTest-development/usr
     steps:
       - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Enable symbolic links, disable line ending conversion'
+      - checkout: self
+      - checkout: apple/llvm-project
+        displayName: 'checkout apple/llvm-project'
+      - checkout: apple/swift
+        displayName: 'checkout apple/swift'
+      - checkout: apple/swift-corelibs-libdispatch
+        displayName: 'checkout apple/swift-corelibs-libdispatch'
+      - checkout: apple/swift-corelibs-foundation
+        displayName: 'checkout apple/swift-corelibs-foundation'
+      - checkout: apple/swift-corelibs-xctest
+        displayName: 'checkout apple/swift-corelibs-xctest'
+      - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          git clone --quiet --depth 1 --single-branch --branch swift/${{ parameters.branch }} https://github.com/apple/llvm-project llvm-project
-
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift swift
           call :ApplyPatches "%SWIFT_PR%" swift
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
           call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           call :ApplyPatches "%FOUNDATION_PR%" swift-corelibs-foundation
-
-          git clone --quiet --depth 1 --single-branch --branch ${{ parameters.branch }} https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
           call :ApplyPatches "%XCTEST_PR%" swift-corelibs-xctest
 
           goto :eof
@@ -49,7 +56,7 @@ jobs:
           )
           endlocal
           goto :eof
-        displayName: 'Fetch Sources'
+        displayName: 'Apply Patches'
       - task: DownloadPipelineArtifact@2
         inputs:
           source: 'specific'
@@ -115,12 +122,12 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/llvm
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
         displayName: 'Configure LLVM'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/swift-stdlib
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -C $(Build.SourcesDirectory)/cmake/caches/swift-stdlib-windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib
         displayName: 'Configure Swift Standard Library'
       - task: CMake@1
         inputs:
@@ -133,7 +140,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/libdispatch
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=YES -DENABLE_SWIFT=YES
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=YES -DENABLE_SWIFT=YES
         displayName: 'Configure libdispatch'
       - task: CMake@1
         inputs:
@@ -164,7 +171,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/foundation
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:
@@ -173,7 +180,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/xctest
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules
         displayName: 'Configure XCTest'
       - task: CMake@1
         inputs:
@@ -182,7 +189,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/foundation
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DENABLE_TESTING=YES -DXCTest_DIR=$(Build.StagingDirectory)/xctest/cmake/modules
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DENABLE_TESTING=YES -DXCTest_DIR=$(Build.StagingDirectory)/xctest/cmake/modules
         condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
         displayName: 'Re-Configure Foundation'
       - task: CMake@1
