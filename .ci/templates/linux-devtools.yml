@@ -13,6 +13,23 @@ jobs:
       SwiftPM.version: development
     steps:
       - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Enable symbolic links, disable line ending conversion'
+      - checkout: self
+      - checkout: apple/swift-llbuild
+        displayName: 'checkout apple/swift-llbuild'
+        path: s/llbuild
+      - checkout: apple/swift-tools-support-core
+        displayName: 'checkout apple/swift-tools-support-core'
+        path: s/tools-support-core
+      - checkout: apple/swift-package-manager
+        displayName: 'checkout apple/swift-package-manager'
+        path: s/swiftpm
+      - checkout: apple/indexstore-db
+        displayName: 'checkout apple/indexstore-db'
+      - script: |
           function ApplyPatches() {
             local repository=${1} ; shift
             for PR in "${@}" ; do
@@ -24,18 +41,11 @@ jobs:
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
           ApplyPatches llbuild ${LLBUILD_PR}
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
           ApplyPatches tools-support-core ${TSC_PR}
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swiftpm
           ApplyPatches swiftpm ${SPM_PR}
-
-          git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
           ApplyPatches indexstore-db ${INDEXSTOREDB_PR}
-        displayName: 'Fetch Sources'
+        displayName: 'Apply Patches'
       - task: DownloadPipelineArtifact@2
         inputs:
           source: 'specific'
