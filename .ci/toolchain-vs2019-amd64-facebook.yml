@@ -16,14 +16,27 @@ resources:
     - repository: apple/swift-cmark
       type: github
       name: apple/swift-cmark
+      ref: refs/heads/master
       endpoint: GitHub
     - repository: apple/swift-corelibs-libdispatch
       type: github
       name: apple/swift-corelibs-libdispatch
+      ref: refs/heads/master
       endpoint: GitHub
     - repository: apple/swift
       type: github
       name: apple/swift
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-foundation
+      type: github
+      name: apple/swift-corelibs-foundation
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-xctest
+      type: github
+      name: apple/swift-corelibs-xctest
+      ref: refs/heads/master
       endpoint: GitHub
 schedules:
 - cron: "0 */2 * * *"
@@ -40,19 +53,63 @@ trigger:
     include:
       - .ci/toolchain-vs2019-amd64-facebook.yml
       - .ci/templates/toolchain.yml
-jobs:
-  - template: templates/toolchain.yml
-    parameters:
-      VisualStudio: 2019/Community
-      pool: Facebook-VS2019
-      tests: true
+stages:
+  - stage: toolchain
+    jobs:
+      - template: templates/toolchain.yml
+        parameters:
+          VisualStudio: 2019/Community
+          pool: Facebook-VS2019
+          tests: true
 
-      arch: x86_64
-      host: x64
-      platform: windows
+          arch: x86_64
+          host: x64
+          platform: windows
 
-      triple: x86_64-unknown-windows-msvc
+          triple: x86_64-unknown-windows-msvc
 
-      LLVM_OPTIONS: -DLLVM_PARALLEL_LINK_JOBS=2 -DPYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
-      LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES
-      SWIFT_OPTIONS: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_PARALLEL_LINK_JOBS=8 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES
+          LLVM_OPTIONS: -DLLVM_PARALLEL_LINK_JOBS=2 -DPYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
+          LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES
+          SWIFT_OPTIONS: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_PARALLEL_LINK_JOBS=8 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES
+
+  - stage: sdk
+    jobs:
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Community
+          pool: Facebook-VS2019
+          toolchain: 31
+
+          arch: 'armv7'
+          host: 'arm'
+          triple: 'armv7-unknown-windows-msvc'
+
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Community
+          pool: Facebook-VS2019
+          toolchain: 31
+
+          arch: 'aarch64'
+          host: 'arm64'
+          triple: 'aarch64-unknown-windows-msvc'
+
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Community
+          pool: Facebook-VS2019
+          toolchain: 31
+
+          arch: 'x86_64'
+          host: 'x64'
+          triple: 'x86_64-unknown-windows-msvc'
+
+      - template: templates/windows-sdk.yml
+        parameters:
+          VisualStudio: 2019/Community
+          pool: Facebook-VS2019
+          toolchain: 31
+
+          arch: 'i686'
+          host: 'x86'
+          triple: 'i686-unknown-windows-msvc'
