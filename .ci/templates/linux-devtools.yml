@@ -1,118 +1,131 @@
-steps:
-  - script: |
-      function ApplyPatches() {
-        local repository=${1} ; shift
-        for PR in "${@}" ; do
-          git -C ${repository} fetch origin pull/${PR}/head
-          git -C ${repository} cherry-pick FETCH_HEAD
-        done
-      }
+jobs:
+  - job: ${{ parameters.host }}
+    pool: ${{ parameters.pool }}
+    variables:
+      sqlite.directory: $(Pipeline.Workspace)/Library/sqlite-3.30.1
+      toolchain.directory: $(Pipeline.Workspace)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
 
-      git config --global user.name 'builder'
-      git config --global user.email 'builder@compnerd.org'
+      platform.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Linux.platform
 
-      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
-      ApplyPatches llbuild ${LLBUILD_PR}
+      llbuild.version: development
+      tsc.version: development
+      IndexStoreDB.version: development
+      SwiftPM.version: development
+    steps:
+      - script: |
+          function ApplyPatches() {
+            local repository=${1} ; shift
+            for PR in "${@}" ; do
+              git -C ${repository} fetch origin pull/${PR}/head
+              git -C ${repository} cherry-pick FETCH_HEAD
+            done
+          }
 
-      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
-      ApplyPatches tools-support-core ${TSC_PR}
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
 
-      git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swiftpm
-      ApplyPatches swiftpm ${SPM_PR}
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llbuild llbuild
+          ApplyPatches llbuild ${LLBUILD_PR}
 
-      git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
-      ApplyPatches indexstore-db ${INDEXSTOREDB_PR}
-    displayName: 'Fetch Sources'
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      source: 'specific'
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      pipeline: 14
-      runVersion: 'latest'
-      artifactName: 'toolchain-$(platform)-$(host)'
-    displayName: 'Install toolchain'
-  - script: |
-      chmod +x $(toolchain.directory)/usr/bin/ar
-      chmod +x $(toolchain.directory)/usr/bin/clang
-      chmod +x $(toolchain.directory)/usr/bin/clang++
-      chmod +x $(toolchain.directory)/usr/bin/ranlib
-      chmod +x $(toolchain.directory)/usr/bin/swift-autolink-extract
-      chmod +x $(toolchain.directory)/usr/bin/swiftc
-      chmod +x $(toolchain.directory)/usr/bin/ld.lld
-    condition: eq( variables['Agent.OS'], 'Linux' )
-    displayName: 'Correct File Modes'
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      allowPartiallySucceededBuilds: true
-      pipeline: 13
-      artifactName: 'sdk-$(platform)-$(host)'
-      downloadPath: '$(System.ArtifactsDirectory)'
-    displayName: 'Install SDK'
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      source: 'specific'
-      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-      pipeline: 12
-      runVersion: 'latest'
-      artifactName: 'sqlite-$(platform)-$(host)'
-    displayName: 'Install SQLite3'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/llbuild
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/libSQLite3.a -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
-    displayName: 'Configure llbuild'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/llbuild
-    displayName: 'Build llbuild'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
-    displayName: 'Install llbuild'
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/tsc
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/tools-support-core -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/Library/TSC-$(tsc.version)/usr -DBUILD_SHARED_LIBS=YES
-    displayName: 'Configue TSC'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/tsc
-    displayName: 'Build tools-support-core'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
-    displayName: 'Install tools-support-core'
-    enabled: false
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/spm
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swiftpm -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/swiftpm-$(SwiftPM.version)/usr -DBUILD_SHARED_LIBS=YES -DUSE_VENDORED_TSC=YES -DLLBuild_DIR=$(Build.StagingDirectory)/llbuild/cmake/modules
-    displayName: 'Configure swift-package-manager'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/spm
-    displayName: 'Build swift-package-manager'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/spm --target install
-    displayName: 'Install swift-package-manager'
-    enabled: false
-  - task: CMake@1
-    inputs:
-      workingDirectory: $(Build.StagingDirectory)/indexstore-db
-      cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/cmake/caches/$(platform)-$(arch).cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/IndexStoreDB-$(IndexStoreDB.version)/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-$(platform)-$(host)/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift/Block"
-    displayName: 'Configure IndexStoreDB'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
-    displayName: 'Build IndexStoreDB'
-  - task: CMake@1
-    inputs:
-      cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
-    displayName: 'Install IndexStoreDB'
-  - task: PublishBuildArtifacts@1
-    inputs:
-      pathtoPublish: $(Build.StagingDirectory)/Library
-      artifactName: devtools
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-tools-support-core tools-support-core
+          ApplyPatches tools-support-core ${TSC_PR}
+
+          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-package-manager swiftpm
+          ApplyPatches swiftpm ${SPM_PR}
+
+          git clone --quiet --config core.symlinks=true --depth 1 --single-branch https://github.com/apple/indexstore-db indexstore-db
+          ApplyPatches indexstore-db ${INDEXSTOREDB_PR}
+        displayName: 'Fetch Sources'
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          source: 'specific'
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: ${{ parameters.toolchain }}
+          runVersion: 'latest'
+          artifactName: 'toolchain-linux-x64'
+        displayName: 'Install toolchain'
+      - script: |
+          chmod +x $(toolchain.directory)/usr/bin/ar
+          chmod +x $(toolchain.directory)/usr/bin/clang
+          chmod +x $(toolchain.directory)/usr/bin/clang++
+          chmod +x $(toolchain.directory)/usr/bin/ranlib
+          chmod +x $(toolchain.directory)/usr/bin/swift-autolink-extract
+          chmod +x $(toolchain.directory)/usr/bin/swiftc
+          chmod +x $(toolchain.directory)/usr/bin/ld.lld
+        condition: eq( variables['Agent.OS'], 'Linux' )
+        displayName: 'Correct File Modes'
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: specific
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          allowPartiallySucceededBuilds: true
+          pipeline: 13
+          artifactName: 'sdk-${{ parameters.platform }}-${{ parameters.host }}'
+          downloadPath: '$(System.ArtifactsDirectory)'
+        displayName: 'Install SDK'
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          source: 'specific'
+          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+          pipeline: 12
+          runVersion: 'latest'
+          artifactName: 'sqlite-${{ parameters.platform }}-${{ parameters.host }}'
+        displayName: 'Install SQLite3'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/llbuild
+          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/libSQLite3.a -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
+        displayName: 'Configure llbuild'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/llbuild
+        displayName: 'Build llbuild'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
+        displayName: 'Install llbuild'
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/tsc
+          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/tools-support-core -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/Library/TSC-$(tsc.version)/usr -DBUILD_SHARED_LIBS=YES
+        displayName: 'Configue TSC'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/tsc
+        displayName: 'Build tools-support-core'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
+        displayName: 'Install tools-support-core'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/spm
+          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/swiftpm -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/swiftpm-$(SwiftPM.version)/usr -DBUILD_SHARED_LIBS=YES -DUSE_VENDORED_TSC=YES -DLLBuild_DIR=$(Build.StagingDirectory)/llbuild/cmake/modules
+        displayName: 'Configure swift-package-manager'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/spm
+        displayName: 'Build swift-package-manager'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/spm --target install
+        displayName: 'Install swift-package-manager'
+        enabled: false
+      - task: CMake@1
+        inputs:
+          workingDirectory: $(Build.StagingDirectory)/indexstore-db
+          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_Swift_FLAGS="-resource-dir $(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift -use-ld=lld" -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/IndexStoreDB-$(IndexStoreDB.version)/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Linux.platform/Developer/SDKs/Linux.sdk/usr/lib/swift/Block"
+        displayName: 'Configure IndexStoreDB'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
+        displayName: 'Build IndexStoreDB'
+      - task: CMake@1
+        inputs:
+          cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
+        displayName: 'Install IndexStoreDB'
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: $(Build.StagingDirectory)/Library
+          artifactName: devtools
