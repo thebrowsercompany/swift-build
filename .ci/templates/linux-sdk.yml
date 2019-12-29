@@ -12,6 +12,22 @@ jobs:
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Linux.platform/Developer/Library/XCTest-development/usr
     steps:
       - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Enable symbolic links, disable line ending conversion'
+      - checkout: self
+      - checkout: apple/llvm-project
+        displayName: 'checkout apple/llvm-project'
+      - checkout: apple/swift
+        displayName: 'checkout apple/swift'
+      - checkout: apple/swift-corelibs-libdispatch
+        displayName: 'checkout apple/swift-corelibs-libdispatch'
+      - checkout: apple/swift-corelibs-foundation
+        displayName: 'checkout apple/swift-corelibs-foundation'
+      - checkout: apple/swift-corelibs-xctest
+        displayName: 'checkout apple/swift-corelibs-xctest'
+      - script: |
           function ApplyPatches() {
             local repository=${1} ; shift
             for PR in "${@}" ; do
@@ -23,19 +39,11 @@ jobs:
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-llvm llvm
-          git clone --config core.autocrlf=false --config core.symlinks=true --quiet --depth 1 --single-branch https://github.com/apple/swift swift
           ApplyPatches swift ${SWIFT_PR}
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-libdispatch swift-corelibs-libdispatch
           ApplyPatches swift-corelibs-libdispatch ${DISPATCH_PR}
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-foundation swift-corelibs-foundation
           ApplyPatches swift-corelibs-foundation ${FOUNDATION_PR}
-
-          git clone --quiet --depth 1 --single-branch https://github.com/apple/swift-corelibs-xctest swift-corelibs-xctest
           ApplyPatches swift-corelibs-xctest ${XCTEST_PR}
-        displayName: 'Fetch Sources'
+        displayName: 'Apply Patches'
       - task: DownloadPipelineArtifact@2
         inputs:
           source: 'specific'
@@ -90,7 +98,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/llvm
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
         displayName: 'Configure LLVM'
       - task: CMake@1
         inputs:
