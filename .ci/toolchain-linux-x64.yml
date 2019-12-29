@@ -14,6 +14,10 @@ resources:
       name: apple/llvm-project
       ref: refs/heads/swift/master
       endpoint: GitHub
+    - repository: apple/swift
+      type: github
+      name: apple/swift
+      endpoint: GitHub
     - repository: apple/swift-cmark
       type: github
       name: apple/swift-cmark
@@ -21,10 +25,37 @@ resources:
     - repository: apple/swift-corelibs-libdispatch
       type: github
       name: apple/swift-corelibs-libdispatch
+      ref: refs/heads/master
       endpoint: GitHub
-    - repository: apple/swift
+    - repository: apple/swift-corelibs-foundation
       type: github
-      name: apple/swift
+      name: apple/swift-corelibs-foundation
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/swift-corelibs-xctest
+      type: github
+      name: apple/swift-corelibs-xctest
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/swift-llbuild
+      type: github
+      name: apple/swift-llbuild
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/swift-tools-support-core
+      type: github
+      name: apple/swift-tools-support-core
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/swift-package-manager
+      type: github
+      name: apple/swift-package-manager
+      ref: refs/heads/master
+      endpoint: GitHub
+    - repository: apple/indexstore-db
+      type: github
+      name: apple/swift-package-manager
+      ref: refs/heads/master
       endpoint: GitHub
 schedules:
   - cron: "0 * * * *"
@@ -56,3 +87,25 @@ stages:
           triple: x86_64-unknown-linux-gnu
 
           SWIFT_OPTIONS: -DSWIFT_LINUX_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_LINUX_x86_64_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DSWIFT_LINUX_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_LINUX_x86_64_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES
+
+  - stage: sdk
+    jobs:
+      - template: templates/linux-sdk.yml
+        parameters:
+          pool: FlowKey
+          toolchain: 14
+
+          arch: x86_64
+          host: x64
+          triple: x86_64-unknown-linux-gnu
+
+  - stage: devtools
+    jobs:
+      - template: templates/linux-devtools.yml
+        parameters:
+          pool: FlowKey
+          toolchain: 14
+
+          arch: x86_64
+          host: x64
+          platform: linux
