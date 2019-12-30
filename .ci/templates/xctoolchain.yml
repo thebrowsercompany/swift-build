@@ -1,0 +1,163 @@
+jobs:
+  - job: xctoolchain
+    pool: ${{ parameters.pool }}
+    variables:
+      toolchain.directory: $(Build.StagingDirectory)/swift-toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+    steps:
+      - checkout: self
+        displayName: 'checkout compnerd/swift-build'
+      - download: current
+        artifact: toolchain-macOS-${{ parameters.host }}
+      - download: tensorflow
+        artifact: tensorflow-macOS-${{ parameters.host }}
+        condition: eq( '${{ parameters.tensorflow }}', 'true' )
+      - task: Bash@3
+        inputs:
+          targetType: 'inline':
+          script: |
+            mkdir -v -p $(Build.StagingDirectory)/swift-toolchain/Library
+            rsync -v -a -l $(Pipeline.Workspace)/toolchain-macOS-${{ parameters.host }}/Library $(Build.StagingDirectory)/swift-toolchain/Library
+
+            # remove testing binaries
+            rm -v $(toolchain.directory)/usr/bin/complete-test
+            rm -v $(toolchain.directory)/usr/bin/lldb-moduleimport-test
+            rm -v $(toolchain.directory)/usr/bin/sil-func-extractor
+            rm -v $(toolchain.directory)/usr/bin/sil-llvm-gen
+            rm -v $(toolchain.directory)/usr/bin/sil-nm
+            rm -v $(toolchain.directory)/usr/bin/sil-opt
+            rm -v $(toolchain.directory)/usr/bin/sil-passpipeline-dumper
+            rm -v $(toolchain.directory)/usr/bin/sourcekitd-repl
+            rm -v $(toolchain.directory)/usr/bin/sourcekitd-test
+            rm -v $(toolchain.directory)/usr/bin/swift-api-dump.py
+            rm -v $(toolchain.directory)/usr/bin/swift-ast-script
+            rm -v $(toolchain.directory)/usr/bin/swift-demangle-yamldump
+            rm -v $(toolchain.directory)/usr/bin/swift-ide-test
+            rm -v $(toolchain.directory)/usr/bin/swift-indent
+            rm -v $(toolchain.directory)/usr/bin/swift-llvm-opt
+            rm -v $(toolchain.directory)/usr/bin/swift-reflection-dump
+            rm -v $(toolchain.directory)/usr/bin/swift-remoteast-test
+            rm -v $(toolchain.directory)/usr/bin/swift-syntax-parser-test
+            rm -v $(toolchain.directory)/usr/bin/swift-syntax-test
+
+            # remove swift docs
+            rm -v -r -f $(toolchain.directory)/usr/share/docs/swift
+
+            # make IndexStore headers part of `/usr` instead of `/usr/local`
+            mv -v $(toolchain.directory)/usr/local/include/indexstore $(toolchain.directory)/usr/include/indexstore
+            rmdir -v $(toolchain.directory)/usr/local
+
+            # symlink in clang resource headers
+            cd $(toolchain.directory)/usr/lib/swift
+            rm -v -r -f clang
+            ln -v -s ../clang/*/include clang
+
+            # fixup the symlinks being replaced with binaries
+            cd $(toolchain.directory)/usr/lib
+            rm -v libLTO.so ; ln -vs libLTO.so.* libLTO.so
+            rm -v libIndexStore.so ; ln -vs libIndexStore.so.* libIndexStore.so
+            rm -v libclang.so ; ln -vs libclang.so.* libclang.so
+            # TODO(compnerd) figure out how to update this automatically
+            rm -v liblldb.so ; ln -vs liblldb.so.9 liblldb.so
+            rm -v liblldb.so.9 ; ln -vs liblldb.so.9.0 liblldb.so.9
+            rm -v liblldb.so.9.0 ; ln -vs liblldb.so.9.0.0 liblldb.so.9.0
+
+            cd $(toolchain.directory)/usr/bin
+            rm -v addr2line ; ln -vs llvm-symbolizer addr2line
+            rm -v ar ; ln -vs llvm-ar ar
+            rm -v c++filt ; ln -vs llvm-cxxfilt c++filt
+            rm -v clang ; ln -vs clang-[0-9]* clang
+            rm -v clang++ ; ln -vs clang-[0-9]* clang++
+            rm -v clang-cl ; ln -vs clang-[0-9]* clang-cl
+            rm -v clang-cpp ; ln -vs clang-[0-9]* clang-cpp
+            rm -v dwp ; ln -vs llvm-dwp dwp
+            rm -v ld64.lld ; ln -vs lld ld64.lld
+            rm -v ld.lld ; ln -vs lld ld.lld
+            rm -v lld-link ; ln -vs lld lld-link
+            rm -v llvm-dlltool ; ln -vs llvm-ar llvm-dlltool
+            rm -v llvm-lib ; ln -vs llvm-ar llvm-lib
+            rm -v llvm-ranlib ; ln -vs llvm-ar llvm-ranlib
+            rm -v llvm-readelf ; ln -vs llvm-readobj llvm-readelf
+            rm -v llvm-strip ; ln -vs llvm-objcopy llvm-strip
+            rm -v nm ; ln -vs llvm-nm nm
+            rm -v objcopy ; ln -vs llvm-objcopy objcopy
+            rm -v objdump ; ln -vs llvm-objdump objdump
+            rm -v ranlib ; ln -vs llvm-ranlib ranlib
+            rm -v readelf ; ln -vs llvm-readelf readelf
+            rm -v size ; ln -vs llvm-size size
+            rm -v strings ; ln -vs llvm-strings strings
+            rm -v strip ; ln -vs llvm-strip strip
+            rm -v swift-autolink-extract ; ln -vs swift swift-autolink-extract
+            rm -v swiftc ; ln -vs swift swiftc
+            rm -v wasm-ld ; ln -vs lld wasm-ld
+
+            # TODO(compnerd) fix the install rules for the LLDB framework
+            mv -v $(toolchain.directory)/usr/Library $(toolchain.directory)
+            mv -v $(toolchain.directory)/Library/Frameworks $(toolchain.directory)/Library/PrivateFrameworks
+        displayName: 'cleanup image'
+      - task: Bash@3
+        inputs:
+          targetType: 'inline'
+          script: |
+            cp -v $(tensorflow.directory)/usr/lib/libtensorflow.dylib $(toolchain.directory)/usr/lib/swift/macosx
+            # TODO(compnerd) figure out why we need the symlink
+            ln -v -s libtensorflow.dylib libtensorflow.so.2
+            cp -r -v $(tensorflow.directory)/usr/include/tensorflow $(toolchain.directory)/usr/lib/swift
+        condition: eq( '${{ parameters.tensorflow }}', 'true' )
+        displayName: 'inject TensorFlow'
+      - task: Bash@3
+        inputs:
+          targetType: 'inline'
+          script: |
+            cat <<-EOF > $(toolchain.directory)/Info.plist
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+              <dict>
+                <key>Aliases</key>
+                <array>
+                  <string>${{ parameters.alias }}</string>
+                </array>
+                <key>CFBundleIdentifier</key>
+                <string>org.compnerd.dt.toolchain.${{ parameters.alias }}-$(date -j +%Y%m%d)</string>
+                <key>CompatibilityVersion</key>
+                <integer>2</integer>
+                <key>CompatibilityVersionDisplayString</key>
+                <string>Xcode 8.0</string>
+                <key>CreatedDate</key>
+                <date>$(date -j -u +%Y-%m-%dT%TZ)</date>
+                <key>DisplayName</key>
+                <string>Swift ${{ parameters.variant }}[$(date -j +%Y/%m/%d) Snapshot]</string>
+                <key>OverrideBuildSettings</key>
+                <dict>
+                  <key>ENABLE_BITCODE</key>
+                  <string>NO</string>
+                  <key>SWIFT_DEVELOPMENT_TOOLCHAIN</key>
+                  <string>YES</string>
+                  <key>SWIFT_DISABLE_REQUIRED_ARCLITE</key>
+                  <string>YES</string>
+                  <key>SWIFT_LINK_OBJC_RUNTIME</key>
+                  <string>YES</string>
+                  <key>SWIFT_USE_DEVELOPMENT_TOOLCHAIN_RUNTIME</key>
+                  <string>YES</string>
+                </dict>
+                <key>ReportProblemURL</key>
+                <string>https://bugs.swift.org</string>
+                <key>ShortDisplayName</key>
+                <string>${{ parameters.variant }}Swift</string>
+                <key>Version</key>
+                <string>$(date -j +%Y%m%d)</string>
+              </dict>
+            </plist>
+            EOF
+        displayName: 'construct Info.plist'
+      - task: ArchiveFiles@2
+        inputs:
+          rootFolderOrFile: $(Build.StagingDirectory)/swift-toolchain
+          includeRootFolder: false
+          archiveType: 'tar'
+          tarCompression: 'xz'
+          archiveFile: $(Build.ArtifactStagingDirectory)/toolchain-macOS-x64-$(Build.BuildId).tar.xz
+          replaceExistingArchive: true
+        displayName: 'create archive'
+      - publish: $(Build.ArtifactStagingDirectory)/toolchain-macOS-x64-$(Build.BuildId).tar.xz
+        artifact: toolchain-macOS-x64-$(Build.BuildId).tar.xz

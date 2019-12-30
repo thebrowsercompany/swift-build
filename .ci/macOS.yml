@@ -40,18 +40,33 @@ trigger:
     include:
       - .ci/macOS.yml
       - .ci/templates/toolchain.yml
-jobs:
-  - template: templates/toolchain.yml
-    parameters:
-      pool:
-        vmImage: 'macOS-10.14'
+stages:
+  - stage: toolchain
+    jobs:
+      - template: templates/toolchain.yml
+        parameters:
+          pool:
+            vmImage: 'macOS-10.14'
 
-      arch: x86_64
-      host: x64
-      platform: darwin
+          arch: x86_64
+          host: x64
+          platform: darwin
 
-      triple: x86_64-apple-macosx10.14
+          triple: x86_64-apple-macosx10.14
 
-      LLVM_OPTIONS: -DLLVM_INCLUDE_TESTS=NO
-      LLDB_OPTIONS: -DLLDB_USE_SYSTEM_DEBUGSERVER=ON -DLLDB_INCLUDE_TESTS=NO -DLLDB_BUILD_FRAMEWORK=YES
-      SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO
+          LLVM_OPTIONS: -DLLVM_INCLUDE_TESTS=NO
+          LLDB_OPTIONS: -DLLDB_USE_SYSTEM_DEBUGSERVER=ON -DLLDB_INCLUDE_TESTS=NO -DLLDB_BUILD_FRAMEWORK=YES
+          SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO
+
+  - stage: package
+    jobs:
+      - template: templates/xctoolchain.yml
+        parameters:
+          pool:
+            vmImage: 'macOS-10.14'
+
+          arch: x86_64
+          host: x64
+          platform: darwin
+
+          alias: swift
