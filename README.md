@@ -125,12 +125,39 @@ See documentation [here](docs/Windows.md)
 
 | Build | Status |
 | :-: | - |
+| **VS2017** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2017?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=1&branchName=master) |
+| **VS2019** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=7&branchName=master) |
 | **VS2017 (Facebook)** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/VS2017%20Swift%20(Facebook)?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=5&branchName=master) |
 | **VS2019 (Facebook)** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/VS2019%20Swift%20(Facebook)?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=31&branchName=master) |
 | **Ubuntu 18.04 (FlowKey)** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/Ubuntu%2018.04%20(FlowKey)?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=14&branchName=master) |
 
 <details>
   <summary>Build Contents</summary>
+
+  - **VS2017**
+    - *Toolchain (llvm, clang, lld, lldb, swift)*
+      - X64
+  
+  - **VS2019**
+    - *Toolchain (llvm, clang, lld, lldb, swift)*
+      - ARM64
+      - X86
+    - *Swift SDK for Android (swift, libdispatch, foundation, xctest)*
+      - ARM
+      - ARM64
+      - X64
+      - X86
+    - *Swift SDK for Windows (swift, libdispatch, foundation, xctest)*
+      - ARM
+      - ARM64
+      - X64
+      - X86
+    - *Swift Developer Tools (llbuild)*
+      - ARM64
+      - X64
+    - *MSI*
+      - Toolchain
+        - X64
 
   - **VS2017 (Facebook)**
     - *Toolchain (llvm, clang, lld, lldb, swift)*
@@ -157,4 +184,13 @@ See documentation [here](docs/Windows.md)
       - X64
     - *Swift Developer Tools (llbuild, swift-package-manager)*
       - X64
+    - *debian packages*
+      - toolchain
+        - X64
+      - ICU
+        - X64
+      - Developer Tools
+        - X64
+      - SDK
+        - Linux
 </details>
