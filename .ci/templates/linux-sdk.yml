@@ -75,60 +75,60 @@ jobs:
         displayName: 'Correct File Modes'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/llvm
+          workingDirectory: $(Build.BinariesDirectory)/llvm
           cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
         displayName: 'Configure LLVM'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/swift-stdlib
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/cmake/caches/swift-stdlib-linux-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.StagingDirectory)/llvm/lib/cmake/llvm -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_LINUX_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_LINUX_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DSWIFT_LINUX_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_LINUX_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so
+          workingDirectory: $(Build.BinariesDirectory)/swift-stdlib
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/cmake/caches/swift-stdlib-linux-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_LINUX_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_LINUX_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DSWIFT_LINUX_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_LINUX_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so
         displayName: 'Configure Swift standard library'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/swift-stdlib
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib
         displayName: 'Build Swift standard library'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/swift-stdlib --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib --target install
         displayName: 'Install Swift standard library'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/libdispatch
+          workingDirectory: $(Build.BinariesDirectory)/libdispatch
           cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(install.directory)/.. -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}-swift-flags.cmake $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=NO -DENABLE_SWIFT=YES -DUSE_LLD_LINKER=YES -DUSE_GOLD_LINKER=NO
         displayName: 'Configure libdispatch'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/libdispatch
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch
         displayName: 'Build libdispatch'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/foundation
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(install.directory)/.. -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL
+          workingDirectory: $(Build.BinariesDirectory)/foundation
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(install.directory)/.. -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang -DCMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++ -DCMAKE_SWIFT_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/foundation
+          cmakeArgs: --build $(Build.BinariesDirectory)/foundation
         displayName: 'Build Foundation'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/xctest
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(install.directory)/.. -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=YES -Ddispatch_DIR=$(Build.StagingDirectory)/libdispatch/cmake/modules -DFoundation_DIR=$(Build.StagingDirectory)/foundation/cmake/modules
+          workingDirectory: $(Build.BinariesDirectory)/xctest
+          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(install.directory)/.. -C $(Build.SourcesDirectory)/cmake/caches/linux-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc -DCMAKE_INSTALL_PREFIX=$(install.directory) -DENABLE_TESTING=YES -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules -DFoundation_DIR=$(Build.BinariesDirectory)/foundation/cmake/modules
         displayName: 'Configure XCTest'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/xctest
+          cmakeArgs: --build $(Build.BinariesDirectory)/xctest
         displayName: 'Build XCTest'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/foundation --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/foundation --target install
         displayName: 'Install Foundation'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/xctest --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/xctest --target install
         displayName: 'Install XCTest'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
         displayName: 'Install libdispatch'
       - task: PublishBuildArtifacts@1
         inputs:
@@ -136,7 +136,7 @@ jobs:
           artifactName: sdk-linux-${{ parameters.host }}
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/libdispatch --target ExperimentalTest
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target ExperimentalTest
         displayName: 'Test libdispatch'
         continueOnError: true
       - task: PublishTestResults@2
