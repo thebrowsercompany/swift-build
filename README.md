@@ -125,6 +125,7 @@ See documentation [here](docs/Windows.md)
 
 | Build | Status |
 | :-: | - |
+| **macOS** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/macOS?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=15&branchName=master) |
 | **VS2017** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2017?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=1&branchName=master) |
 | **VS2019** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=7&branchName=master) |
 | **VS2017 (Facebook)** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/VS2017%20Swift%20(Facebook)?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=5&branchName=master) |
@@ -133,6 +134,12 @@ See documentation [here](docs/Windows.md)
 
 <details>
   <summary>Build Contents</summary>
+
+  - **macOS**
+    - *Toolchain (llvm, clang, lld, lldb, swift)*
+      - X64
+    - *xctoolchain*
+      - X64
 
   - **VS2017**
     - *Toolchain (llvm, clang, lld, lldb, swift)*
