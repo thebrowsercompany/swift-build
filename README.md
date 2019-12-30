@@ -101,21 +101,24 @@ See documentation [here](docs/Windows.md)
 | **VS2019** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/VS2019%20Swift%205.2?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=43&branchName=master) |
 
 ***NOTE**: The VS2017 builds are for testing purposes, please use the VS2019 builds*
+<details>
+  <summary>Build Contents</summary>
 
-VS2019 Builds:
-  - Toolchain
-    - X64
-    - ARM64
-  - Swift SDK for Windows
-    - ARM
-    - ARM64
-    - X64
-    - X86
-  - Swift SDK for Android
-    - ARM
-    - ARM64
-    - X64
-    - X86
+  - **VS2019**
+    - *Toolchain*
+      - X64
+      - ARM64
+    - *Swift SDK for Windows*
+      - ARM
+      - ARM64
+      - X64
+      - X86
+    - *Swift SDK for Android*
+      - ARM
+      - ARM64
+      - X64
+      - X86
+ </details>
 
 **Swift HEAD (Development)**
 
@@ -125,28 +128,32 @@ VS2019 Builds:
 | **VS2019 (Facebook)** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/VS2019%20Swift%20(Facebook)?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=31&branchName=master) |
 | **Ubuntu 18.04 (FlowKey)** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/Ubuntu%2018.04%20(FlowKey)?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=14&branchName=master) |
 
-VS2017 (Facebook) Builds:
-  - Toolchain (llvm, clang, lld, lldb, swift)
-    - X64
-  - Swift SDK for Windows (swift, libdispatch, foundation, xctest)
-    - ARM
-    - ARM64
-    - X64
-    - X86
-    
-VS2019 (Facebook) Builds
-  - Toolchain (llvm, clang, lld, lldb, swift)
-    - X64
-  - Swift SDK for Windows (libdispatch, foundation, xctest)
-    - ARM
-    - ARM64
-    - X64
-    - X86
-    
-Ubuntu 18.04 (FlowKey) Builds:
-  - Toolchain (llvm, clang, lld, lldb, swift)
-    - X64
-  - Swift SDK for Linux (swift, libdispatch, foundation, xctest)
-    - X64
-  - Swift Developer Tools (llbuild, swift-package-manager)
-    - X64
+<details>
+  <summary>Build Contents</summary>
+
+  - **VS2017 (Facebook)**
+    - *Toolchain (llvm, clang, lld, lldb, swift)*
+      - X64
+    - Swift SDK for Windows (swift, libdispatch, foundation, xctest)
+      - ARM
+      - ARM64
+      - X64
+      - X86
+
+  - **VS2019 (Facebook)**
+    - *Toolchain (llvm, clang, lld, lldb, swift)*
+      - X64
+    - *Swift SDK for Windows (libdispatch, foundation, xctest)*
+      - ARM
+      - ARM64
+      - X64
+      - X86
+
+  - **Ubuntu 18.04 (FlowKey)**
+    - *Toolchain (llvm, clang, lld, lldb, swift)*
+      - X64
+    - *Swift SDK for Linux (swift, libdispatch, foundation, xctest)*
+      - X64
+    - *Swift Developer Tools (llbuild, swift-package-manager)*
+      - X64
+</details>
