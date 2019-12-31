@@ -9,6 +9,8 @@ jobs:
       tensorflow.directory: $(Pipeline.Workspace)/tensorflow-${{ parameters.os }}-${{ parameters.host }}/Library
 
       install.directory: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+    workspace:
+      clean: outputs
     steps:
       - task: DownloadGitHubRelease@0
         inputs:
@@ -110,23 +112,23 @@ jobs:
         condition: not( or( eq( variables['Agent.Name'], 'swift-ci' ), eq( variables['Agent.Name'], 'google-azure-windows-01' ) ) )
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.BinariesDirectory)/${{ parameters.host }}-tools
+          workingDirectory: $(Build.BinariesDirectory)/toolchain
           cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/toolchain/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DLLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }} -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen.exe -DCLANG_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/clang-tblgen.exe -DLLDB_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/lldb-tblgen.exe -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;cmark;swift;lldb;lld" -DLLVM_EXTERNAL_PROJECTS="cmark;swift" -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch ${{ parameters.LLVM_OPTIONS }} ${{ parameters.LLDB_OPTIONS }} ${{ parameters.SWIFT_OPTIONS }}
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'Configure toolchain'
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.BinariesDirectory)/${{ parameters.host }}-tools
+          workingDirectory: $(Build.BinariesDirectory)/toolchain
           cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/toolchain/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DLLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }} -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen -DCLANG_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/clang-tblgen -DLLDB_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/lldb-tblgen -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;cmark;swift;lldb;lld" -DLLVM_EXTERNAL_PROJECTS="cmark;swift" -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch ${{ parameters.LLVM_OPTIONS }} ${{ parameters.LLDB_OPTIONS }} ${{ parameters.SWIFT_OPTIONS }}
         condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
         displayName: 'Configure toolchain'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/${{ parameters.host }}-tools --target distribution
+          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target distribution
         displayName: 'Build toolchain'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/${{ parameters.host }}-tools --target install-distribution
+          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target install-distribution
         displayName: 'Install toolchain'
       - task: PublishPipelineArtifact@1
         inputs:
@@ -142,14 +144,14 @@ jobs:
         displayName: 'Update LD_LIBRARY_PATH'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/${{ parameters.host }}-tools --target check-swift
+          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target check-swift
         condition: eq( '${{ parameters.tests }}', 'true' )
         displayName: 'check-swift'
         continueOnError: true
       - task: PublishTestResults@2
         inputs:
           testResultsFormat: 'JUnit'
-          testResultsFiles: '$(Build.BinariesDirectory)/${{ parameters.host }}-tools/swift-test-results/*/*.xml'
+          testResultsFiles: '$(Build.BinariesDirectory)/toolchain/swift-test-results/*/*.xml'
           buildPlatform: ${{ parameters.platform }}-${{ parameters.arch }}
           buildConfiguration: ${{ parameters.VisualStudio }}
         condition: eq( '${{ parameters.tests }}', 'true' )
