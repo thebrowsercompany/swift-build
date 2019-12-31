@@ -5,16 +5,13 @@ jobs:
       install.directory: $(Build.StagingDirectory)/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-development
       zlib.directory: $(Pipeline.Workspace)/Library/zlib-1.2.11
     steps:
+      - download: zlib
+        artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}
+        displayName: 'download zlib'
       - checkout: self
+        displayName: 'checkout compnerd/swift-build'
       - checkout: curl/curl
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 16
-          runVersion: 'latest'
-          artifactName: 'zlib-${{ parameters.platform }}-${{ parameters.host }}'
-        displayName: 'Install ZLIB'
+        displayName: 'checkout curl/curl'
       - task: BatchScript@1
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
