@@ -1,0 +1,26 @@
+jobs:
+  - job: ${{ parameters.host }}
+    pool: ${{ parameters.pool }}
+    variables:
+      toolchain.directory: $(Pipeline.Workspace)/toolchain-windows-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+    steps:
+      - checkout: self
+        displayName: 'checkout compnerd/swift-build'
+      - checkout: apple/swift-cmark
+        displayName: 'checkout apple/swift-cmark'
+      - download: current
+        artifact: toolchain-windows-${{ parameters.host }}
+      - task: BatchScript@1
+        inputs:
+          filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
+          arguments: -no_logo -arch=x64 -host_arch=x64
+          modifyEnvironment: true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'vsvarsall.bat'
+      - task: MSBuild@1
+        inputs:
+          solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
+          msbuildArguments: /p:RunWixToolsOutOfProc=true /p:ARCH=${{ parameters.proc }} /p:TOOLCHAIN_ROOT:$(toolchain.directory)
+        displayName: windows-toolchain-${{ parameters.proc }}.msi
+      - publish: $(Build.SourcessDirectory)/swift-build/wix/build/windows-toolchain-${{ parameters.proc }}.msi
+        artifact: windows-toolchain-${{ parameters.proc }}.msi
