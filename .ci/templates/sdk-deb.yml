@@ -12,8 +12,8 @@ jobs:
       - download: current
         artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
       - script: |
-          mkdir -p $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk
-          rsync -v -a -l $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library
+          mkdir -p $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library
+          rsync -v -a -l $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library/Developer
 
           # drop comments including the build tree layout
           sed -e '/sourceLocation/d' -i $(sdk.directory)/usr/lib/swift/${{ parameters.platform }}/${{ parameters.arch }}/glibc.modulemap
@@ -30,7 +30,7 @@ jobs:
         displayName: 'cleanup image'
       - script: |
           mkdir -p $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/DEBIAN
-          sed -e "s/Version:/& $(Build.BuildId)/" $(Build.SourcesDirectory)/debian/swift-${{ parameters.platform }}-sdk > $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/DEBIAN/control
+          sed -e "s/Version:/& $(Build.BuildId)/" $(Build.SourcesDirectory)/swift-build/debian/swift-${{ parameters.platform }}-sdk > $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/DEBIAN/control
 
           cd $(Build.StagingDirectory)
           fakeroot dpkg-deb --build swift-${{ parameters.platform }}-sdk $(Build.StagingDirectory)
