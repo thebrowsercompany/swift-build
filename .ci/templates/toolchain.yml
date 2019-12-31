@@ -4,7 +4,7 @@ jobs:
     timeoutInMinutes: 0
     variables:
       icu.version: 64
-      icu.directory: $(System.ArtifactsDirectory)/icu-${{ parameters.platform }}-${{ parameters.host }}/icu-$(icu.version)
+      icu.directory: $(Pipeline.Workspace)/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
 
       tensorflow.directory: $(Pipeline.Workspace)/tensorflow-${{ parameters.os }}-${{ parameters.host }}/Library
 
@@ -40,6 +40,9 @@ jobs:
         env: { 'SCCACHE_REDIS': 'redis://localhost' }
         condition: eq( variables['Agent.Name'], 'swift-ci' )
         displayName: 'enable redis'
+      - download: icu
+        artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
+        condition: not( eq( variables['Agent.OS'], 'Darwin' ) )
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -62,16 +65,6 @@ jobs:
         path: s/tensorflow-swift-apis
         displayName: 'checkout tensorflow/swift-apis'
         condition: eq( '${{ parameters.tensorflow }}', 'true' )
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: specific
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          allowPartiallySucceededBuilds: true
-          pipeline: 9
-          artifactName: 'icu-${{ parameters.platform }}-${{ parameters.host }}'
-          downloadPath: '$(System.ArtifactsDirectory)'
-        condition: not( eq( variables['Agent.OS'], 'Darwin' ) )
-        displayName: 'Install ICU'
       - task: BatchScript@1
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
