@@ -1,0 +1,44 @@
+jobs:
+  - job: swift_${{ parameters.platform }}_sdk__all_deb
+    pool: ${{ parameters.pool }}
+    variables:
+      platform.directory: $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library/Developer/Platforms/${{ parameters.os }}
+      sdk.directory: $(platform.directory)/Developer/SDKs/${{ parameters.os }}.sdk
+    steps:
+      - checkout: self
+        displayName: 'checkout compnerd/swift-build'
+      - checkout: apple/swift-cmark
+        displayName: 'checkout apple/swift-cmark'
+      - download: current
+        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk
+          rsync -v -a -l $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library
+
+          # drop comments including the build tree layout
+          sed -e '/sourceLocation/d' -i $(sdk.directory)/usr/lib/swift/${{ parameters.platform }}/${{ parameters.arch }}/glibc.modulemap
+
+          # shuffle around the XCTest binaries
+           mkdir -v -p $(platform.directory)/Developer/Library/XCTest-development/usr/lib/swift/${{ parameters.platform }}/${{ parameters.arch }}
+           mv -v $(sdk.directory)/usr/lib/swift/${{ parameters.platform }}/${{ parameters.arch }}/XCTest.swift* $(platform.directory)/Developer/Library/XCTest-development/usr/lib/swift/${{ parameters.platform }}/${{ parameters.arch }}
+           mv -v $(sdk.directory)/usr/lib/swift/${{ parameters.platform }}/*XCTest.* $(platform.directory)/Developer/Library/XCTest-development/usr/lib/swift/${{ parameters.platform }}
+
+           # remove tools and documentation
+           rm -rf $(sdk.directory)/usr/bin
+           rm -rf $(sdk.directory)/usr/share
+           rm -rf $(sdk.directory)/usr/lib/swift/FrameworkABIBaseline
+        displayName: 'cleanup image'
+      - script: |
+          mkdir -p $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/DEBIAN
+          sed -e "s/Version:/& $(Build.BuildId)/" $(Build.SourcesDirectory)/debian/swift-${{ parameters.platform }}-sdk > $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/DEBIAN/control
+
+          cd $(Build.StagingDirectory)
+          fakeroot dpkg-deb --build swift-${{ parameters.platform }}-sdk $(Build.StagingDirectory)
+        displayName: 'package'
+      - publish: $(Build.StagingDirectory)/swift-icu_$(Build.BuildId)_all.deb
+        artifact: swift-icu_$(Build.BuildId)_all.deb
+      - script: |
+          cd $(Build.StagingDirectory)
+          curl -F swift-icu=@swift-icu_$(Build.BuildId)_all.deb https://$(GEMFURY_PASSWORD)@push.fury.io/compnerd
+        displayName: 'upload to gemfury'
+        enabled: false
