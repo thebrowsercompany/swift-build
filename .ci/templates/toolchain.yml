@@ -6,6 +6,8 @@ jobs:
       icu.version: 64
       icu.directory: $(System.ArtifactsDirectory)/icu-${{ parameters.platform }}-${{ parameters.host }}/icu-$(icu.version)
 
+      tensorflow.directory: $(Pipeline.Workspace)/tensorflow-${{ parameters.os }}-${{ parameters.host }}/Library
+
       install.directory: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
     steps:
       - task: DownloadGitHubRelease@0
@@ -44,13 +46,22 @@ jobs:
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'Enable symbolic links, disable line ending conversion'
       - checkout: self
+        displayName: 'checkout compnerd/swift-build'
       - checkout: apple/llvm-project
         path: s/toolchain
+        displayName: 'checkout apple/llvm-project'
       - checkout: apple/swift-cmark
         path: s/toolchain/cmark
+        displayName: 'checkout apple/swift-cmark'
       - checkout: apple/swift-corelibs-libdispatch
+        displayName: 'checkout apple/swift-corelibs-libdispatch'
       - checkout: apple/swift
         path: s/toolchain/swift
+        displayName: 'checkout apple/swift'
+      - checkout: tensorflow/swift-apis
+        path: s/tensorflow-swift-apis
+        displayName: 'checkout tensorflow/swift-apis'
+        condition: eq( '${{ parameters.tensorflow }}', 'true' )
       - task: DownloadBuildArtifacts@0
         inputs:
           buildType: specific
@@ -122,7 +133,7 @@ jobs:
         displayName: 'Build toolchain'
       - task: CMake@1
         inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target install-distribution-stripped
+          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target install-distribution
         displayName: 'Install toolchain'
       - task: PublishPipelineArtifact@1
         inputs:
