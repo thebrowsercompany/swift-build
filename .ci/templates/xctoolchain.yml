@@ -7,16 +7,16 @@ jobs:
       - checkout: self
         displayName: 'checkout compnerd/swift-build'
       - download: current
-        artifact: toolchain-macOS-${{ parameters.host }}
+        artifact: toolchain-darwin-${{ parameters.host }}
       - download: tensorflow
-        artifact: tensorflow-macOS-${{ parameters.host }}
+        artifact: tensorflow-darwin-${{ parameters.host }}
         condition: eq( '${{ parameters.tensorflow }}', 'true' )
       - task: Bash@3
         inputs:
           targetType: 'inline'
           script: |
             mkdir -v -p $(Build.StagingDirectory)/swift-toolchain/Library
-            rsync -v -a -l $(Pipeline.Workspace)/toolchain-macOS-${{ parameters.host }}/Library $(Build.StagingDirectory)/swift-toolchain/Library
+            rsync -v -a -l $(Pipeline.Workspace)/toolchain-darwin-${{ parameters.host }}/Library $(Build.StagingDirectory)/swift-toolchain/Library
 
             # remove testing binaries
             rm -v $(toolchain.directory)/usr/bin/complete-test
@@ -156,8 +156,8 @@ jobs:
           includeRootFolder: false
           archiveType: 'tar'
           tarCompression: 'xz'
-          archiveFile: $(Build.ArtifactStagingDirectory)/toolchain-macOS-x64-$(Build.BuildId).tar.xz
+          archiveFile: $(Build.ArtifactStagingDirectory)/toolchain-darwin-x64-$(Build.BuildId).tar.xz
           replaceExistingArchive: true
         displayName: 'create archive'
-      - publish: $(Build.ArtifactStagingDirectory)/toolchain-macOS-x64-$(Build.BuildId).tar.xz
-        artifact: toolchain-macOS-x64-$(Build.BuildId).tar.xz
+      - publish: $(Build.ArtifactStagingDirectory)/toolchain-darwin-x64-$(Build.BuildId).tar.xz
+        artifact: toolchain-darwin-x64-$(Build.BuildId).tar.xz
