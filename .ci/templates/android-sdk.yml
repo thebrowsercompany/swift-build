@@ -10,8 +10,9 @@ jobs:
       curl.directory: $(Pipeline.Workspace)/Library/libcurl-development
       icu.version: 64
       icu.directory: $(Pipeline.Workspace)/icu/icu-android-${{ parameters.host }}/Library/icu-$(icu.version)
-      xml2.directory: $(Pipeline.Workspace)/Library/libxml2-development
-      zlib.directory: $(Pipeline.Workspace)/Library/zlib-1.2.11
+      xml2.directory: $(Pipeline.Workspace)/xml2/xml2-android-${{ parameters.host }}/Library/libxml2-development
+      zlib.directory: $(Pipeline.Workspace)/zlib/zlib-android-${{ parameters.host }}/Library/zlib-1.2.11
+
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Android.platform/Developer/Library/XCTest-development/usr
     steps:
@@ -21,6 +22,15 @@ jobs:
       - download: icu
         artifact: icu-android-${{ parameters.host }}
         displayName: 'download icu-android-${{ parameters.host }}'
+      - download: xml2
+        artifact: xml2-android-${{ parameters.host }}
+        displayName: 'download XML2'
+      - download: curl
+        artifact: curl-android-${{ parameters.host }}
+        displayName: 'download CURL'
+      - download: zlib
+        artifact: zlib-android-${{ parameters.host }}
+        displayName: 'download zlib'
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -60,30 +70,6 @@ jobs:
           endlocal
           goto :eof
         displayName: 'Fetch Sources'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 10
-          runVersion: 'latest'
-          artifactName: 'xml2-android-${{ parameters.host }}'
-        displayName: 'Install XML2'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 11
-          runVersion: 'latest'
-          artifactName: 'curl-android-${{ parameters.host }}'
-        displayName: 'Install CURL'
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          source: 'specific'
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 16
-          runVersion: 'latest'
-          artifactName: 'zlib-android-${{ parameters.host }}'
-        displayName: 'Install ZLIB'
       - task: BatchScript@1
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
