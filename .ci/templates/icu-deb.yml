@@ -2,6 +2,9 @@ jobs:
   - job: swift_icu__${{ parameters.proc }}_deb
     steps:
       - checkout: self
+        displayName: 'checkout compnerd/swift-build'
+      - checkout: apple/swift-cmark
+        displayName: 'checkout apple/swift-cmark'
       - download: icu
         artifact: icu-linux-${{ parameters.host }}
       - script: |
@@ -17,7 +20,7 @@ jobs:
         displayName: 'cleanup image'
       - script: |
           mkdir -p $(Build.StagingDirectory)/swift-icu/DEBIAN
-          sed -e "s/Version:/& $(Build.BuildId)/" $(Build.SourcesDirectory)/debian/linux-icu > $(Build.StagingDirectory)/swift-icu/DEBIAN/control
+          sed -e "s/Version:/& $(Build.BuildId)/" $(Build.SourcesDirectory)/swift-build/debian/linux-icu > $(Build.StagingDirectory)/swift-icu/DEBIAN/control
 
           cd $(Build.StagingDirectory)
           fakeroot dpkg-deb --build swift-icu $(Build.StagingDirectory)
