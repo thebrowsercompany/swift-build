@@ -22,7 +22,7 @@ trigger:
     include:
       - .ci/tensorflow.yml
 jobs:
-  - job: macOS
+  - job: darwin
     pool:
       vmImage: 'macos-10.14'
     timeoutInMinutes: 240
@@ -84,21 +84,21 @@ jobs:
         inputs:
           targetType: 'inline'
           script: |
-            mkdir -v -p $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/{include,lib}
-            cp -v $(Build.SourcesDirectory)/tensorflow/bazel-out/darwin-opt/bin/tensorflow/libtensorflow.so.2.1.0 $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/lib/libtensorflow.dylib
-            mkdir -v -p $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api_experimental.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_attrtype.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_datatype.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_file_statistics.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_status.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_tensor.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c
-            mkdir -v -p $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c/eager
-            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/eager/c_api.h $(Build.StagingDirectory)/tensorflow-macOS-x64/Library/usr/include/tensorflow/c/eager
+            mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/{include,lib}
+            cp -v $(Build.SourcesDirectory)/tensorflow/bazel-out/darwin-opt/bin/tensorflow/libtensorflow.so.2.1.0 $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/lib/libtensorflow.dylib
+            mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/usr/include/tensorflow/c
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api_experimental.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_attrtype.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_datatype.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_file_statistics.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_status.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_tensor.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c
+            mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c/eager
+            cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/eager/c_api.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-2.1.0-rc1/usr/include/tensorflow/c/eager
         displayName: 'install tensorflow'
-      - publish: $(Build.StagingDirectory)/tensorflow-macOS-x64
-        artifact: tensorflow-macOS-x64
+      - publish: $(Build.StagingDirectory)/tensorflow-darwin-x64
+        artifact: tensorflow-darwin-x64
 
   - job: windows
     pool: Google
@@ -189,22 +189,22 @@ jobs:
       - task: CmdLine@2
         inputs:
           script: |
-            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\bin
-            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\libtensorflow.so $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\bin\
-            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\lib
-            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\libtensorflow*.lib $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\lib\
-            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api_experimental.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_attrtype.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_datatype.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_file_statistics.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_status.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_tensor.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
-            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\eager
-            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\eager\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\eager\
-            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\share
-            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow_filtered_def_file.def $(Build.StagingDirectory)\tensorflow-windows-x64\Library\usr\tensorflow-2.1.0-rc1\usr\share\
+            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\bin
+            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\libtensorflow.so $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\bin\
+            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\lib
+            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\libtensorflow*.lib $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\lib\
+            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api_experimental.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_attrtype.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_datatype.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_file_statistics.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_status.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_tensor.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
+            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\eager
+            copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\eager\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\eager\
+            md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\share
+            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow_filtered_def_file.def $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\share\
         displayName: 'install tensorflow'
       - publish: $(Build.StagingDirectory)/tensorflow-windows-x64
         artifact: tensorflow-windows-x64
