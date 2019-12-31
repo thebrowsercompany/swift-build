@@ -82,11 +82,11 @@ trigger:
       - .ci/templates/toolchain.yml
 stages:
   - stage: toolchain
+    pool: Google
     jobs:
       - template: templates/toolchain.yml
         parameters:
           VisualStudio: 2019/Community
-          pool: Google
           tests: true
 
           arch: x86_64
@@ -102,7 +102,6 @@ stages:
       - template: templates/toolchain.yml
         parameters:
           VisualStudio: 2019/Community
-          pool: Google
 
           arch: aarch64
           host: arm64
@@ -120,11 +119,11 @@ stages:
   - stage: windows_sdk
     dependsOn: toolchain
     displayName: 'Windows SDK'
+    pool: Google
     jobs:
       - template: templates/windows-sdk.yml
         parameters:
           VisualStudio: 2019/Community
-          pool: Google
 
           arch: 'armv7'
           host: 'arm'
@@ -133,8 +132,6 @@ stages:
       - template: templates/windows-sdk.yml
         parameters:
           VisualStudio: 2019/Community
-          pool:
-            vmImage: 'windows-2019'
 
           arch: 'aarch64'
           host: 'arm64'
@@ -143,8 +140,6 @@ stages:
       - template: templates/windows-sdk.yml
         parameters:
           VisualStudio: 2019/Community
-          pool:
-            vmImage: 'windows-2019'
 
           arch: 'x86_64'
           host: 'x64'
@@ -153,7 +148,6 @@ stages:
       - template: templates/windows-sdk.yml
         parameters:
           VisualStudio: 2019/Community
-          pool: Google
 
           arch: 'i686'
           host: 'x86'
@@ -161,12 +155,11 @@ stages:
 
   - stage: devtools
     dependsOn: windows_sdk
+    pool: Google
     jobs:
       - template: templates/windows-devtools.yml
         parameters:
           VisualStudio: 2019/Community
-          pool:
-            vmImage: 'windows-2019'
 
           arch: 'aarch64'
           host: 'arm64'
@@ -174,19 +167,17 @@ stages:
       - template: templates/windows-devtools.yml
         parameters:
           VisualStudio: 2019/Community
-          pool:
-            vmImage: 'windows-2019'
 
           arch: 'x86_64'
           host: 'x64'
 
   - stage: package
     dependsOn: toolchain
+    pool: Google
     jobs:
       - template: templates/toolchain-msi.yml
         parameters:
           VisualStudio: 2019/Community
-          pool: Google
 
           arch: x86_64
           host: x64
