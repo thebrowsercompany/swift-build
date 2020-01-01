@@ -103,12 +103,12 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/llvm
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
         displayName: 'Configure LLVM'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/swift-stdlib
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-windows-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) ${{ parameters.SWIFT_OPTIONS }}
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) ${{ parameters.SWIFT_OPTIONS }}
         displayName: 'Configure Swift Standard Library'
       - task: CMake@1
         inputs:
@@ -121,7 +121,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/libdispatch
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=YES -DENABLE_SWIFT=YES
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=YES -DENABLE_SWIFT=YES
         displayName: 'Configure libdispatch'
       - task: CMake@1
         inputs:
@@ -214,4 +214,3 @@ jobs:
         inputs:
           pathtoPublish: $(Build.StagingDirectory)/Library
           artifactName: sdk-windows-${{ parameters.host }}
-
