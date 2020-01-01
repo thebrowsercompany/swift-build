@@ -129,10 +129,8 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target install-distribution
         displayName: 'Install toolchain'
-      - task: PublishPipelineArtifact@1
-        inputs:
-          path: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}
-          artifact: toolchain-${{ parameters.platform }}-${{ parameters.host }}
+      - publish: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}
+        artifact: toolchain-${{ parameters.platform }}-${{ parameters.host }}
       - script: |
           echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(install.directory)/usr/bin;$(Build.StagingDirectory)/swift/libdispatch-prefix/bin;%PATH%;%ProgramFiles%/Git/usr/bin
         condition: and( eq( variables['Agent.OS'], 'Windows_NT' ), eq( '${{ parameters.tests }}', 'true' ) )
