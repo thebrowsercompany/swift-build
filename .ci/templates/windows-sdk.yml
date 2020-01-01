@@ -11,12 +11,12 @@ jobs:
       toolchain.directory: $(Pipeline.Workspace)/toolchain-windows-x64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
 
       icu.version: 64
-      icu.directory: $(Pipeline.Workspace)/icu/icu-windows-${{ parameters.host }}/Library/icu-$(icu.version)
+      icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
 
-      zlib.directory: $(Pipeline.Workspace)/zlib/zlib-windows-${{ parameters.host }}/Library/zlib-1.2.11
-      curl.directory: $(Pipeline.Workspace)/curl/curl-windows-${{ parameters.host }}/Library/libcurl-development
+      zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-1.2.11
+      curl.directory: $(Pipeline.Workspace)/curl/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-development
 
-      xml2.directory: $(Pipeline.Workspace)/xml2/xml2-windows-${{ parameters.host }}/Library/libxml2-development
+      xml2.directory: $(Pipeline.Workspace)/xml2/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-development
 
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr
       xctest.install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/Library/XCTest-development/usr
@@ -25,16 +25,16 @@ jobs:
         artifact: toolchain-windows-x64
         displayName: 'download toolchain'
       - download: icu
-        artifact: icu-windows-${{ parameters.host }}
+        artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
         displayName: 'download ICU'
       - download: xml2
-        artifact: xml2-windows-${{ parameters.host }}
+        artifact: xml2-${{ parameters.platform }}-${{ parameters.host }}
         displayName: 'download XML2'
       - download: curl
-        artifact: curl-windows-${{ parameters.host }}
+        artifact: curl-${{ parameters.platform }}-${{ parameters.host }}
         displayName: 'download CURL'
       - download: zlib
-        artifact: zlib-windows-${{ parameters.host }}
+        artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}
         displayName: 'download zlib'
       - script: |
           git config --global --add core.autocrlf false
@@ -99,16 +99,16 @@ jobs:
         inputs:
           versionSpec: '2.7.x'
         name: python
-        condition: not( eq( variables['Agent.Name'], 'google-azure-windows-01' ) )
+        continueOnError: true
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/llvm
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
         displayName: 'Configure LLVM'
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/swift-stdlib
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-windows-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) ${{ parameters.SWIFT_OPTIONS }}
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-${{ parameters.platform }}-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/swift -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) ${{ parameters.SWIFT_OPTIONS }}
         displayName: 'Configure Swift Standard Library'
       - task: CMake@1
         inputs:
@@ -121,7 +121,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/libdispatch
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=YES -DENABLE_SWIFT=YES
+          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=YES -DENABLE_SWIFT=YES
         displayName: 'Configure libdispatch'
       - task: CMake@1
         inputs:
@@ -152,7 +152,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/foundation
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DENABLE_TESTING=NO
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-foundation -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/zlibstatic.lib -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.lib -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2s.lib -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules -DCURL_DIR=$(curl.directory)/usr/lib/cmake/CURL -DENABLE_TESTING=NO
         displayName: 'Configure Foundation'
       - task: CMake@1
         inputs:
@@ -161,7 +161,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/xctest
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.BinariesDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DSWIFT_WINDOWS_SDK=$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/Windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/swift-corelibs-xctest -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.BinariesDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules
         displayName: 'Configure XCTest'
       - task: CMake@1
         inputs:
@@ -213,4 +213,4 @@ jobs:
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: sdk-windows-${{ parameters.host }}
+          artifactName: sdk-${{ parameters.platform }}-${{ parameters.host }}
