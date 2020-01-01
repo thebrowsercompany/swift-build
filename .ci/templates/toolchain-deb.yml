@@ -1,36 +1,17 @@
-pr:
-  branches:
-    include:
-      - master
-  paths:
-    include:
-      - .ci/toolchain-linux-x64-deb.yml
-trigger:
-  branches:
-    include:
-      - master
-  paths:
-    include:
-      - .ci/toolchain-linux-x64-deb.yml
 jobs:
-  - job: linux_x64
-    pool:
-      vmImage: 'ubuntu-18.04'
+  - job: swift_toolchain__${{ parameters.proc }}_deb
     variables:
-      toolchain.directory: $(Build.StagingDirectory)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      toolchain.directory: $(Build.StagingDirectory)/swift-toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
     steps:
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          buildType: specific
-          project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
-          pipeline: 14
-          specificBuildWithTriggering: true
-          allowPartiallySucceededBuilds: true
-          artifactName: 'toolchain-linux-x64'
-        displayName: 'Install toolchain'
+      - checkout: self
+        displayName: 'checkout compnerd/swift-build'
+      - checkout: apple/swift-cmark
+        displayName: 'checkout apple/swift-cmark'
+      - download: current
+        artifact: toolchain-linux-${{ parameters.host }}
       - script: |
-          mkdir -p $(Build.StagingDirectory)/toolchain/Library
-          cp -rv $(Pipeline.Workspace)/Library/Developer $(Build.StagingDirectory)/toolchain/Library/Developer
+          mkdir -p $(Build.StagingDirectory)/swift-toolchain
+          rsync -v -a -l $(Pipeline.Workspace)/toolchain-linux-${{ parameters.host }}/Library $(Build.StagingDirectory)/swift-toolchain/Library
 
           # remove testing binaries
           rm -v $(toolchain.directory)/usr/bin/complete-test
@@ -54,7 +35,7 @@ jobs:
           rm -v $(toolchain.directory)/usr/bin/swift-syntax-test
 
           # remove swift docs
-          rm -vrf $(toolchain.directory)/usr/share/docs/swift
+          rm -v -r -f $(toolchain.directory)/usr/share/docs/swift
 
           # make IndexStore headers part of `/usr` instead of `/usr/local`
           mv -v $(toolchain.directory)/usr/local/include/indexstore $(toolchain.directory)/usr/include/indexstore
@@ -62,8 +43,8 @@ jobs:
 
           # symlink in clang resource headers
           cd $(toolchain.directory)/usr/lib/swift
-          rm -vrf clang
-          ln -vs ../clang/*/include clang
+          rm -v -r -f clang
+          ln -v -s ../clang/*/include clang
 
           # fix file permissions
           chmod -v +x $(toolchain.directory)/usr/bin/*
@@ -107,31 +88,18 @@ jobs:
           rm -v swift-autolink-extract ; ln -vs swift swift-autolink-extract
           rm -v swiftc ; ln -vs swift swiftc
           rm -v wasm-ld ; ln -vs lld wasm-ld
-
         displayName: 'cleanup image'
       - script: |
+          mkdir -p $(Build.StagingDirectory)/swift-toolchain/DEBIAN
+          sed -e "s/Version:/& $(Build.BuildId)/" $(Build.SourcesDirectory)/swift-build/debian/control > $(Build.StagingDirectory)/swift-toolchain/DEBIAN/control
+
           cd $(Build.StagingDirectory)
-          mkdir toolchain/DEBIAN
-          cp $(Build.SourcesDirectory)/debian/control toolchain/DEBIAN
-          sed -e "s/Version:/& $(Build.BuildId)/" -i toolchain/DEBIAN/control
-          fakeroot dpkg-deb --build toolchain
-        displayName: 'package image'
-      - task: PublishPipelineArtifact@1
-        inputs:
-          path: '$(Build.StagingDirectory)/toolchain.deb'
-          artifact: 'linux-toolchain-amd64.deb'
-        displayName: "Publish linux-toolchain-amd64.deb"
-      - task: cURLUploader@2
-        inputs:
-          files: '$(Build.StagingDirectory)/toolchain.deb'
-          authType: 'UserAndPass'
-          username: 'compnerd'
-          password: '$(BINTRAY_PASSWORD)'
-          url: 'https://api.bintray.com/content/compnerd/swift/swift-toolchain/$(Build.BuildId)/pool/main/s/swift-toolchain/swift-toolchain_$(Build.BuildId)_amd64.deb;deb_distribution=bionic;deb_component=main;deb_architecture=amd64;publish=1'
-          remotePath: 
-        displayName: 'Upload to bintray'
+          fakeroot dpkg-deb --build swift-toolchain $(Build.StagingDirectory)
+        displayName: 'package'
+      - publish: $(Build.StagingDirectory)/swift-toolchain_$(Build.BuildId)_${{ parameters.proc }}.deb
+        artifact: swift-toolchain_$(Build.BuildId)_${{ parameters.proc }}.deb
       - script: |
-          mv $(Build.StagingDirectory)/toolchain.deb $(Build.StagingDirectory)/swift-toolchain_$(Build.BuildId)_amd64.deb
           cd $(Build.StagingDirectory)
-          curl -F swift-toolchain=@swift-toolchain_$(Build.BuildId)_amd64.deb https://$(GEMFURY_PASSWORD)@push.fury.io/compnerd
-        displayName: 'Upload to gemfury'
+          curl -F swift-toolchain=@swift-toolchain_$(Build.BuildId)_${{ parameters.proc }}.deb https://$(GEMFURY_PASSWORD)@push.fury.io/compnerd
+        displayName: 'upload to gemfury'
+        enabled: false
