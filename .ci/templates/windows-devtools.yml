@@ -5,17 +5,17 @@ jobs:
     condition: eq( '${{ parameters.host }}', 'x64' )
     variables:
       toolchain.directory: $(Pipeline.Workspace)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-      sqlite.directory: $(Pipeline.Workspace)/sqlite/sqlite-windows-${{ parameters.host }}/Library/sqlite-3.30.1
+      sqlite.directory: $(Pipeline.Workspace)/sqlite/sqlite-${{ parameters.platform }}-${{ parameters.host }}/Library/sqlite-3.30.1
       install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Library/
     steps:
       - download: current
         artifact: toolchain-windows-x64
         displayName: 'download toolchain'
       - download: current
-        artifact: sdk-windows-${{ parameters.host }}
+        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
         displayName: 'download SDK'
       - download: sqlite
-        artifact: sqlite-windows-${{ parameters.host }}
+        artifact: sqlite-${{ parameters.platform }}-${{ parameters.host }}
         displayName: 'download SQLite'
       - script: |
           git config --global --add core.autocrlf false
@@ -93,7 +93,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/llbuild
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/windows-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/llbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/llbuild-development/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/llbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/llbuild-development/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
         displayName: 'Configure llbuild'
       - task: CMake@1
         inputs:
@@ -106,7 +106,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/tsc
-          cmakeArgs: -C $(Build.SourcesDirectory)/cmake/caches/windows-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/windows-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/tools-support-core -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/TSC-development/usr
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/tools-support-core -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/TSC-development/usr
         displayName: 'Configure tools-support-core'
         enabled: false
       - task: CMake@1
@@ -122,7 +122,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/indexstore-db
-          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/cmake/caches/windows-$(arch)-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/cmake/caches/windows-$(arch)-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-windows-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" -DCMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
+          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" -DCMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
         displayName: 'Configure IndexStoreDB'
         enabled: false
       - task: CMake@1
