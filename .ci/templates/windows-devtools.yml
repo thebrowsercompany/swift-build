@@ -4,10 +4,22 @@ jobs:
     # NOTE(compnerd) disable non-x64 builds as they are currently broken :(
     condition: eq( '${{ parameters.host }}', 'x64' )
     variables:
-      toolchain.directory: $(Pipeline.Workspace)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
       sqlite.directory: $(Pipeline.Workspace)/sqlite/sqlite-${{ parameters.platform }}-${{ parameters.host }}/Library/sqlite-3.30.1
-      install.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Library/
+      toolchain.directory: $(Pipeline.Workspace)/toolchain-windows-x64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      sdk.directory: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/${{ parameters.os }}.platform/Developer/SDKs/${{ parameters.os }}.sdk
+
+      platform.directory: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform
+
+      llbuild.version: development
+      tsc.version: development
+      IndexStoreDB.version: development
+      SwiftPM.version: development
     steps:
+      - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Enable symbolic links, disable line ending conversion'
       - download: current
         artifact: toolchain-windows-x64
         displayName: 'download toolchain'
@@ -17,11 +29,6 @@ jobs:
       - download: sqlite
         artifact: sqlite-${{ parameters.platform }}-${{ parameters.host }}
         displayName: 'download SQLite'
-      - script: |
-          git config --global --add core.autocrlf false
-          git config --global --add core.symlinks true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Enable symbolic links, disable line ending conversion'
       - checkout: self
         displayName: 'checkout compnerd/swift-build'
       - checkout: apple/swift
@@ -69,10 +76,6 @@ jobs:
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'vsvarsall.bat'
       - script: |
-          echo "##vso[task.setvariable variable=PATH]$(toolchain.directory)/usr/bin;%PATH%"
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Update PATH'
-      - script: |
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
@@ -93,7 +96,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/llbuild
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/llbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/llbuild-development/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
+          cmakeArgs: -G Ninja -S $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
         displayName: 'Configure llbuild'
       - task: CMake@1
         inputs:
@@ -106,7 +109,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/tsc
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -G Ninja $(Build.SourcesDirectory)/tools-support-core -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/TSC-development/usr
+          cmakeArgs: -G Ninja -S $(Build.SourcesDirectory)/tools-support-core -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/TSC-development/usr
         displayName: 'Configure tools-support-core'
         enabled: false
       - task: CMake@1
@@ -122,7 +125,7 @@ jobs:
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.StagingDirectory)/indexstore-db
-          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift;$(System.ArtifactsDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" -DCMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
+          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(sdk.directory)/usr/lib/swift;$(sdk.directory)/usr/lib/swift/Block" -DCMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
         displayName: 'Configure IndexStoreDB'
         enabled: false
       - task: CMake@1
@@ -135,7 +138,5 @@ jobs:
           cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
         displayName: 'Install IndexStoreDB'
         enabled: false
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: devtools
+      - publish: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}
+        artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
