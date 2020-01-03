@@ -108,19 +108,37 @@ jobs:
         inputs:
           versionSpec: '2.7.x'
         name: python
-        condition: not( or( eq( variables['Agent.Name'], 'swift-ci' ), eq( variables['Agent.Name'], 'google-azure-windows-01' ) ) )
-      - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.BinariesDirectory)/toolchain
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/toolchain/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DLLDB_FRAMEWORK_INSTALL_DIR=$(install.directory)/System/Library/PrivateFrameworks -DLLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }} -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen.exe -DCLANG_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/clang-tblgen.exe -DLLDB_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/lldb-tblgen.exe -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;cmark;swift;lldb;lld" -DLLVM_EXTERNAL_PROJECTS="cmark;swift" -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch -DLLVM_ENABLE_LIBEDIT=NO ${{ parameters.LLVM_OPTIONS }} ${{ parameters.LLDB_OPTIONS }} ${{ parameters.SWIFT_OPTIONS }}
+        continueOnError: true
+        condition: not( eq( variables['Agent.Name'], 'swift-ci' ) )
+      - script: |
+          echo ##vso[task.setvariable variable=LLVM_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\llvm-tblgen.exe
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Configure toolchain'
+        displayName: LLVM_TABLEGEN
+      - script: |
+          echo "##vso[task.setvariable variable=LLVM_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen"
+        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
+        displayName: LLVM_TABLEGEN
+      - script: |
+          echo ##vso[task.setvariable variable=CLANG_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\clang-tblgen.exe
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: CLANG_TABLEGEN
+      - script: |
+          echo "##vso[task.setvariable variable=CLANG_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/clang-tblgen"
+        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
+        displayName: CLANG_TABLEGEN
+      - script: |
+          echo ##vso[task.setvariable variable=LLDB_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\lldb-tblgen.exe
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: LLDB_TABLEGEN
+      - script: |
+          echo "##vso[task.setvariable variable=LLDB_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/lldb-tblgen"
+        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
+        displayName: LLDB_TABLEGEN
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/toolchain
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/toolchain/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DLLDB_FRAMEWORK_INSTALL_DIR=$(install.directory)/System/Library/PrivateFrameworks -DLLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }} -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen -DCLANG_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/clang-tblgen -DLLDB_TABLEGEN=$(Build.BinariesDirectory)/llvm-tools/bin/lldb-tblgen -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;cmark;swift;lldb;lld" -DLLVM_EXTERNAL_PROJECTS="cmark;swift" -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch ${{ parameters.LLVM_OPTIONS }} ${{ parameters.LLDB_OPTIONS }} ${{ parameters.SWIFT_OPTIONS }}
-        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
-        displayName: 'Configure toolchain'
+          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/toolchain/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DLLDB_FRAMEWORK_INSTALL_DIR=$(install.directory)/Library/PrivateFrameworks -DLLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }} -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(LLVM_TABLEGEN) -DCLANG_TABLEGEN=$(CLANG_TABLEGEN) -DLLDB_TABLEGEN=$(LLDB_TABLEGEN) -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch ${{ parameters.LLVM_OPTIONS }} ${{ parameters.LLDB_OPTIONS }} ${{ parameters.SWIFT_OPTIONS }}
+        displayName: Configure toolchain
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target distribution
