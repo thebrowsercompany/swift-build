@@ -118,63 +118,147 @@ jobs:
           versionSpec: '2.7.x'
         name: python
         continueOnError: true
+
       - task: CMake@1
+        displayName: Configure LLVM
         inputs:
-          workingDirectory: $(Build.BinariesDirectory)/llvm
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/llvm-project/llvm -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_HOST_TRIPLE=${{ parameters.triple }}
-        displayName: 'Configure LLVM'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/llvm-project/llvm
+            -B $(Build.BinariesDirectory)/llvm
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D ANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr
+            -D CMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D LLVM_HOST_TRIPLE=${{ parameters.triple }}
+
       - task: CMake@1
+        displayName: Configure Swift Standard Library
         inputs:
-          workingDirectory: $(Build.BinariesDirectory)/swift-stdlib
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-${{ parameters.platform }}-${{ parameters.arch }}.cmake $(Build.SourcesDirectory)/swift -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm -DSWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin -DCMAKE_INSTALL_PREFIX=$(install.directory) -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so
-        displayName: 'Configure Swift Standard Library'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift
+            -B $(Build.BinariesDirectory)/swift-stdlib
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D ANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr
+            -D CMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D LLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm
+            -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            -D SWIFT_ANDROID_${{ parameters.arch }}_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode
+            -D SWIFT_ANDROID_${{ parameters.arch }}_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so
+            -D SWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N_INCLUDE=$(icu.directory)/usr/include
+            -D SWIFT_ANDROID_${{ parameters.arch }}_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so
+
       - task: CMake@1
+        displayName: Build Swift Standard Library
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib
-        displayName: 'Build Swift Standard Library'
+
       - task: CMake@1
+        displayName: Install Swift Standard Library
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib --target install
-        displayName: 'Install Swift Standard Library'
+
       - task: CMake@1
+        displayName: Configure libdispatch
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/libdispatch
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake $(Build.SourcesDirectory)/swift-corelibs-libdispatch -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DBUILD_TESTING=NO -DENABLE_SWIFT=YES -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
-        displayName: 'Configure libdispatch'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-corelibs-libdispatch
+            -B $(Build.BinariesDirectory)/libdispatch
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D ANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr
+            -D CMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            -D BUILD_TESTING=NO
+            -D ENABLE_SWIFT=YES
+            -D CMAKE_BUILD_WITH_INSTALL_RPATH=YES
+
       - task: CMake@1
+        displayName: Build libdispatch
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch
-        displayName: 'Build libdispatch'
+
       - task: CMake@1
+        displayName: Configure Foundation
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/foundation
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake $(Build.SourcesDirectory)/swift-corelibs-foundation -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory) -DZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a -DZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include -DCURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a -DCURL_INCLUDE_DIR=$(curl.directory)/usr/include -DICU_INCLUDE_DIR=$(icu.directory)/usr/include -DICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -DICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so -DLIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a -DLIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2 -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
-        displayName: 'Configure Foundation'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-corelibs-foundation
+            -B $(Build.BinariesDirectory)/foundation
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D ANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr
+            -D CMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            -D ZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a
+            -D ZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include
+            -D CURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a
+            -D CURL_INCLUDE_DIR=$(curl.directory)/usr/include
+            -D ICU_INCLUDE_DIR=$(icu.directory)/usr/include
+            -D ICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so
+            -D ICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so
+            -D ICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so
+            -D ICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so
+            -D LIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a
+            -D LIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2
+            -D dispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules
+            -D CMAKE_BUILD_WITH_INSTALL_RPATH=YES
+
       - task: CMake@1
+        displayName: Build Foundation
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/foundation
-        displayName: 'Build Foundation'
+
       - task: CMake@1
+        displayName: Configure XCTest
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/xctest
-          cmakeArgs: -G Ninja -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake $(Build.SourcesDirectory)/swift-corelibs-xctest -DANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(xctest.install.directory) -DENABLE_TESTING=NO -DFoundation_DIR=$(Build.BinariesDirectory)/foundation/cmake/modules -Ddispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules -DCMAKE_BUILD_WITH_INSTALL_RPATH=YES
-        displayName: 'Configure XCTest'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-corelibs-xctest
+            -B $(Build.BinariesDirectory)/xctest
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D ANDROID_ALTERNATE_TOOLCHAIN=$(toolchain.directory)/usr
+            -D CMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/swift-build/cmake/toolchains/android.toolchain.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(xctest.install.directory)
+            -D ENABLE_TESTING=NO
+            -D Foundation_DIR=$(Build.BinariesDirectory)/foundation/cmake/modules
+            -D dispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules
+            -D CMAKE_BUILD_WITH_INSTALL_RPATH=YES
+
       - task: CMake@1
+        displayName: Build XCTest
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
-        displayName: 'Build XCTest'
+
       - task: CMake@1
+        displayName: Install Foundation
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/foundation --target install
-        displayName: 'Install Foundation'
+
       - task: CMake@1
+        displayName: Install XCTest
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest --target install
-        displayName: 'Install XCTest'
+
       - task: CMake@1
+        displayName: Install libdispatch
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
-        displayName: 'Install libdispatch'
 
       - publish: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}
         artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
