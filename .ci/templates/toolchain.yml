@@ -53,141 +53,188 @@ jobs:
       clean: outputs
     steps:
       - task: DownloadGitHubRelease@0
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+        displayName: Download Ninja 1.9.0
         inputs:
-          connection: 'GitHub'
-          userRepository: 'ninja-build/ninja'
-          defaultVersionType: 'specificVersion'
+          connection: GitHub
+          userRepository: ninja-build/ninja
+          defaultVersionType: specificVersion
           version: '15273896'
-          itemPattern: 'ninja-mac.zip'
-          downloadPath: '$(System.ArtifactsDirectory)'
-        condition: eq( variables['Agent.OS'], 'Darwin' )
-        displayName: 'download Ninja'
+          itemPattern: ninja-mac.zip
+          downloadPath: $(System.ArtifactsDirectory)
+
       - task: ExtractFiles@1
-        inputs:
-          archiveFilePatterns: '$(System.ArtifactsDirectory)/ninja-mac.zip'
-          destinationFolder: '$(Agent.ToolsDirectory)/ninja-1.9.0'
-          cleanDestinationFolder: false
         condition: eq( variables['Agent.OS'], 'Darwin' )
-        displayName: 'extract Ninja'
-      - task: Bash@3
+        displayName: extract Ninja
         inputs:
-          targetType: inline
+          archiveFilePatterns: $(System.ArtifactsDirectory)/ninja-mac.zip
+          destinationFolder: $(Agent.ToolsDirectory)/ninja-1.9.0
+          cleanDestinationFolder: false
+
+      - script: |
           script: echo "##vso[task.prependpath]$(Agent.ToolsDirectory)/ninja-1.9.0"
         condition: eq( variables['Agent.OS'], 'Darwin' )
-        displayName: 'edit PATH'
+        displayName: Add Ninja to PATH
+
       - task: Bash@3
+        condition: eq( variables['Agent.Name'], 'swift-ci' )
+        displayName: enable redis
+        env: { 'SCCACHE_REDIS': 'redis://localhost' }
         inputs:
           targetType: inline
           script: '/usr/bin/sccache --start-server || true'
-        env: { 'SCCACHE_REDIS': 'redis://localhost' }
-        condition: eq( variables['Agent.Name'], 'swift-ci' )
-        displayName: 'enable redis'
+
       - download: icu
         artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
         condition: not( eq( variables['Agent.OS'], 'Darwin' ) )
+
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Enable symbolic links, disable line ending conversion'
+        displayName: Enable symbolic links, disable line ending conversion
+
       - checkout: self
-        displayName: 'checkout compnerd/swift-build'
+        displayName: checkout compnerd/swift-build
+
       - checkout: apple/llvm-project
+        displayName: checkout apple/llvm-project
         path: s/toolchain
-        displayName: 'checkout apple/llvm-project'
+
       - checkout: apple/swift-cmark
+        displayName: checkout apple/swift-cmark
         path: s/toolchain/cmark
-        displayName: 'checkout apple/swift-cmark'
+
       - checkout: apple/swift-corelibs-libdispatch
-        displayName: 'checkout apple/swift-corelibs-libdispatch'
+        displayName: checkout apple/swift-corelibs-libdispatch
+
       - checkout: apple/swift
+        displayName: checkout apple/swift
         path: s/toolchain/swift
-        displayName: 'checkout apple/swift'
+
       - checkout: tensorflow/swift-apis
-        path: s/tensorflow-swift-apis
-        displayName: 'checkout tensorflow/swift-apis'
         condition: eq( '${{ parameters.tensorflow }}', 'true' )
+        displayName: checkout tensorflow/swift-apis
+        path: s/tensorflow-swift-apis
+
       - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: VsDevCmd.bat
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'vsvarsall.bat'
+
       - task: CMake@1
+        displayName: Configure LLVM Build Tools
         inputs:
-          workingDirectory: $(Build.BinariesDirectory)/llvm-tools
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-x86_64.cmake -G Ninja $(Build.SourcesDirectory)/toolchain/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=NO -DLLVM_ENABLE_PROJECTS="clang;lldb" -DLLDB_DISABLE_PYTHON=YES -DLLDB_INCLUDE_TESTS=NO
-        displayName: 'Configure LLVM Build Tools'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/toolchain/llvm
+            -B $(Build.BinariesDirectory)/llvm-tools
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-x86_64.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D LLVM_ENABLE_ASSERTIONS=NO
+            -D LLVM_ENABLE_PROJECTS="clang;lldb"
+            -D LLDB_DISABLE_PYTHON=YES
+            -D LLDB_INCLUDE_TESTS=NO
+
       - task: CMake@1
+        displayName: Build LLVM Build Tools
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/llvm-tools --target llvm-tblgen
-        displayName: 'Build LLVM Build Tools'
+
       - task: CMake@1
+        displayName: Build Clang Build Tools
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/llvm-tools --target clang-tblgen
-        displayName: 'Build Clang Build Tools'
+
       - task: CMake@1
+        displayName: Build LLDB Build Tools
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/llvm-tools --target lldb-tblgen
-        displayName: 'Build LLDB Build Tools'
+
       - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: VsDevCmd.bat
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
           arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
           modifyEnvironment: true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'vsvarsall.bat'
+
       - script: |
           copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
           copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
           copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
           copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Configure SDK'
+        displayName: Configure SDK
+
       - task: UsePythonVersion@0
+        condition: not( eq( variables['Agent.Name'], 'swift-ci' ) )
+        continueOnError: true
         inputs:
           versionSpec: '2.7.x'
         name: python
-        continueOnError: true
-        condition: not( eq( variables['Agent.Name'], 'swift-ci' ) )
+
       - script: |
           echo ##vso[task.setvariable variable=LLVM_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\llvm-tblgen.exe
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: LLVM_TABLEGEN
-      - script: |
-          echo "##vso[task.setvariable variable=LLVM_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen"
-        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
         displayName: LLVM_TABLEGEN
       - script: |
           echo ##vso[task.setvariable variable=CLANG_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\clang-tblgen.exe
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: CLANG_TABLEGEN
       - script: |
+          echo ##vso[task.setvariable variable=LLDB_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\lldb-tblgen.exe
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: LLDB_TABLEGEN
+
+      - script: |
+          echo "##vso[task.setvariable variable=LLVM_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen"
+        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
+        displayName: LLVM_TABLEGEN
+      - script: |
           echo "##vso[task.setvariable variable=CLANG_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/clang-tblgen"
         condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
         displayName: CLANG_TABLEGEN
       - script: |
-          echo ##vso[task.setvariable variable=LLDB_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\lldb-tblgen.exe
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: LLDB_TABLEGEN
-      - script: |
           echo "##vso[task.setvariable variable=LLDB_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/lldb-tblgen"
         condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
         displayName: LLDB_TABLEGEN
+
       - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.BinariesDirectory)/toolchain
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake -G Ninja $(Build.SourcesDirectory)/toolchain/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DLLDB_FRAMEWORK_INSTALL_DIR=$(install.directory)/Library/PrivateFrameworks -DLLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }} -DLLVM_USE_HOST_TOOLS=NO -DLLVM_TABLEGEN=$(LLVM_TABLEGEN) -DCLANG_TABLEGEN=$(CLANG_TABLEGEN) -DLLDB_TABLEGEN=$(LLDB_TABLEGEN) -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch ${{ parameters.LLVM_OPTIONS }} ${{ parameters.LLDB_OPTIONS }} ${{ parameters.SWIFT_OPTIONS }}
         displayName: Configure toolchain
+        inputs:
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/toolchain/llvm
+            -B $(Build.BinariesDirectory)/toolchain
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)/usr
+            -D LLDB_FRAMEWORK_INSTALL_DIR=$(install.directory)/Library/PrivateFrameworks
+            -D LLVM_DEFAULT_TARGET_TRIPLE=${{ parameters.triple }}
+            -D LLVM_USE_HOST_TOOLS=NO
+            -D LLVM_TABLEGEN=$(LLVM_TABLEGEN)
+            -D CLANG_TABLEGEN=$(CLANG_TABLEGEN)
+            -D LLDB_TABLEGEN=$(LLDB_TABLEGEN)
+            -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+            ${{ parameters.LLVM_OPTIONS }}
+            ${{ parameters.LLDB_OPTIONS }}
+            ${{ parameters.SWIFT_OPTIONS }}
+
       - task: CMake@1
+        displayName: Build toolchain
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target distribution
-        displayName: 'Build toolchain'
+
       - task: CMake@1
+        displayName: Install toolchain
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target install-distribution
-        displayName: 'Install toolchain'
+
       - publish: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}
         artifact: toolchain-${{ parameters.platform }}-${{ parameters.host }}
 
