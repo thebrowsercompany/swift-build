@@ -1,3 +1,44 @@
+parameters:
+  - name: RUN_TESTS
+    type: boolean
+    default: false
+
+  - name: RUN_VALIDATION_TESTS
+    type: boolean
+    default: false
+
+  - name: LLVM_OPTIONS
+    type: string
+    default: ''
+
+  - name: LLDB_OPTIONS
+    type: string
+    default: ''
+
+  - name: SWIFT_OPTIONS
+    type: string
+    default: ''
+
+  - name: VisualStudio
+    type: string
+    default: ''
+
+  - name: arch
+    type: string
+    default: ''
+
+  - name: host
+    type: string
+    default: ''
+
+  - name: platform
+    type: string
+    default: ''
+
+  - name: triple
+    type: string
+    default: ''
+
 jobs:
   - job: ${{ parameters.host }}
     timeoutInMinutes: 0
@@ -149,24 +190,25 @@ jobs:
         displayName: 'Install toolchain'
       - publish: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}
         artifact: toolchain-${{ parameters.platform }}-${{ parameters.host }}
-      - script: |
-          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(install.directory)/usr/bin;$(Build.StagingDirectory)/swift/libdispatch-prefix/bin;%PATH%;%ProgramFiles%/Git/usr/bin
-        condition: and( eq( variables['Agent.OS'], 'Windows_NT' ), eq( '${{ parameters.tests }}', 'true' ) )
-        displayName: 'Update PATH'
-      - script: |
-          echo ##vso[task.setvariable variable=LD_LIBRARY_PATH]$(icu.directory)/usr/lib:$(install.directory)/usr/lib:$(Build.StagingDirectory)/swift/libdispatch-prefix/lib:${LD_LIBRARY_PATH}
-        condition: and( eq( variables['Agent.OS'], 'Linux' ), eq( '${{ parameters.tests }}', 'true' ) )
-        displayName: 'Update LD_LIBRARY_PATH'
-      - task: CMake@1
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target check-swift
-        condition: eq( '${{ parameters.tests }}', 'true' )
-        displayName: 'check-swift'
-        continueOnError: true
-      - task: PublishTestResults@2
-        inputs:
-          testResultsFormat: 'JUnit'
-          testResultsFiles: '$(Build.BinariesDirectory)/toolchain/swift-test-results/*/*.xml'
-          buildPlatform: ${{ parameters.platform }}-${{ parameters.arch }}
-          buildConfiguration: ${{ parameters.VisualStudio }}
-        condition: eq( '${{ parameters.tests }}', 'true' )
+
+      - ${{ if eq(parameters.RUN_TESTS, 'true') }}:
+        - script: |
+            echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(install.directory)/usr/bin;$(Build.StagingDirectory)/swift/libdispatch-prefix/bin;%PATH%;%ProgramFiles%/Git/usr/bin
+          condition: eq( variables['Agent.OS'], 'Windows_NT' )
+          displayName: Set PATH
+
+        - script: |
+            echo ##vso[task.setvariable variable=LD_LIBRARY_PATH]$(icu.directory)/usr/lib:$(install.directory)/usr/lib:$(Build.StagingDirectory)/swift/libdispatch-prefix/lib:${LD_LIBRARY_PATH}
+          condition: eq( variables['Agent.OS'], 'Linux' )
+          displayName: Set LD_LIBRARY_PATH
+
+        - task: CMake@1
+          continueOnError: true
+          displayName: check-swift
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target check-swift
+
+        - task: PublishTestResults@2
+          inputs:
+            testResultsFormat: JUnit
+            testResultsFiles: $(Build.BinariesDirectory)/toolchain/swift-test-results/*/*.xml

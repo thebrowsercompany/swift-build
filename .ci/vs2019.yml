@@ -97,7 +97,6 @@ stages:
       - template: templates/toolchain.yml
         parameters:
           VisualStudio: 2019/Enterprise
-          tests: true
 
           arch: x86_64
           host: x64
@@ -108,6 +107,9 @@ stages:
           LLVM_OPTIONS: -DLLVM_ENABLE_LIBEDIT=NO -DLLVM_PARALLEL_LINK_JOBS=2 -DPYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
           LLDB_OPTIONS: -DLLDB_DISABLE_PYTHON=YES
           SWIFT_OPTIONS: -DSWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_x86_64_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_x86_64_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DSWIFT_PARALLEL_LINK_JOBS=2 -DSWIFT_BUILD_DYNAMIC_STDLIB=YES -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=YES
+
+          RUN_TESTS: true
+          RUN_VALIDATION_TESTS: false
 
       - template: templates/toolchain.yml
         parameters:
@@ -125,6 +127,9 @@ stages:
           # NOTE(compnerd) cannot build SyntaxParserLib and SourceKit due to
           # libdispatch's dependency on clang
           SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO -DSWIFT_ENABLE_SOURCEKIT_TESTS=NO -DSWIFT_BUILD_SYNTAXPARSERLIB=NO -DSWIFT_BUILD_SOURCEKIT=NO
+
+          RUN_TESTS: false
+          RUN_VALIDATION_TESTS: false
 
   - stage: android_sdk
     dependsOn: toolchain
