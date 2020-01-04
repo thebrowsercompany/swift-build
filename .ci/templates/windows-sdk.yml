@@ -10,15 +10,17 @@ jobs:
     variables:
       toolchain.directory: $(Pipeline.Workspace)/toolchain-windows-x64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
 
+      curl.version: development
       icu.version: 64
+      xml2.version: development
+      zlib.version: 1.2.11
+
+      curl.directory: $(Pipeline.Workspace)/curl/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-$(curl.version)
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
+      xml2.directory: $(Pipeline.Workspace)/xml2/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-$(xml2.version)
+      zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-$(zlib.version)
 
-      zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-1.2.11
-      curl.directory: $(Pipeline.Workspace)/curl/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-development
-
-      xml2.directory: $(Pipeline.Workspace)/xml2/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-development
-
-      platform.directory: $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform
+      platform.directory: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/Windows.platform
       sdk.directory: $(platform.directory)/Developer/SDKs/Windows.sdk
 
       install.directory: $(sdk.directory)/usr
@@ -213,7 +215,6 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
         displayName: 'Install libdispatch'
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: $(Build.StagingDirectory)/Library
-          artifactName: sdk-${{ parameters.platform }}-${{ parameters.host }}
+
+      - publish: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}
+        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
