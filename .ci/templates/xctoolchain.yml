@@ -152,6 +152,15 @@ jobs:
             </plist>
             EOF
         displayName: 'construct Info.plist'
+      - task: InstallAppleCertificate@2
+        displayName: Install Signing Certificate
+        inputs:
+          certSecureFile: dt.compnerd.org.p12
+          certPwd: $(CERTIFICATE_PASSWORD)
+          keychain: temp
+      - script: |
+          codesign --verbose --deep --force --sign dt.compnerd.org $(toolchain.directory)
+        displayName: Sign Bundle
       - task: ArchiveFiles@2
         inputs:
           rootFolderOrFile: $(Build.StagingDirectory)/swift-toolchain
