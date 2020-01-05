@@ -106,69 +106,90 @@ jobs:
             cp -r -v $(tensorflow.directory)/usr/include/tensorflow $(toolchain.directory)/usr/lib/swift
         condition: eq( '${{ parameters.tensorflow }}', 'true' )
         displayName: 'inject TensorFlow'
-      - task: Bash@3
-        inputs:
-          targetType: 'inline'
-          script: |
-            cat <<-EOF > $(toolchain.directory)/Info.plist
-            <?xml version="1.0" encoding="UTF-8"?>
-            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0">
+
+      - script: |
+          cat <<-EOF > $(toolchain.directory)/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+            <dict>
+              <key>Aliases</key>
+              <array>
+                <string>${{ parameters.alias }}</string>
+              </array>
+              <key>CFBundleIdentifier</key>
+              <string>org.compnerd.dt.toolchain.${{ parameters.alias }}-$(date -j +%Y%m%d)</string>
+              <key>CompatibilityVersion</key>
+              <integer>2</integer>
+              <key>CompatibilityVersionDisplayString</key>
+              <string>Xcode 8.0</string>
+              <key>CreatedDate</key>
+              <date>$(date -j -u +%Y-%m-%dT%TZ)</date>
+              <key>DisplayName</key>
+              <string>Swift ${{ parameters.variant }}[$(date -j +%Y/%m/%d) Snapshot]</string>
+              <key>OverrideBuildSettings</key>
               <dict>
-                <key>Aliases</key>
-                <array>
-                  <string>${{ parameters.alias }}</string>
-                </array>
-                <key>CFBundleIdentifier</key>
-                <string>org.compnerd.dt.toolchain.${{ parameters.alias }}-$(date -j +%Y%m%d)</string>
-                <key>CompatibilityVersion</key>
-                <integer>2</integer>
-                <key>CompatibilityVersionDisplayString</key>
-                <string>Xcode 8.0</string>
-                <key>CreatedDate</key>
-                <date>$(date -j -u +%Y-%m-%dT%TZ)</date>
-                <key>DisplayName</key>
-                <string>Swift ${{ parameters.variant }}[$(date -j +%Y/%m/%d) Snapshot]</string>
-                <key>OverrideBuildSettings</key>
-                <dict>
-                  <key>ENABLE_BITCODE</key>
-                  <string>NO</string>
-                  <key>SWIFT_DEVELOPMENT_TOOLCHAIN</key>
-                  <string>YES</string>
-                  <key>SWIFT_DISABLE_REQUIRED_ARCLITE</key>
-                  <string>YES</string>
-                  <key>SWIFT_LINK_OBJC_RUNTIME</key>
-                  <string>YES</string>
-                  <key>SWIFT_USE_DEVELOPMENT_TOOLCHAIN_RUNTIME</key>
-                  <string>YES</string>
-                </dict>
-                <key>ReportProblemURL</key>
-                <string>https://bugs.swift.org</string>
-                <key>ShortDisplayName</key>
-                <string>${{ parameters.variant }}Swift</string>
-                <key>Version</key>
-                <string>$(date -j +%Y%m%d)</string>
+                <key>ENABLE_BITCODE</key>
+                <string>NO</string>
+                <key>SWIFT_DEVELOPMENT_TOOLCHAIN</key>
+                <string>YES</string>
+                <key>SWIFT_DISABLE_REQUIRED_ARCLITE</key>
+                <string>YES</string>
+                <key>SWIFT_LINK_OBJC_RUNTIME</key>
+                <string>YES</string>
+                <key>SWIFT_USE_DEVELOPMENT_TOOLCHAIN_RUNTIME</key>
+                <string>YES</string>
               </dict>
-            </plist>
-            EOF
-        displayName: 'construct Info.plist'
+              <key>ReportProblemURL</key>
+              <string>https://bugs.swift.org</string>
+              <key>ShortDisplayName</key>
+              <string>${{ parameters.variant }}Swift</string>
+              <key>Version</key>
+              <string>$(date -j +%Y%m%d)</string>
+            </dict>
+          </plist>
+          EOF
+        displayName: construct Info.plist
+
       - task: InstallAppleCertificate@2
         displayName: Install Signing Certificate
         inputs:
           certSecureFile: dt.compnerd.org.p12
           certPwd: $(CERTIFICATE_PASSWORD)
           keychain: temp
+
       - script: |
           codesign --verbose --deep --force --sign dt.compnerd.org $(toolchain.directory)
         displayName: Sign Bundle
+
+      - script: |
+          mkdir -p $(Build.BinariesDirectory)/pkgscripts
+          cat <<-EOF > $(Build.BinariesDirectory)/pkgscripts/postinstall
+          #!/usr/bin/env bash
+          ln -s -f "\${2}" "\$(dirname \${2})/unknown-Asserts-development.xctoolchain"
+          EOF
+          chmod -v +x $(Build.BinariesDirectory)/pkgscripts/postinstall
+
+          pkgbuild --identifier org.compnerd.dt.toolchain.${{ parameters.alias }}-$(date -j +%Y%m%d)              \
+                   --install-location /Library/Developer/Toolchains/unknown-Asserts-$(Build.BuildId).xctoolchain  \
+                   --scripts $(Build.BinariesDirectory)/pkgscripts                                                \
+                   --version $(Build.BuildId)                                                                     \
+                   --root $(toolchain.directory)                                                                  \
+                   $(Build.ArtifactStagingDirectory)/toolchain-darwin-${{ parameters.host }}.pkg
+        displayName: Build pkg
+
+      - publish: $(Build.ArtifactStagingDirectory)/toolchain-darwin-${{ parameters.host }}.pkg
+        artifact: toolchain-darwin-${{ parameters.host }}.pkg
+
       - task: ArchiveFiles@2
         inputs:
           rootFolderOrFile: $(Build.StagingDirectory)/swift-toolchain
           includeRootFolder: false
           archiveType: 'tar'
           tarCompression: 'xz'
-          archiveFile: $(Build.ArtifactStagingDirectory)/toolchain-darwin-x64-$(Build.BuildId).tar.xz
+          archiveFile: $(Build.ArtifactStagingDirectory)/toolchain-darwin-${{ parameters.host }}-$(Build.BuildId).tar.xz
           replaceExistingArchive: true
         displayName: 'create archive'
-      - publish: $(Build.ArtifactStagingDirectory)/toolchain-darwin-x64-$(Build.BuildId).tar.xz
-        artifact: toolchain-darwin-x64-$(Build.BuildId).tar.xz
+
+      - publish: $(Build.ArtifactStagingDirectory)/toolchain-darwin-${{ parameters.host }}-$(Build.BuildId).tar.xz
+        artifact: toolchain-darwin-${{ parameters.host }}-$(Build.BuildId).tar.xz
