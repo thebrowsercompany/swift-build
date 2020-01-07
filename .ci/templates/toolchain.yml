@@ -123,6 +123,48 @@ jobs:
           displayName: checkout tensorflow/swift-apis
           path: s/tensorflow-swift-apis
 
+      - script: |
+          git config --global user.name builder
+          git config --global user.email builder@compnerd.org
+
+          call :ApplyPatches "%LLVM_PR%" toolchain
+          call :ApplyPatches "%SWIFT_PR%" toolchain/swift
+          call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
+
+          goto :eof
+
+          :ApplyPatches
+          setlocal
+          set list=%~1
+          set repository=%~2
+          for /F "tokens=1*" %%P in ("%list%") do (
+            git -C %repository% fetch origin pull/%%P/head
+            git -C %repository% cherry-pick FETCH_HEAD
+            if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+          )
+          endlocal
+          goto :eof
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: Apply Patches
+
+      - script: |
+          function ApplyPatches() {
+            local repository=${1} ; shift
+            for PR in "${@}" ; do
+              git -C ${repository} fetch origin pull/${PR}/head
+              git -C ${repository} cherry-pick FETCH_HEAD
+            done
+          }
+
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
+
+          ApplyPatches toolchain ${LLVM_PR}
+          ApplyPatches toolchain/swift ${SWIFT_PR}
+          ApplyPatches swift-corelibs-libdispatch ${DISPATCH_PR}
+        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
+        displayName: Apply Patches
+
       - task: BatchScript@1
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: VsDevCmd.bat
