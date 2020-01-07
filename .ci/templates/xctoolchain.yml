@@ -4,12 +4,18 @@ jobs:
       toolchain.directory: $(Build.StagingDirectory)/swift-toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
     steps:
       - checkout: self
-        displayName: 'checkout compnerd/swift-build'
+        displayName: checkout compnerd/swift-build
+
       - download: current
         artifact: toolchain-darwin-${{ parameters.host }}
-      - download: tensorflow
-        artifact: tensorflow-darwin-${{ parameters.host }}
-        condition: eq( '${{ parameters.tensorflow }}', 'true' )
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - download: tensorflow
+          artifact: tensorflow-${{ parameters.platform }}-${{ parameters.host }}
+
+        - download: current
+          artifact: sdk-darwin-${{ parameters.host }}
+
       - task: Bash@3
         inputs:
           targetType: 'inline'
@@ -95,17 +101,17 @@ jobs:
             chmod -v +x $(toolchain.directory)/Library/PrivateFrameworks/LLDB.framework/LLDB
             chmod -v +x $(toolchain.directory)/Library/PrivateFrameworks/LLDB.framework/Resources/lldb-argdumper
             chmod -v +x $(toolchain.directory)/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift
-        displayName: 'cleanup image'
-      - task: Bash@3
-        inputs:
-          targetType: 'inline'
-          script: |
+        displayName: cleanup image
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - script: |
+            rsync -v -a -l $(Pipeline.Workspace)/sdk-darwin-${{ parameters.host }}/Library $(Build.StagingDirectory)/swift-toolchain
+
             cp -v $(tensorflow.directory)/usr/lib/libtensorflow.dylib $(toolchain.directory)/usr/lib/swift/macosx
             # TODO(compnerd) figure out why we need the symlink
             ln -v -s libtensorflow.dylib libtensorflow.so.2
             cp -r -v $(tensorflow.directory)/usr/include/tensorflow $(toolchain.directory)/usr/lib/swift
-        condition: eq( '${{ parameters.tensorflow }}', 'true' )
-        displayName: 'inject TensorFlow'
+          displayName: augment image
 
       - script: |
           cat <<-EOF > $(toolchain.directory)/Info.plist
@@ -207,11 +213,11 @@ jobs:
         inputs:
           rootFolderOrFile: $(Build.StagingDirectory)/swift-toolchain
           includeRootFolder: false
-          archiveType: 'tar'
-          tarCompression: 'xz'
+          archiveType: tar
+          tarCompression: xz
           archiveFile: $(Build.ArtifactStagingDirectory)/toolchain-darwin-${{ parameters.host }}-$(Build.BuildId).tar.xz
           replaceExistingArchive: true
-        displayName: 'create archive'
+        displayName: create archive
 
       - publish: $(Build.ArtifactStagingDirectory)/toolchain-darwin-${{ parameters.host }}-$(Build.BuildId).tar.xz
         artifact: toolchain-darwin-${{ parameters.host }}-$(Build.BuildId).tar.xz
