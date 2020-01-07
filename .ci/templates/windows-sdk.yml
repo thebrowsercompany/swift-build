@@ -38,11 +38,13 @@ jobs:
 
       curl.version: development
       icu.version: 64
+      tensorflow.version: 2.1.0-rc1
       xml2.version: development
       zlib.version: 1.2.11
 
       curl.directory: $(Pipeline.Workspace)/curl/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-$(curl.version)
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
+      tensorflow.directory: $(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }}/Library/tensorflow-$(tensorflow.version)
       xml2.directory: $(Pipeline.Workspace)/xml2/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-$(xml2.version)
       zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-$(zlib.version)
 
@@ -54,35 +56,58 @@ jobs:
     steps:
       - download: current
         artifact: toolchain-windows-x64
-        displayName: 'download toolchain'
+        displayName: download toolchain
+
       - download: icu
         artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download ICU'
+        displayName: download ICU
+
       - download: xml2
         artifact: xml2-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download XML2'
+        displayName: download XML2
+
       - download: curl
         artifact: curl-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download CURL'
+        displayName: download CURL
+
       - download: zlib
         artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download zlib'
+        displayName: download zlib
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - download: tensorflow
+          artifact: tensorflow-${{ parameters.platform }}-${{ parameters.host }}
+          displayName: download TensorFlow
+
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Enable symbolic links, disable line ending conversion'
+        displayName: Enable symbolic links, disable line ending conversion
+
       - checkout: self
+        displayName: checkout compnerd/swift-build
+
       - checkout: apple/llvm-project
-        displayName: 'checkout apple/llvm-project'
+        displayName: checkout apple/llvm-project
+
       - checkout: apple/swift
-        displayName: 'checkout apple/swift'
+        displayName: checkout apple/swift
+
       - checkout: apple/swift-corelibs-libdispatch
-        displayName: 'checkout apple/swift-corelibs-libdispatch'
+        displayName: checkout apple/swift-corelibs-libdispatch
+
       - checkout: apple/swift-corelibs-foundation
-        displayName: 'checkout apple/swift-corelibs-foundation'
+        displayName: checkout apple/swift-corelibs-foundation
+
       - checkout: apple/swift-corelibs-xctest
-        displayName: 'checkout apple/swift-corelibs-xctest'
+        displayName: checkout apple/swift-corelibs-xctest
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - checkout: tensorflow/swift-apis
+          displayName: checkout tensorflow/swift-apis
+          path: s/tensorflow-swift-apis
+
       - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
