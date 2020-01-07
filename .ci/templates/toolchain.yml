@@ -7,6 +7,10 @@ parameters:
     type: boolean
     default: false
 
+  - name: TENSORFLOW
+    type: boolean
+    default: false
+
   - name: LLVM_OPTIONS
     type: string
     default: ''
@@ -85,6 +89,11 @@ jobs:
         condition: not( eq( variables['Agent.OS'], 'Darwin' ) )
         displayName: download ICU
 
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - download: tensorflow
+          artifact: tensorflow-${{ parameters.platform }}-${{ parameters.host }}
+          displayName: download TensorFlow
+
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -109,10 +118,10 @@ jobs:
         displayName: checkout apple/swift
         path: s/toolchain/swift
 
-      - checkout: tensorflow/swift-apis
-        condition: eq( '${{ parameters.tensorflow }}', 'true' )
-        displayName: checkout tensorflow/swift-apis
-        path: s/tensorflow-swift-apis
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - checkout: tensorflow/swift-apis
+          displayName: checkout tensorflow/swift-apis
+          path: s/tensorflow-swift-apis
 
       - task: BatchScript@1
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
