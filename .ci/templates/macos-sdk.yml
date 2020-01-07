@@ -1,0 +1,300 @@
+parameters:
+  - name: SWIFT_OPTIONS
+    type: string
+    default: ''
+
+  - name: VisualStudio
+    type: string
+    default: ''
+
+  - name: arch
+    type: string
+
+  - name: host
+    type: string
+
+  - name: platform
+    type: string
+
+  - name: triple
+    type: string
+
+  - name: os
+    type: string
+
+  - name: proc
+    type: string
+
+jobs:
+  - job: ${{ parameters.host }}
+    variables:
+      toolchain.directory: $(Pipeline.Workspace)/toolchain-darwin-x64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+
+      curl.version: development
+      icu.version: 64
+      xml2.version: development
+      zlib.version: 1.2.11
+
+      curl.directory: $(Pipeline.Workspace)/curl/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-$(curl.version)
+      icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
+      xml2.directory: $(Pipeline.Workspace)/xml2/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-$(xml2.version)
+      zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-$(zlib.version)
+
+      platform.directory: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform
+      sdk.directory: $(platform.directory)/Developer/SDKs/${{ parameters.os }}.sdk
+
+      install.directory: $(sdk.directory)/usr
+      xctest.install.directory: $(platform.directory)/Developer/Library/XCTest-development/usr
+    steps:
+      - task: DownloadGitHubRelease@0
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+        displayName: Download Ninja 1.9.0
+        inputs:
+          connection: GitHub
+          userRepository: ninja-build/ninja
+          defaultVersionType: specificVersion
+          version: '15273896'
+          itemPattern: ninja-mac.zip
+          downloadPath: $(System.ArtifactsDirectory)
+
+      - task: ExtractFiles@1
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+        displayName: extract Ninja
+        inputs:
+          archiveFilePatterns: $(System.ArtifactsDirectory)/ninja-mac.zip
+          destinationFolder: $(Agent.ToolsDirectory)/ninja/1.9.0
+          cleanDestinationFolder: false
+
+      - script: |
+          echo "##vso[task.prependpath]$(Agent.ToolsDirectory)/ninja/1.9.0"
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+        displayName: Add Ninja to PATH
+
+      - download: current
+        artifact: toolchain-darwin-x64
+        displayName: download toolchain
+
+      - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: 'Enable symbolic links, disable line ending conversion'
+
+      - checkout: self
+        displayName: checkout compnerd/swift-build
+
+      - checkout: apple/llvm-project
+        displayName: checkout apple/llvm-project
+
+      - checkout: apple/swift
+        displayName: checkout apple/swift
+
+      - checkout: apple/swift-corelibs-libdispatch
+        displayName: checkout apple/swift-corelibs-libdispatch
+
+      - checkout: apple/swift-corelibs-foundation
+        displayName: checkout apple/swift-corelibs-foundation
+
+      - checkout: apple/swift-corelibs-xctest
+        displayName: checkout apple/swift-corelibs-xctest
+
+      - script: |
+          function ApplyPatches() {
+            local repository=${1} ; shift
+            for PR in "${@}" ; do
+              git -C ${repository} fetch origin pull/${PR}/head
+              git -C ${repository} cherry-pick FETCH_HEAD
+            done
+          }
+
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
+
+          ApplyPatches swift ${SWIFT_PR}
+          ApplyPatches swift-corelibs-libdispatch ${DISPATCH_PR}
+          ApplyPatches swift-corelibs-foundation ${FOUNDATION_PR}
+          ApplyPatches swift-corelibs-xctest ${XCTEST_PR}
+        displayName: Apply Patches
+
+      - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: VsDevCmd.bat
+        inputs:
+          filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
+          arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
+          modifyEnvironment: true
+
+      - script: |
+          chmod +x $(toolchain.directory)/usr/bin/ar
+          chmod +x $(toolchain.directory)/usr/bin/clang
+          chmod +x $(toolchain.directory)/usr/bin/clang++
+          chmod +x $(toolchain.directory)/usr/bin/ranlib
+          chmod +x $(toolchain.directory)/usr/bin/swift-autolink-extract
+          chmod +x $(toolchain.directory)/usr/bin/swiftc
+          chmod +x $(toolchain.directory)/usr/bin/ld.lld
+        condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
+        displayName: Correct File Modes
+
+      - task: CMake@1
+        displayName: Configure LLVM
+        inputs:
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/llvm-project/llvm
+            -B $(Build.BinariesDirectory)/llvm
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D LLVM_HOST_TRIPLE=${{ parameters.triple }}
+
+      - task: CMake@1
+        displayName: Configure Swift Standard Library
+        inputs:
+          cmakeArgs:
+            -G Ninja
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -S $(Build.SourcesDirectory)/swift
+            -B $(Build.BinariesDirectory)/swift-stdlib
+            -D CMAKE_BUILD_TYPE=Release
+            -D LLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm
+            -D CMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang
+            -D CMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++
+            -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            ${{ parameters.SWIFT_OPTIONS }}
+
+      - task: CMake@1
+        displayName: Build Swift Standard Library
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib
+
+      - task: CMake@1
+        displayName: Install Swift Standard Library
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib --target install
+
+      - task: CMake@1
+        condition: not( eq( '${{ parameters.platform }}', 'darwin' ) )
+        displayName: Configure libdispatch
+        inputs:
+          workingDirectory: $(Build.BinariesDirectory)/libdispatch
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-corelibs-libdispatch
+            -B $(Build.BinariesDirectory)/libdispatch
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang
+            -D CMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++
+            -D CMAKE_SWIFT_COMPILER=$(toolchain.directory)/usr/bin/swiftc
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            -D ENABLE_TESTING=NO
+            -D ENABLE_SWIFT=YES
+            -D USE_LLD_LINKER=YES
+            -D USE_GOLD_LINKER=NO
+
+      - task: CMake@1
+        condition: not( eq( '${{ parameters.platform }}', 'darwin' ) )
+        displayName: Build libdispatch
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch
+
+      - task: CMake@1
+        displayName: Configure Foundation
+        enabled: false
+        inputs:
+          workingDirectory: $(Build.BinariesDirectory)/foundation
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-corelibs-foundation
+            -B $(Build.BinariesDirectory)/foundation
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang
+            -D CMAKE_CXX_COMPILER=$(toolchain.directory)/usr/bin/clang++
+            -D CMAKE_SWIFT_COMPILER=$(toolchain.directory)/usr/bin/swiftc
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            -D ZLIB_LIBRARY=$(zlib.directory)/usr/lib/libz.a
+            -D ZLIB_INCLUDE_DIR=$(zlib.directory)/usr/include
+            -D CURL_LIBRARY=$(curl.directory)/usr/lib/libcurl.a
+            -D CURL_INCLUDE_DIR=$(curl.directory)/usr/include
+            -D ICU_INCLUDE_DIR=$(icu.directory)/usr/include
+            -D ICU_UC_LIBRARY=$(icu.directory)/usr/lib/libicuuc$(icu.version).so
+            -D ICU_UC_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuuc$(icu.version).so
+            -D ICU_I18N_LIBRARY=$(icu.directory)/usr/lib/libicuin$(icu.version).so
+            -D ICU_I18N_LIBRARY_RELEASE=$(icu.directory)/usr/lib/libicuin$(icu.version).so
+            -D LIBXML2_LIBRARY=$(xml2.directory)/usr/lib/libxml2.a
+            -D LIBXML2_INCLUDE_DIR=$(xml2.directory)/usr/include/libxml2
+            -D dispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules
+            -D CURL_DIR=$(curl.directory)/usr/lib/cmake/CURL
+
+      - task: CMake@1
+        displayName: Build Foundation
+        enabled: false
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/foundation
+
+      - task: CMake@1
+        displayName: Configure XCTest
+        enabled: false
+        inputs:
+          workingDirectory: $(Build.BinariesDirectory)/xctest
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-corelibs-xctest
+            -B $(Build.BinariesDirectory)/xctest
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            -D ENABLE_TESTING=YES
+            -D dispatch_DIR=$(Build.BinariesDirectory)/libdispatch/cmake/modules
+            -D Foundation_DIR=$(Build.BinariesDirectory)/foundation/cmake/modules
+
+      - task: CMake@1
+        displayName: Build XCTest
+        enabled: false
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/xctest
+
+      - task: CMake@1
+        displayName: Install Foundation
+        enabled: false
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/foundation --target install
+
+      - task: CMake@1
+        displayName: Install XCTest
+        enabled: false
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/xctest --target install
+
+      - task: CMake@1
+        displayName: Install libdispatch
+        enabled: false
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
+
+      - publish: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}
+        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+
+      - task: CMake@1
+        continueOnError: true
+        displayName: Test libdispatch
+        enabled: false
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target ExperimentalTest
+
+      - task: PublishTestResults@2
+        condition: succeededOrFailed()
+        displayName: Publish test results
+        enabled: false
+        inputs:
+          testResultsFormat: cTest
+          testResultsFiles: $(Build.BinariesDirectory)/libdispatch/Testing/*/Test.xml

@@ -18,21 +18,61 @@ resources:
       name: apple/llvm-project
       ref: swift/master
       endpoint: GitHub
+
     - repository: apple/swift
       type: github
       name: apple/swift
       ref: master
       endpoint: GitHub
+
     - repository: apple/swift-cmark
       type: github
       name: apple/swift-cmark
       ref: master
       endpoint: GitHub
+
     - repository: apple/swift-corelibs-libdispatch
       type: github
       name: apple/swift-corelibs-libdispatch
       ref: master
       endpoint: GitHub
+
+    - repository: apple/swift-corelibs-foundation
+      type: github
+      name: apple/swift-corelibs-foundation
+      ref: master
+      endpoint: GitHub
+
+    - repository: apple/swift-corelibs-xctest
+      type: github
+      name: apple/swift-corelibs-xctest
+      ref: master
+      endpoint: GitHub
+
+    - repository: apple/swift-llbuild
+      type: github
+      name: apple/swift-llbuild
+      ref: master
+      endpoint: GitHub
+
+    - repository: apple/swift-tools-support-core
+      type: github
+      name: apple/swift-tools-support-core
+      ref: master
+      endpoint: GitHub
+
+    - repository: apple/swift-package-manager
+      type: github
+      name: apple/swift-package-manager
+      ref: master
+      endpoint: GitHub
+
+    - repository: apple/indexstore-db
+      type: github
+      name: apple/indexstore-db
+      ref: master
+      endpoint: GitHub
+
     - repository: tensorflow/swift-apis
       type: github
       name: tensorflow/swift-apis
@@ -67,11 +107,29 @@ stages:
           triple: x86_64-apple-macosx10.14
 
           LLVM_OPTIONS: -DLLVM_INCLUDE_TESTS=NO
+
           LLDB_OPTIONS: -DLLDB_USE_SYSTEM_DEBUGSERVER=ON -DLLDB_INCLUDE_TESTS=NO -DLLDB_BUILD_FRAMEWORK=YES
           SWIFT_OPTIONS: -DSWIFT_INCLUDE_TESTS=NO
 
           RUN_TESTS: false
           RUN_VALIDATION_TESTS: false
+
+  - stage: sdk
+    pool:
+      vmImage: macOS-10.14
+    jobs:
+      - template: templates/macos-sdk.yml
+        parameters:
+          arch: x86_64
+          host: x64
+          platform: darwin
+
+          triple: x86_64-apple-macosx10.14
+
+          SWIFT_OPTIONS: -D CMAKE_CXX_FLAGS="-isystem /Applications/Xcode_11.2.1.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"
+
+          os: MacOSX
+          proc: amd64
 
   - stage: package
     pool:

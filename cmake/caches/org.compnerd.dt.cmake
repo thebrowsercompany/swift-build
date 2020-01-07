@@ -15,6 +15,18 @@ set(LLVM_EXTERNAL_PROJECTS
       swift
     CACHE STRING "")
 
+set(LLVM_ENABLE_RUNTIMES
+      compiler-rt
+    CACHE STRING "")
+
+# --- compiler-rt ---
+
+set(COMPILER_RT_BUILD_CRT NO CACHE BOOL "")
+set(COMPILER_RT_BUILD_LIBFUZZER NO CACHE BOOL "")
+set(COMPILER_RT_BUILD_PROFILE NO CACHE BOOL "")
+set(COMPILER_RT_BUILD_SANITIZERS NO CACHE BOOL "")
+set(COMPILER_RT_BUILD_XRAY NO CACHE BOOL "")
+
 # --- LLVM ---
 
 # NOTE(compnerd) enable assertions always, the toolchain will not provide enough
@@ -180,6 +192,7 @@ set(SWIFT_INSTALL_COMPONENTS
     CACHE STRING "")
 
 set(LLVM_DISTRIBUTION_COMPONENTS
+      # builtins
       IndexStore
       libclang
       libclang-headers
