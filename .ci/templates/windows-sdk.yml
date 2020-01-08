@@ -130,7 +130,27 @@ jobs:
           )
           endlocal
           goto :eof
-        displayName: 'Apply Patches'
+        displayName: Apply Patches
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - script: |
+            call :ApplyPatches "%TF4S_PR%" swift-corelibs-xctest
+
+            goto :eof
+
+            :ApplyPatches
+            setlocal
+            set list=%~1
+            set repository=%~2
+            for /F "tokens=1*" %%P in ("%list%") do (
+              git -C %repository% fetch origin pull/%%P/head
+              git -C %repository% cherry-pick FETCH_HEAD
+              if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
+            )
+            endlocal
+            goto :eof
+          displayName: Apply Patches
+
       - task: BatchScript@1
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
