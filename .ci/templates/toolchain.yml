@@ -118,11 +118,6 @@ jobs:
         displayName: checkout apple/swift
         path: s/toolchain/swift
 
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - checkout: tensorflow/swift-apis
-          displayName: checkout tensorflow/swift-apis
-          path: s/tensorflow-swift-apis
-
       - script: |
           git config --global user.name builder
           git config --global user.email builder@compnerd.org
@@ -219,10 +214,17 @@ jobs:
         displayName: Configure SDK
 
       - task: UsePythonVersion@0
-        condition: not( eq( variables['Agent.Name'], 'swift-ci' ) )
+        condition: not( or( eq( variables['Agent.Name'], 'swift-ci' ), eq( variables['Agent.OS'], 'Darwin' ) ) )
         continueOnError: true
         inputs:
           versionSpec: '2.7.x'
+        name: python
+
+      - task: UsePythonVersion@0
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+        continueOnError: true
+        inputs:
+          versionSpec: 3.x
         name: python
 
       - script: |
