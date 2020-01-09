@@ -134,21 +134,15 @@ jobs:
 
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - script: |
-            call :ApplyPatches "%TF4S_PR%" tensorflow-swift-apis
+            function ApplyPatches() {
+              local repository=${1} ; shift
+              for PR in "${@}" ; do
+                git -C ${repository} fetch origin pull/${PR}/head
+                git -C ${repository} cherry-pick FETCH_HEAD
+              done
+            }
 
-            goto :eof
-
-            :ApplyPatches
-            setlocal
-            set list=%~1
-            set repository=%~2
-            for /F "tokens=1*" %%P in ("%list%") do (
-              git -C %repository% fetch origin pull/%%P/head
-              git -C %repository% cherry-pick FETCH_HEAD
-              if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
-            )
-            endlocal
-            goto :eof
+            ApplyPatches tensorflow-swift-apis ${TF4S_PR}
           displayName: Apply Patches
 
       - task: BatchScript@1
