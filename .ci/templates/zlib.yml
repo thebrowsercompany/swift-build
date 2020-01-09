@@ -4,30 +4,47 @@ jobs:
       install.directory: $(Build.StagingDirectory)/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-$(zlib.version)
     steps:
       - checkout: self
+        displayName: checkout compnerd/swift-build
+
       - checkout: madler/zlib
+        displayName: checkout madler/zlib
+
       - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: VsDevCmd
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
           arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
           modifyEnvironment: true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'vsvarsall.bat'
+
       - script: |
           sudo apt-get -y install ninja-build
         condition: eq( variables['Agent.OS'], 'Linux' )
-        displayName: 'Install Dependencies'
+        displayName: Install Dependencies
+
       - task: CMake@1
+        displayName: Configure zlib
         inputs:
-          workingDirectory: $(Build.BinariesDirectory)/zlib
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/zlib -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
-        displayName: 'Configure zlib'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/zlib
+            -B $(Build.BinariesDirectory)/zlib
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -DBUILD_SHARED_LIBS=NO
+            -DBUILD_TESTING=NO
+            -DCMAKE_BUILD_TYPE=MinSizeRel
+            -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr
+            -DCMAKE_POSITION_INDEPENDENT_CODE=YES
+
       - task: CMake@1
+        displayName: Build zlib
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/zlib
-        displayName: 'Build zlib'
+
       - task: CMake@1
+        displayName: Install zlib
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/zlib --target install
-        displayName: 'Install zlib'
+
       - publish: $(Build.StagingDirectory)/zlib-${{ parameters.platform }}-${{ parameters.host }}
         artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}
