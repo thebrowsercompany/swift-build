@@ -317,6 +317,11 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
 
+      - script: |
+          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.BinariesDirectory)/swift-stdlib/bin;$(Build.BinariesDirectory)/libdispatch;$(Build.BinariesDirectory)/foundation/Foundation;$(Build.BinariesDirectory)/xctest;%PATH%;%ProgramFiles%\Git\usr\bin
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: Update PATH
+
       - task: CMake@1
         condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
         displayName: Re-Configure Foundation
@@ -357,11 +362,6 @@ jobs:
           echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
         condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
         displayName: Configure CTest
-
-      - script: |
-          echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.BinariesDirectory)/swift-stdlib/bin;$(Build.BinariesDirectory)/libdispatch;$(Build.BinariesDirectory)/foundation/Foundation;$(Build.BinariesDirectory)/xctest;%PATH%;%ProgramFiles%\Git\usr\bin
-        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
-        displayName: Update PATH
 
       - task: CMake@1
         condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
