@@ -19,31 +19,41 @@ jobs:
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Enable symbolic links, disable line ending conversion'
+        displayName: Enable symbolic links, disable line ending conversion
+
       - download: current
         artifact: toolchain-windows-x64
-        displayName: 'download toolchain'
+        displayName: download toolchain
+
       - download: current
         artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download SDK'
+        displayName: download SDK
+
       - download: sqlite
         artifact: sqlite-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download SQLite'
+        displayName: download SQLite
+
       - checkout: self
-        displayName: 'checkout compnerd/swift-build'
+        displayName: checkout compnerd/swift-build
+
       - checkout: apple/swift
-        displayName: 'checkout apple/swift'
+        displayName: checkout apple/swift
+
       - checkout: apple/swift-llbuild
-        displayName: 'checkout apple/swift-llbuild'
+        displayName: checkout apple/swift-llbuild
         path: s/llbuild
+
       - checkout: apple/swift-tools-support-core
-        displayName: 'checkout apple/swift-tools-support-core'
+        displayName: checkout apple/swift-tools-support-core
         path: s/tools-support-core
+
       - checkout: apple/swift-package-manager
-        displayName: 'checkout apple/swift-package-manager'
+        displayName: checkout apple/swift-package-manager
         path: s/swiftpm
+
       - checkout: apple/indexstore-db
-        displayName: 'checkout apple/indexstore-db'
+        displayName: checkout apple/indexstore-db
+
       - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
@@ -67,76 +77,115 @@ jobs:
           )
           endlocal
           goto :eof
-        displayName: 'Apply Patches'
+        displayName: Apply Patches
+
       - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: VsDevCmd
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
           arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
           modifyEnvironment: true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'vsvarsall.bat'
+
       - script: |
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Configure SDK'
+        displayName: Configure SDK
+
       - task: UsePythonVersion@0
         inputs:
           versionSpec: '2.7.x'
         name: python
         continueOnError: true
-      - task: CmdLine@2
-        inputs:
-          script: |
-            echo ##vso[task.prependpath]$(toolchain.directory)/usr/bin
+
+      - script: |
+          echo ##vso[task.prependpath]$(toolchain.directory)/usr/bin
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Update PATH'
+        displayName: Update PATH
+
       - task: CMake@1
+        displayName: Configure llbuild
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/llbuild
-          cmakeArgs: -G Ninja -S $(Build.SourcesDirectory)/llbuild -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr -DLLBUILD_SUPPORT_BINDINGS=Swift -DSQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib -DSQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
-        displayName: 'Configure llbuild'
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/llbuild
+            -B $(Build.StagingDirectory)/llbuild
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr
+            -D LLBUILD_SUPPORT_BINDINGS=Swift
+            -D SQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib
+            -D SQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
+
       - task: CMake@1
+        displayName: Build llbuild
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/llbuild
-        displayName: 'Build llbuild'
+
       - task: CMake@1
+        displayName: Install llbuild
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
-        displayName: 'Install llbuild'
+
       - task: CMake@1
-        inputs:
-          workingDirectory: $(Build.StagingDirectory)/tsc
-          cmakeArgs: -G Ninja -S $(Build.SourcesDirectory)/tools-support-core -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/TSC-development/usr
-        displayName: 'Configure tools-support-core'
+        displayName: Configure tools-support-core
         enabled: false
+        inputs:
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/tools-support-core
+            -B $(Build.StagingDirectory)/tsc
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)/TSC-development/usr
+
       - task: CMake@1
+        displayName: Build tools-support-core
+        enabled: false
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/tsc
-        displayName: 'Build tools-support-core'
-        enabled: false
+
       - task: CMake@1
+        displayName: Install tools-support-core
+        enabled: false
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
-        displayName: 'Install tools-support-core'
-        enabled: false
+
       - task: CMake@1
+        displayName: Configure IndexStoreDB
+        enabled: false
         inputs:
-          workingDirectory: $(Build.StagingDirectory)/indexstore-db
-          cmakeArgs: -G Ninja $(Build.SourcesDirectory)/indexstore-db -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake -DCMAKE_Swift_SDK=$(sdk.directory) -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr -DBUILD_SHARED_LIBS=YES -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(sdk.directory)/usr/lib/swift;$(sdk.directory)/usr/lib/swift/Block" -DCMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
-        displayName: 'Configure IndexStoreDB'
-        enabled: false
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/indexstore-db
+            -B $(Build.StagingDirectory)/indexstore-db
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr
+            -D BUILD_SHARED_LIBS=YES
+            -D CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(sdk.directory)/usr/lib/swift;$(sdk.directory)/usr/lib/swift/Block"
+            -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
+
       - task: CMake@1
+        displayName: Build IndexStoreDB
+        enabled: false
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
-        displayName: 'Build IndexStoreDB'
-        enabled: false
+
       - task: CMake@1
+        displayName: Install IndexStoreDB
+        enabled: false
         inputs:
           cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
-        displayName: 'Install IndexStoreDB'
-        enabled: false
+
       - publish: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}
         artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
