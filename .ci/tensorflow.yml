@@ -153,16 +153,16 @@ jobs:
         displayName: checkout compnerd/tensorflow
 
       - task: UsePythonVersion@0
+        displayName: configure python
         inputs:
           versionSpec: '3.x'
           addToPath: true
           architecture: 'x64'
-        displayName: 'configure python'
-        enabled: false
         name: python
 
       - task: CmdLine@2
         displayName: configure python
+        enabled: false
         inputs:
           script: |
             echo ##vso[task.prependpath]%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python37_64
@@ -187,6 +187,7 @@ jobs:
             set TF_ENABLE_XLA=1
             set TF_NEED_ROCM=0
             set TF_NEED_CUDA=0
+            set TF_CUDA_COMPUTE_CAPABILITIES=7.5
             set CC_OPT_FLAGS="/arch:AVX /D_USE_MATH_DEFINES"
             set TF_OVERRIDE_EIGEN_STRONG_INLINE=1
 
@@ -208,7 +209,7 @@ jobs:
             set BAZEL_SH=%ProgramFiles%\Git\usr\bin\bash.exe
             set BAZEL_VC=%VCINSTALLDIR%
 
-            bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build -c opt --cxxopt /D_USE_MATH_DEFINES --define framework_shared_object=false //tensorflow:libtensorflow.so
+            bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build -c opt --copt /D_USE_MATH_DEFINES --define framework_shared_object=false --config short_logs //tensorflow:tensorflow //tensorflow:tensorflow_dll_import_lib
           workingDirectory: $(Build.SourcesDirectory)/tensorflow
 
       - task: CmdLine@2
@@ -223,9 +224,9 @@ jobs:
         inputs:
           script: |
             md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\bin
-            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\libtensorflow.so $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\bin\
+            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow.dll $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\bin\
             md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\lib
-            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\libtensorflow*.lib $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\lib\
+            copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow.lib $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\lib\
             md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c
             copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
             copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api_experimental.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-2.1.0-rc1\usr\include\tensorflow\c\
