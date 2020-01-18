@@ -84,15 +84,13 @@ jobs:
         workingDirectory: $(Build.SourcesDirectory)/tensorflow
 
       - script: |
-          bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build --config opt --define framework_shared_object=false //tensorflow:libtensorflow.so
+          bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build -c opt --define framework_shared_object=false --config short_logs //tensorflow:tensorflow
         displayName: build tensorflow
         workingDirectory: $(Build.SourcesDirectory)/tensorflow
 
       - script: |
-          install_name_tool -id @rpath/libtensorflow.dylib $(Build.SourcesDirectory)/tensorflow/bazel-out/darwin-opt/bin/tensorflow/libtensorflow.so.2.1.0
-
-          mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorfow.version).0-rc1/usr/{include,lib}
-          cp -v $(Build.SourcesDirectory)/tensorflow/bazel-out/darwin-opt/bin/tensorflow/libtensorflow.so.2.1.0 $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/libtensorflow.dylib
+          mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib
+          cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/libtensorflow.2.1.0.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
 
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
@@ -193,7 +191,7 @@ jobs:
 
       - script: |
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\bin
-          copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow.dll $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\bin\
+          copy $(Build.SourcesDirectory)\tensorflow\bazel-bin\tensorflow\tensorflow.dll $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\bin\
 
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\lib
           copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow.lib $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\lib\
