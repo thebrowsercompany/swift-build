@@ -1,0 +1,31 @@
+jobs:
+  - job: ${{ parameters.host }}
+    variables:
+      platform.directory: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform
+      sdk.directory: $(platform.directory)/Developer/SDKs/${{ parameters.os }}.sdk
+    steps:
+      - checkout: self
+        displayName: checkout compnerd/swift-build
+
+      - checkout: apple/swift
+        displayName: checkout apple/swift
+
+      - download: current
+        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+
+      - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: VsDevCmd.bat
+        inputs:
+          filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
+          arguments: -no_logo -arch=x64 -host_arch=x64
+          modifyEnvironment: true
+
+      - task: MSBuild@1
+        displayName: ${{ parameters.platform }}-${{ parameters.host }}-sdk.msi
+        inputs:
+          solution: $(Build.SourcesDirectory)/swift-build/wix/windows-sdk.wixproj
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
+
+      - publish: $(Build.SourcesDirectory)/swift-build/wix/build/sdk.msi
+        artifact: ${{ parameters.platform }}-${{ parameters.host }}.msi
