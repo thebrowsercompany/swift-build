@@ -25,10 +25,10 @@ RUN apt-get -yq update                                                          
  && apt-get -yq update                                                          \
  && apt-get -yq install --no-install-recommends cmake                           \
  && apt-get -yq install --no-install-recommends swift-toolchain swift-icu swift-android-sdk swift-linux-sdk swift-windows-sdk swift-devtools \
- && curl -OL ${CODE_SERVER}                                                     \
+ && curl -qOL ${CODE_SERVER}                                                    \
  && tar zxf code-server*.tar.gz                                                 \
  && cp code-server*/code-server /bin/code-server                                \
- && curl -OL ${MS_VSCODE_CMAKE_TOOLS}                                           \
+ && curl -qOL ${MS_VSCODE_CMAKE_TOOLS}                                          \
  && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix  \
  && rm -rf code-server*                                                         \
  && rm -rf *.vsix                                                               \
