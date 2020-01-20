@@ -15,8 +15,8 @@ ARG DEBCONF_NONINTERACTIVE_SEEN=true
 RUN apt-get -yq update                                                          \
  && apt-get -yq upgrade                                                         \
  && apt-get -yq install --no-install-recommends                                 \
-     ca-certificates curl gnupg                                                 \
-     dumb-init libatomic1 libedit2 libpython2.7                                 \
+     curl gnupg                                                                 \
+     ca-certificates dumb-init libatomic1 libedit2 libpython2.7                 \
      git ninja-build                                                            \
      libc6-dev libgcc-8-dev libncurses-dev libstdc++-8-dev                      \
  && curl -qL https://apt.kitware.com/keys/kitware-archive-latest.asc | apt-key add -        \
@@ -32,7 +32,7 @@ RUN apt-get -yq update                                                          
  && code-server --extensions-dir "/Library/Application Support/com.coder.code-server/extensions" --install-extension cmaketools.vsix  \
  && rm -rf code-server*                                                         \
  && rm -rf *.vsix                                                               \
- && apt-get -yq purge --auto-remove ca-certificates curl gnupg                  \
+ && apt-get -yq purge --auto-remove curl gnupg                                  \
  && apt-get clean                                                               \
  && rm -rf /tmp/* /var/tmp/* /var/lib/apt/archive/* /var/lib/apt/lists/*
 
