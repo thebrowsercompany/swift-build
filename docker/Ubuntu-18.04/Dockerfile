@@ -4,7 +4,7 @@ FROM ubuntu:18.04 as ubuntu
 
 LABEL maintainer="compnerd@compnerd.org"
 
-ARG CODE_SERVER=https://github.com/cdr/code-server/releases/download/2.1692-vsc1.39.2/code-server2.1692-vsc1.39.2-linux-x86_64.tar.gz
+ARG CODE_SERVER=https://github.com/cdr/code-server/releases/download/2.1698/code-server2.1698-vsc1.41.1-linux-x86_64.tar.gz
 # TODO(compnerd) why can this not be installed by name? (ms-vscode.cmake-tools)
 ARG MS_VSCODE_CMAKE_TOOLS=https://github.com/microsoft/vscode-cmake-tools/releases/download/v1.2.2/cmaketools.vsix
 
