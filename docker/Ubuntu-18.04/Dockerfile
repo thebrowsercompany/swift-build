@@ -17,13 +17,13 @@ RUN apt-get -yq update                                                          
      ca-certificates dumb-init libatomic1 libedit2 libpython2.7                 \
      git ninja-build                                                            \
      libc6-dev libgcc-8-dev libncurses-dev libstdc++-8-dev                      \
- && curl -qL https://apt.kitware.com/keys/kitware-archive-latest.asc | apt-key add -        \
+ && curl -sL https://apt.kitware.com/keys/kitware-archive-latest.asc | apt-key add -        \
  && echo 'deb https://apt.kitware.com/ubuntu/ bionic main' >> /etc/apt/sources.list         \
  && echo 'deb [trusted=yes] https://swift.apt.compnerd.org/apt/ /' >> /etc/apt/sources.list \
  && apt-get -yq update                                                          \
  && apt-get -yq install --no-install-recommends cmake                           \
  && apt-get -yq install --no-install-recommends swift-toolchain swift-icu swift-android-sdk swift-linux-sdk swift-windows-sdk swift-devtools \
- && curl -qOL ${CODE_SERVER}                                                    \
+ && curl -sOL ${CODE_SERVER}                                                    \
  && tar zxf code-server*.tar.gz                                                 \
  && cp code-server*/code-server /bin/code-server                                \
  && rm -rf code-server*                                                         \
