@@ -211,11 +211,6 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib
 
       - task: CMake@1
-        displayName: Install Swift Standard Library
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib --target install
-
-      - task: CMake@1
         displayName: Configure libdispatch
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/libdispatch
@@ -224,36 +219,17 @@ jobs:
             -S $(Build.SourcesDirectory)/swift-corelibs-libdispatch
             -B $(Build.BinariesDirectory)/libdispatch
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
-            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_INSTALL_PREFIX=$(install.directory)
-            -D BUILD_TESTING=YES
+            -D BUILD_TESTING=NO
             -D ENABLE_SWIFT=YES
 
       - task: CMake@1
         displayName: Build libdispatch
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch
-
-      - script: |
-          echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
-        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
-        displayName: Configure CTest
-
-      - task: CMake@1
-        displayName: Test libdispatch
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target ExperimentalTest
-        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
-        continueOnError: true
-
-      - task: PublishTestResults@2
-        condition: and( eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' ), succeededOrFailed() )
-        displayName: Publish libdispatch test results
-        inputs:
-          testResultsFormat: cTest
-          testResultsFiles: $(Build.BinariesDirectory)/libdispatch/Testing/*/Test.xml
 
       - task: CopyFiles@2
         displayName: 'Workaround CMake<3.16'
@@ -271,7 +247,7 @@ jobs:
             -S $(Build.SourcesDirectory)/swift-corelibs-foundation
             -B $(Build.BinariesDirectory)/foundation
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
-            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_INSTALL_PREFIX=$(install.directory)
@@ -304,7 +280,7 @@ jobs:
             -S $(Build.SourcesDirectory)/swift-corelibs-xctest
             -B $(Build.BinariesDirectory)/xctest
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
-            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_INSTALL_PREFIX=$(xctest.install.directory)
@@ -317,6 +293,69 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
 
+      - task: CMake@1
+        displayName: Install Swift Standard Library
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-stdlib --target install
+
+      - task: CMake@1
+        displayName: Install Foundation
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/foundation --target install
+
+      - task: CMake@1
+        displayName: Install XCTest
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/xctest --target install
+
+      - task: CMake@1
+        displayName: Install libdispatch
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
+
+      - publish: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}
+        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+
+      - task: CMake@1
+        displayName: Reconfigure libdispatch
+        inputs:
+          workingDirectory: $(Build.BinariesDirectory)/libdispatch
+          cmakeArgs:
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-corelibs-libdispatch
+            -B $(Build.BinariesDirectory)/libdispatch
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)
+            -D BUILD_TESTING=YES
+            -D ENABLE_SWIFT=YES
+
+      - task: CMake@1
+        displayName: Rebuild libdispatch
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch
+
+      - script: |
+          echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        displayName: Configure CTest
+
+      - task: CMake@1
+        displayName: Test libdispatch
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target ExperimentalTest
+        condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
+        continueOnError: true
+
+      - task: PublishTestResults@2
+        condition: and( eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' ), succeededOrFailed() )
+        displayName: Publish libdispatch test results
+        inputs:
+          testResultsFormat: cTest
+          testResultsFiles: $(Build.BinariesDirectory)/libdispatch/Testing/*/Test.xml
+
       - script: |
           echo ##vso[task.setvariable variable=PATH]$(icu.directory)/usr/bin;$(Build.BinariesDirectory)/swift-stdlib/bin;$(Build.BinariesDirectory)/libdispatch;$(Build.BinariesDirectory)/foundation/Foundation;$(Build.BinariesDirectory)/xctest;%PATH%;%ProgramFiles%\Git\usr\bin
         condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
@@ -324,7 +363,7 @@ jobs:
 
       - task: CMake@1
         condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
-        displayName: Re-Configure Foundation
+        displayName: Reconfigure Foundation
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/foundation
           cmakeArgs:
@@ -332,7 +371,7 @@ jobs:
             -S $(Build.SourcesDirectory)/swift-corelibs-foundation
             -B $(Build.BinariesDirectory)/foundation
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
-            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_INSTALL_PREFIX=$(install.directory)
@@ -354,7 +393,7 @@ jobs:
 
       - task: CMake@1
         condition: eq( variables['Agent.OSArchitecture'], '${{ parameters.host }}' )
-        displayName: Re-build Foundation
+        displayName: Rebuild Foundation
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/foundation
 
@@ -376,21 +415,3 @@ jobs:
         inputs:
           testResultsFormat: cTest
           testResultsFiles: $(Build.BinariesDirectory)/foundation/Testing/*/Test.xml
-
-      - task: CMake@1
-        displayName: Install Foundation
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/foundation --target install
-
-      - task: CMake@1
-        displayName: Install XCTest
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/xctest --target install
-
-      - task: CMake@1
-        displayName: Install libdispatch
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
-
-      - publish: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}
-        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
