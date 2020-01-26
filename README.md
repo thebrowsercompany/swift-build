@@ -5,7 +5,7 @@
 - [**//swift/build**](#--swift-build---)
   * [Getting Started (Docker)](#getting-started--Docker-)
     + [Hello World (CMake)](#minimal-hello-world--cmake-)
-    + [Windows](#windows)
+  * [Getting Started (Windows)](#windows)
   * [Status](#status)
 
 ## Getting Started (Docker)
@@ -27,7 +27,7 @@ $ docker run --rm --publish 127.0.0.1:8080:8080 --volume $HOME/projects/myprojec
 First, clone the examples repository:
 
 ```Shell
-$ git clone https://github.com/compnerd/swift-windows-examples.git
+$ git clone https://github.com/compnerd/swift-build-examples.git
 ```
 
 Next, make a directory for the binary output (remember to substitute your own path!):
@@ -38,7 +38,7 @@ $ mkdir -p $HOME/bin/HelloMinimal-CMake
 Next start up the build environment:
 
 ```Shell
-$ docker run --rm --publish 127.0.0.1:8080:8080 --volume /path/to/swift-windows-examples/HelloMinimal-CMake:/SourceCache/HelloMinimal-CMake --volume $HOME/bin/HelloMinimal-CMake:/BinaryCache/HelloMinimal-CMake compnerd/swift:latest
+$ docker run --rm --publish 127.0.0.1:8080:8080 --volume /path/to/swift-build-examples/HelloMinimal-CMake:/SourceCache/HelloMinimal-CMake --volume $HOME/bin/HelloMinimal-CMake:/BinaryCache/HelloMinimal-CMake compnerd/swift:latest
 ```
 
 Navigate to localhost in your browser: http://127.0.0.1:8080/. Or, if you want to open a workspace directly, you can provide a path: http://localhost:8080/?folder=/SourceCache/HelloMinimal-CMake
