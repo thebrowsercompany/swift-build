@@ -314,6 +314,31 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
 
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - task: CMake@1
+          displayName: Configure tensorflow-swift-apis
+          inputs:
+            cmakeArgs:
+              -B $(Build.BinariesDirectory)/tensorflow-swift-apis
+              -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
+              -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+              -D CMAKE_BUILD_TYPE=Release
+              -D CMAKE_INSTALL_PREFIX=$(install.directory)
+              -D TensorFlow_INCLUDE_DIR=$(tensorflow.directory)/usr/include
+              -D TensorFlow_LIBRARY=$(tensorflow.directory)/usr/lib/tensorflow.lib
+              -G Ninja
+              -S $(Build.SourcesDirectory)/tensorflow-swift-apis
+
+        - task: CMake@1
+          displayName: Build tensorflow-swift-apis
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis
+
+        - task: CMake@1
+          displayName: Install tensorflow-swift-apis
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis --target install
+
       - task: CMake@1
         displayName: Install Swift Standard Library
         inputs:
