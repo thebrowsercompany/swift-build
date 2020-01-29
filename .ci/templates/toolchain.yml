@@ -100,12 +100,18 @@ jobs:
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: Enable symbolic links, disable line ending conversion
 
+      # The checkout list has to match with the windows-sdk.yml checkout list.
+      # Otherwise Azure will create different directories for each build.
       - checkout: self
         displayName: checkout compnerd/swift-build
 
       - checkout: apple/llvm-project
         displayName: checkout apple/llvm-project
         path: s/toolchain
+
+      - checkout: apple/swift
+        displayName: checkout apple/swift
+        path: s/toolchain/swift
 
       - checkout: apple/swift-cmark
         displayName: checkout apple/swift-cmark
@@ -114,9 +120,16 @@ jobs:
       - checkout: apple/swift-corelibs-libdispatch
         displayName: checkout apple/swift-corelibs-libdispatch
 
-      - checkout: apple/swift
-        displayName: checkout apple/swift
-        path: s/toolchain/swift
+      - checkout: apple/swift-corelibs-foundation
+        displayName: checkout apple/swift-corelibs-foundation
+
+      - checkout: apple/swift-corelibs-xctest
+        displayName: checkout apple/swift-corelibs-xctest
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - checkout: tensorflow/swift-apis
+          displayName: checkout tensorflow/swift-apis
+          path: s/tensorflow-swift-apis
 
       - script: |
           git config --global user.name builder
