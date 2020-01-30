@@ -48,35 +48,52 @@ jobs:
     steps:
       - download: current
         artifact: toolchain-linux-x64
-        displayName: 'download toolchain'
+        displayName: download toolchain
+
       - download: icu
         artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download ICU'
+        displayName: download ICU
+
       - download: xml2
         artifact: xml2-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download XML2'
+        displayName: download XML2
+
       - download: curl
         artifact: curl-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download CURL'
+        displayName: download CURL
+
       - download: zlib
         artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download zlib'
+        displayName: download zlib
+
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Enable symbolic links, disable line ending conversion'
+        displayName: Enable symbolic links, disable line ending conversion
+
       - checkout: self
+        displayName: checkout compnerd/swift-build
+
       - checkout: apple/llvm-project
-        displayName: 'checkout apple/llvm-project'
+        displayName: checkout apple/llvm-project
+
       - checkout: apple/swift
-        displayName: 'checkout apple/swift'
+        displayName: checkout apple/swift
+
+      - checkout: apple/swift-cmark
+        displayName: checkout apple/swift-cmark
+        path: s/toolchain/cmark
+
       - checkout: apple/swift-corelibs-libdispatch
-        displayName: 'checkout apple/swift-corelibs-libdispatch'
+        displayName: checkout apple/swift-corelibs-libdispatch
+
       - checkout: apple/swift-corelibs-foundation
-        displayName: 'checkout apple/swift-corelibs-foundation'
+        displayName: checkout apple/swift-corelibs-foundation
+
       - checkout: apple/swift-corelibs-xctest
-        displayName: 'checkout apple/swift-corelibs-xctest'
+        displayName: checkout apple/swift-corelibs-xctest
+
       - script: |
           function ApplyPatches() {
             local repository=${1} ; shift
