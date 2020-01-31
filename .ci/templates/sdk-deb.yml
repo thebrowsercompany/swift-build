@@ -4,12 +4,57 @@ jobs:
       platform.directory: $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library/Developer/Platforms/${{ parameters.os }}.platform
       sdk.directory: $(platform.directory)/Developer/SDKs/${{ parameters.os }}.sdk
     steps:
-      - checkout: self
-        displayName: 'checkout compnerd/swift-build'
-      - checkout: apple/swift-cmark
-        displayName: 'checkout apple/swift-cmark'
       - download: current
         artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+
+      - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: Enable symbolic links, disable line ending conversion
+
+      - checkout: self
+        displayName: checkout compnerd/swift-build
+
+      - checkout: apple/llvm-project
+        displayName: checkout apple/llvm-project
+
+      - checkout: apple/swift
+        displayName: checkout apple/swift
+
+      - checkout: apple/swift-cmark
+        displayName: checkout apple/swift-cmark
+        path: s/toolchain/cmark
+
+      - checkout: apple/swift-corelibs-libdispatch
+        displayName: checkout apple/swift-corelibs-libdispatch
+
+      - checkout: apple/swift-corelibs-foundation
+        displayName: checkout apple/swift-corelibs-foundation
+
+      - checkout: apple/swift-corelibs-xctest
+        displayName: checkout apple/swift-corelibs-xctest
+
+      - checkout: apple/swift-llbuild
+        displayName: checkout apple/swift-llbuild
+        path: s/llbuild
+
+      - checkout: apple/swift-tools-support-core
+        displayName: checkout apple/swift-tools-support-core
+        path: s/tools-support-core
+
+      - checkout: apple/swift-package-manager
+        displayName: checkout apple/swift-package-manager
+        path: s/swiftpm
+
+      - checkout: apple/indexstore-db
+        displayName: checkout apple/indexstore-db
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - checkout: tensorflow/swift-apis
+          displayName: checkout tensorflow/swift-apis
+          path: s/tensorflow-swift-apis
+
       - script: |
           mkdir -p $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library
           rsync -v -a -l $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Developer $(Build.StagingDirectory)/swift-${{ parameters.platform }}-sdk/Library

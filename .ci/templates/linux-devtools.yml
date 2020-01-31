@@ -12,35 +12,66 @@ jobs:
       IndexStoreDB.version: development
       SwiftPM.version: development
     steps:
+      - download: current
+        artifact: toolchain-linux-x64
+        displayName: download toolchain
+
+      - download: current
+        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+        displayName: download SDK
+
+      - download: sqlite
+        artifact: sqlite-${{ parameters.platform }}-${{ parameters.host }}
+        displayName: download SQLite
+
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'Enable symbolic links, disable line ending conversion'
-      - download: current
-        artifact: toolchain-linux-x64
-        displayName: 'download toolchain'
-      - download: current
-        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download SDK'
-      - download: sqlite
-        artifact: sqlite-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download SQLite'
+        displayName: Enable symbolic links, disable line ending conversion
+
       - checkout: self
-        displayName: 'checkout compnerd/swift-build'
+        displayName: checkout compnerd/swift-build
+
+      - checkout: apple/llvm-project
+        displayName: checkout apple/llvm-project
+
       - checkout: apple/swift
-        displayName: 'checkout apple/swift'
+        displayName: checkout apple/swift
+
+      - checkout: apple/swift-cmark
+        displayName: checkout apple/swift-cmark
+        path: s/toolchain/cmark
+
+      - checkout: apple/swift-corelibs-libdispatch
+        displayName: checkout apple/swift-corelibs-libdispatch
+
+      - checkout: apple/swift-corelibs-foundation
+        displayName: checkout apple/swift-corelibs-foundation
+
+      - checkout: apple/swift-corelibs-xctest
+        displayName: checkout apple/swift-corelibs-xctest
+
       - checkout: apple/swift-llbuild
-        displayName: 'checkout apple/swift-llbuild'
+        displayName: checkout apple/swift-llbuild
         path: s/llbuild
+
       - checkout: apple/swift-tools-support-core
-        displayName: 'checkout apple/swift-tools-support-core'
+        displayName: checkout apple/swift-tools-support-core
         path: s/tools-support-core
+
       - checkout: apple/swift-package-manager
-        displayName: 'checkout apple/swift-package-manager'
+        displayName: checkout apple/swift-package-manager
         path: s/swiftpm
+
       - checkout: apple/indexstore-db
-        displayName: 'checkout apple/indexstore-db'
+        displayName: checkout apple/indexstore-db
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - checkout: tensorflow/swift-apis
+          displayName: checkout tensorflow/swift-apis
+          path: s/tensorflow-swift-apis
+
       - script: |
           function ApplyPatches() {
             local repository=${1} ; shift
