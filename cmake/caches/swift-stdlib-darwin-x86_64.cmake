@@ -11,3 +11,6 @@ set(SWIFT_BUILD_SOURCEKIT NO CACHE BOOL "")
 
 # build with the host compiler
 set(SWIFT_BUILD_RUNTIME_WITH_HOST_COMPILER YES CACHE BOOL "")
+
+# always use a @rpath relative name for custom SDKs
+set(SWIFT_DARWIN_STDLIB_INSTALL_NAME_DIR "@rpath" CACHE STRING "")
