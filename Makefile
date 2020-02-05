@@ -79,21 +79,52 @@ SwiftStandardLibraryTarget := swift-stdlib-$(shell echo $(HostOS) | tr '[A-Z]' '
 
 DESTDIR := $(or $(DESTDIR),$(SourceDir)/prebuilt/$(Host)/Developer/Toolchains/$(XCToolchain)/usr)
 
-# --- toolchain ---
-.PHONY: toolchain
-toolchain: $(BuildDir)/toolchain/build.ninja
-toolchain:
-	"$(CMake)" -E env DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/toolchain install-distribution$(InstallVariant)
+# --- toolchain-tools ---
+$(SourceDir)/build/Release/$(Build)/toolchain-tools/build.ninja:
+	"$(CMake)"                                                             \
+	  -B $(SourceDir)/build/Release/$(Build)/toolchain-tools               \
+	  -D CMAKE_BUILD_TYPE=Release                                          \
+	  -D CMAKE_MAKE_PROGRAM="$(Ninja)"                                     \
+	  -D LLVM_DISABLE_PYTHON=YES                                           \
+	  -D LLVM_ENABLE_ASSERTIONS=NO                                         \
+	  -D LLVM_ENABLE_PROJECTS="clang;lldb"                                 \
+	  -G Ninja                                                             \
+	  -S $(SourceDir)/llvm-project/llvm
 
+$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/clang-tblgen: $(SourceDir)/build/Release/$(Build)/toolchain-tools/build.ninja
+$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/clang-tblgen:
+	"$(Ninja)" -C $(SourceDir)/build/Release/$(Build)/toolchain-tools clang-tblgen
+
+$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/lldb-tblgen: $(SourceDir)/build/Release/$(Build)/toolchain-tools/build.ninja
+$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/lldb-tblgen:
+	"$(Ninja)" -C $(SourceDir)/build/Release/$(Build)/toolchain-tools lldb-tblgen
+
+$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/llvm-tblgen: $(SourceDir)/build/Release/$(Build)/toolchain-tools/build.ninja
+$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/llvm-tblgen:
+	"$(Ninja)" -C $(SourceDir)/build/Release/$(Build)/toolchain-tools llvm-tblgen
+
+# --- toolchain ---
+$(BuildDir)/toolchain/build.ninja: $(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/clang-tblgen
+$(BuildDir)/toolchain/build.ninja: $(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/lldb-tblgen
+$(BuildDir)/toolchain/build.ninja: $(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/llvm-tblgen
 $(BuildDir)/toolchain/build.ninja:
 	"$(CMake)" $(CMakeFlags)                                               \
 	  -B $(BuildDir)/toolchain                                             \
 	  -D LLVM_ENABLE_ASSERTIONS=$(AssertsEnabled)                          \
+	  -D LLVM_USE_HOST_TOOLS=NO                                            \
+	  -D CLANG_TABLEGEN=$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/clang-tblgen \
+	  -D LLDB_TABLEGEN=$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/lldb-tblgen \
+	  -D LLVM_TABLEGEN=$(SourceDir)/build/Release/$(Build)/toolchain-tools/bin/llvm-tblgen \
 	  -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(SourceDir)/swift-corelibs-libdispatch \
 	  -C $(CMakeCaches)/toolchain-common.cmake                             \
 	  -C $(CMakeCaches)/toolchain.cmake                                    \
 	  -C $(CMakeCaches)/toolchain-$(Host).cmake                            \
 	  -S $(SourceDir)/llvm
+
+.PHONY: toolchain
+toolchain: $(BuildDir)/toolchain/build.ninja
+toolchain:
+	"$(CMake)" -E env DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/toolchain install-distribution$(InstallVariant)
 
 # --- swift-stdlib ---
 define build-swift-stdlib
