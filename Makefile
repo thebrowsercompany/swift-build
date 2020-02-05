@@ -83,7 +83,7 @@ DESTDIR := $(or $(DESTDIR),$(SourceDir)/prebuilt/$(Host)/Developer/Toolchains/$(
 .PHONY: toolchain
 toolchain: $(BuildDir)/toolchain/build.ninja
 toolchain:
-	DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/toolchain install-distribution$(InstallVariant)
+	"$(CMake)" -E env DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/toolchain install-distribution$(InstallVariant)
 
 $(BuildDir)/toolchain/build.ninja:
 	"$(CMake)" $(CMakeFlags)                                               \
@@ -99,7 +99,7 @@ $(BuildDir)/toolchain/build.ninja:
 define build-swift-stdlib
 swift-stdlib-$(1): $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)/build.ninja
 swift-stdlib-$(1):
-	DESTDIR=$(DESTDIR) "$(Ninja)" -C $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1) install
+	"$(CMake)" -E env DESTDIR=$(DESTDIR) "$(Ninja)" -C $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1) install
 
 $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)/build.ninja:
 	"$$(CMake)" $$(CMakeFlags)                                             \
@@ -115,7 +115,7 @@ $(foreach target,$(swift-stdlib-targets),$(eval $(call build-swift-stdlib,$(targ
 # --- libdispatch ---
 .PHONY: swift-corelibs-libdispatch
 swift-corelibs-libdispatch: $(BuildDir)/swift-corelibs-libdispatch/build.ninja
-	DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/swift-corelibs-libdispatch install
+	"$(CMake)" -E env DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/swift-corelibs-libdispatch install
 
 $(BuildDir)/swift-corelibs-libdispatch/build.ninja: bootstrap-target-swift
 $(BuildDir)/swift-corelibs-libdispatch/build.ninja:
@@ -130,7 +130,7 @@ $(BuildDir)/swift-corelibs-libdispatch/build.ninja:
 swift-corelibs-foundation: bootstrap-target-swift
 swift-corelibs-foundation: $(BuildDir)/swift-corelibs-foundation/build.ninja
 swift-corelibs-foundation:
-	DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/swift-corelibs-foundation install
+	"$(CMake)" -E env DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/swift-corelibs-foundation install
 
 $(BuildDir)/swift-corelibs-foundation/build.ninja: swift-corelibs-libdispatch
 $(BuildDir)/swift-corelibs-foundation/build.ninja:
