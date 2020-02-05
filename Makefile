@@ -68,36 +68,16 @@ CMakeFlags := -G Ninja                                                         \
 # inform the build where the source tree resides
 CMakeFlags += -DTOOLCHAIN_SOURCE_DIR=$(SourceDir)
 
-ifeq ($(BOOTSTRAP),)
-  CMakeFlags += -DCMAKE_TOOLCHAIN_FILE=$(CMakeToolchains)/Toolchain-bootstrap.cmake
-ifneq ($(MAKECMDGOALS),bootstrap-target-swift)
-  CMakeFlags += -DCMAKE_SYSTEM_NAME=$(HostOS) -DCMAKE_SYSTEM_PROCESSOR=$(HostArch)
-endif
-else
-  CMakeFlags += -DCMAKE_TOOLCHAIN_FILE=$(CMakeToolchains)/Toolchain-$(Host).cmake
-  CMakeFlags += -DCMAKE_SYSTEM_NAME=$(HostOS) -DCMAKE_SYSTEM_PROCESSOR=$(HostArch)
-endif
+CMakeFlags += -DCMAKE_TOOLCHAIN_FILE=$(CMakeToolchains)/Toolchain-$(Host).cmake
+CMakeFlags += -DCMAKE_SYSTEM_NAME=$(HostOS) -DCMAKE_SYSTEM_PROCESSOR=$(HostArch)
 
 Vendor := unknown
 Version := Default
 
 XCToolchain = $(Vendor)-$(AssertsVariant)-$(Version).xctoolchain
-BootstrapXCToolchain = unknown-Asserts-bootstrap.xctoolchain
 SwiftStandardLibraryTarget := swift-stdlib-$(shell echo $(HostOS) | tr '[A-Z]' '[a-z]')
 
 DESTDIR := $(or $(DESTDIR),$(SourceDir)/prebuilt/$(Host)/Developer/Toolchains/$(XCToolchain)/usr)
-
-# --- bootstrap ---
-.PHONY: bootstrap-toolchain
-bootstrap-toolchain: BootstrapToolchain := $(SourceDir)/build/Release/$(Build)/Developer/Toolchains/$(BootstrapXCToolchain)
-bootstrap-toolchain:
-	$(MAKE) BOOTSTRAP=1 DESTDIR=$(BootstrapToolchain)/usr BuildType=Release Host=$(Build) toolchain
-
-.PHONY: bootstrap-target-swift
-bootstrap-target-swift: bootstrap-toolchain
-bootstrap-target-swift: BootstrapToolchain := $(SourceDir)/build/Release/$(Build)/Developer/Toolchains/$(BootstrapXCToolchain)
-bootstrap-target-swift:
-	$(MAKE) DESTDIR=$(BootstrapToolchain)/usr BuildType=$(BuildType) $(SwiftStandardLibraryTarget)
 
 # --- toolchain ---
 .PHONY: toolchain
@@ -105,9 +85,6 @@ toolchain: $(BuildDir)/toolchain/build.ninja
 toolchain:
 	DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/toolchain install-distribution$(InstallVariant)
 
-ifeq ($(BOOTSTRAP),)
-$(BuildDir)/toolchain/build.ninja: bootstrap-toolchain
-endif
 $(BuildDir)/toolchain/build.ninja:
 	"$(CMake)" $(CMakeFlags)                                               \
 	  -B $(BuildDir)/toolchain                                             \
@@ -120,7 +97,6 @@ $(BuildDir)/toolchain/build.ninja:
 
 # --- swift-stdlib ---
 define build-swift-stdlib
-# swift-stdlib-$(1): bootstrap-toolchain
 swift-stdlib-$(1): $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)/build.ninja
 swift-stdlib-$(1):
 	DESTDIR=$(DESTDIR) "$(Ninja)" -C $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1) install
@@ -141,7 +117,7 @@ $(foreach target,$(swift-stdlib-targets),$(eval $(call build-swift-stdlib,$(targ
 swift-corelibs-libdispatch: $(BuildDir)/swift-corelibs-libdispatch/build.ninja
 	DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/swift-corelibs-libdispatch install
 
-$(BuildDir)/swift-corelibs-libdispatch/build.ninja: bootstrap-toolchain bootstrap-target-swift
+$(BuildDir)/swift-corelibs-libdispatch/build.ninja: bootstrap-target-swift
 $(BuildDir)/swift-corelibs-libdispatch/build.ninja:
 	"$(CMake)" $(CMakeFlags)                                               \
 	  -B $(BuildDir)/swift-corelibs-libdispatch                            \
@@ -156,7 +132,6 @@ swift-corelibs-foundation: $(BuildDir)/swift-corelibs-foundation/build.ninja
 swift-corelibs-foundation:
 	DESTDIR=$(DESTDIR) "$(Ninja)" -C $(BuildDir)/swift-corelibs-foundation install
 
-$(BuildDir)/swift-corelibs-foundation/build.ninja: bootstrap-toolchain
 $(BuildDir)/swift-corelibs-foundation/build.ninja: swift-corelibs-libdispatch
 $(BuildDir)/swift-corelibs-foundation/build.ninja:
 	"$(CMake)" $(CMakeFlags)                                               \
