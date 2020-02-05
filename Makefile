@@ -1,9 +1,23 @@
 
-BuildOS := $(shell uname -s)
-BuildArch := $(shell uname -m)
-ifeq ($(BuildArch),amd64)
-  BuildArch := x86_64
+ifeq ($(OS),Windows_NT)
+  BuildOS := Windows
+  ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
+    BuildArch := x86_64
+  else ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+    BuildArch := x86_64
+  else ifeq ($(PROCESSOR_ARCHITECTURE),X86)
+    BuildArch := i686
+  else
+    $(error "Unknown processor: $(PROCESSOR_ARCHITECTURE)")
+  endif
+else
+  BuildOS := $(shell uname -s)
+  BuildArch := $(shell uname -m)
+  ifeq ($(BuildArch),amd64)
+    BuildArch := x86_64
+  endif
 endif
+
 Build := $(BuildOS)-$(BuildArch)
 
 #  BuildType | CMake Build Type | Debug | Strip | Asserts
@@ -38,8 +52,13 @@ CMakeCaches := $(SourceDir)/infrastructure/cmake/caches
 CMakeScripts := $(SourceDir)/infrastructure/cmake/scripts
 CMakeToolchains := $(SourceDir)/infrastructure/cmake/toolchains
 
-CMake := $(shell which cmake)
-Ninja := $(shell which ninja)
+ifeq ($(OS),Windows_NT)
+  CMake := $(shell where cmake)
+  Ninja := $(shell where ninja)
+else
+  CMake := $(shell which cmake)
+  Ninja := $(shell which ninja)
+endif
 
 CMakeFlags := -G Ninja                                                         \
               -DCMAKE_MAKE_PROGRAM=$(Ninja)                                    \
