@@ -1,7 +1,3 @@
-need := 3.82
-ifneq ($(need), $(firstword $(sort $(MAKE_VERSION) $(need))))
-  $(error You need at least make version >= $(need))
-endif
 
 BuildOS := $(shell uname -s)
 BuildArch := $(shell uname -m)
@@ -90,20 +86,18 @@ toolchain: $(BuildDir)/toolchain/build.ninja
 toolchain:
 	DESTDIR=$(DESTDIR) $(Ninja) -C $(BuildDir)/toolchain install-distribution$(InstallVariant)
 
-.ONESHELL: $(BuildDir)/toolchain/build.ninja
 ifeq ($(BOOTSTRAP),)
 $(BuildDir)/toolchain/build.ninja: bootstrap-toolchain
 endif
 $(BuildDir)/toolchain/build.ninja:
-	mkdir -p $(BuildDir)/toolchain
-	cd $(BuildDir)/toolchain
-	$(CMake) $(CMakeFlags)                                                 \
-	  -DLLVM_ENABLE_ASSERTIONS=$(AssertsEnabled)                           \
-	  -DSWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(SourceDir)/swift-corelibs-libdispatch \
+	$(CMake) $(CMakeFlags)                                                  \
+	  -B $(BuildDir)/toolchain                                              \
+	  -D LLVM_ENABLE_ASSERTIONS=$(AssertsEnabled)                           \
+	  -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(SourceDir)/swift-corelibs-libdispatch \
 	  -C $(CMakeCaches)/toolchain-common.cmake                             \
 	  -C $(CMakeCaches)/toolchain.cmake                                    \
 	  -C $(CMakeCaches)/toolchain-$(Host).cmake                            \
-	$(SourceDir)/llvm
+	  -S $(SourceDir)/llvm
 
 # --- swift-stdlib ---
 define build-swift-stdlib
@@ -112,14 +106,12 @@ swift-stdlib-$(1): $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)/build.nin
 swift-stdlib-$(1):
 	DESTDIR=$(DESTDIR) $(Ninja) -C $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1) install
 
-.ONESHELL: $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)/build.ninja
 $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)/build.ninja:
-	mkdir -p $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)
-	cd $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)
 	$$(CMake) $$(CMakeFlags)                                               \
+	  -B $$(SourceDir)/build/$$(BuildType)/swift-stdlib-$(1)               \
 	  -C $$(CMakeCaches)/swift-stdlib-common.cmake                         \
 	  -C $$(CMakeCaches)/swift-stdlib-$(1).cmake                           \
-	$$(SourceDir)/swift
+	  -S $$(SourceDir)/swift
 endef
 
 swift-stdlib-targets := linux windows android
@@ -130,15 +122,13 @@ $(foreach target,$(swift-stdlib-targets),$(eval $(call build-swift-stdlib,$(targ
 swift-corelibs-libdispatch: $(BuildDir)/swift-corelibs-libdispatch/build.ninja
 	DESTDIR=$(DESTDIR) $(Ninja) -C $(BuildDir)/swift-corelibs-libdispatch install
 
-.ONESHELL: $(BuildDir)/swift-corelibs-libdispatch/build.ninja
 $(BuildDir)/swift-corelibs-libdispatch/build.ninja: bootstrap-toolchain bootstrap-target-swift
 $(BuildDir)/swift-corelibs-libdispatch/build.ninja:
-	mkdir -p $(BuildDir)/swift-corelibs-libdispatch
-	cd $(BuildDir)/swift-corelibs-libdispatch
 	$(CMake) $(CMakeFlags)                                                 \
+	  -B $(BuildDir)/swift-corelibs-libdispatch                            \
 	  -C $(CMakeCaches)/swift-corelibs-libdispatch-$(Host).cmake           \
-	  -DSwift_DIR=$(SourceDir)/build/$(BuildType)/$(SwiftStandardLibraryTarget)/lib/cmake/swift \
-	$(SourceDir)/swift-corelibs-libdispatch
+	  -D Swift_DIR=$(SourceDir)/build/$(BuildType)/$(SwiftStandardLibraryTarget)/lib/cmake/swift \
+	  -S $(SourceDir)/swift-corelibs-libdispatch
 
 # --- foundation ---
 .PHONY: swift-corelibs-foundation
@@ -147,17 +137,15 @@ swift-corelibs-foundation: $(BuildDir)/swift-corelibs-foundation/build.ninja
 swift-corelibs-foundation:
 	DESTDIR=$(DESTDIR) $(Ninja) -C $(BuildDir)/swift-corelibs-foundation install
 
-.ONESHELL: $(BuildDir)/swift-corelibs-foundation/build.ninja
 $(BuildDir)/swift-corelibs-foundation/build.ninja: bootstrap-toolchain
 $(BuildDir)/swift-corelibs-foundation/build.ninja: swift-corelibs-libdispatch
 $(BuildDir)/swift-corelibs-foundation/build.ninja:
-	mkdir -p $(BuildDir)/swift-corelibs-foundation
-	cd $(BuildDir)/swift-corelibs-foundation
 	$(CMake) $(CMakeFlags)                                                 \
+	  -B $(BuildDir)/swift-corelibs-foundation                             \
 	  -C $(CMakeCaches)/swift-corelibs-foundation-$(Host).cmake            \
-	-DFOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(SourceDir)/swift-corelibs-libdispatch \
-	-DFOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(BuildDir)/swift-corelibs-libdispatch \
-	$(SourceDir)/swift-corelibs-foundation
+	  -D FOUNDATION_PATH_TO_LIBDISPATCH_SOURCE=$(SourceDir)/swift-corelibs-libdispatch \
+	  -D FOUNDATION_PATH_TO_LIBDISPATCH_BUILD=$(BuildDir)/swift-corelibs-libdispatch \
+	  -S $(SourceDir)/swift-corelibs-foundation
 
 # --- default ---
 .DEFAULT_GOAL := default
