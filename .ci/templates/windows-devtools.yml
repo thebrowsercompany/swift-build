@@ -135,7 +135,7 @@ jobs:
           cmakeArgs:
             -G Ninja
             -S $(Build.SourcesDirectory)/llbuild
-            -B $(Build.StagingDirectory)/llbuild
+            -B $(Build.BinariesDirectory)/llbuild
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_Swift_SDK=$(sdk.directory)
@@ -148,12 +148,12 @@ jobs:
       - task: CMake@1
         displayName: Build llbuild
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/llbuild
+          cmakeArgs: --build $(Build.BinariesDirectory)/llbuild
 
       - task: CMake@1
         displayName: Install llbuild
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/llbuild --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/llbuild --target install
 
       - task: CMake@1
         displayName: Configure tools-support-core
@@ -161,7 +161,7 @@ jobs:
           cmakeArgs:
             -G Ninja
             -S $(Build.SourcesDirectory)/tools-support-core
-            -B $(Build.StagingDirectory)/tsc
+            -B $(Build.BinariesDirectory)/tsc
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
@@ -171,13 +171,13 @@ jobs:
       - task: CMake@1
         displayName: Build tools-support-core
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/tsc
+          cmakeArgs: --build $(Build.BinariesDirectory)/tsc
 
       - task: CMake@1
         displayName: Install tools-support-core
         enabled: false
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/tsc --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/tsc --target install
 
       - task: CMake@1
         displayName: Configure IndexStoreDB
@@ -186,7 +186,7 @@ jobs:
           cmakeArgs:
             -G Ninja
             -S $(Build.SourcesDirectory)/indexstore-db
-            -B $(Build.StagingDirectory)/indexstore-db
+            -B $(Build.BinariesDirectory)/indexstore-db
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
@@ -200,13 +200,13 @@ jobs:
         displayName: Build IndexStoreDB
         enabled: false
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db
+          cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db
 
       - task: CMake@1
         displayName: Install IndexStoreDB
         enabled: false
         inputs:
-          cmakeArgs: --build $(Build.StagingDirectory)/indexstore-db --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db --target install
 
       - publish: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}
         artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
