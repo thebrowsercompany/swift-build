@@ -28,18 +28,23 @@ jobs:
           sudo apt-get -y install cmake ninja-build
         condition: eq( variables['Agent.OS'], 'Linux' )
         displayName: 'Install Dependencies'
-      - script: |
-          /usr/bin/cmake -B $(Build.BinariesDirectory)/curl -C $(Build.SourcesDirectory)/swift-build/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
-        # NOTE(compnerd) workaround old cmake installation on hosted agents
-        condition: eq( variables['Agent.OS'], 'Linux' )
-        displayName: 'Configure curl'
+
       - task: CMake@1
         inputs:
-          workingDirectory: $(Build.BinariesDirectory)/curl
-          cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/curl.cmake -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/curl -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DZLIB_ROOT=$(zlib.directory)/usr -DBUILD_SHARED_LIBS=NO -DBUILD_TESTING=NO
-        # NOTE(compnerd) workaround old cmake installation on hosted agents
-        condition: not( eq( variables['Agent.OS'], 'Linux' ) )
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/curl
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/curl.cmake
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/curl-${{ parameters.platform }}.cmake
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_BUILD_TYPE=MinSizeRel
+            -D CMAKE_INSTALL_PREFIX=$(install.directory)/usr
+            -D ZLIB_ROOT=$(zlib.directory)/usr
+            -D BUILD_SHARED_LIBS=NO
+            -D BUILD_TESTING=NO
+            -G Ninja
+            -S $(Build.SourcesDirectory)/curl
         displayName: 'Configure curl'
+
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/curl
