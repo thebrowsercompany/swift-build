@@ -77,9 +77,11 @@ jobs:
 
       - checkout: apple/llvm-project
         displayName: checkout apple/llvm-project
+        path: s/toolchain
 
       - checkout: apple/swift
         displayName: checkout apple/swift
+        path: s/toolchain/swift
 
       - checkout: apple/swift-cmark
         displayName: checkout apple/swift-cmark
@@ -93,6 +95,10 @@ jobs:
 
       - checkout: apple/swift-corelibs-xctest
         displayName: checkout apple/swift-corelibs-xctest
+
+      - checkout: apple/swift-llbuild
+        displayName: checkout apple/swift-llbuild
+        path: s/llbuild
 
       - checkout: apple/swift-tools-support-core
         displayName: checkout apple/swift-tools-support-core
@@ -150,7 +156,7 @@ jobs:
         inputs:
           cmakeArgs:
             -G Ninja
-            -S $(Build.SourcesDirectory)/llvm-project/llvm
+            -S $(Build.SourcesDirectory)/toolchain/llvm
             -B $(Build.BinariesDirectory)/llvm
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
             -D CMAKE_BUILD_TYPE=Release
@@ -163,7 +169,6 @@ jobs:
             -G Ninja
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-${{ parameters.platform }}-${{ parameters.arch }}.cmake
-            -S $(Build.SourcesDirectory)/swift
             -B $(Build.BinariesDirectory)/swift-stdlib
             -D CMAKE_BUILD_TYPE=Release
             -D LLVM_DIR=$(Build.BinariesDirectory)/llvm/lib/cmake/llvm
@@ -172,6 +177,7 @@ jobs:
             -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin
             -D CMAKE_INSTALL_PREFIX=$(install.directory)
             ${{ parameters.SWIFT_OPTIONS }}
+            -S $(Build.SourcesDirectory)/toolchain/swift
 
       - task: CMake@1
         displayName: Build Swift Standard Library
