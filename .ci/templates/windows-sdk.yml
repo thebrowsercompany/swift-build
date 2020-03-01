@@ -131,6 +131,9 @@ jobs:
           displayName: checkout tensorflow/swift-apis
           path: s/tensorflow-swift-apis
 
+        - checkout: pvieito/PythonKit
+          displayName: checkout pvieito/PythonKit
+
       - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
@@ -157,7 +160,8 @@ jobs:
 
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - script: |
-            call :ApplyPatches "%TF4S_PR%" tensorflow-swift-apis
+            call :ApplyPatches "%SWIFT_APIS_PR%" tensorflow-swift-apis
+            call :ApplyPatches "%PYTHONKIT_PR%" PythonKit
 
             goto :eof
 
@@ -316,6 +320,28 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
 
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - task: CMake@1
+          displayName: Configure PythonKit
+          inputs:
+            cmakeArgs:
+              -B $(Build.BinariesDirectory)/PythonKit
+              -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
+              -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+              -D CMAKE_BUILD_TYPE=Release
+              -D CMAKE_INSTALL_PREFIX=$(install.directory)
+              -G Ninja
+              -S $(Build.SourcesDirectory)/PythonKit
+
+        - task: CMake@1
+          displayName: Build PythonKit
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit
+
+        - task: CMake@1
+          displayName: Install PythonKit
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit --target install
+
         - task: CMake@1
           displayName: Configure tensorflow-swift-apis
           inputs:

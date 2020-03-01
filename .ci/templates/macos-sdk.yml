@@ -114,6 +114,9 @@ jobs:
           displayName: checkout tensorflow/swift-apis
           path: s/tensorflow-swift-apis
 
+        - checkout: pvieito/PythonKit
+          displayName: checkout pvieito/PythonKit
+
       - script: |
           function ApplyPatches() {
             local repository=${1} ; shift
@@ -142,7 +145,8 @@ jobs:
               done
             }
 
-            ApplyPatches tensorflow-swift-apis ${TF4S_PR}
+            ApplyPatches tensorflow-swift-apis ${SWIFT_APIS_PR}
+            ApplyPatches PythonKit ${PYTHONKIT_PR}
           displayName: Apply Patches
 
       - task: BatchScript@1
@@ -291,6 +295,55 @@ jobs:
         enabled: false
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - task: CMake@1
+          displayName: Configure PythonKit
+          inputs:
+            cmakeArgs:
+              -B $(Build.BinariesDirectory)/PythonKit
+              -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
+              -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+              -D CMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc
+              -D CMAKE_BUILD_TYPE=Release
+              -D CMAKE_INSTALL_PREFIX=$(install.directory)
+              -G Ninja
+              -S $(Build.SourcesDirectory)/PythonKit
+
+        - task: CMake@1
+          displayName: Build PythonKit
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit
+
+        - task: CMake@1
+          displayName: Install PythonKit
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit --target install
+
+        - task: CMake@1
+          displayName: Configure tensorflow-swift-apis
+          inputs:
+            cmakeArgs:
+              -B $(Build.BinariesDirectory)/tensorflow-swift-apis
+              -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
+              -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+              -D CMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc
+              -D CMAKE_BUILD_TYPE=Release
+              -D CMAKE_INSTALL_PREFIX=$(install.directory)
+              -D TensorFlow_INCLUDE_DIR=$(tensorflow.directory)/usr/include
+              -D TensorFlow_LIBRARY=$(tensorflow.directory)/usr/lib/tensorflow.lib
+              -G Ninja
+              -S $(Build.SourcesDirectory)/tensorflow-swift-apis
+
+        - task: CMake@1
+          displayName: Build tensorflow-swift-apis
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis
+
+        - task: CMake@1
+          displayName: Install tensorflow-swift-apis
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis --target install
 
       - task: CMake@1
         displayName: Install Foundation
