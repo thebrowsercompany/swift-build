@@ -10,6 +10,9 @@ jobs:
       - download: current
         artifact: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
 
+      - download: current
+        artifact: ${{ parameters.platform }}-icu-${{ parameters.proc }}.msi
+
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -84,6 +87,13 @@ jobs:
         inputs:
           sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-runtime-${{ parameters.proc }}.msi
           contents: runtime.msi
+          targetFolder: $(Build.SourcesDirectory)
+
+      - task: CopyFiles@2
+        displayName: 'icu.msi'
+        inputs:
+          sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-icu-${{ parameters.proc }}.msi
+          contents: icu.msi
           targetFolder: $(Build.SourcesDirectory)
 
       - task: BatchScript@1
