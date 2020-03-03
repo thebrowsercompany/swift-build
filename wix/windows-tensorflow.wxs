@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Windows Swift SDK for x86_64" Language="1033" Version="0.0.0.0" Manufacturer="dt.compnerd.org" UpgradeCode="c16b17e8-b3a3-4674-984e-deb1d1c3ed33">
+    <Package Compressed="yes" InstallScope="perMachine" Manufacturer="dt.compnerd.org" Description="Windows Swift SDK for x86_64" Comments="Copyright 2019 Saleem Abdulrasool &lt;compnerd@compnerd.org&gt;" />
+    <!--
+         NOTE(compnerd) use the pre-3.8 schema for better compatibility.  If we
+         are guaranteed WIX 3.8+ we could write this as:
+
+         <MediaTemplate EmbedCab="yes" />
+    -->
+    <Media Id="1" Cabinet="WindowsTensorFlow.cab" EmbedCab="yes" />
+
+    <!-- Directory Structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="WINDOWSVOLUME">
+        <Directory Id="LIBRARY" Name="Library">
+          <Directory Id="TENSORFLOW" Name="tensorflow-2.1.0-rc1">
+            <Directory Id="TENSORFLOW_USR" Name="usr">
+              <Directory Id="TENSORFLOW_USR_BIN" Name="bin">
+              </Directory>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <SetDirectory Id="WINDOWSVOLUME" Value="[WindowsVolume]" />
+
+    <!-- Components -->
+    <DirectoryRef Id="TENSORFLOW_USR_BIN">
+      <Component Id="TENSORFLOW_RUNTIME" Guid="">
+        <File Id="TENSORFLOW_DLL" Source="$(var.TensorFlow_ROOT)\Library\tensorflow-2.1.0-rc1\usr\bin\tensorflow.dll" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="TARGETDIR">
+      <Component Id="ENV_VARS" Guid="">
+        <Environment Id="PATH" Action="set" Name="PATH" Part="last" Permanent="no" System="yes" Value="[INSTALLDIR]\Library\tensorflow-2.1.0-rc1\usr\bin" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Features -->
+    <Feature Id="RUNTIME" Level="1">
+      <ComponentRef Id="TENSORFLOW_RUNTIME" />
+      <ComponentRef Id="ENV_VARS" />
+    </Feature>
+
+    <!-- UI -->
+    <UI />
+  </Product>
+</Wix>
