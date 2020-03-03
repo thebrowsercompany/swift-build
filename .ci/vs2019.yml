@@ -313,8 +313,9 @@ stages:
           os: Windows
           proc: amd64
 
-  - stage: package
+  - stage: package_toolchain
     dependsOn: toolchain
+    displayName: package Toolchain
     pool:
       vmImage: 'windows-2019'
     jobs:
@@ -331,12 +332,30 @@ stages:
 
   - stage: package_windows_sdk
     dependsOn: windows_sdk
-    displayName: package
-    pool: Google
+    displayName: package SDK
+    pool:
+      vmImage: 'windows-2019'
     jobs:
       - template: templates/sdk-msi.yml
         parameters:
-          VisualStudio: 2019/Community
+          VisualStudio: 2019/Enterprise
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Windows
+          proc: amd64
+
+  - stage: package_icu
+    dependsOn: []
+    displayName: package ICU
+    pool:
+      vmImage: 'windows-2019'
+    jobs:
+      - template: templates/icu-msi.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
 
           arch: x86_64
           host: x64
