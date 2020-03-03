@@ -178,8 +178,9 @@ stages:
 
           TENSORFLOW: true
 
-  - stage: package
+  - stage: package_toolchain
     dependsOn: toolchain
+    displayName: package Toolchain
     pool: Google
     jobs:
       - template: templates/toolchain-msi.yml
@@ -191,6 +192,63 @@ stages:
           platform: windows
 
           os: Windows
+          proc: amd64
+
+          TENSORFLOW: true
+
+  - stage: package_windows_sdk
+    dependsOn: windows_sdk
+    displayName: package SDK
+    pool: Google
+    jobs:
+      - template: templates/sdk-msi.yml
+        parameters:
+          VisualStudio: 2019/Community
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Windows
+          proc: amd64
+
+          TENSORFLOW: true
+
+  - stage: package_icu
+    dependsOn: []
+    displayName: package ICU
+    pool: Google
+    jobs:
+      - template: templates/icu-msi.yml
+        parameters:
+          VisualStudio: 2019/Community
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Windows
+          proc: amd64
+
+          TENSORFLOW: true
+
+  - stage: package_bundle
+    dependsOn:
+      - package_toolchain
+      - package_windows_sdk
+      - package_icu
+    displayName: package
+    pool: Google
+    jobs:
+      - template: templates/swift-installer-bundle.yml
+        parameters:
+          VisualStudio: 2019/Community
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Winodws
           proc: amd64
 
           TENSORFLOW: true
