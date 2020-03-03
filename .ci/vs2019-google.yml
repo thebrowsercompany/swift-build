@@ -239,8 +239,9 @@ stages:
           os: Windows
           proc: amd64
 
-  - stage: package
+  - stage: package_windows_toolchain
     dependsOn: toolchain
+    displayName: package
     pool: Google
     jobs:
       - template: templates/toolchain-msi.yml
@@ -268,4 +269,22 @@ stages:
           platform: windows
 
           os: Windows
+          proc: amd64
+
+  - stage: package_bundle
+    dependsOn:
+      - package_windows_toolchain
+      - package_windows_sdk
+    displayName: package
+    pool: Google
+    jobs:
+      - template: templates/swift-installer-bundle.yml
+        parameters:
+          VisualStudio: 2019/Community
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Winodws
           proc: amd64

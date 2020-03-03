@@ -1,0 +1,104 @@
+jobs:
+  - job: ${{ parameters.host }}
+    steps:
+      - download: current
+        artifact: ${{ parameters.platform }}-toolchain-${{ parameters.proc }}.msi
+
+      - download: current
+        artifact: ${{ parameters.platform }}-runtime-${{ parameters.proc }}.msi
+
+      - download: current
+        artifact: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
+
+      - script: |
+          git config --global --add core.autocrlf false
+          git config --global --add core.symlinks true
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: Enable symbolic links, disable line ending conversion
+
+      # The checkout list has to match with the windows-sdk.yml checkout list.
+      # Otherwise Azure will create different directories for each build.
+      - checkout: self
+        displayName: checkout compnerd/swift-build
+
+      - checkout: apple/llvm-project
+        displayName: checkout apple/llvm-project
+        path: s/toolchain
+
+      - checkout: apple/swift
+        displayName: checkout apple/swift
+        path: s/toolchain/swift
+
+      - checkout: apple/swift-cmark
+        displayName: checkout apple/swift-cmark
+        path: s/toolchain/cmark
+
+      - checkout: apple/swift-corelibs-libdispatch
+        displayName: checkout apple/swift-corelibs-libdispatch
+
+      - checkout: apple/swift-corelibs-foundation
+        displayName: checkout apple/swift-corelibs-foundation
+
+      - checkout: apple/swift-corelibs-xctest
+        displayName: checkout apple/swift-corelibs-xctest
+
+      - checkout: apple/swift-llbuild
+        displayName: checkout apple/swift-llbuild
+        path: s/llbuild
+
+      - checkout: apple/swift-tools-support-core
+        displayName: checkout apple/swift-tools-support-core
+        path: s/tools-support-core
+
+      - checkout: apple/swift-package-manager
+        displayName: checkout apple/swift-package-manager
+        path: s/swiftpm
+
+      - checkout: apple/indexstore-db
+        displayName: checkout apple/indexstore-db
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - checkout: tensorflow/swift-apis
+          displayName: checkout tensorflow/swift-apis
+          path: s/tensorflow-swift-apis
+
+        - checkout: pvieito/PythonKit
+          displayName: checkout pvieito/PythonKit
+
+      - task: CopyFiles@2
+        displayName: 'toolchain.msi'
+        inputs:
+          sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-toolchain-${{ parameters.proc }}.msi
+          contents: windows-toolchain.msi
+          targetFolder: $(Build.SourcesDirectory)
+
+      - task: CopyFiles@2
+        displayName: 'sdk.msi'
+        inputs:
+          sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
+          contents: sdk.msi
+          targetFolder: $(Build.SourcesDirectory)
+
+      - task: CopyFiles@2
+        displayName: 'runtime.msi'
+        inputs:
+          sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-runtime-${{ parameters.proc }}.msi
+          contents: runtime.msi
+          targetFolder: $(Build.SourcesDirectory)
+
+      - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: VsDevCmd.bat
+        inputs:
+          filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
+          arguments: -no_logo -arch=x64 -host_arch=x64
+          modifyEnvironment: true
+
+      - task: MSBuild@1
+        displayName: installer.exe
+        inputs:
+          solution: $(Build.SourcesDirectory)/swift-build/wix/windows-bundle.wixproj
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:MSI_LOCATION=$(Build.SourcesDirectory)
+
+      - publish: $(Build.SourcesDirectory)/swift-build/wix/build/installer.exe
+        artifact: installer.exe
