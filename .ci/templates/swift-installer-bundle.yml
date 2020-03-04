@@ -13,6 +13,10 @@ jobs:
       - download: current
         artifact: ${{ parameters.platform }}-icu-${{ parameters.proc }}.msi
 
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - download: current
+          artifact: ${{ parameters.platform }}-tensorflow-${{ parameters.proc }}.msi
+
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -96,6 +100,14 @@ jobs:
           contents: icu.msi
           targetFolder: $(Build.SourcesDirectory)
 
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - task: CopyFiles@2
+          displayName: 'tensorflow.msi'
+          inputs:
+            sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-tensorflow-${{ parameters.proc }}.msi
+            contents: tensorflow.msi
+            targetFolder: $(Build.SourcesDirectory)
+
       - task: BatchScript@1
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: VsDevCmd.bat
@@ -108,7 +120,7 @@ jobs:
         displayName: installer.exe
         inputs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-bundle.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:MSI_LOCATION=$(Build.SourcesDirectory)
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:MSI_LOCATION=$(Build.SourcesDirectory) -p:INCLUDE_TENSORFLOW_MSI=$(parameters.TENSORFLOW)
 
       - publish: $(Build.SourcesDirectory)/swift-build/wix/build/installer.exe
         artifact: installer.exe
