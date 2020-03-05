@@ -8,6 +8,12 @@ jobs:
     steps:
       - download: current
         artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+        displayName: download SDK
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - download: tensorflow
+          artifact: tensorflow-${{ parameters.platform }}-${{ parameters.host }}
+          displayName: download TensorFlow
 
       - script: |
           git config --global --add core.autocrlf false
@@ -76,7 +82,7 @@ jobs:
         displayName: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
         inputs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-sdk.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/toolchain/swift -p:TENSORFLOW=${{ parameters.tensorflow }}
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/toolchain/swift -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
 
       - publish: $(Build.BinariesDirectory)/sdk-msi/sdk.msi
         artifact: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
