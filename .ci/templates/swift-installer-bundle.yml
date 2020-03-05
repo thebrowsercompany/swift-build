@@ -77,28 +77,28 @@ jobs:
         inputs:
           sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-toolchain-${{ parameters.proc }}.msi
           contents: toolchain.msi
-          targetFolder: $(Build.SourcesDirectory)
+          targetFolder: $(Build.StagingDirectory)
 
       - task: CopyFiles@2
         displayName: 'sdk.msi'
         inputs:
           sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
           contents: sdk.msi
-          targetFolder: $(Build.SourcesDirectory)
+          targetFolder: $(Build.StagingDirectory)
 
       - task: CopyFiles@2
         displayName: 'runtime.msi'
         inputs:
           sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-runtime-${{ parameters.proc }}.msi
           contents: runtime.msi
-          targetFolder: $(Build.SourcesDirectory)
+          targetFolder: $(Build.StagingDirectory)
 
       - task: CopyFiles@2
         displayName: 'icu.msi'
         inputs:
           sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-icu-${{ parameters.proc }}.msi
           contents: icu.msi
-          targetFolder: $(Build.SourcesDirectory)
+          targetFolder: $(Build.StagingDirectory)
 
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - task: CopyFiles@2
@@ -106,7 +106,7 @@ jobs:
           inputs:
             sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-tensorflow-${{ parameters.proc }}.msi
             contents: tensorflow.msi
-            targetFolder: $(Build.SourcesDirectory)
+            targetFolder: $(Build.StagingDirectory)
 
       - task: BatchScript@1
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
@@ -120,7 +120,7 @@ jobs:
         displayName: installer.exe
         inputs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-bundle.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:MSI_LOCATION=$(Build.SourcesDirectory) -p:TENSORFLOW=${{ parameters.TENSORFLOW }}
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\installer\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\installer\ -p:MSI_LOCATION=$(Build.StagingDirectory) -p:TENSORFLOW=${{ parameters.TENSORFLOW }}
 
-      - publish: $(Build.SourcesDirectory)/swift-build/wix/build/installer.exe
+      - publish: $(Build.BinariesDirectory)/installer/installer.exe
         artifact: installer.exe
