@@ -282,12 +282,67 @@ stages:
 
           SWIFT_OPTIONS: -DSWIFT_WINDOWS_i686_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -DSWIFT_WINDOWS_i686_ICU_UC=$(icu.directory)/usr/lib/icuuc$(icu.version).lib -DSWIFT_WINDOWS_i686_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -DSWIFT_WINDOWS_i686_ICU_I18N=$(icu.directory)/usr/lib/icuin$(icu.version).lib -DPYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
 
-  - stage: package
+  - stage: package_toolchain
     dependsOn: toolchain
+    displayName: package Toolchain
     pool:
       vmImage: 'windows-2019'
     jobs:
       - template: templates/toolchain-msi.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Windows
+          proc: amd64
+
+  - stage: package_windows_sdk
+    dependsOn: windows_sdk
+    displayName: package SDK
+    pool:
+      vmImage: 'windows-2019'
+    jobs:
+      - template: templates/sdk-msi.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Windows
+          proc: amd64
+
+  - stage: package_icu
+    dependsOn: []
+    displayName: package ICU
+    pool:
+      vmImage: 'windows-2019'
+    jobs:
+      - template: templates/icu-msi.yml
+        parameters:
+          VisualStudio: 2019/Enterprise
+
+          arch: x86_64
+          host: x64
+          platform: windows
+
+          os: Windows
+          proc: amd64
+
+  - stage: package_bundle
+    dependsOn:
+      - package_toolchain
+      - package_windows_sdk
+      - package_icu
+    displayName: package
+    pool:
+      vmImage: 'windows-2019'
+    jobs:
+      - template: templates/swift-installer-bundle.yml
         parameters:
           VisualStudio: 2019/Enterprise
 
