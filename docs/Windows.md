@@ -2,7 +2,7 @@
 
 #### The Windows SDK and the Native Tools Command Prompt
 
-You will need an installation of the Windows SDK to develop with the Swift Toolchain described here. An easy way to get the Windows SDK is to install Visual Studio, Visual Studio 2017 or later is needed. The following instructions suppose that you have Visual Studio installed. This will also make the `x64 Native Tools Command Prompt ...` available, it should be accessible from the `Visual Studio ...` folder in the Start menu.
+You will need an installation of the Windows SDK to develop with the Swift Toolchain described here. An easy way to get the Windows SDK is to install Visual Studio, Visual Studio 2017 or later is needed. The following instructions suppose that you have Visual Studio 2019 installed. (Replace `2019` by `2017` in the instructions if you use Visual Studio 2017.) The installation of Visual Studio will also make the `x64 Native Tools Command Prompt ...` available, it should be accessible from the `Visual Studio ...` folder in the Start menu.
 
 Most of the following commands are to be executed from within this Native Tools Command Prompt. Be sure to always start the `x64` version of the Native Tools Command Prompt.
 
@@ -29,12 +29,12 @@ The installation instructions that follow will result in a directory tree that h
 
 #### Downloading the nightlies
 
-1. Go to [https://dev.azure.com/compnerd/windows-swift](https://dev.azure.com/compnerd/windows-swift).
+1. Go to [https://compnerd.visualstudio.com/swift-build](https://compnerd.visualstudio.com/swift-build).
 2. Choose `Pipelines` > `Pipelines` from the left of the dashboard.
-3. Choose 'Runs'.
-4. Use the filter symbol to search for "VS2017".
-5. In the results list, scroll down until you see the first successful build (with a green OK symbol) that does not have "facebook" in the description and click on it.
-6. Under "Artifacts", click on the "... published" link.
+3. Use the filter symbol to search for "VS2019".
+4. Click on the appropriate pipeline (e.g. `VS2019`).
+5. The list of the runs will be displayed, scroll down until you see the first successful build (with a green OK symbol) and click on it.
+6. Click the link under "Artifacts:".
 7. Download windows-toolchain-amd64.msi, windows-sdk.msi, and windows-runtime-amd64.msi by clicking on the appropriate down-arrows on the right. Be sure to really download these files from the same build (i.e. do not switch the build for the next download, and be careful when updating). These files will be downloaded as zip files. Unless they are not automatically unzipped during the download process, unzip them to obtain \*.msi files in the extracted directories.
 
 #### Installing the nightlies
@@ -53,7 +53,7 @@ The installation of the Swift Runtime adds the following value to the system PAT
 
 #### Further requirements: CMake
 
-On Windows, the most convenient setup for building Swift projects currently involves the use of CMake. This requires CMake 3.15+ for Swift support. You can download CMake from [https://cmake.org](https://cmake.org/).
+On Windows, the most convenient setup for building Swift projects currently involves the use of CMake. This requires CMake 3.15+ for Swift support. CMake 3.16+ is recommended. You can download CMake from [https://cmake.org](https://cmake.org/).
 
 #### Further requirements: ICU
 
@@ -61,7 +61,19 @@ You will need the ICU libraries from [ICU - International Components for Unicode
 
 #### Building Swift code
 
-You should use a CMake project to build a Swift program. An example CMake project with support for mixed-language support is available at [https://github.com/compnerd/swift-cmake-demo](https://github.com/compnerd/swift-cmake-demo), sample commands that build the project are documented there. The make commands are to be executed from the Native Tools Command Prompt. Note that the cmake executable to be used is the one mentioned above. (Try `cmake -version` to see which CMake version is actually being called.)
+You should use a CMake project to build a Swift program. As an example CMake project use the "HelloWorld-CMake" example from [https://github.com/compnerd/swift-cmake-demo](https://github.com/compnerd/swift-cmake-demo) and use the following commands from within the project directory to build the project for Windows:
+
+```cmd
+SET INSTALLATION_DIR=C:
+SET SDK=%INSTALLATION_DIR%\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
+SET OS=windows
+cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=YES -D CMAKE_Swift_FLAGS="-sdk %SDK% -I %SDK%/usr/lib/swift -L %SDK%/usr/lib/swift/%OS%"
+cd build
+ninja
+ninja test
+```
+
+Here, the variables INSTALLATION_DIR, SDK, and OS are just added for clarity of the subsequent command (they should not contain spaces). Execute these commands from the Native Tools Command Prompt (or set needed paths before executing). Note that the cmake executable to be used is the one mentioned above. (Try `cmake -version` to see which CMake version is actually being called.)
 
 #### Running the Swift program on the development machine
 
@@ -81,7 +93,7 @@ _Tip:_ When calling your program from the command line, first execute the comman
 
 #### Running the Swift program on any machine
 
-To run the Swift program on another machine, in addition to the files mentioned in the last section, the files from the "Visual C++ Redistributable" in the according version have to be available on that machine (i.e. they have to be in your path). They can be made available by installing the according "Visual C++ Redistributable". As an alternative, according to [Distributable Code for Microsoft Visual Studio 2017](https://docs.microsoft.com/en-us/visualstudio/productinfo/2017-redistribution-vs) the files inside `[VisualStudioFolder]\VC\redist` are allowed to be part of your application (consider the files inside the subfolder `x64\*.CRT`). Please consult the Microsoft documentation to know which files you should bundle with your application.
+To run the Swift program on another machine, in addition to the files mentioned in the last section, the files from the "Visual C++ Redistributable" in the according version have to be available on that machine (i.e. they have to be in your path). They can be made available by installing the according "Visual C++ Redistributable". As an alternative, according to [Distributable Code for Visual Studio 2019](https://docs.microsoft.com/en-us/visualstudio/releases/2019/redistribution) the files inside `[VisualStudioFolder]\VC\redist` are allowed to be part of your application (consider the files inside the subfolder `x64\*.CRT`). Please consult the Microsoft documentation to know which files you should bundle with your application.
 
 #### Legal statement
 
