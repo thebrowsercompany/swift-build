@@ -23,6 +23,10 @@ parameters:
     type: string
     default: ''
 
+  - name: VERSION
+    type: string
+    default: 'master'
+
   - name: VisualStudio
     type: string
     default: ''
@@ -281,9 +285,8 @@ jobs:
         displayName: Configure toolchain
         inputs:
           cmakeArgs:
-            -G Ninja
-            -S $(Build.SourcesDirectory)/toolchain/llvm
             -B $(Build.BinariesDirectory)/toolchain
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/toolchain-${{ parameters.VERSION }}.cmake
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/org.compnerd.dt.cmake
             -D CMAKE_BUILD_TYPE=Release
@@ -298,6 +301,8 @@ jobs:
             ${{ parameters.LLVM_OPTIONS }}
             ${{ parameters.LLDB_OPTIONS }}
             ${{ parameters.SWIFT_OPTIONS }}
+            -G Ninja
+            -S $(Build.SourcesDirectory)/toolchain/llvm
 
       - task: CMake@1
         displayName: Build toolchain
