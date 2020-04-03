@@ -71,11 +71,19 @@ jobs:
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
 
-      - task: MSBuild@1
-        displayName: toolchain.msi
-        inputs:
-          solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory)
+      - ${{ if eq(parameters.VERSION, '5.2') }}:
+        - task: MSBuild@1
+          displayName: toolchain.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=false
+
+      - ${{ if ne(parameters.VERSION, '5.2') }}:
+        - task: MSBuild@1
+          displayName: toolchain.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true
 
       - publish: $(Build.BinariesDirectory)/toolchain-msi/toolchain.msi
         artifact: ${{ parameters.platform }}-toolchain-${{ parameters.proc }}.msi
