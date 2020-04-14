@@ -11,13 +11,7 @@ resources:
     - repository: tensorflow/tensorflow
       type: github
       name: tensorflow/tensorflow
-      ref: refs/tags/v2.1.0-rc1
-      endpoint: GitHub
-
-    - repository: compnerd/tensorflow
-      type: github
-      name: compnerd/tensorflow
-      ref: refs/heads/v2.1.0-win-backports
+      ref: refs/tags/v2.2.0-rc1
       endpoint: GitHub
 
 trigger:
@@ -26,7 +20,8 @@ trigger:
       - .ci/tensorflow.yml
 
 variables:
-  tensorflow.version: 2.1.0-rc1
+  tensorflow.version: 2.2.0-rc1
+  bazel.version: 2.0.0
 
 jobs:
   - job: darwin
@@ -37,20 +32,20 @@ jobs:
       - task: DownloadGitHubRelease@0
         displayName: download bazel
         inputs:
-          connection: GitHub
-          userRepository: bazelbuild/bazel
-          defaultVersionType: specificVersion
-          version: '19882193'
-          itemPattern: bazel-*-darwin-x86_64
-          downloadPath: $(Agent.ToolsDirectory)/bazel/0.29.1/x64
+          connection: 'GitHub'
+          userRepository: 'bazelbuild/bazel'
+          defaultVersionType: 'specificVersion'
+          version: '22354400'
+          itemPattern: 'bazel-*-darwin-x86_64'
+          downloadPath: '$(Agent.ToolsDirectory)/bazel/$(bazel.version)/x64'
 
       - script: |
-          mv $(Agent.ToolsDirectory)/bazel/0.29.1/x64/bazel-0.29.1-darwin-x86_64 $(Agent.ToolsDirectory)/bazel/0.29.1/x64/bazel
-          chmod +x $(Agent.ToolsDirectory)/bazel/0.29.1/x64/bazel
+          mv $(Agent.ToolsDirectory)/bazel/$(bazel.version)/x64/bazel-$(bazel.version)-darwin-x86_64 $(Agent.ToolsDirectory)/bazel/$(bazel.version)/x64/bazel
+          chmod +x $(Agent.ToolsDirectory)/bazel/$(bazel.version)/x64/bazel
         displayName: rename bazel
 
       - script: |
-          echo "##vso[task.prependpath]$(Agent.ToolsDirectory)/bazel/0.29.1/x64"
+          echo "##vso[task.prependpath]$(Agent.ToolsDirectory)/bazel/$(bazel.version)/x64"
         displayName: add bazel to PATH
 
       - checkout: self
@@ -79,7 +74,7 @@ jobs:
         displayName: bazel build cache
 
       - script: |
-          PYTHON_BIN_PATH=$(which python) USE_DEFAULT_PYTHON_LIB_PATH=1 TF_ENABLE_XLA=1 TF_NEED_CUDA=0 TF_NEED_OPENCL_SYCL=0 TF_NEED_ROCM=0 TF_NEED_CUDA=0 TF_DOWNLOAD_CLANG=0 CC_OPT_FLAGS="-march=native" TF_SET_ANDROID_WORKSPACE=0 TF_CONFIGURE_IOS=1 python configure.py
+          PYTHON_BIN_PATH=$(which python) USE_DEFAULT_PYTHON_LIB_PATH=1 TF_ENABLE_XLA=1 TF_NEED_CUDA=0 TF_NEED_OPENCL_SYCL=0 TF_NEED_ROCM=0 TF_NEED_CUDA=0 TF_DOWNLOAD_CLANG=0 CC_OPT_FLAGS="-march=native" TF_SET_ANDROID_WORKSPACE=0 python configure.py
         displayName: configure tensorflow
         workingDirectory: $(Build.SourcesDirectory)/tensorflow
 
@@ -90,7 +85,7 @@ jobs:
 
       - script: |
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib
-          cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/libtensorflow.2.1.0.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
+          cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/libtensorflow.2.2.0.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
 
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
@@ -114,19 +109,19 @@ jobs:
       - task: DownloadGitHubRelease@0
         displayName: download bazel
         inputs:
-          connection: GitHub
-          userRepository: bazelbuild/bazel
-          defaultVersionType: specificVersion
-          version: '19882193'
-          itemPattern: bazel-*-windows-x86_64.exe
-          downloadPath: $(Agent.ToolsDirectory)/bazel/0.29.1/x64
+          connection: 'GitHub'
+          userRepository: 'bazelbuild/bazel'
+          defaultVersionType: 'specificVersion'
+          version: '22354400'
+          itemPattern: 'bazel-*-windows-x86_64.exe'
+          downloadPath: '$(Agent.ToolsDirectory)/bazel/$(bazel.version)/x64'
 
       - script: |
-          move "$(Agent.ToolsDirectory)\bazel\0.29.1\x64\bazel-0.29.1-windows-x86_64.exe" "$(Agent.ToolsDirectory)\bazel\0.29.1\x64\bazel.exe"
+          move "$(Agent.ToolsDirectory)\bazel\$(bazel.version)\x64\bazel-$(bazel.version)-windows-x86_64.exe" "$(Agent.ToolsDirectory)\bazel\$(bazel.version)\x64\bazel.exe"
         displayName: rename bazel
 
       - script: |
-          echo ##vso[task.prependpath]$(Agent.ToolsDirectory)\bazel\0.29.1\x64
+          echo ##vso[task.prependpath]$(Agent.ToolsDirectory)\bazel\$(bazel.version)\x64
         displayName: add bazel to PATH
 
       - checkout: self
@@ -134,10 +129,6 @@ jobs:
 
       - checkout: tensorflow/tensorflow
         displayName: checkout tensorflow/tensorflow
-        enabled: false
-
-      - checkout: compnerd/tensorflow
-        displayName: checkout compnerd/tensorflow
 
       - task: UsePythonVersion@0
         displayName: configure python
