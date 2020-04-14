@@ -14,6 +14,12 @@ resources:
       ref: refs/tags/v2.2.0-rc1
       endpoint: GitHub
 
+    - repository: tensorflow/swift-apis
+      type: github
+      name: tensorflow/swift-apis
+      ref: master
+      endpoint: GitHub
+
 trigger:
   paths:
     include:
@@ -54,6 +60,9 @@ jobs:
       - checkout: tensorflow/tensorflow
         displayName: checkout tensorflow/tensorflow
 
+      - checkout: tensorflow/swift-apis
+        displayName: checkout tensorflow/swift-apis
+
       - task: UsePythonVersion@0
         displayName: configure python
         inputs:
@@ -73,19 +82,41 @@ jobs:
           path: $(Agent.BuildDirectory)/caches/bazel/tensorflow
         displayName: bazel build cache
 
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)/swift-apis/Sources/x10/xla_client
+          Contents: '**/*'
+          TargetFolder: $(Build.SourcesDirectory)/tensorflow/tensorflow/compiler/xla/xla_client
+        displayName: Add XLAClient to TensorFlow
+
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)/swift-apis/Sources/x10/xla_tensor
+          Contents: '**/*'
+          TargetFolder: $(Build.SourcesDirectory)/tensorflow/tensorflow/compiler/tf2xla/xla_tensor
+        displayName: Add XLATensor to TensorFlow
+
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)/swift-apis/Sources/x10/swift_bindings
+          Contents: '**/*'
+          TargetFolder: $(Build.SourcesDirectory)/tensorflow/swift_bindings
+        displayName: Add XLABindings to TensorFlow
+
       - script: |
           PYTHON_BIN_PATH=$(which python) USE_DEFAULT_PYTHON_LIB_PATH=1 TF_ENABLE_XLA=1 TF_NEED_CUDA=0 TF_NEED_OPENCL_SYCL=0 TF_NEED_ROCM=0 TF_NEED_CUDA=0 TF_DOWNLOAD_CLANG=0 CC_OPT_FLAGS="-march=native" TF_SET_ANDROID_WORKSPACE=0 TF_CONFIGURE_IOS=0 python configure.py
         displayName: configure tensorflow
         workingDirectory: $(Build.SourcesDirectory)/tensorflow
 
       - script: |
-          bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build -c opt --define framework_shared_object=false --config short_logs //tensorflow:tensorflow
+          bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build -c opt --define framework_shared_object=false --config short_logs --nocheck_visibility //tensorflow:tensorflow //tensorflow/compiler/tf2xla/xla_tensor:x10
         displayName: build tensorflow
         workingDirectory: $(Build.SourcesDirectory)/tensorflow
 
       - script: |
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib
           cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/libtensorflow.2.2.0.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
+          cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/compiler/tf2xla/xla_tensor/libx10.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
 
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
@@ -95,6 +126,11 @@ jobs:
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_file_statistics.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_status.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_tensor.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
+
+          mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/x10
+          cp -v $(Build.SourcesDirectory)/swift-apis/Sources/x10/swift_bindings/device_wrapper.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/x10
+          cp -v $(Build.SourcesDirectory)/swift-apis/Sources/x10/swift_bindings/xla_tensor_tf_ops.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/x10
+          cp -v $(Build.SourcesDirectory)/swift-apis/Sources/x10/swift_bindings/xla_tensor_wrapper.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/x10
 
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c/eager
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/eager/c_api.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c/eager
@@ -129,6 +165,9 @@ jobs:
 
       - checkout: tensorflow/tensorflow
         displayName: checkout tensorflow/tensorflow
+
+      - checkout: tensorflow/swift-apis
+        displayName: checkout tensorflow/swift-apis
 
       - task: UsePythonVersion@0
         displayName: configure python
@@ -167,11 +206,32 @@ jobs:
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
 
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)/swift-apis/Sources/x10/xla_client
+          Contents: '**/*'
+          TargetFolder: $(Build.SourcesDirectory)/tensorflow/tensorflow/compiler/xla/xla_client
+        displayName: Add XLAClient to TensorFlow
+
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)/swift-apis/Sources/x10/xla_tensor
+          Contents: '**/*'
+          TargetFolder: $(Build.SourcesDirectory)/tensorflow/tensorflow/compiler/tf2xla/xla_tensor
+        displayName: Add XLATensor to TensorFlow
+
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)/swift-apis/Sources/x10/swift_bindings
+          Contents: '**/*'
+          TargetFolder: $(Build.SourcesDirectory)/tensorflow/swift_bindings
+        displayName: Add XLABindings to TensorFlow
+
       - script: |
           set BAZEL_SH=%ProgramFiles%\Git\usr\bin\bash.exe
           set BAZEL_VC=%VCINSTALLDIR%
 
-          bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build -c opt --copt /D_USE_MATH_DEFINES --define framework_shared_object=false --config short_logs //tensorflow:tensorflow //tensorflow:tensorflow_dll_import_lib
+          bazel --output_user_root $(Agent.BuildDirectory)/caches/bazel/tensorflow build -c opt --copt /D_USE_MATH_DEFINES --define framework_shared_object=false --config short_logs --nocheck_visibility //tensorflow:tensorflow //tensorflow:tensorflow_dll_import_lib //tensorflow/compiler/tf2xla/xla_tensor:x10 //tensorflow/compiler/tf2xla/xla_tensor:x10_dll_import_lib
         displayName: build tensorflow
         workingDirectory: $(Build.SourcesDirectory)/tensorflow
 
@@ -183,9 +243,11 @@ jobs:
       - script: |
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\bin
           copy $(Build.SourcesDirectory)\tensorflow\bazel-bin\tensorflow\tensorflow.dll $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\bin\
+          copy $(Build.SourcesDirectory)\tensorflow\bazel-bin\tensorflow\compiler\tf2xla\xla_tensor\x10.dll $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\bin\
 
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\lib
           copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow.lib $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\lib\
+          copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\compiler\tf2xla\xla_tensor\x10.lib $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\lib\
 
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
@@ -198,6 +260,11 @@ jobs:
 
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\eager
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\eager\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\eager\
+
+          md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\x10
+          copy $(Build.SourcesDirectory)\swift-apis\Sources\x10\swift_bindings\device_wrapper.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\x10
+          copy $(Build.SourcesDirectory)\swift-apis\Sources\x10\swift_bindings\xla_tensor_tf_ops.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\x10
+          copy $(Build.SourcesDirectory)\swift-apis\Sources\x10\swift_bindings\xla_tensor_wrapper.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\x10
 
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\share
           copy $(Build.SourcesDirectory)\tensorflow\bazel-out\x64_windows-opt\bin\tensorflow\tensorflow_filtered_def_file.def $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\share\
