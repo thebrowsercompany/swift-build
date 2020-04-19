@@ -2,34 +2,38 @@ jobs:
   - job: ${{ parameters.host }}
     variables:
       zlib.version: 1.2.11
-      
+
       zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-$(zlib.version)
       install.directory: $(Build.StagingDirectory)/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-development
-      
+
     steps:
       - download: zlib
         artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: 'download zlib'
+        displayName: download zlib
+
       - checkout: self
-        displayName: 'checkout compnerd/swift-build'
+        displayName: checkout compnerd/swift-build
+
       - checkout: curl/curl
-        displayName: 'checkout curl/curl'
+        displayName: checkout curl/curl
+
+      # WORKAROUND actions/virtual-environments#741
+      - script: |
+          sudo apt-get update
+          sudo apt-get -y install ninja-build
+        condition: eq( variables['Agent.OS'], 'Linux' )
+        displayName: Install Ninja
+
       - task: BatchScript@1
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+        displayName: vsvarsall.bat
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
           arguments: -no_logo -arch=${{ parameters.host }} -host_arch=x64
           modifyEnvironment: true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: 'vsvarsall.bat'
-      - script: |
-          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
-          sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
-          sudo apt-get update
-          sudo apt-get -y install cmake ninja-build
-        condition: eq( variables['Agent.OS'], 'Linux' )
-        displayName: 'Install Dependencies'
 
       - task: CMake@1
+        displayName: Configure curl
         inputs:
           cmakeArgs:
             -B $(Build.BinariesDirectory)/curl
@@ -43,15 +47,16 @@ jobs:
             -D BUILD_TESTING=NO
             -G Ninja
             -S $(Build.SourcesDirectory)/curl
-        displayName: 'Configure curl'
 
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/curl
-        displayName: 'Build CURL'
+        displayName: Build CURL
+
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/curl --target install
-        displayName: 'Install CURL'
+        displayName: Install CURL
+
       - publish: $(Build.StagingDirectory)/curl-${{ parameters.platform }}-${{ parameters.host }}
         artifact: curl-${{ parameters.platform }}-${{ parameters.host }}
