@@ -24,10 +24,8 @@
 
 | Build | Status |
 | :-: | --- |
-| **VS2017** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/VS2017%20Swift%205.2?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=30&branchName=master) |
 | **VS2019** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/VS2019%20Swift%205.2?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=43&branchName=master) |
 
-**NOTE**: The VS2017 builds are for testing purposes, please use the VS2019 builds*
 <details>
   <summary>Build Contents</summary>
 
