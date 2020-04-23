@@ -30,20 +30,26 @@
   <summary>Build Contents</summary>
 
   - **VS2019**
-    - *Toolchain*
+    - *Toolchain (llvm, clang, lld, lldb, swift)*
       - ARM64
       - x64
-    - *Swift SDK for Windows*
+    - *Swift SDK for Android (swift, libdispatch, foundation, xctest)*
       - ARM
       - ARM64
       - x64
       - x86
-    - *Swift SDK for Android*
+    - *Swift SDK for Windows (swift, libdispatch, foundation, xctest)*
       - ARM
       - ARM64
       - x64
       - x86
  </details>
+
+**Swift 5.3**
+
+| Build | Status |
+| :-: | --- |
+| **VS2019** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019%205.3?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=53&branchName=master) |
 
 **Swift HEAD (Development)**
 
