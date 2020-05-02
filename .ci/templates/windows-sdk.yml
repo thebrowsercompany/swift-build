@@ -319,57 +319,6 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
 
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - task: CMake@1
-          displayName: Configure PythonKit
-          inputs:
-            cmakeArgs:
-              -B $(Build.BinariesDirectory)/PythonKit
-              -D BUILD_SHARED_LIBS=YES
-              -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
-              -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
-              -D CMAKE_BUILD_TYPE=Release
-              -D CMAKE_INSTALL_PREFIX=$(install.directory)
-              -G Ninja
-              -S $(Build.SourcesDirectory)/PythonKit
-
-        - task: CMake@1
-          displayName: Build PythonKit
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit
-
-        - task: CMake@1
-          displayName: Install PythonKit
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit --target install
-
-        - task: CMake@1
-          displayName: Configure tensorflow-swift-apis
-          inputs:
-            cmakeArgs:
-              -B $(Build.BinariesDirectory)/tensorflow-swift-apis
-              -D BUILD_SHARED_LIBS=YES
-              -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
-              -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
-              -D BUILD_TESTING=NO
-              -D CMAKE_BUILD_TYPE=Release
-              -D CMAKE_INSTALL_PREFIX=$(install.directory)
-              -D BUILD_X10=YES
-              -D X10_LIBRARY=$(tensorflow.directory)/usr/lib/x10.lib
-              -D X10_INCLUDE_DIRS=$(tensorflow.directory)/usr/include
-              -G Ninja
-              -S $(Build.SourcesDirectory)/tensorflow-swift-apis
-
-        - task: CMake@1
-          displayName: Build tensorflow-swift-apis
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis
-
-        - task: CMake@1
-          displayName: Install tensorflow-swift-apis
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis --target install
-
       - task: CMake@1
         displayName: Install Swift Standard Library
         inputs:
@@ -389,6 +338,56 @@ jobs:
         displayName: Install libdispatch
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
+
+      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+        - task: CMake@1
+          displayName: Configure PythonKit
+          inputs:
+            cmakeArgs:
+              -B $(Build.BinariesDirectory)/PythonKit
+              -D BUILD_SHARED_LIBS=YES
+              -D BUILD_TESTING=NO
+              -D CMAKE_BUILD_TYPE=Release
+              -D CMAKE_INSTALL_PREFIX=$(install.directory)
+              -D CMAKE_Swift_FLAGS="-sdk $(sdk.directory) -I $(sdk.directory)/usr/lib/swift -L $(sdk.directory)/usr/lib/swift/${{ parameters.platform }}"
+              -G Ninja
+              -S $(Build.SourcesDirectory)/PythonKit
+
+        - task: CMake@1
+          displayName: Build PythonKit
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit
+
+        - task: CMake@1
+          displayName: Install PythonKit
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/PythonKit --target install
+
+        - task: CMake@1
+          displayName: Configure tensorflow-swift-apis
+          inputs:
+            cmakeArgs:
+              -B $(Build.BinariesDirectory)/tensorflow-swift-apis
+              -D BUILD_SHARED_LIBS=YES
+              -D BUILD_TESTING=NO
+              -D CMAKE_BUILD_TYPE=Release
+              -D CMAKE_INSTALL_PREFIX=$(install.directory)
+              -D CMAKE_Swift_FLAGS="-sdk $(sdk.directory) -I $(sdk.directory)/usr/lib/swift -L $(sdk.directory)/usr/lib/swift/${{ parameters.platform }}"
+              -D BUILD_X10=YES
+              -D X10_LIBRARY=$(tensorflow.directory)/usr/lib/x10.lib
+              -D X10_INCLUDE_DIRS=$(tensorflow.directory)/usr/include
+              -G Ninja
+              -S $(Build.SourcesDirectory)/tensorflow-swift-apis
+
+        - task: CMake@1
+          displayName: Build tensorflow-swift-apis
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis
+
+        - task: CMake@1
+          displayName: Install tensorflow-swift-apis
+          inputs:
+            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis --target install
 
       - publish: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}
         artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
