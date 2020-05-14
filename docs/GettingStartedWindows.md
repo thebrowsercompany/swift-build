@@ -17,7 +17,7 @@
 | Component | ID |
 |-----------|----|
 | MSVC v142 - VS 2019 C++ x64/x86 build tools (v14.??) | Microsoft.VisualStudio.Component.VC.Tools.x86.x64 |
-| Windows Univeral C Runtime | Microsoft.VisualStudio.Component.Windows10SDK |
+| Windows Universal C Runtime | Microsoft.VisualStudio.Component.Windows10SDK |
 | Windows 10 SDK (10.0.17763.0)<sup>[1](#windows-sdk)</sup> | Microsoft.VisualStudio.Component.Windows10SDK.17763 |
 
 <sup><a name="windows-sdk">1</a></sup> You may install a newer SDK if you desire. 17763 is listed here to match the minimum Windows release supported.
