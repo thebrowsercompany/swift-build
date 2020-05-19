@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.12.3)
 
-project(ICU LANGUAGES C CXX VERSION 64.2)
+project(ICU LANGUAGES C CXX VERSION 67.1)
 
 option(BUILD_SHARED_LIBS "build shared libaries" YES)
 option(BUILD_TOOLS "build tools" NO)
@@ -31,6 +31,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   add_compile_options(/GF)
   add_compile_options(/Gy)
 elseif(CMAKE_SYSTEM_NAME STREQUAL Linux OR CMAKE_SYSTEM_NAME STREQUAL Android)
+  add_compile_options(-Wno-invalid-constexpr)
   add_compile_options(-ffunction-sections -fdata-sections)
 
   include(CheckIncludeFiles)
@@ -123,6 +124,7 @@ add_library(icuuc
   source/common/resbund_cnv.cpp
   source/common/ucurr.cpp
   source/common/localebuilder.cpp
+  source/common/localeprioritylist.cpp
   source/common/messagepattern.cpp
   source/common/ucat.cpp
   source/common/locmap.cpp
@@ -134,6 +136,10 @@ add_library(icuuc
   source/common/locdspnm.cpp
   source/common/loclikely.cpp
   source/common/locresdata.cpp
+  source/common/lsr.cpp
+  source/common/loclikelysubtags.cpp
+  source/common/locdistance.cpp
+  source/common/localematcher.cpp
   source/common/bytestream.cpp
   source/common/stringpiece.cpp
   source/common/bytesinkutil.cpp
@@ -254,7 +260,8 @@ add_library(icuuc
   source/common/uloc_keytype.cpp
   source/common/ubiditransform.cpp
   source/common/pluralmap.cpp
-  source/common/static_unicode_sets.cpp)
+  source/common/static_unicode_sets.cpp
+  source/common/restrace.cpp)
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   target_sources(icuuc PRIVATE
     source/common/common.rc)
@@ -451,6 +458,7 @@ add_library(icuin
   source/i18n/reldatefmt.cpp
   source/i18n/quantityformatter.cpp
   source/i18n/measunit.cpp
+  source/i18n/measunit_extra.cpp
   source/i18n/sharedbreakiterator.cpp
   source/i18n/scientificnumberformatter.cpp
   source/i18n/dayperiodrules.cpp
@@ -472,7 +480,6 @@ add_library(icuin
   source/i18n/number_patternstring.cpp
   source/i18n/number_rounding.cpp
   source/i18n/number_scientific.cpp
-  source/i18n/number_stringbuilder.cpp
   source/i18n/number_utils.cpp
   source/i18n/number_asformat.cpp
   source/i18n/number_mapper.cpp
@@ -480,14 +487,14 @@ add_library(icuin
   source/i18n/number_currencysymbols.cpp
   source/i18n/number_skeletons.cpp
   source/i18n/number_capi.cpp
-  source/i18n/double-conversion.cpp
+  source/i18n/double-conversion-string-to-double.cpp
+  source/i18n/double-conversion-double-to-string.cpp
   source/i18n/double-conversion-bignum-dtoa.cpp
   source/i18n/double-conversion-bignum.cpp
   source/i18n/double-conversion-cached-powers.cpp
-  source/i18n/double-conversion-diy-fp.cpp
   source/i18n/double-conversion-fast-dtoa.cpp
   source/i18n/double-conversion-strtod.cpp
-  source/i18n/numparse_stringsegment.cpp
+  source/i18n/string_segment.cpp
   source/i18n/numparse_parsednumber.cpp
   source/i18n/numparse_impl.cpp
   source/i18n/numparse_symbols.cpp
@@ -502,7 +509,8 @@ add_library(icuin
   source/i18n/erarules.cpp
   source/i18n/formattedvalue.cpp
   source/i18n/formattedval_iterimpl.cpp
-  source/i18n/formattedval_sbimpl.cpp)
+  source/i18n/formattedval_sbimpl.cpp
+  source/i18n/formatted_string_builder.cpp)
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   target_sources(icuin PRIVATE
     source/i18n/i18n.rc)
@@ -621,7 +629,8 @@ if(BUILD_TOOLS)
   endif()
 
   add_custom_target(icudata_lst
-    COMMAND ${Python3_EXECUTABLE} -B -m buildtool
+    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${PROJECT_SOURCE_DIR}/source/python
+      ${Python3_EXECUTABLE} -B -m icutools.databuilder
       --mode $<IF:$<STREQUAL:${CMAKE_HOST_SYSTEM_NAME},Windows>,windows-exec,unix-exec>
       --src_dir ${PROJECT_SOURCE_DIR}/source/data
       --tool_dir ${CMAKE_CURRENT_BINARY_DIR}
