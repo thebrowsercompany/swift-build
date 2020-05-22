@@ -40,6 +40,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL Linux OR CMAKE_SYSTEM_NAME STREQUAL Android)
   endif()
 endif()
 
+set(THREADS_PREFER_PTHREAD_FLAG YES)
+find_package(Threads)
+
 add_compile_definitions(U_ATTRIBUTE_DEPRECATED=)
 add_compile_definitions(U_DISABLE_RENAMING=0)
 # add_compile_definitions(U_HIDE_DRAFT_API=1)
@@ -261,7 +264,8 @@ target_compile_definitions(icuuc PRIVATE
 target_include_directories(icuuc PUBLIC
   source/common)
 target_link_libraries(icuuc PRIVATE
-  icudt)
+  icudt
+  Threads::Threads)
 set_target_properties(icuuc PROPERTIES
   OUTPUT_NAME icuuc${PROJECT_VERSION_MAJOR})
 
