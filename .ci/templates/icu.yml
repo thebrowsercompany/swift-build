@@ -4,19 +4,29 @@ jobs:
       install.directory: $(Build.StagingDirectory)/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
     steps:
       - checkout: self
+
       - checkout: unicode-org/icu
+
+      - script: |
+          git config --global user.name 'builder'
+          git config --global user.email 'builder@compnerd.org'
+
+          git -C $(Build.SourcesDirectory)/icu cherry-pick 715d254a02b0b22681cb6f861b0921ae668fa7d6
+
       - task: CopyFiles@2
         inputs:
           sourceFolder: $(Build.SourcesDirectory)/swift-build/cmake/ICU
           contents: CMakeLists.txt
           targetFolder: icu/icu4c
         displayName: 'Prepare'
+
       - task: CopyFiles@2
         inputs:
           sourceFolder: $(Build.SourcesDirectory)/swift-build/cmake/ICU
           contents: icupkg.inc.cmake
           targetFolder: icu/icu4c
         displayName: 'Prepare'
+
       - task: BatchScript@1
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
@@ -24,22 +34,27 @@ jobs:
           modifyEnvironment: true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'vsvarsall.bat'
+
       - script: |
           sudo apt-get -y install ninja-build
         condition: eq( variables['Agent.OS'], 'Linux' )
         displayName: 'Install Dependencies'
+
       - task: CMake@1
         inputs:
           workingDirectory: $(Build.BinariesDirectory)/icu
           cmakeArgs: -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake -G Ninja $(Build.SourcesDirectory)/icu/icu4c -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$(install.directory)/usr -DBUILD_SHARED_LIBS=YES -DBUILD_TOOLS=${{ parameters.BUILD_TOOLS }}
         displayName: 'Configure ICU'
+
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/icu
         displayName: 'Build ICU'
+
       - task: CMake@1
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/icu --target install
         displayName: 'Install ICU'
+
       - publish: $(Build.StagingDirectory)/icu-${{ parameters.platform }}-${{ parameters.host }}
         artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
