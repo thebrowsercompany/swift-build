@@ -1,5 +1,7 @@
 jobs:
   - job: swift_icu__${{ parameters.proc }}_deb
+    variables:
+      icu.version: 64
     steps:
       - download: icu
         artifact: icu-linux-${{ parameters.host }}
@@ -61,11 +63,12 @@ jobs:
 
           # ensure that the library path is searched in
           mkdir -p $(Build.StagingDirectory)/swift-icu/etc/ld.so.conf.d
-          echo '/Library/icu-64/usr/lib' > $(Build.StagingDirectory)/swift-icu/etc/ld.so.conf.d/swift-icu.conf
+          echo '/Library/icu-$(icu.version)/usr/lib' > $(Build.StagingDirectory)/swift-icu/etc/ld.so.conf.d/swift-icu.conf
 
           # do not distribute the headers
-          rm -v -r -f $(Build.StagingDirectory)/swift-icu/Library/icu-64/usr/include
+          rm -v -r -f $(Build.StagingDirectory)/swift-icu/Library/icu-$(icu.version)/usr/include
         displayName: 'cleanup image'
+
       - script: |
           mkdir -p $(Build.StagingDirectory)/swift-icu/DEBIAN
           sed -e "s/Version:/& $(Build.BuildId)/" $(Build.SourcesDirectory)/swift-build/debian/linux-icu > $(Build.StagingDirectory)/swift-icu/DEBIAN/control
@@ -73,8 +76,10 @@ jobs:
           cd $(Build.StagingDirectory)
           fakeroot dpkg-deb --build swift-icu $(Build.StagingDirectory)
         displayName: 'package'
+
       - publish: $(Build.StagingDirectory)/swift-icu_$(Build.BuildId)_${{ parameters.proc }}.deb
         artifact: swift-icu_$(Build.BuildId)_${{ parameters.proc }}.deb
+
       - script: |
           cd $(Build.StagingDirectory)
           curl -F swift-icu=@swift-icu_$(Build.BuildId)_${{ parameters.proc }}.deb https://$(GEMFURY_PASSWORD)@push.fury.io/compnerd
