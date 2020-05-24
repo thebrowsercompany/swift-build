@@ -1,5 +1,11 @@
 # **//swift/build**
 
+The swift-build project provides a CI configuration for [Azure 
+Pipelines](https://azure.microsoft.com/en-us/services/devops/pipelines/) that allows 
+building Swift for multiple platforms. Thanks to modular packaging, with swift-build 
+you can easily cross-compile your Swift code for Android and Windows targets, or build 
+on Windows natively without cross-compilation.
+
 ## Table of Contents
 
 - [**//swift/build**](#--swift-build---)
