@@ -179,6 +179,28 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/Yams
 
       - task: CMake@1
+        displayName: Configure SwiftDriver
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/swift-driver
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D BUILD_SHARED_LIBS=YES
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc
+            -D CMAKE_Swift_FLAGS="-resource-dir $(sdk.directory)/usr/lib/swift -use-ld=lld"
+            -D LLBuild_DIR=$(Build.StagingDirectory)/llbuild/cmake/modules
+            -D TSC_DIR=$(Build.StagingDirectory)/tsc/cmake/modules
+            -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-driver
+          workingDirectory: $(Build.BinariesDirectory)/swift-driver
+
+      - task: CMake@1
+        displayName: Build SwiftDriver
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver
+
+      - task: CMake@1
         displayName: Configure swift-package-manager
         inputs:
           cmakeArgs:
@@ -193,8 +215,10 @@ jobs:
             -D LLBuild_DIR=$(Build.StagingDirectory)/llbuild/cmake/modules
             -D TSC_DIR=$(Build.StagingDirectory)/tsc/cmake/modules
             -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
+            -D SwiftDriver_DIR=$(Build.BinariesDirectory)/swift-driver/cmake/modules
             -G Ninja
             -S $(Build.SourcesDirectory)/swiftpm
+          workingDirectory: $(Build.StagingDirectory)/spm
 
       - task: CMake@1
         inputs:
