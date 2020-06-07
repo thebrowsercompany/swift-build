@@ -26,15 +26,13 @@
 
 | Component | ID |
 |-----------|----|
-| C++ ATL for latest v142 build tools (x86 & x64)<sup>[1](#windows-atl)</sup> | Microsoft.VisualStudio.Component.VC.ATL |
-| C++ CMake tools for Windows<sup>[2](#windows-cmake)</sup> | Microsoft.VisualStudio.Component.VC.CMake.Project |
-| Git for Windows<sup>[3](#windows-git)</sup> | Microsoft.VisualStudio.Component.Git |
-| Python 3 64-bit (3.7.5)<sup>[4](#windows-python)</sup> | Component.CPython.x64 |
+| C++ CMake tools for Windows<sup>[1](#windows-cmake)</sup> | Microsoft.VisualStudio.Component.VC.CMake.Project |
+| Git for Windows<sup>[2](#windows-git)</sup> | Microsoft.VisualStudio.Component.Git |
+| Python 3 64-bit (3.7.5)<sup>[3](#windows-python)</sup> | Component.CPython.x64 |
 
-<sup><a name="windows-atl">1</a></sup> Used by lldb<br/>
-<sup><a name="windows-cmake">2</a></sup> Provides `ninja` which is needed for building projects. You may download it from [ninja-build](https://github.com/ninja-build/ninja) instead.<br/>
-<sup><a name="windows-git">3</a></sup> Provides `git` to clone projects from GitHub. You may download it from [git-scm](https://git-scm.com/) instead.<br/>
-<sup><a name="windows-python">4</a></sup> Provides `python` needed for Python integration. You may download it from [python](https://www.python.org/) instead.<br/>
+<sup><a name="windows-cmake">1</a></sup> Provides `ninja` which is needed for building projects. You may download it from [ninja-build](https://github.com/ninja-build/ninja) instead.<br/>
+<sup><a name="windows-git">2</a></sup> Provides `git` to clone projects from GitHub. You may download it from [git-scm](https://git-scm.com/) instead.<br/>
+<sup><a name="windows-python">3</a></sup> Provides `python` needed for Python integration. You may download it from [python](https://www.python.org/) instead.<br/>
 
 ## Installation
 
