@@ -4,10 +4,8 @@
 set(LLVM_ENABLE_PROJECTS
       clang
       clang-tools-extra
-      cmark
       lld
       lldb
-      swift
     CACHE STRING "")
 
 set(LLVM_EXTERNAL_PROJECTS

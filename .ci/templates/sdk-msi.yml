@@ -28,15 +28,12 @@ jobs:
 
       - checkout: apple/llvm-project
         displayName: checkout apple/llvm-project
-        path: s/toolchain
 
       - checkout: apple/swift
         displayName: checkout apple/swift
-        path: s/toolchain/swift
 
       - checkout: apple/swift-cmark
         displayName: checkout apple/swift-cmark
-        path: s/toolchain/cmark
 
       - checkout: apple/swift-corelibs-libdispatch
         displayName: checkout apple/swift-corelibs-libdispatch
@@ -49,23 +46,18 @@ jobs:
 
       - checkout: apple/swift-llbuild
         displayName: checkout apple/swift-llbuild
-        path: s/llbuild
 
       - checkout: apple/swift-tools-support-core
         displayName: checkout apple/swift-tools-support-core
-        path: s/tools-support-core
 
       - checkout: jpsim/Yams
         displayName: checkout jpsim/Yams
-        path: s/Yams
 
       - checkout: apple/swift-driver
         displayName: checkout apple/swift-driver
-        path: s/swift-driver
 
       - checkout: apple/swift-package-manager
         displayName: checkout apple/swift-package-manager
-        path: s/swiftpm
 
       - checkout: apple/indexstore-db
         displayName: checkout apple/indexstore-db
@@ -73,7 +65,6 @@ jobs:
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - checkout: tensorflow/swift-apis
           displayName: checkout tensorflow/swift-apis
-          path: s/tensorflow-swift-apis
 
         - checkout: pvieito/PythonKit
           displayName: checkout pvieito/PythonKit
@@ -90,7 +81,7 @@ jobs:
         displayName: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
         inputs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-sdk.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/toolchain/swift -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
 
       - publish: $(Build.BinariesDirectory)/sdk-msi/sdk.msi
         artifact: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
@@ -99,7 +90,7 @@ jobs:
         displayName: ${{ parameters.platform }}-runtime-${{ parameters.proc }}.msi
         inputs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-runtime.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\runtime-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\runtime-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/toolchain/swift -p:TENSORFLOW=${{ parameters.tensorflow }}
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\runtime-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\runtime-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift -p:TENSORFLOW=${{ parameters.tensorflow }}
 
       - publish: $(Build.BinariesDirectory)/runtime-msi/runtime.msi
         artifact: ${{ parameters.platform }}-runtime-${{ parameters.proc }}.msi

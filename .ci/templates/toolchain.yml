@@ -48,7 +48,9 @@ parameters:
 
 jobs:
   - job: ${{ parameters.host }}
+
     timeoutInMinutes: 0
+
     variables:
       icu.version: ${{ parameters.ICU_VERSION }}
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
@@ -56,8 +58,10 @@ jobs:
       tensorflow.directory: $(Pipeline.Workspace)/tensorflow-${{ parameters.platform }}-${{ parameters.host }}/Library
 
       install.directory: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+
     workspace:
       clean: outputs
+
     steps:
       - task: DownloadGitHubRelease@0
         condition: eq( variables['Agent.OS'], 'Darwin' )
@@ -114,15 +118,12 @@ jobs:
 
       - checkout: apple/llvm-project
         displayName: checkout apple/llvm-project
-        path: s/toolchain
 
       - checkout: apple/swift
         displayName: checkout apple/swift
-        path: s/toolchain/swift
 
       - checkout: apple/swift-cmark
         displayName: checkout apple/swift-cmark
-        path: s/toolchain/cmark
 
       - checkout: apple/swift-corelibs-libdispatch
         displayName: checkout apple/swift-corelibs-libdispatch
@@ -135,23 +136,18 @@ jobs:
 
       - checkout: apple/swift-llbuild
         displayName: checkout apple/swift-llbuild
-        path: s/llbuild
 
       - checkout: apple/swift-tools-support-core
         displayName: checkout apple/swift-tools-support-core
-        path: s/tools-support-core
 
       - checkout: jpsim/Yams
         displayName: checkout jpsim/Yams
-        path: s/Yams
 
       - checkout: apple/swift-driver
         displayName: checkout apple/swift-driver
-        path: s/swift-driver
 
       - checkout: apple/swift-package-manager
         displayName: checkout apple/swift-package-manager
-        path: s/swiftpm
 
       - checkout: apple/indexstore-db
         displayName: checkout apple/indexstore-db
@@ -159,7 +155,6 @@ jobs:
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - checkout: tensorflow/swift-apis
           displayName: checkout tensorflow/swift-apis
-          path: s/tensorflow-swift-apis
 
         - checkout: pvieito/PythonKit
           displayName: checkout pvieito/PythonKit
@@ -168,8 +163,8 @@ jobs:
           git config --global user.name builder
           git config --global user.email builder@compnerd.org
 
-          call :ApplyPatches "%LLVM_PR%" toolchain
-          call :ApplyPatches "%SWIFT_PR%" toolchain/swift
+          call :ApplyPatches "%LLVM_PR%" llvm-project
+          call :ApplyPatches "%SWIFT_PR%" swift
           call :ApplyPatches "%DISPATCH_PR%" swift-corelibs-libdispatch
 
           goto :eof
@@ -200,8 +195,8 @@ jobs:
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
 
-          ApplyPatches toolchain ${LLVM_PR}
-          ApplyPatches toolchain/swift ${SWIFT_PR}
+          ApplyPatches llvm-project ${LLVM_PR}
+          ApplyPatches swift ${SWIFT_PR}
           ApplyPatches swift-corelibs-libdispatch ${DISPATCH_PR}
         condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
         displayName: Apply Patches
@@ -218,8 +213,6 @@ jobs:
         displayName: Configure LLVM Build Tools
         inputs:
           cmakeArgs:
-            -G Ninja
-            -S $(Build.SourcesDirectory)/toolchain/llvm
             -B $(Build.BinariesDirectory)/llvm-tools
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-x86_64.cmake
             -D CMAKE_BUILD_TYPE=Release
@@ -227,6 +220,10 @@ jobs:
             -D LLVM_ENABLE_PROJECTS="clang;lldb"
             -D LLDB_DISABLE_PYTHON=YES
             -D LLDB_INCLUDE_TESTS=NO
+            -D LLDB_ENABLE_SWIFT_SUPPORT=NO
+            -D LLVM_BUILD_SWIFT_TOOL=NO
+            -G Ninja
+            -S $(Build.SourcesDirectory)/llvm-project/llvm
 
       - task: CMake@1
         displayName: Build LLVM Build Tools
@@ -252,10 +249,10 @@ jobs:
           modifyEnvironment: true
 
       - script: |
-          copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-          copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
-          copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
-          copy $(Build.SourcesDirectory)\toolchain\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
+          copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: Configure SDK
 
@@ -270,10 +267,12 @@ jobs:
           echo ##vso[task.setvariable variable=LLVM_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\llvm-tblgen.exe
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: LLVM_TABLEGEN
+
       - script: |
           echo ##vso[task.setvariable variable=CLANG_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\clang-tblgen.exe
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: CLANG_TABLEGEN
+
       - script: |
           echo ##vso[task.setvariable variable=LLDB_TABLEGEN]$(Build.BinariesDirectory)\llvm-tools\bin\lldb-tblgen.exe
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
@@ -283,10 +282,12 @@ jobs:
           echo "##vso[task.setvariable variable=LLVM_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/llvm-tblgen"
         condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
         displayName: LLVM_TABLEGEN
+
       - script: |
           echo "##vso[task.setvariable variable=CLANG_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/clang-tblgen"
         condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
         displayName: CLANG_TABLEGEN
+
       - script: |
           echo "##vso[task.setvariable variable=LLDB_TABLEGEN]$(Build.BinariesDirectory)/llvm-tools/bin/lldb-tblgen"
         condition: not( eq( variables['Agent.OS'], 'Windows_NT' ) )
@@ -309,11 +310,13 @@ jobs:
             -D CLANG_TABLEGEN=$(CLANG_TABLEGEN)
             -D LLDB_TABLEGEN=$(LLDB_TABLEGEN)
             -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+            -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
+            -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
             ${{ parameters.LLVM_OPTIONS }}
             ${{ parameters.LLDB_OPTIONS }}
             ${{ parameters.SWIFT_OPTIONS }}
             -G Ninja
-            -S $(Build.SourcesDirectory)/toolchain/llvm
+            -S $(Build.SourcesDirectory)/llvm-project/llvm
 
       - task: CMake@1
         displayName: Build toolchain

@@ -103,7 +103,6 @@ jobs:
 
       - checkout: apple/swift-cmark
         displayName: checkout apple/swift-cmark
-        path: s/toolchain/cmark
 
       - checkout: apple/swift-corelibs-libdispatch
         displayName: checkout apple/swift-corelibs-libdispatch
@@ -116,23 +115,18 @@ jobs:
 
       - checkout: apple/swift-llbuild
         displayName: checkout apple/swift-llbuild
-        path: s/llbuild
 
       - checkout: apple/swift-tools-support-core
         displayName: checkout apple/swift-tools-support-core
-        path: s/tools-support-core
 
       - checkout: jpsim/Yams
         displayName: checkout jpsim/Yams
-        path: s/Yams
 
       - checkout: apple/swift-driver
         displayName: checkout apple/swift-driver
-        path: s/swift-driver
 
       - checkout: apple/swift-package-manager
         displayName: checkout apple/swift-package-manager
-        path: s/swiftpm
 
       - checkout: apple/indexstore-db
         displayName: checkout apple/indexstore-db
@@ -140,7 +134,6 @@ jobs:
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - checkout: tensorflow/swift-apis
           displayName: checkout tensorflow/swift-apis
-          path: s/tensorflow-swift-apis
 
         - checkout: pvieito/PythonKit
           displayName: checkout pvieito/PythonKit
@@ -196,12 +189,14 @@ jobs:
           modifyEnvironment: true
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'vsvarsall.bat'
+
       - task: CmdLine@2
         inputs:
           script: |
             echo ##vso[task.prependpath]$(toolchain.directory)/usr/bin
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'Update PATH'
+
       - script: |
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
@@ -209,6 +204,7 @@ jobs:
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: 'Configure SDK'
+
       - task: UsePythonVersion@0
         inputs:
           versionSpec: '2.7.x'
@@ -219,19 +215,17 @@ jobs:
         displayName: Configure LLVM
         inputs:
           cmakeArgs:
-            -G Ninja
-            -S $(Build.SourcesDirectory)/llvm-project/llvm
             -B $(Build.BinariesDirectory)/llvm
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D LLVM_HOST_TRIPLE=${{ parameters.triple }}
+            -G Ninja
+            -S $(Build.SourcesDirectory)/llvm-project/llvm
 
       - task: CMake@1
         displayName: Configure Swift Standard Library
         inputs:
           cmakeArgs:
-            -G Ninja
-            -S $(Build.SourcesDirectory)/swift
             -B $(Build.BinariesDirectory)/swift-stdlib
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/swift-stdlib-${{ parameters.platform }}-${{ parameters.arch }}.cmake
@@ -240,6 +234,8 @@ jobs:
             -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(toolchain.directory)/usr/bin
             -D CMAKE_INSTALL_PREFIX=$(install.directory)
             ${{ parameters.SWIFT_OPTIONS }}
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift
 
       - task: CMake@1
         displayName: Build Swift Standard Library
