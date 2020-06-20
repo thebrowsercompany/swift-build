@@ -88,7 +88,8 @@ def main():
         get_artifacts(get_latest_build(definition)) for definition in build_ids
     )
     if args.filter:
-      artifacts = itertools.filterfalse(lambda artifact: not re.search(args.filter, artifact[0]), itertools.chain.from_iterable(artifacts))
+      artifacts = itertools.filterfalse(lambda artifact: not re.search(args.filter, artifact[0]),
+                                        itertools.chain.from_iterable(artifacts))
     else:
       artifacts = itertools.chain.from_iterable(artifacts)
     artifacts = [artifact for artifact in artifacts]
