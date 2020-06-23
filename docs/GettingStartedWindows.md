@@ -37,7 +37,7 @@
 ## Installation
 
 1. Install Visual Studio from [Microsoft](https://visualstudio.microsoft.com).
-2. Install Swift Toolchain from [//swift/build](https://compnerd.visualstudio.com/compnerd/swift-build).
+2. Install Swift Toolchain from [//swift/build](https://compnerd.visualstudio.com/swift-build).
 3. Deploy Windows SDK updates.  This must be run from an (elevated) "Administrator" `x64 Native Tools for VS2019 Command Prompt` shell.
 
 ```cmd
