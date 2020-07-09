@@ -59,7 +59,7 @@ This example walks through building an example Swift program from the CMake Swif
 1. Clone the sources
 
 ```cmd
-git clone git://github.com/compnerd/swift-build-examples /SourceCache/swift-build-examples
+git clone git://github.com/compnerd/swift-build-examples %SystemDrive%/SourceCache/swift-build-examples
 ```
 
 2. Setup Common Build Parameter Variables
@@ -73,16 +73,16 @@ set SWIFTFLAGS=-sdk %SDKROOT% -I %SDKROOT%/usr/lib/swift -L %SDKROOT%/usr/lib/sw
 
 ```cmd
 "%ProgramFiles%/CMake/bin/cmake.exe"  ^
-  -B /BinaryCache/HelloWorld          ^
+  -B %SystemDrive%/BinaryCache/HelloWorld          ^
   -D BUILD_SHARED_LIBS=YES            ^
   -D CMAKE_BUILD_TYPE=Release         ^
   -D CMAKE_Swift_FLAGS="%SWIFTFLAGS%" ^
   -G Ninja                            ^
-  -S /SourceCache/swift-build-examples/HelloWorld-CMake
+  -S %SystemDrive%/SourceCache/swift-build-examples/HelloWorld-CMake
 ```
 
 4. Build
 
 ```cmd
-cmake --build /BinaryCache/HelloWorld
+cmake --build %SystemDrive%/BinaryCache/HelloWorld
 ```
