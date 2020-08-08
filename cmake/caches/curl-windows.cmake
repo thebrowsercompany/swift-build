@@ -1,3 +1,3 @@
 # NOTE(compnerd) enable Windows' native SSL by default on Windows
-set(CMAKE_USE_WINSSL YES CACHE BOOL "")
+set(CMAKE_USE_SCHANNEL YES CACHE BOOL "")
 
