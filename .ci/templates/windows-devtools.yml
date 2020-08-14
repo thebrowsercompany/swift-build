@@ -14,6 +14,7 @@ jobs:
 
       llbuild.version: development
       tsc.version: development
+      yams.version: development
       IndexStoreDB.version: development
       SwiftPM.version: development
 
@@ -185,6 +186,30 @@ jobs:
         enabled: false
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/tsc --target install
+
+      - task: CMake@1
+        displayName: Configure Yams
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/Yams
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/Library/Yams-$(yams.version)/usr
+            -G Ninja
+            -S $(Build.SourcesDirectory)/Yams
+
+      - task: CMake@1
+        displayName: Build Yams
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/Yams
+
+      - task: CMake@1
+        displayName: Install Yams
+        enabled: false
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/Yams --target install
 
       - task: CMake@1
         displayName: Configure IndexStoreDB
