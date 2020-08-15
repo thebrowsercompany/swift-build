@@ -219,13 +219,22 @@ jobs:
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-x86_64.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D LLVM_ENABLE_ASSERTIONS=NO
-            -D LLVM_ENABLE_PROJECTS="clang;lldb;cmark;swift"
+            -D LLVM_ENABLE_LIBEDIT=NO
+            -D LLVM_ENABLE_LIBXML2=NO
+            -D LLVM_ENABLE_PROJECTS="clang;lldb"
+            -D LLVM_EXTERNAL_PROJECTS="cmark;swift"
+            -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
+            -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
             -D LLDB_DISABLE_PYTHON=YES
+            -D LLDB_ENABLE_PYTHON=NO
             -D LLDB_INCLUDE_TESTS=NO
             -D LLDB_ENABLE_SWIFT_SUPPORT=NO
-            -D LLVM_BUILD_SWIFT_TOOL=NO
-            -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
-            -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
+            -D SWIFT_INCLUDE_DOCS=NO
+            -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+            -D SWIFT_BUILD_DYNAMIC_STDLIB=NO
+            -D SWIFT_BUILD_STATIC_STDLIB=NO
+            -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO
+            -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO
             -G Ninja
             -S $(Build.SourcesDirectory)/llvm-project/llvm
 
@@ -243,6 +252,12 @@ jobs:
         displayName: Build LLDB Build Tools
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/llvm-tools --target lldb-tblgen
+
+      - task: CMake@1
+        condition: ${{ eq(parameters.VERSION, 'master') }}
+        displayName: Build swift-serialize-diagnostics
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/llvm-tools --target swift-serialize-diagnostics
 
       - task: BatchScript@1
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
@@ -314,6 +329,7 @@ jobs:
             -D CLANG_TABLEGEN=$(CLANG_TABLEGEN)
             -D LLDB_TABLEGEN=$(LLDB_TABLEGEN)
             -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+            -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(Build.BinariesDirectory)/llvm-tools/bin
             -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
             -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
             ${{ parameters.LLVM_OPTIONS }}
