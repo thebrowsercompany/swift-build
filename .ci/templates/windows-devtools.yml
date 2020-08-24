@@ -6,32 +6,58 @@ jobs:
     condition: eq( '${{ parameters.host }}', 'x64' )
 
     variables:
-      sqlite.directory: $(Pipeline.Workspace)/sqlite/sqlite-${{ parameters.platform }}-${{ parameters.host }}/Library/sqlite-3.30.1
-      toolchain.directory: $(Pipeline.Workspace)/toolchain-windows-x64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      toolchain.directory: $(Pipeline.Workspace)/toolchain-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
       sdk.directory: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform/Developer/SDKs/${{ parameters.os }}.sdk
 
-      platform.directory: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform
+      icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-${{ parameters.ICU_VERSION }}
+      sqlite.directory: $(Pipeline.Workspace)/sqlite/sqlite-${{ parameters.platform }}-${{ parameters.host }}/Library/sqlite-3.30.1
 
-      llbuild.version: development
-      tsc.version: development
-      yams.version: development
-      IndexStoreDB.version: development
-      SwiftPM.version: development
+      devtools.toolchain.directory: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      devtools.platform.directory: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform
 
     steps:
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: Enable symbolic links, disable line ending conversion
 
-      - download: current
-        artifact: toolchain-windows-x64
-        displayName: download toolchain
+      - ${{ if eq(parameters.USE_PREBUILT_TOOLCHAIN, true) }}:
+        - task: DownloadPipelineArtifact@2
+          displayName: download toolchain
+          inputs:
+            buildType: specific
+            project: 3133d6ab-80a8-4996-ac4f-03df25cd3224
+            definition: 7
+            buildVersionToDownload: latest
+            allowPartiallySucceededBuilds: true
+            specificBuildWithTriggering: true
+            artifact: toolchain-${{ parameters.platform }}-${{ parameters.host }}
+            targetPath: $(Pipeline.Workspace)/toolchain-${{ parameters.platform }}-${{ parameters.host }}
 
-      - download: current
-        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: download SDK
+        - task: DownloadPipelineArtifact@2
+          displayName: download SDK
+          inputs:
+            buildType: specific
+            project: 3133d6ab-80a8-4996-ac4f-03df25cd3224
+            definition: 7
+            buildVersionToDownload: latest
+            allowPartiallySucceededBuilds: true
+            specificBuildWithTriggering: true
+            artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+            targetPath: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}
+
+      - ${{ if not(eq(parameters.USE_PREBUILT_TOOLCHAIN, true)) }}:
+        - download: current
+          artifact: toolchain-${{ parameters.platform }}-${{ parameters.host }}
+          displayName: download toolchain
+
+        - download: current
+          artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+          displayName: download SDK
+
+      - download: icu
+        artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
+        displayName: download ICU
 
       - download: sqlite
         artifact: sqlite-${{ parameters.platform }}-${{ parameters.host }}
@@ -91,6 +117,7 @@ jobs:
           call :ApplyPatches "%LLBUILD_PR%" swift-llbuild
           call :ApplyPatches "%TSC_PR%" swift-tools-support-core
           call :ApplyPatches "%SPM_PR%" swift-package-manager
+          call :ApplyPatches "%SWIFTDRIVER_PR%" swift-driver
           call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
 
           goto :eof
@@ -109,7 +136,6 @@ jobs:
         displayName: Apply Patches
 
       - task: BatchScript@1
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: VsDevCmd
         inputs:
           filename: C:/Program Files (x86)/Microsoft Visual Studio/${{ parameters.VisualStudio }}/Common7/Tools/VsDevCmd.bat
@@ -121,7 +147,6 @@ jobs:
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap "%VCToolsInstallDir%\include\module.modulemap"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes "%VCToolsInstallDir%\include\visualc.apinotes"
           copy $(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: Configure SDK
 
       - task: UsePythonVersion@0
@@ -132,19 +157,17 @@ jobs:
 
       - script: |
           echo ##vso[task.prependpath]$(toolchain.directory)/usr/bin
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: Update PATH
 
       - task: CMake@1
         displayName: Configure llbuild
         inputs:
           cmakeArgs:
-            -B $(Build.BinariesDirectory)/llbuild
+            -B $(Build.BinariesDirectory)/swift-llbuild
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
-            -D CMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/SharedSupport/llbuild-$(llbuild.version)/usr
             -D LLBUILD_SUPPORT_BINDINGS=Swift
             -D SQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib
             -D SQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
@@ -154,23 +177,17 @@ jobs:
       - task: CMake@1
         displayName: Build llbuild
         inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/llbuild
-
-      - task: CMake@1
-        displayName: Install llbuild
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/llbuild --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-llbuild
 
       - task: CMake@1
         displayName: Configure swift-tools-support-core
         inputs:
           cmakeArgs:
-            -B $(Build.BinariesDirectory)/tsc
+            -B $(Build.BinariesDirectory)/swift-tools-support-core
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
-            -D CMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/Library/TSC-$(tsc.version)/usr
             -D SQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib
             -D SQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
             -G Ninja
@@ -179,13 +196,7 @@ jobs:
       - task: CMake@1
         displayName: Build swift-tools-support-core
         inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/tsc
-
-      - task: CMake@1
-        displayName: Install swift-tools-support-core
-        enabled: false
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/tsc --target install
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-tools-support-core
 
       - task: CMake@1
         displayName: Configure Yams
@@ -198,7 +209,6 @@ jobs:
             -D BUILD_TESTING=NO
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_C_COMPILER=cl
-            -D CMAKE_INSTALL_PREFIX=$(platform.directory)/Developer/Library/Yams-$(yams.version)/usr
             -G Ninja
             -S $(Build.SourcesDirectory)/Yams
 
@@ -208,39 +218,60 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/Yams
 
       - task: CMake@1
-        displayName: Install Yams
-        enabled: false
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/Yams --target install
-
-      - task: CMake@1
-        displayName: Configure IndexStoreDB
-        enabled: false
+        displayName: Configure swift-driver
         inputs:
           cmakeArgs:
-            -B $(Build.BinariesDirectory)/indexstore-db
+            -B $(Build.BinariesDirectory)/swift-driver
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D BUILD_TESTING=NO
+            -D CMAKE_BUILD_TYPE=Release
+            -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
+            -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
+            -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-driver
+
+      - task: CMake@1
+        displayName: Build swift-driver
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver
+
+      - task: CMake@1
+        displayName: Configure swift-package-manager
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/swift-package-manager
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
-            -D CMAKE_INSTALL_PREFIX=$(install.directory)/IndexStoreDB-development/usr
-            -D BUILD_SHARED_LIBS=YES
-            -D CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(sdk.directory)/usr/lib/swift;$(sdk.directory)/usr/lib/swift/Block"
-            -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"
+            -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
+            -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
+            -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
+            -D SwiftDriver_DIR=$(Build.BinariesDirectory)/swift-driver/cmake/modules
             -G Ninja
-            -S $(Build.SourcesDirectory)/indexstore-db
+            -S $(Build.SourcesDirectory)/swift-package-manager
 
       - task: CMake@1
-        displayName: Build IndexStoreDB
-        enabled: false
+        displayName: Build swift-package-manager
         inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-package-manager
 
-      - task: CMake@1
-        displayName: Install IndexStoreDB
-        enabled: false
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db --target install
+      - script: |
+          echo ##vso[task.prependpath]$(icu.directory)/usr/bin;$(sdk.directory)/usr/bin;$(Build.BinariesDirectory)/swift-llbuild/bin;$(Build.BinariesDirectory)/swift-tools-support-core/bin;$(Build.BinariesDirectory)/Yams/bin;$(Build.BinariesDirectory)/swift-driver/bin;$(Build.BinariesDirectory)/swift-package-manager/bin
+        displayName: Update PATH
 
-      - publish: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}
-        artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
+      - script: |
+          echo ##vso[task.setvariable variable=SWIFTPM_PD_LIBS]$(Build.BinariesDirectory)/swift-package-manager/pm
+        displayName: Set SWIFTPM_PD_LIBS
+
+      - script: |
+          swift-build -Xcc -I$(sqlite.directory)/usr/include -Xswiftc -L$(sqlite.directory)/usr/lib -Xswiftc -libc -Xswiftc MD -Xcc -Xclang -Xcc --dependent-lib=msvcrt -Xcc -D_MT -Xcc -D_DLL -Xlinker /INCREMENTAL:NO
+        continueOnError: true
+        displayName: self-host swift-package-manager
+        workingDirectory: $(Build.SourcesDirectory)/swift-package-manager
+
+#     - publish: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}
+#       artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
