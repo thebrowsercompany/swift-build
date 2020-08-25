@@ -70,6 +70,11 @@ jobs:
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
 
+      - task: DownloadSecureFile@1
+        name: certificate
+        inputs:
+          secureFile: dt.compnerd.org.p12
+
       - ${{ if eq(parameters.VERSION, '5.2') }}:
         - task: MSBuild@1
           displayName: toolchain.msi
@@ -83,6 +88,10 @@ jobs:
           inputs:
             solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true
+
+      - script: |
+          signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/toolchain-msi/toolchain.msi
+        displayName: Sign ${{ parameters.platform }}-toolchain-${{ parameters.proc }}.msi
 
       - publish: $(Build.BinariesDirectory)/toolchain-msi/toolchain.msi
         artifact: ${{ parameters.platform }}-toolchain-${{ parameters.proc }}.msi

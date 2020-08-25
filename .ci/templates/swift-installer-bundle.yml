@@ -115,11 +115,20 @@ jobs:
           arguments: -no_logo -arch=x64 -host_arch=x64
           modifyEnvironment: true
 
+      - task: DownloadSecureFile@1
+        name: certificate
+        inputs:
+          secureFile: dt.compnerd.org.p12
+
       - task: MSBuild@1
         displayName: installer.exe
         inputs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-bundle.wixproj
           msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\installer\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\installer\ -p:MSI_LOCATION=$(Build.StagingDirectory) -p:TENSORFLOW=${{ parameters.TENSORFLOW }}
+
+      - script: |
+          signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/installer/installer.exe
+        displayName: Sign installer.exe
 
       - publish: $(Build.BinariesDirectory)/installer/installer.exe
         artifact: installer.exe

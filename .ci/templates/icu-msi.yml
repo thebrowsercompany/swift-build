@@ -75,5 +75,14 @@ jobs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-icu.wixproj
           msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\icu-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\icu-msi\ -p:ICU_ROOT=$(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}
 
+      - task: DownloadSecureFile@1
+        name: certificate
+        inputs:
+          secureFile: dt.compnerd.org.p12
+
+      - script: |
+          signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/icu-msi/icu.msi
+        displayName: Sign ${{ parameters.platform }}-icu-${{ parameters.proc }}.msi
+
       - publish: $(Build.BinariesDirectory)/icu-msi/icu.msi
         artifact: ${{ parameters.platform }}-icu-${{ parameters.proc }}.msi
