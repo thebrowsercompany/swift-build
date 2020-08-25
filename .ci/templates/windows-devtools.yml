@@ -160,14 +160,15 @@ jobs:
         displayName: Update PATH
 
       - task: CMake@1
-        displayName: Configure llbuild
+        displayName: Configure swift-llbuild
         inputs:
           cmakeArgs:
             -B $(Build.BinariesDirectory)/swift-llbuild
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
-            -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
             -D LLBUILD_SUPPORT_BINDINGS=Swift
             -D SQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib
             -D SQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
@@ -175,9 +176,14 @@ jobs:
             -S $(Build.SourcesDirectory)/swift-llbuild
 
       - task: CMake@1
-        displayName: Build llbuild
+        displayName: Build swift-llbuild
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-llbuild
+
+      - task: CMake@1
+        displayName: Install swift-llbuild
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-llbuild --target install
 
       - task: CMake@1
         displayName: Configure swift-tools-support-core
@@ -188,6 +194,7 @@ jobs:
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
             -D SQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib
             -D SQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
             -G Ninja
@@ -197,6 +204,11 @@ jobs:
         displayName: Build swift-tools-support-core
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-tools-support-core
+
+      - task: CMake@1
+        displayName: Install swift-tools-support-core
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-tools-support-core --target install
 
       - task: CMake@1
         displayName: Configure Yams
@@ -209,6 +221,7 @@ jobs:
             -D BUILD_TESTING=NO
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_C_COMPILER=cl
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
             -G Ninja
             -S $(Build.SourcesDirectory)/Yams
 
@@ -216,6 +229,11 @@ jobs:
         displayName: Build Yams
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/Yams
+
+      - task: CMake@1
+        displayName: Install Yams
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/Yams --target install
 
       - task: CMake@1
         displayName: Configure swift-driver
@@ -227,6 +245,7 @@ jobs:
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D BUILD_TESTING=NO
             -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
             -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
             -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
             -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
@@ -239,6 +258,11 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver
 
       - task: CMake@1
+        displayName: Install swift-driver
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver --target install
+
+      - task: CMake@1
         displayName: Configure swift-package-manager
         inputs:
           cmakeArgs:
@@ -247,6 +271,7 @@ jobs:
             -D CMAKE_Swift_SDK=$(sdk.directory)
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
             -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
             -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
             -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
@@ -258,6 +283,11 @@ jobs:
         displayName: Build swift-package-manager
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-package-manager
+
+      - task: CMake@1
+        displayName: Install swift-package-manager
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-package-manager --target install
 
       - script: |
           echo ##vso[task.prependpath]$(icu.directory)/usr/bin;$(sdk.directory)/usr/bin;$(Build.BinariesDirectory)/swift-llbuild/bin;$(Build.BinariesDirectory)/swift-tools-support-core/bin;$(Build.BinariesDirectory)/Yams/bin;$(Build.BinariesDirectory)/swift-driver/bin;$(Build.BinariesDirectory)/swift-package-manager/bin
@@ -273,5 +303,5 @@ jobs:
         displayName: self-host swift-package-manager
         workingDirectory: $(Build.SourcesDirectory)/swift-package-manager
 
-#     - publish: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}
-#       artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
+      - publish: $(Build.StagingDirectory)/devtools-${{ parameters.platform }}-${{ parameters.host }}
+        artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
