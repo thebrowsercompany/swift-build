@@ -11,6 +11,7 @@ jobs:
     variables:
       toolchain.directory: $(Pipeline.Workspace)/toolchain-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
       sdk.directory: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform/Developer/SDKs/${{ parameters.os }}.sdk
+      developer_library.directory: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform/Developer/Library
 
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-${{ parameters.ICU_VERSION }}
       sqlite.directory: $(Pipeline.Workspace)/sqlite/sqlite-${{ parameters.platform }}-${{ parameters.host }}/Library/sqlite-3.30.1
@@ -329,7 +330,7 @@ jobs:
         displayName: Set SWIFTPM_PD_LIBS
 
       - script: |
-          swift-build -Xcc -I$(sqlite.directory)/usr/include -Xswiftc -L$(sqlite.directory)/usr/lib -Xswiftc -libc -Xswiftc MD -Xcc -Xclang -Xcc --dependent-lib=msvcrt -Xcc -D_MT -Xcc -D_DLL -Xlinker /INCREMENTAL:NO
+          swift-build -Xmanifest -sdk -Xmanifest $(sdk.directory) -Xmanifest -I$(sdk.directory)/usr/lib/swift -Xmanifest -L$(sdk.directory)/usr/lib/swift/windows -Xswiftc -sdk -Xswiftc $(sdk.directory) -Xswiftc -I$(sdk.directory)/usr/lib/swift -Xswiftc -L$(sdk.directory)/usr/lib/swift/windows -Xswiftc -I$(developer_library.directory)/XCTest-development/usr/lib/swift/windows/x86_64 -Xswiftc -L$(developer_library.directory)/XCTest-development/usr/lib/swift/windows  -Xcc -I$(sqlite.directory)/usr/include -Xswiftc -L$(sqlite.directory)/usr/lib -Xswiftc -libc -Xswiftc MD -Xcc -Xclang -Xcc --dependent-lib=msvcrt -Xcc -D_MT -Xcc -D_DLL -Xlinker /INCREMENTAL:NO
         continueOnError: true
         displayName: self-host swift-package-manager
         workingDirectory: $(Build.SourcesDirectory)/swift-package-manager
