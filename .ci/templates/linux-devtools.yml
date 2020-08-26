@@ -216,6 +216,26 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver
 
       - task: CMake@1
+        displayName: Configure swift-argument-parser
+        inputs:
+          cmakeArgs:
+            -B $(Build.StagingDirectory)/swift-argument-parser
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/linux-${{ parameters.arch }}.cmake
+            -D BUILD_SHARED_LIBS=YES
+            -D BUILD_TESTING=NO
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_C_COMPILER=$(toolchain.directory)/usr/bin/clang
+            -D CMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc
+            -D CMAKE_Swift_FLAGS="-resource-dir $(sdk.directory)/usr/lib/swift -use-ld=lld"
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-argument-parser
+
+      - task: CMake@1
+        displayName: Build swift-argument-parser
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-argument-driver
+
+      - task: CMake@1
         displayName: Configure swift-package-manager
         inputs:
           cmakeArgs:
@@ -231,6 +251,7 @@ jobs:
             -D TSC_DIR=$(Build.StagingDirectory)/tsc/cmake/modules
             -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
             -D SwiftDriver_DIR=$(Build.BinariesDirectory)/swift-driver/cmake/modules
+            -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
             -G Ninja
             -S $(Build.SourcesDirectory)/swift-package-manager
           workingDirectory: $(Build.StagingDirectory)/spm
