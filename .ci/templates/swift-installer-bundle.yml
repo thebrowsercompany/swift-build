@@ -134,6 +134,9 @@ jobs:
           msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\installer\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\installer\ -p:MSI_LOCATION=$(Build.StagingDirectory) -p:TENSORFLOW=${{ parameters.TENSORFLOW }}
 
       - script: |
+          "%WIX%bin\insignia.exe" -ib $(Build.BinariesDirectory)/installer/installer.exe -o $(Build.BinariesDirectory)/engine.exe
+          signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/engine.exe
+          "%WIX%bin\insignia.exe" -ab $(Build.BinariesDirectory)/engine.exe $(Build.BinariesDirectory)/installer/installer.exe -o $(Build.BinariesDirectory)/installer/installer.exe
           signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/installer/installer.exe
         displayName: Sign installer.exe
 
