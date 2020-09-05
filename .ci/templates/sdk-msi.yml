@@ -6,9 +6,23 @@ jobs:
       platform.directory: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Platforms/${{ parameters.os }}.platform
       sdk.directory: $(platform.directory)/Developer/SDKs/${{ parameters.os }}.sdk
     steps:
-      - download: current
-        artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
-        displayName: download SDK
+      - ${{ if eq(parameters.USE_PREBUILT_TOOLCHAIN, true) }}:
+        - task: DownloadPipelineArtifact@2
+          displayName: download SDK
+          inputs:
+            buildType: specific
+            project: 3133d6ab-80a8-4996-ac4f-03df25cd3224
+            definition: 7
+            buildVersionToDownload: latest
+            allowPartiallySucceededBuilds: true
+            specificBuildWithTriggering: true
+            artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+            targetPath: $(Pipeline.Workspace)/sdk-${{ parameters.platform }}-${{ parameters.host }}
+
+      - ${{ if not(eq(parameters.USE_PREBUILT_TOOLCHAIN, true)) }}:
+        - download: current
+          artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}
+          displayName: download SDK
 
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - download: tensorflow
