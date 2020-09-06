@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id=""
+           Language="1033"
+           Manufacturer="dt.compnerd.org"
+           Name="Developer Tools"
+           UpgradeCode="649713cc-c7c8-4c77-a550-bf39e9ece9b0"
+           Version="0.0.0.0">
+    <Package Comments="Copyright 2020 Saleem Abdulrasool &lt;compnerd@compnerd.org&gt;"
+             Compressed="yes"
+             Description="Developer Tools"
+             InstallScope="perMachine"
+             Manufacturer="dt.compnerd.org" />
+    <!--
+         NOTE(compnerd) use the pre-3.8 schema for better compatibility.  If we
+         are guaranteed WIX 3.8+ we could write this as:
+
+         <MediaTemplate EmbedCab="yes" />
+    -->
+    <Media Id="1" Cabinet="devtools.cab" EmbedCab="yes" />
+
+    <?ifdef INCLUDE_DEBUG_INFO ?>
+    <Media Id="2" Cabinet="devtools_PDBs.cab" EmbedCab="yes" />
+    <?endif?>
+
+    <!-- Directory Structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="WINDOWSVOLUME">
+        <Directory Id="LIBRARY" Name="Library">
+          <Directory Id="DEVELOPER" Name="Developer">
+            <Directory Id="TOOLCHAINS" Name="Toolchains">
+              <Directory Id="UNKNOWN_ASSERTS_DEVELOPMENT_XCTOOLCHAIN" Name="unknown-Asserts-development.xctoolchain">
+                <Directory Id="USR" Name="usr">
+                  <Directory Id="USR_BIN" Name="bin">
+                  </Directory>
+                  <!--
+                  FIXME(compnerd) should we include the cyaml and llbuild headers?
+                  <Directory Id="USR_INCLUDE" Name="include">
+                    <Directory Id="USR_INCLUDE_CYAML" Name="cyaml">
+                    </Directory>
+                    <Directory Id="USR_INCLUDE_LLBUILD" Name="llbuild">
+                    </Directory>
+                  </Directory>
+                  -->
+                  <Directory Id="USR_LIB" Name="lib">
+                    <!-- FIXME(compnerd) should we include the TSC, SPM import libraries? -->
+                    <Directory Id="USR_LIB_SWIFT" Name="swift">
+                      <Directory Id="USR_LIB_SWIFT_PM" Name="pm">
+                        <Directory Id="USR_LIB_SWIFT_PM_4" Name="4">
+                        </Directory>
+                        <Directory Id="USR_LIB_SWIFT_PM_4_2" Name="4_2">
+                        </Directory>
+                      </Directory>
+                      <!--
+                      FIXME(compnerd) should we include the import libraries and swiftmodules for Yams, ArgumentParser?
+                      <Directory Id="USR_LIB_SWIFT_WINDOWS" Name="windows">
+                        <Directory Id="USR_LIB_SWIFT_WINDOWS_X86_64" Name="x86_64">
+                        </Directory>
+                      </Directory>
+                      -->
+                    <!-- FIXME(compnerd) should we include the llbuild import libraries? -->
+                    </Directory>
+                  </Directory>
+                </Directory>
+              </Directory>
+            </Directory>
+          </Directory>
+        </Directoryh>
+      </Directory>
+    </Directory>
+
+    <SetDirectory Id="WINDOWSVOLUME" Value="[WindowsVolume]" />
+
+    <!-- Components -->
+    <DirectoryRef Id="USR_BIN">
+      <!-- llbuild -->
+      <Component Id="LLBUILD_BINS" Guid="6db5d6b2-9143-4078-8b53-adeefadf79f5">
+        <File Id="LLBUILD_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuild.dll" Checksum="yes" />
+        <File Id="LLBUILDSWIFT_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuildSwift.dll" Checksum="yes" />
+
+        <File Id="SWIFT_BUILD_TOOL_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-build-tool.exe" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO ?>
+      <Component Id="LLBUILD_DEBUGINFO" Guid="">
+        <File Id="LLBUILD_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuild.pdb" Checksum="yes" />
+        <File Id="LLBUILDSWIFT_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuildSwift.pdb" Checksum="yes" />
+
+        <File Id="SWIFT_BUILD_TOOL_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-build-tool.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+
+      <!-- swift-argument-parser -->
+      <Component Id="SWIFT_ARGUMENT_PARSER_BINS" Guid="aef2e271-6f83-4838-bd41-3802ded17ddc">
+        <File Id="ARGUMENT_PARSER_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\ArgumentParser.dll" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO ?>
+      <Component Id="SWIFT_ARGUMENT_PARSER_DEBUGINFO" Guid="">
+        <File Id="ARGUMENT_PARSER_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\ArgumentParser.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+
+      <!-- swift-driver -->
+      <Component Id="SWIFT_DRIVER_BINS" Guid="f7285238-ca6f-473d-82f4-50e852d2ed01">
+        <File Id="SWIFT_DRIVER_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SwiftDriver.dll" Checksum="yes" />
+        <File Id="SWIFT_OPTIONS_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SwiftOptions.dll" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO ?>
+      <Component Id="SWIFT_DRIVER_DEBUGINFO" Guid="">
+        <File Id="SWIFT_DRIVER_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SwiftDriver.pdb" Checksum="yes" />
+        <File Id="SWIFT_OPTIONS_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SwiftOptions.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+
+      <!-- swift-package-manager -->
+      <Component Id="SWIFT_PACKAGE_MANAGER_BINS" Guid="1fa183c6-20ff-4ffb-941c-614c45d535b1">
+        <File Id="BUILD_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Build.dll" Checksum="yes" />
+        <File Id="COMMANDS_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Commands.dll" Checksum="yes" />
+        <File Id="LLBUILD_MANIFEST_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\LLBuildManifest.dll" Checksum="yes" />
+        <File Id="PACKAGE_GRAPH_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\PackageGraph.dll" Checksum="yes" />
+        <File Id="PACKAGE_LOADING_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\PackageLoading.dll" Checksum="yes" />
+        <File Id="PACKAGE_MODEL_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\PackageModel.dll" Checksum="yes" />
+        <File Id="SOURCE_CONTROL_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SourceControl.dll" Checksum="yes" />
+        <File Id="SPMBUILD_CORE_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SPMBuildCore.dll" Checksum="yes" />
+        <File Id="SPMLLBUILD_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SPMLLBuild.dll" Checksum="yes" />
+        <File Id="WORKSPACE_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Workspace.dll" Checksum="yes" />
+        <File Id="XCBUILD_SUPPORT_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\XCBuildSupport.dll" Checksum="yes" />
+        <File Id="XCODEPROJ_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Xcodeproj.dll" Checksum="yes" />
+
+        <File Id="SWIFT_BUILD_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-build.exe" Checksum="yes" />
+        <File Id="SWIFT_PACKAGE_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-package.exe" Checksum="yes" />
+        <File Id="SWIFT_RUN_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-run.exe" Checksum="yes" />
+        <File Id="SWIFT_TEST_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-test.exe" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO ?>
+      <Component Id="SWIFT_PACKAGE_MANAGER_DEBUGINFO" Guid="">
+        <File Id="BUILD_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Build.pdb" Checksum="yes" />
+        <File Id="COMMANDS_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Commands.pdb" Checksum="yes" />
+        <File Id="LLBUILD_MANIFEST_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\LLBuildManifest.pdb" Checksum="yes" />
+        <File Id="PACKAGE_GRAPH_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\PackageGraph.pdb" Checksum="yes" />
+        <File Id="PACKAGE_LOADING_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\PackageLoading.pdb" Checksum="yes" />
+        <File Id="PACKAGE_MODEL_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\PackageModel.pdb" Checksum="yes" />
+        <File Id="SOURCE_CONTROL_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SourceControl.pdb" Checksum="yes" />
+        <File Id="SPMBUILD_CORE_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SPMBuildCore.pdb" Checksum="yes" />
+        <File Id="SPMLLBUILD_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SPMLLBuild.pdb" Checksum="yes" />
+        <File Id="WORKSPACE_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Workspace.pdb" Checksum="yes" />
+        <File Id="XCBUILD_SUPPORT_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\XCBuildSupport.pdb" Checksum="yes" />
+        <File Id="XCODEPROJ_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Xcodeproj.pdb" Checksum="yes" />
+
+        <File Id="SWIFT_BUILD_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-build.pdb" Checksum="yes" />
+        <File Id="SWIFT_PACKAGE_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-package.pdb" Checksum="yes" />
+        <File Id="SWIFT_RUN_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-run.pdb" Checksum="yes" />
+        <File Id="SWIFT_TEST_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-test.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+
+      <!-- swift-tools-support-core -->
+      <Component Id="SWIFT_TOOLS_SUPPORT_CORE_BINS" Guid="7d9ea294-50e4-46a5-855d-221370efe57f">
+        <File Id="TSC_BASIC_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCBasic.exe" Checksum="yes" />
+        <File Id="TSC_LIBC_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCLibc.exe" Checksum="yes" />
+        <File Id="TSC_UTILITY_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCUtility.exe" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO ?>
+      <Component Id="SWIFT_TOOLS_SUPPORT_CORE_DEBUGINFO" Guid="">
+        <File Id="TSC_BASIC_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCBasic.pdb" Checksum="yes" />
+        <File Id="TSC_LIBC_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCLibc.pdb" Checksum="yes" />
+        <File Id="TSC_UTILITY_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCUtility.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+    </DirectoryRef>
+
+    <DirectoryRef Id="USR_LIB_SWIFT_PM_4">
+      <!-- Swift PackageDescription 4 -->
+      <Component Id="SWIFT_PD_4" Guid="c827d4fc-2498-402d-8052-aff2ed731d0a">
+        <File Id="PD4_PACKAGE_DESCRIPTION_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4\PackageDescription.dll" Checksum="yes" />
+        <File Id="PD4_PACKAGE_DESCRIPTION_LIB" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4\PackageDescription.lib" Checksum="yes" />
+        <File Id="PD4_PACKAGE_DESCRIPTION_SWIFTDOC" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4\PackageDescription.swiftdoc" Checksum="yes" />
+        <File Id="PD4_PACKAGE_DESCRIPTION_SWIFTMODULE" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4\PackageDescription.swiftmodule" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO ?>
+      <Component Id="SWIFT_PD_4_DEBUGINFO" Guid="">
+        <File Id="PD4_PACKAGE_DESCRIPTION_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4\PackageDescription.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+    </DirectoryRef>
+
+    <DirectoryRef Id="USR_LIB_SWIFT_PM_4_2">
+      <!-- Swift PackageDescription 4.2 -->
+      <Component Id="SWIFT_PD_4_2" Guid="17d6ec78-6c0f-464c-9629-3547cdea291b">
+        <File Id="PD4_2_PACKAGE_DESCRIPTION_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4_2\PackageDescription.dll" Checksum="yes" />
+        <File Id="PD4_2_PACKAGE_DESCRIPTION_LIB" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4_2\PackageDescription.lib" Checksum="yes" />
+        <File Id="PD4_2_PACKAGE_DESCRIPTION_SWIFTDOC" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4_2\PackageDescription.swiftdoc" Checksum="yes" />
+        <File Id="PD4_2_PACKAGE_DESCRIPTION_SWIFTMODULE" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4_2\PackageDescription.swiftmodule" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO ?>
+      <Component Id="SWIFT_PD_4_2_DEBUGINFO" GUid="">
+        <File Id="PD4_2_PACKAGE_DESCRIPTION_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\4_2\PackageDescription.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+    </DirectoryRef>
+
+    <Feature Id="DEVTOOLS" Level="1">
+      <ComponentRef Id="LLBUILD_BINS" />
+      <ComponentRef Id="SWIFT_ARGUMENT_PARSER_BINS" />
+      <ComponentRef Id="SWIFT_DRIVER_BINS" />
+      <ComponentRef Id="SWIFT_PACKAGE_MANAGER_BINS" />
+      <ComponentRef Id="SWIFT_TOOLS_SUPPORT_CORE_BINS" />
+    </Feature>
+
+    <?ifdef INCLUDE_DEBUG_INFO ?>
+    <Feature Id="DEBUGINFO" Level="0">
+      <Condition Level="1">INSTALL_DEBUGINFO</Condition>
+      <ComponentRef Id="LLBUILD_DEBUGINFO" />
+      <ComponentRef Id="SWIFT_ARGUMENT_PARSER_DEBUGINFO" />
+      <ComponentRef Id="SWIFT_DRIVER_DEBUGINFO" />
+      <ComponentRef Id="SWIFT_PACKAGE_MANAGER_DEBUGINFO" />
+      <ComponentRef Id="SWIFT_TOOLS_SUPPORT_CORE_DEBUGINFO" />
+    </Feature>
+    <?endif?>
+
+    <!-- UI -->
+    <UI />
+  </Product>
+</Wix>
