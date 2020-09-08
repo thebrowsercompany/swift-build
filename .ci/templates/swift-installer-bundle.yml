@@ -17,6 +17,10 @@ jobs:
       - download: current
         artifact: ${{ parameters.platform }}-icu-${{ parameters.proc }}.msi
 
+      - ${{ if eq(parameters.DEVTOOLS, true) }}:
+        - download: current
+          artifact: ${{ parameters.platform }}-devtools-${{ parameters.proc }}.msi
+
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - download: current
           artifact: ${{ parameters.platform }}-tensorflow-${{ parameters.proc }}.msi
@@ -106,6 +110,14 @@ jobs:
           contents: icu.msi
           targetFolder: $(Build.StagingDirectory)
 
+      - ${{ if eq(parameters.DEVTOOLS, true) }}:
+        - task: CopyFiles@2
+          displayName: 'devtools.msi'
+          inputs:
+            sourceFolder: $(Pipeline.Workspace)/${{ parameters.platform }}-devtools-${{ parameters.proc }}.msi
+            contents: devtools.msi
+            targetFolder: $(Build.StagingDirectory)
+
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - task: CopyFiles@2
           displayName: 'tensorflow.msi'
@@ -131,7 +143,7 @@ jobs:
         displayName: installer.exe
         inputs:
           solution: $(Build.SourcesDirectory)/swift-build/wix/windows-bundle.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\installer\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\installer\ -p:MSI_LOCATION=$(Build.StagingDirectory) -p:TENSORFLOW=${{ parameters.TENSORFLOW }}
+          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\installer\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\installer\ -p:MSI_LOCATION=$(Build.StagingDirectory) -p:DEVTOOLS=${{ parameters.DEVTOOLS }} -p:TENSORFLOW=${{ parameters.TENSORFLOW }}
 
       - script: |
           "%WIX%bin\insignia.exe" -ib $(Build.BinariesDirectory)/installer/installer.exe -o $(Build.BinariesDirectory)/engine.exe
