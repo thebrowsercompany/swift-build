@@ -275,33 +275,6 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/Yams --target install
 
       - task: CMake@1
-        displayName: Configure swift-driver
-        inputs:
-          cmakeArgs:
-            -B $(Build.BinariesDirectory)/swift-driver
-            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
-            -D CMAKE_Swift_SDK=$(sdk.directory)
-            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
-            -D BUILD_TESTING=NO
-            -D CMAKE_BUILD_TYPE=Release
-            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
-            -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
-            -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
-            -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
-            -G Ninja
-            -S $(Build.SourcesDirectory)/swift-driver
-
-      - task: CMake@1
-        displayName: Build swift-driver
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver
-
-      - task: CMake@1
-        displayName: Install swift-driver
-        inputs:
-          cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver --target install
-
-      - task: CMake@1
         displayName: Configure swift-argument-parser
         inputs:
           cmakeArgs:
@@ -324,6 +297,34 @@ jobs:
         displayName: Install swift-argument-parser
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-argument-parser --target install
+
+      - task: CMake@1
+        displayName: Configure swift-driver
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/swift-driver
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D BUILD_TESTING=NO
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
+            -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
+            -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
+            -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-driver
+
+      - task: CMake@1
+        displayName: Build swift-driver
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver
+
+      - task: CMake@1
+        displayName: Install swift-driver
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver --target install
 
       - task: CMake@1
         displayName: Configure swift-package-manager
