@@ -356,6 +356,12 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/libdispatch --target install
 
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: 3.7.x
+        name: python3
+        continueOnError: true
+
       - task: PythonScript@0
         inputs:
           scriptSource: inline
@@ -372,6 +378,12 @@ jobs:
               # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
               # runtime.
               plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
+
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: ${{ parameters.PythonVersion }}
+        name: python
+        continueOnError: true
 
       - ${{ if eq(parameters.TENSORFLOW, true) }}:
         - task: CMake@1
