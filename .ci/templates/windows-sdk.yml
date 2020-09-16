@@ -36,6 +36,10 @@ parameters:
   - name: ICU_VERSION
     type: string
 
+  - name: VERSION
+    type: string
+    default: 'master'
+
 jobs:
   - job: ${{ parameters.host }}
     # NOTE(compnerd) disable non-x64 builds as they are currently broken :(
@@ -246,6 +250,10 @@ jobs:
             ${{ parameters.SWIFT_OPTIONS }}
             -G Ninja
             -S $(Build.SourcesDirectory)/swift
+
+      - ${{ if eq(parameters.VERSION,'5.3') }}:
+        - script: |
+            mklink "$(Build.BinariesDirectory)/swift-stdlib/bin/swiftc" "$(toolchain.directory)/usr/bin/swiftc.exe"
 
       - task: CMake@1
         displayName: Build Swift Standard Library
