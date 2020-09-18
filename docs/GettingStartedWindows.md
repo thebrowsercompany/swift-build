@@ -16,11 +16,12 @@
 
 | Component | ID |
 |-----------|----|
-| MSVC v142 - VS 2019 C++ x64/x86 build tools (v14.??) | Microsoft.VisualStudio.Component.VC.Tools.x86.x64 |
+| MSVC v142 - VS 2019 C++ x64/x86 build tools (v14.25)<sup>[1](#visual-c)</sup> | Microsoft.VisualStudio.Component.VC.Tools.x86.x64 |
 | Windows Universal C Runtime | Microsoft.VisualStudio.Component.Windows10SDK |
-| Windows 10 SDK (10.0.17763.0)<sup>[1](#windows-sdk)</sup> | Microsoft.VisualStudio.Component.Windows10SDK.17763 |
+| Windows 10 SDK (10.0.17763.0)<sup>[2](#windows-sdk)</sup> | Microsoft.VisualStudio.Component.Windows10SDK.17763 |
 
-<sup><a name="windows-sdk">1</a></sup> You may install a newer SDK if you desire. 17763 is listed here to match the minimum Windows release supported.
+<sup><a name="visual-c">1</a></sup> This is needed for the Visual C++ headers (you can use `-use-ld=lld` to use `lld` instead of `link.exe`)<br/>
+<sup><a name="windows-sdk">2</a></sup> You may install a newer SDK if you desire. 17763 is listed here to match the minimum Windows release supported.
 
 **Recommended** Visual Studio Components
 
@@ -66,8 +67,9 @@ git clone git://github.com/compnerd/swift-build-examples %SystemDrive%/SourceCac
 2. Setup Common Build Parameter Variables
 
 ```cmd
-set SDKROOT=%SystemDrive%/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
-set SWIFTFLAGS=-sdk %SDKROOT% -I %SDKROOT%/usr/lib/swift -L %SDKROOT%/usr/lib/swift/windows
+:: Swift 5.3 and earlier require that you set `SDKROOT` to the correct value.
+:: set SDKROOT=%SystemDrive%/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
+set SWIFTFLAGS=-sdk %SDKROOT% -resource-dir %SDKROOT%/usr/lib/swift -I %SDKROOT%/usr/lib/swift -L %SDKROOT%/usr/lib/swift/windows
 ```
 
 3. Configure
