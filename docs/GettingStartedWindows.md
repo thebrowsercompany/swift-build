@@ -38,10 +38,11 @@
 
 1. Install Visual Studio from [Microsoft](https://visualstudio.microsoft.com).
 2. Install Swift Toolchain from [//swift/build](https://compnerd.visualstudio.com/swift-build).
-3. Deploy Windows SDK updates.  This must be run from an (elevated) "Administrator" `x64 Native Tools for VS2019 Command Prompt` shell.
+3. Deploy Windows SDK, Visual C++ updates.  This must be run from an (elevated) "Administrator" `x64 Native Tools for VS2019 Command Prompt` shell.
 
 ```cmd
-set SDKROOT=%SystemDrive%\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
+:: Swift 5.3 and earlier require that you set `SDKROOT` to the correct value.
+:: set SDKROOT=%SystemDrive%\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
 copy "%SDKROOT%\usr\share\ucrt.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
 copy "%SDKROOT%\usr\share\visualc.modulemap" "%VCToolsInstallDir%\include\module.modulemap"
 copy "%SDKROOT%\usr\share\visualc.apinotes" "%VCToolsInstallDir%\include\visualc.apinotes"
@@ -72,12 +73,12 @@ set SWIFTFLAGS=-sdk %SDKROOT% -I %SDKROOT%/usr/lib/swift -L %SDKROOT%/usr/lib/sw
 3. Configure
 
 ```cmd
-"%ProgramFiles%/CMake/bin/cmake.exe"  ^
-  -B %SystemDrive%/BinaryCache/HelloWorld          ^
-  -D BUILD_SHARED_LIBS=YES            ^
-  -D CMAKE_BUILD_TYPE=Release         ^
-  -D CMAKE_Swift_FLAGS="%SWIFTFLAGS%" ^
-  -G Ninja                            ^
+"%ProgramFiles%/CMake/bin/cmake.exe"      ^
+  -B %SystemDrive%/BinaryCache/HelloWorld ^
+  -D BUILD_SHARED_LIBS=YES                ^
+  -D CMAKE_BUILD_TYPE=Release             ^
+  -D CMAKE_Swift_FLAGS="%SWIFTFLAGS%"     ^
+  -G Ninja                                ^
   -S %SystemDrive%/SourceCache/swift-build-examples/HelloWorld-CMake
 ```
 
