@@ -56,7 +56,7 @@ copy "%SDKROOT%\usr\share\winsdk.modulemap" "%UniversalCRTSdkDir%\Include\%UCRTV
 
 Currently the only supported way to build is CMake with the Ninja generator.
 
-This example walks through building an example Swift program from the CMake Swift examples at [swift-build-examples](https://github.com/compnerd/swift-build-examples).
+This example walks through building an example Swift program from the CMake Swift examples at [swift-cmake-examples](https://github.com/compnerd/swift-cmake-examples).
 
 1. Clone the sources
 
