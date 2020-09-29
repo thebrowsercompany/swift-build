@@ -13,6 +13,7 @@ targets, or build on Windows natively without cross-compilation.
   * [Getting Started (Docker)](docs/GettingStartedDocker.md)
   * [Getting Started (Native)](docs/GettingStartedWindows.md)
   * [Status](#status)
+  * [Getting the latest build](#Getting the latest build)
 
 ## Status
 
@@ -140,3 +141,16 @@ targets, or build on Windows natively without cross-compilation.
       - SDK
         - Linux
 </details>
+
+## Getting the latest build
+### Stable builds
+The latest stable build can be acuqired from the [releases](https://github.com/compnerd/swift-build/releases) page.
+### Dev builds
+The `utilities/swift-build.py` script allows downloading of the latest build artifacts. The script requires the `azure-devops` and `tabulate` python packages. These can be installed with `pip`:
+```
+python3 -m pip install tabulate azure-devops
+```
+For example, to download the latest VS2019 build:
+```
+swift-build.py --download --build-id VS2019 --latest-artifacts --filter installer.exe
+```
