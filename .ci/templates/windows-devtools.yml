@@ -354,6 +354,31 @@ jobs:
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-package-manager --target install
 
+      - task: CMake@1
+        displayName: Configure IndexStoreDB
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/indexstore-db
+            -D CMAKE_CXX_FLAGS="-I $(sdk.directory)/usr/lib/swift -I $(sdk.directory)/usr/lib/swift/Block"
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D BUILD_SHARED_LIBS=YES
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -G Ninja
+            -S $(Build.SourcesDirectory)/indexstore-db
+
+      - task: CMake@1
+        displayName: Build IndexStoreDB
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db
+
+      - task: CMake@1
+        displayName: Install IndexStoreDB
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db --target install
+
       - script: |
           echo ##vso[task.prependpath]$(icu.directory)/usr/bin;$(sdk.directory)/usr/bin;$(Build.BinariesDirectory)/swift-llbuild/bin;$(Build.BinariesDirectory)/swift-tools-support-core/bin;$(Build.BinariesDirectory)/Yams/bin;$(Build.BinariesDirectory)/swift-driver/bin;$(Build.BinariesDirectory)/swift-argument-parser/bin;$(Build.BinariesDirectory)/swift-package-manager/bin
         displayName: Update PATH
