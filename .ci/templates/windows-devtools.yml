@@ -161,6 +161,7 @@ jobs:
           call :ApplyPatches "%SPM_PR%" swift-package-manager
           call :ApplyPatches "%SWIFTDRIVER_PR%" swift-driver
           call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
+          call :ApplyPatches "%SOURCEKITLSP_PR%" sourcekit-lsp
 
           goto :eof
 
@@ -381,6 +382,30 @@ jobs:
         displayName: Install IndexStoreDB
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db --target install
+
+      - task: CMake@1
+        displayName: Configure SourceKit-LSP
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/sourcekit-lsp
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D BUILD_SHARED_LIBS=YES
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
+            -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
+            -D SwiftPM_DIR=$(Build.BinariesDirectory)/swift-package-manager/cmake/modules
+            -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
+            -D IndexStoreDB_DIR=$(Build.BinariesDirectory)/indexstore-db/cmake/modules
+            -G Ninja
+            -S $(Build.SourcesDirectory)/sourcekit-lsp
+
+      - task: CMake@1
+        displayName: Install SourceKit-LSP
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/sourcekit-lsp --target install
 
       - script: |
           echo ##vso[task.prependpath]$(icu.directory)/usr/bin;$(sdk.directory)/usr/bin;$(Build.BinariesDirectory)/swift-llbuild/bin;$(Build.BinariesDirectory)/swift-tools-support-core/bin;$(Build.BinariesDirectory)/Yams/bin;$(Build.BinariesDirectory)/swift-driver/bin;$(Build.BinariesDirectory)/swift-argument-parser/bin;$(Build.BinariesDirectory)/swift-package-manager/bin
