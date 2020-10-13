@@ -201,12 +201,46 @@ stages:
         ICU_VERSION: 67
         USE_PREBUILT_TOOLCHAIN: true
 
+- stage: DevTools
+  dependsOn: []
+  pool: Google
+  jobs:
+    - template: templates/devtools-msi.yml
+      parameters:
+        VisualStudio: 2019/Community
+
+        arch: aarch64
+        host: arm64
+        platform: windows
+
+        os: Windows
+        proc: arm64
+
+        ICU_VERSION: 67
+        USE_PREBUILT_TOOLCHAIN: true
+
+    - template: templates/devtools-msi.yml
+      parameters:
+        VisualStudio: 2019/Community
+
+        arch: x86_64
+        host: x64
+        platform: windows
+
+        os: Windows
+        proc: amd64
+
+        ICU_VERSION: 67
+        USE_PREBUILT_TOOLCHAIN: true
+
+
 - stage: Installer
   pool: Google
   dependsOn:
     - ICU
     - Toolchain
     - SDK
+    - DevTools
   jobs:
     - template: templates/swift-installer-bundle.yml
       parameters:
@@ -234,4 +268,5 @@ stages:
         proc: amd64
 
         ICU_VERSION: 67
+        DEVTOOLS: true
         USE_PREBUILT_TOOLCHAIN: true
