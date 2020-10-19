@@ -38,6 +38,10 @@ def get_artifacts(build_id):
         builds.get_artifacts(project, build_id)
   )
 
+def print_progress(n, bs, s, artifact, quiet):
+  if not quiet:
+    sys.stdout.write("\r{0:s}.zip {1:d} bytes".format(artifact[0], (n * bs)))
+
 def main():
   parser = argparse.ArgumentParser(project)
   parser.add_argument('--list-builds', action = 'store_true',
@@ -57,6 +61,8 @@ def main():
                       help = 'download the artifacts of the latest build')
   parser.add_argument('--filter', action = 'store', dest = 'filter',
                       help = 'filter the artifacts matching')
+  parser.add_argument('--quiet', action='store_true', dest='quiet',
+                        help='Silence download information')
 
   args = parser.parse_args()
 
@@ -98,7 +104,7 @@ def main():
       for artifact in artifacts:
         urllib.urlretrieve(artifact[1], "{0:s}.zip".format(artifact[0]),
                            lambda n, bs, s:
-                             sys.stdout.write("\r{0:s}.zip {1:d} bytes".format(artifact[0], (n * bs))))
+                             print_progress(n, bs, s, artifact, args.quiet))
         print("")
 
 if __name__ == '__main__':
