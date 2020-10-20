@@ -88,8 +88,13 @@
                             <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS" Name="windows">
                               <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64" Name="x86_64">
                                 <?if $(var.CORE_OLD_LAYOUT) = false?>
-                                  <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_MSVCRT_SWIFTMODULE" Name="MSVCRT.swiftmodule">
-                                  </Directory>
+                                  <?if $(var.HAVE_MSVCRT) = true ?>
+                                    <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_MSVCRT_SWIFTMODULE" Name="MSVCRT.swiftmodule">
+                                    </Directory>
+                                  <?else?>
+                                    <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_CRT_SWIFTMODULE" Name="CRT.swiftmodule">
+                                    </Directory>
+                                  <?endif?>
                                   <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_SWIFTONONESUPPORT_SWIFTMODULE" Name="SwiftOnoneSupport.swiftmodule">
                                   </Directory>
                                   <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_SWIFT_SWIFTMODULE" Name="Swift.swiftmodule">
@@ -179,13 +184,23 @@
     </DirectoryRef>
 
     <?if $(var.CORE_OLD_LAYOUT) = false ?>
-      <DirectoryRef Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_MSVCRT_SWIFTMODULE">
-        <Component Id="MSVCRT_SWIFTMODULE" Guid="2b69958d-0dfa-497e-8093-f7aa44986564">
-          <File Id="MSVCRT_SWIFTMODULE_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\MSVCRT.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc" Checksum="yes" />
-          <File Id="MSVCRT_SWIFTMODULE_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\MSVCRT.swiftmodule\x86_64-unknown-windows-msvc.swiftinterface" Checksum="yes" />
-          <File Id="MSVCRT_SWIFTMODULE_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\MSVCRT.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule" Checksum="yes" />
-        </Component>
-      </DirectoryRef>
+      <?if $(var.HAVE_MSVCRT) = true ?>
+        <DirectoryRef Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_MSVCRT_SWIFTMODULE">
+          <Component Id="MSVCRT_SWIFTMODULE" Guid="2b69958d-0dfa-497e-8093-f7aa44986564">
+            <File Id="MSVCRT_SWIFTMODULE_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\MSVCRT.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc" Checksum="yes" />
+            <File Id="MSVCRT_SWIFTMODULE_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\MSVCRT.swiftmodule\x86_64-unknown-windows-msvc.swiftinterface" Checksum="yes" />
+            <File Id="MSVCRT_SWIFTMODULE_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\MSVCRT.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule" Checksum="yes" />
+          </Component>
+        </DirectoryRef>
+      <?else?>
+        <DirectoryRef Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_CRT_SWIFTMODULE">
+          <Component Id="CRT_SWIFTMODULE" Guid="d4f51dec-baaa-465f-a473-70e4bd68832a">
+            <File Id="CRT_SWIFTMODULE_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\CRT.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc" Checksum="yes" />
+            <File Id="CRT_SWIFTMODULE_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\CRT.swiftmodule\x86_64-unknown-windows-msvc.swiftinterface" Checksum="yes" />
+            <File Id="CRT_SWIFTMODULE_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\CRT.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule" Checksum="yes" />
+          </Component>
+        </DirectoryRef>
+      <?endif?>
 
       <DirectoryRef Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_SWIFTONONESUPPORT_SWIFTMODULE">
         <Component Id="SWIFT_ONONE_SUPPORT_SWIFTMODULE" Guid="99c68468-ac15-4acb-9d78-509511615273">
@@ -256,9 +271,15 @@
         </Component>
 
         <Component Id="SDK_OVERLAY" Guid="18fa0c8d-80d9-45a7-9da7-36f953183bcd">
-          <File Id="MSVCRT_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\MSVCRT.swiftdoc" Checksum="yes" />
-          <File Id="MSVCRT_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\MSVCRT.swiftinterface" Checksum="yes" />
-          <File Id="MSVCRT_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\MSVCRT.swiftmodule" Checksum="yes" />
+          <?if $(var.HAVE_MSVCRT) = true ?>
+            <File Id="MSVCRT_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\MSVCRT.swiftdoc" Checksum="yes" />
+            <File Id="MSVCRT_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\MSVCRT.swiftinterface" Checksum="yes" />
+            <File Id="MSVCRT_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\MSVCRT.swiftmodule" Checksum="yes" />
+          <?else?>
+            <File Id="CRT_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\CRT.swiftdoc" Checksum="yes" />
+            <File Id="CRT_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\CRT.swiftinterface" Checksum="yes" />
+            <File Id="CRT_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\CRT.swiftmodule" Checksum="yes" />
+          <?endif?>
 
           <File Id="WINSDK_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\WinSDK.swiftdoc" Checksum="yes" />
           <File Id="WINSDK_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\WinSDK.swiftinterface" Checksum="yes" />
@@ -271,7 +292,11 @@
       </Component>
 
       <Component Id="SDK_OVERLAY_IMPORT_LIBS" Guid="ffba6437-f4c2-4ea6-876e-241579541535">
-        <File Id="SWIFT_MSVCRT_LIB" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\swiftMSVCRT.lib" Checksum="yes" />
+        <?if $(var.HAVE_MSVCRT) = true ?>
+          <File Id="SWIFT_MSVCRT_LIB" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\swiftMSVCRT.lib" Checksum="yes" />
+        <?else?>
+          <File Id="SWIFT_CRT_LIB" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\swiftCRT.lib" Checksum="yes" />
+        <?endif?>
         <File Id="SWIFT_WINSDK_LIB" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\swiftWinSDK.lib" Checksum="yes" />
       </Component>
 
@@ -436,7 +461,11 @@
       <?if $(var.CORE_OLD_LAYOUT) = true ?>
         <ComponentRef Id="SDK_OVERLAY" />
       <?else?>
-        <ComponentRef Id="MSVCRT_SWIFTMODULE" />
+        <?if $(var.HAVE_MSVCRT) = true ?>
+          <ComponentRef Id="MSVCRT_SWIFTMODULE" />
+        <?else?>
+          <ComponentRef Id="CRT_SWIFTMODULE" />
+        <?endif?>
         <ComponentRef Id="WINSDK_SWIFTMODULE" />
       <?endif?>
       <ComponentRef Id="SDK_OVERLAY_IMPORT_LIBS" />
