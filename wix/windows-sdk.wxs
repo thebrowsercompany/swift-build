@@ -101,6 +101,10 @@
                                   </Directory>
                                   <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64_WINSDK_SWIFTMODULE" Name="WinSDK.swiftmodule">
                                   </Directory>
+                                  <?if $(var.TENSORFLOW) = true?>
+                                    <Directory Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64__DIFFERENTIATION_SWIFTMODULE" Name="_Differentiation.swiftmodule">
+                                    </Directory>
+                                  <?endif?>
                                 <?endif?>
                               </Directory>
                             </Directory>
@@ -225,6 +229,16 @@
           <File Id="WINSDK_SWIFTMODULE_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\WinSDK.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule" Checksum="yes" />
         </Component>
       </DirectoryRef>
+
+      <?if $(var.TENSORFLOW) = true ?>
+        <DirectoryRef Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64__DIFFERENTIATION_SWIFTMODULE">
+          <Component Id="_DIFFERENTIATION_SWIFTMODULE" Guid="9ec5c736-70c6-47ff-bb4c-d61fa6ea263d">
+            <File Id="_DIFFERENTIATION_SWIFTMODULE_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\_Differentiation.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc" Checksum="yes" />
+            <File Id="_DIFFERENTIATION_SWIFTMODULE_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\_Differentiation.swiftmodule\x86_64-unknown-windows-msvc.swiftinterface" Checksum="yes" />
+            <File Id="_DIFFERENTIATION_SWIFTMODULE_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\_Differentiation.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule" Checksum="yes" />
+          </Component>
+        </DirectoryRef>
+      <?endif?>
     <?endif?>
 
     <DirectoryRef Id="WINDOWS_SDK_USR_LIB_SWIFT_WINDOWS_X86_64">
@@ -305,11 +319,13 @@
       </Component>
 
       <?if $(var.TENSORFLOW) = true ?>
-        <Component Id="_DIFFERENTIATION" Guid="f9d5b1a5-df8c-4b3e-8f67-075e6c66bd9e">
-          <File Id="_DIFFERENTIATION_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\_Differentiation.swiftdoc" Checksum="yes" />
-          <File Id="_DIFFERENTIATION_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\_Differentiation.swiftinterface" Checksum="yes" />
-          <File Id="_DIFFERENTIATION_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\_Differentiation.swiftmodule" Checksum="yes" />
-        </Component>
+        <?if (var.CORE_OLD_LAYOUT) = true ?>
+          <Component Id="_DIFFERENTIATION" Guid="f9d5b1a5-df8c-4b3e-8f67-075e6c66bd9e">
+            <File Id="_DIFFERENTIATION_SWIFTDOC" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\_Differentiation.swiftdoc" Checksum="yes" />
+            <File Id="_DIFFERENTIATION_SWIFTINTERFACE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\_Differentiation.swiftinterface" Checksum="yes" />
+            <File Id="_DIFFERENTIATION_SWIFTMODULE" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\_Differentiation.swiftmodule" Checksum="yes" />
+          </Component>
+        <?endif?>
         <Component Id="_DIFFERENTIATION_IMPORT_LIBS" Guid="f919479b-f945-45ed-b7b1-a063bf964e04">
           <File Id="SWIFT_DIFFERENTIATION_LIB" Source="$(var.SDK_ROOT)\usr\lib\swift\windows\x86_64\swift_Differentiation.lib" Checksum="yes" />
         </Component>
@@ -483,7 +499,11 @@
       <ComponentGroupRef Id="PLISTS" />
 
       <?if $(var.TENSORFLOW) = true ?>
-      <ComponentRef Id="_DIFFERENTIATION" />
+        <?if $(var.CORE_OLD_LAYOUT) = true?>
+          <ComponentRef Id="_DIFFERENTIATION" />
+        <?else?>
+          <ComponentRef Id="_DIFFERENTIATION_SWIFTMODULE" />
+        <?endif?>
       <ComponentRef Id="_DIFFERENTIATION_IMPORT_LIBS" />
 
       <ComponentRef Id="PYTHONKIT" />
