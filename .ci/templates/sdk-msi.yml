@@ -102,27 +102,19 @@ jobs:
         inputs:
           secureFile: dt.compnerd.org.p12
 
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
+      - ${{ if eq(parameters.VERSION, '5.3') }}:
         - task: MSBuild@1
           displayName: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
           inputs:
             solution: $(Build.SourcesDirectory)/swift-build/wix/windows-sdk.wixproj
-            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift -p:CORE_OLD_LAYOUT=false -p:HAVE_MSVCRT=true -p:INCLUDE_CF_HEADERS=NO -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift -p:CORE_OLD_LAYOUT=true -p:HAVE_MSVCRT=true -p:INCLUDE_CF_HEADERS=YES -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
 
-      - ${{ if ne(parameters.TENSORFLOW, true) }}:
-        - ${{ if eq(parameters.VERSION, '5.3') }}:
-          - task: MSBuild@1
-            displayName: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
-            inputs:
-              solution: $(Build.SourcesDirectory)/swift-build/wix/windows-sdk.wixproj
-              msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift -p:CORE_OLD_LAYOUT=true -p:HAVE_MSVCRT=true -p:INCLUDE_CF_HEADERS=YES -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
-
-        - ${{ if ne(parameters.VERSION, '5.3') }}:
-          - task: MSBuild@1
-            displayName: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
-            inputs:
-              solution: $(Build.SourcesDirectory)/swift-build/wix/windows-sdk.wixproj
-              msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift -p:CORE_OLD_LAYOUT=false -p:HAVE_MSVCRT=false -p:INCLUDE_CF_HEADERS=NO -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
+      - ${{ if ne(parameters.VERSION, '5.3') }}:
+        - task: MSBuild@1
+          displayName: ${{ parameters.platform }}-sdk-${{ parameters.proc }}.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/swift-build/wix/windows-sdk.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:PLATFORM_ROOT=$(platform.directory) -p:SDK_ROOT=$(sdk.directory) -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift -p:CORE_OLD_LAYOUT=false -p:HAVE_MSVCRT=false -p:INCLUDE_CF_HEADERS=NO -p:TensorFlow_ROOT=$(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }} -p:TENSORFLOW=${{ parameters.tensorflow }}
 
       - script: |
           signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/sdk-msi/sdk.msi
