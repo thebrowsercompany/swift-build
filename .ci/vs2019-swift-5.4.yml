@@ -4,24 +4,25 @@ pr:
       - master
   paths:
     include:
-      - .ci/vs2019.yml
+      - .ci/vs2019-swift-5.4.yml
       - .ci/templates/toolchain.yml
+
 resources:
   pipelines:
     - pipeline: icu
-      source: 'ICU'
+      source: ICU
 
     - pipeline: xml2
-      source: 'XML2'
+      source: XML2
 
     - pipeline: curl
-      source: 'CURL'
+      source: CURL
 
     - pipeline: zlib
-      source: 'zlib'
+      source: zlib
 
     - pipeline: sqlite
-      source: 'SQLite'
+      source: SQLite
 
   repositories:
     - repository: apple/llvm-project
@@ -121,20 +122,22 @@ resources:
       endpoint: GitHub
 
 schedules:
-  - cron: "0 0 * * *"
+  - cron: "0 5 * * *"
     branches:
       include:
         - master
     always: true
-    displayName: "Nightly (12:00 AM) Build"
+    displayName: "Daily (11:00 PM) Build"
+
 trigger:
   branches:
     include:
       - master
   paths:
     include:
-      - .ci/vs2019.yml
+      - .ci/vs2019-swift-5.4.yml
       - .ci/templates/toolchain.yml
+
 stages:
   - stage: toolchain
     pool:
@@ -156,76 +159,6 @@ stages:
 
           RUN_TESTS: true
           RUN_VALIDATION_TESTS: false
-
-  - stage: android_sdk
-    dependsOn: toolchain
-    displayName: 'Android SDK'
-    pool:
-      vmImage: 'windows-2019'
-    jobs:
-      - template: templates/android-sdk.yml
-        parameters:
-          VisualStudio: 2019/Enterprise
-
-          arch: armv7
-          host: arm
-          platform: android
-
-          triple: armv7-unknown-linux-androideabi
-
-          os: Android
-          proc: armv7
-
-          ICU_VERSION: 67
-          SWIFT_OPTIONS: -D ICU_UC_INCLUDE_DIRS=$(icu.directory)/usr/include/unicode -D ICU_UC_LIBRARIES=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D ICU_I18N_INCLUDE_DIRS=$(icu.directory)/usr/include -D ICU_I18N_LIBRARIES=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D SWIFT_ANDROID_armv7_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -D SWIFT_ANDROID_armv7_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D SWIFT_ANDROID_armv7_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -D SWIFT_ANDROID_armv7_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D PYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
-
-      - template: templates/android-sdk.yml
-        parameters:
-          VisualStudio: 2019/Enterprise
-
-          arch: aarch64
-          host: arm64
-          platform: android
-
-          triple: aarch64-unknown-linux-android
-
-          os: Android
-          proc: arm64
-
-          ICU_VERSION: 67
-          SWIFT_OPTIONS: -D ICU_UC_INCLUDE_DIRS=$(icu.directory)/usr/include/unicode -D ICU_UC_LIBRARIES=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D ICU_I18N_INCLUDE_DIRS=$(icu.directory)/usr/include -D ICU_I18N_LIBRARIES=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D SWIFT_ANDROID_aarch64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -D SWIFT_ANDROID_aarch64_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D SWIFT_ANDROID_aarch64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -D SWIFT_ANDROID_aarch64_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D PYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
-
-      - template: templates/android-sdk.yml
-        parameters:
-          VisualStudio: 2019/Enterprise
-
-          arch: x86_64
-          host: x64
-          platform: android
-
-          triple: x86_64-unknown-linux-android
-
-          os: Android
-          proc: amd64
-
-          ICU_VERSION: 67
-          SWIFT_OPTIONS: -D ICU_UC_INCLUDE_DIRS=$(icu.directory)/usr/include/unicode -D ICU_UC_LIBRARIES=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D ICU_I18N_INCLUDE_DIRS=$(icu.directory)/usr/include -D ICU_I18N_LIBRARIES=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D SWIFT_ANDROID_x86_64_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -D SWIFT_ANDROID_x86_64_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D SWIFT_ANDROID_x86_64_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -D SWIFT_ANDROID_x86_64_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D PYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
-
-      - template: templates/android-sdk.yml
-        parameters:
-          VisualStudio: 2019/Enterprise
-
-          arch: i686
-          host: x86
-          platform: android
-
-          triple: i686-unknown-linux-android
-
-          os: Android
-          proc: i686
-
-          ICU_VERSION: 67
-          SWIFT_OPTIONS: -D ICU_UC_INCLUDE_DIRS=$(icu.directory)/usr/include/unicode -D ICU_UC_LIBRARIES=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D ICU_I18N_INCLUDE_DIRS=$(icu.directory)/usr/include -D ICU_I18N_LIBRARIES=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D SWIFT_ANDROID_i686_ICU_UC_INCLUDE=$(icu.directory)/usr/include/unicode -D SWIFT_ANDROID_i686_ICU_UC=$(icu.directory)/usr/lib/libicuuc$(icu.version).so -D SWIFT_ANDROID_i686_ICU_I18N_INCLUDE=$(icu.directory)/usr/include -D SWIFT_ANDROID_i686_ICU_I18N=$(icu.directory)/usr/lib/libicuin$(icu.version).so -D PYTHON_EXECUTABLE=$(python.pythonLocation)/python.exe
 
   - stage: windows_sdk
     dependsOn: toolchain
@@ -396,7 +329,7 @@ stages:
           os: Windows
           proc: amd64
 
-  - stage: package_instaaller
+  - stage: package_installer
     dependsOn:
       - package_toolchain
       - package_windows_sdk
