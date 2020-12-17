@@ -11,7 +11,7 @@ resources:
     - repository: tensorflow/tensorflow
       type: github
       name: tensorflow/tensorflow
-      ref: refs/tags/v2.3.0
+      ref: refs/tags/v2.4.0
       endpoint: GitHub
 
     - repository: tensorflow/swift-apis
@@ -26,7 +26,7 @@ trigger:
       - .ci/tensorflow.yml
 
 variables:
-  tensorflow.version: 2.3.0
+  tensorflow.version: 2.4.0
   bazel.version: 3.1.0
 
 jobs:
@@ -115,17 +115,23 @@ jobs:
 
       - script: |
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib
-          cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/libtensorflow.2.3.0.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
+          cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/libtensorflow.2.4.0.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
           cp -v $(Build.SourcesDirectory)/tensorflow/bazel-bin/tensorflow/compiler/tf2xla/xla_tensor/libx10.dylib $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/lib/
 
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
+          cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api_macros.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/c_api_experimental.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_attrtype.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_datatype.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_file_statistics.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_status.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
           cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_tensor.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
+          cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/c/tf_tstring.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/c
+
+          mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/core/platform
+          cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/core/platform/ctstring.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/core/platform/
+          cp -v $(Build.SourcesDirectory)/tensorflow/tensorflow/core/platform/ctstring_internal.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/tensorflow/core/platform/
 
           mkdir -v -p $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/x10
           cp -v $(Build.SourcesDirectory)/swift-apis/Sources/x10/swift_bindings/device_wrapper.h $(Build.StagingDirectory)/tensorflow-darwin-x64/Library/tensorflow-$(tensorflow.version)/usr/include/x10
@@ -251,12 +257,18 @@ jobs:
 
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
+          copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api_macros.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\c_api_experimental.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_attrtype.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_datatype.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_file_statistics.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_status.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_tensor.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
+          copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\tf_tstring.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\
+
+          md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\core\platform
+          copy $(Build.SourcesDirectory)\tensorflow\tensorflow\core\platform\ctstring.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\core\platform\
+          copy $(Build.SourcesDirectory)\tensorflow\tensorflow\core\platform\ctstring_internal.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\core\platform\
 
           md $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\eager
           copy $(Build.SourcesDirectory)\tensorflow\tensorflow\c\eager\c_api.h $(Build.StagingDirectory)\tensorflow-windows-x64\Library\tensorflow-$(tensorflow.version)\usr\include\tensorflow\c\eager\
