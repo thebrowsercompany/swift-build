@@ -190,6 +190,11 @@ else()
   set(SOURCEKIT_COMPONENT sourcekit-inproc)
 endif()
 
+set(PARSER_LIB_COMPONENT)
+if(SWIFT_BUILD_ENABLE_PARSER_LIB)
+  set(PARSER_LIB_COMPONENT parser-lib)
+endif()
+
 set(SWIFT_INSTALL_COMPONENTS
       autolink-driver
       compiler
@@ -199,6 +204,7 @@ set(SWIFT_INSTALL_COMPONENTS
       ${SOURCEKIT_COMPONENT}
       swift-remote-mirror
       swift-remote-mirror-headers
+      ${PARSER_LIB_COMPONENT}
     CACHE STRING "")
 
 set(LLVM_DISTRIBUTION_COMPONENTS
