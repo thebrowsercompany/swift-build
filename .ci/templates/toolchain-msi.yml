@@ -102,12 +102,19 @@ jobs:
             solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=false
 
-      - ${{ if ne(parameters.VERSION, '5.2') }}:
+      - ${{ if or(eq(parameters.VERSION, '5.3'), eq(parameters.VERSION, '5.4')) }}:
         - task: MSBuild@1
           displayName: toolchain.msi
           inputs:
             solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true
+
+      - ${{ if and(ne(parameters.VERSION, '5.2'), ne(parameters.VERSION, '5.3'), ne(parameters.VERSION, '5.4')) }}:
+        - task: MSBuild@1
+          displayName: toolchain.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true -p:HAVE__INTERNAL_SWIFT_SYNTAX_PARSER=true
 
       - script: |
           signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/toolchain-msi/toolchain.msi
