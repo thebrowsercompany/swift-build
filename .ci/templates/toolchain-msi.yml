@@ -33,52 +33,6 @@ jobs:
       - checkout: self
         displayName: checkout compnerd/swift-build
 
-      - checkout: apple/llvm-project
-        displayName: checkout apple/llvm-project
-
-      - checkout: apple/swift
-        displayName: checkout apple/swift
-
-      - checkout: apple/swift-cmark
-        displayName: checkout apple/swift-cmark
-
-      - checkout: apple/swift-corelibs-libdispatch
-        displayName: checkout apple/swift-corelibs-libdispatch
-
-      - checkout: apple/swift-corelibs-foundation
-        displayName: checkout apple/swift-corelibs-foundation
-
-      - checkout: apple/swift-corelibs-xctest
-        displayName: checkout apple/swift-corelibs-xctest
-
-      - checkout: apple/swift-llbuild
-        displayName: checkout apple/swift-llbuild
-
-      - checkout: apple/swift-tools-support-core
-        displayName: checkout apple/swift-tools-support-core
-
-      - checkout: jpsim/Yams
-        displayName: checkout jpsim/Yams
-
-      - checkout: apple/swift-argument-parser
-        displayName: checkout apple/swift-argument-parser
-
-      - checkout: apple/swift-driver
-        displayName: checkout apple/swift-driver
-
-      - checkout: apple/swift-package-manager
-        displayName: checkout apple/swift-package-manager
-
-      - checkout: apple/indexstore-db
-        displayName: checkout apple/indexstore-db
-
-      - checkout: apple/sourcekit-lsp
-        displayName: checkout apple/sourcekit-lsp
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - checkout: tensorflow/swift-apis
-          displayName: checkout tensorflow/swift-apis
-
       - task: BatchScript@1
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
         displayName: VsDevCmd.bat
@@ -96,21 +50,21 @@ jobs:
         - task: MSBuild@1
           displayName: toolchain.msi
           inputs:
-            solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
+            solution: $(Build.SourcesDirectory)/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=false
 
       - ${{ if or(eq(parameters.VERSION, '5.3'), eq(parameters.VERSION, '5.4')) }}:
         - task: MSBuild@1
           displayName: toolchain.msi
           inputs:
-            solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
+            solution: $(Build.SourcesDirectory)/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true
 
       - ${{ if and(ne(parameters.VERSION, '5.2'), ne(parameters.VERSION, '5.3'), ne(parameters.VERSION, '5.4')) }}:
         - task: MSBuild@1
           displayName: toolchain.msi
           inputs:
-            solution: $(Build.SourcesDirectory)/swift-build/wix/windows-toolchain.wixproj
+            solution: $(Build.SourcesDirectory)/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true -p:HAVE__INTERNAL_SWIFT_SYNTAX_PARSER=true -p:HAVE__INTERNAL_SWIFT_SCAN=true
 
       - script: |
