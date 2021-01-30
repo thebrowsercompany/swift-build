@@ -336,6 +336,30 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-driver --target install
 
       - task: CMake@1
+        displayName: Configure swift-crypto
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/swift-crypto
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}.cmake
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D BUILD_TESTING=NO
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -G Ninja
+            -S $(Build.SourcesDirectoyr)/swift-crypto
+
+      - task: CMake@1
+        displayName: Build swift-crypto
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-crypto
+
+      - task: CMake@1
+        displayName: Install swift-crypto
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-crypto --target install
+
+      - task: CMake@1
         displayName: Configure swift-package-manager
         inputs:
           cmakeArgs:
