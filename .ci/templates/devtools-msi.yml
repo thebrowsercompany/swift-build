@@ -49,11 +49,19 @@ jobs:
         inputs:
           secureFile: dt.compnerd.org.p12
 
-      - task: MSBuild@1
-        displayName: ${{ parameters.platform }}-devtools-${{ parameters.proc }}.msi
-        inputs:
-          solution: $(Build.SourcesDirectory)/wix/windows-devtools.wixproj
-          msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\devtools-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:DEVTOOLS_ROOT=$(devtools.directory) -p:TENSORFLOW=${{ parameters.tensorflow }}
+      - ${{ if eq(parameters.VERSION, '5.4') }}:
+        - task: MSBuild@1
+          displayName: ${{ parameters.platform }}-devtools-${{ parameters.proc }}.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/wix/windows-devtools.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\devtools-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:DEVTOOLS_ROOT=$(devtools.directory) -p:TENSORFLOW=${{ parameters.tensorflow }}
+
+      - ${{ if ne(parameters.VERSION, '5.4') }}:
+        - task: MSBuild@1
+          displayName: ${{ parameters.platform }}-devtools-${{ parameters.proc }}.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/wix/windows-devtools.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\devtools-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:DEVTOOLS_ROOT=$(devtools.directory) -p:HAVE_SWIFT_CRYPTO=true -p:TENSORFLOW=${{ parameters.tensorflow }}
 
       - script: |
           signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/devtools-msi/devtools.msi
