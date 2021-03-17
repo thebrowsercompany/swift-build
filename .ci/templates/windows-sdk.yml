@@ -3,10 +3,6 @@ parameters:
     type: string
     default: ''
 
-  - name: TENSORFLOW
-    type: boolean
-    default: false
-
   - name: VisualStudio
     type: string
     default: ''
@@ -51,13 +47,11 @@ jobs:
 
       curl.version: development
       icu.version: ${{ parameters.ICU_VERSION }}
-      tensorflow.version: 2.4.0
       xml2.version: development
       zlib.version: 1.2.11
 
       curl.directory: $(Pipeline.Workspace)/curl/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-$(curl.version)
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
-      tensorflow.directory: $(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }}/Library/tensorflow-$(tensorflow.version)
       xml2.directory: $(Pipeline.Workspace)/xml2/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-$(xml2.version)
       zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-$(zlib.version)
 
@@ -88,11 +82,6 @@ jobs:
       - download: zlib
         artifact: zlib-${{ parameters.platform }}-${{ parameters.host }}
         displayName: download zlib
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - download: tensorflow
-          artifact: tensorflow-${{ parameters.platform }}-${{ parameters.host }}
-          displayName: download TensorFlow
 
       - script: |
           git config --global --add core.autocrlf false
@@ -152,10 +141,6 @@ jobs:
       - checkout: apple/sourcekit-lsp
         displayName: checkout apple/sourcekit-lsp
 
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - checkout: tensorflow/swift-apis
-          displayName: checkout tensorflow/swift-apis
-
       - script: |
           git config --global user.name 'builder'
           git config --global user.email 'builder@compnerd.org'
@@ -179,25 +164,6 @@ jobs:
           endlocal
           goto :eof
         displayName: Apply Patches
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - script: |
-            call :ApplyPatches "%SWIFT_APIS_PR%" swift-apis
-
-            goto :eof
-
-            :ApplyPatches
-            setlocal
-            set list=%~1
-            set repository=%~2
-            for /F "tokens=1*" %%P in ("%list%") do (
-              git -C %repository% fetch origin pull/%%P/merge
-              git -C %repository% merge FETCH_HEAD
-              if not "%%Q" == "" call :ApplyPatches "%%Q" %repository%
-            )
-            endlocal
-            goto :eof
-          displayName: Apply Patches
 
       - task: BatchScript@1
         inputs:
@@ -396,33 +362,6 @@ jobs:
         inputs:
           versionSpec: ${{ parameters.PythonVersion }}
         continueOnError: true
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - task: CMake@1
-          displayName: Configure tensorflow-swift-apis
-          inputs:
-            cmakeArgs:
-              -B $(Build.BinariesDirectory)/tensorflow-swift-apis
-              -D BUILD_SHARED_LIBS=YES
-              -D BUILD_TESTING=NO
-              -D CMAKE_BUILD_TYPE=Release
-              -D CMAKE_INSTALL_PREFIX=$(install.directory)
-              -D CMAKE_Swift_FLAGS="-sdk $(sdk.directory) -resource-dir $(sdk.directory)/usr/lib/swift -L $(sdk.directory)/usr/lib/swift/${{ parameters.platform }}"
-              -D BUILD_X10=YES
-              -D X10_LIBRARY=$(tensorflow.directory)/usr/lib/x10.lib
-              -D X10_INCLUDE_DIRS=$(tensorflow.directory)/usr/include
-              -G Ninja
-              -S $(Build.SourcesDirectory)/swift-apis
-
-        - task: CMake@1
-          displayName: Build tensorflow-swift-apis
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis
-
-        - task: CMake@1
-          displayName: Install tensorflow-swift-apis
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis --target install
 
       - publish: $(Build.StagingDirectory)/sdk-${{ parameters.platform }}-${{ parameters.host }}
         artifact: sdk-${{ parameters.platform }}-${{ parameters.host }}

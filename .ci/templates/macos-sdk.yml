@@ -3,10 +3,6 @@ parameters:
     type: string
     default: ''
 
-  - name: TENSORFLOW
-    type: boolean
-    default: false
-
   - name: VisualStudio
     type: string
     default: ''
@@ -39,13 +35,11 @@ jobs:
 
       curl.version: development
       icu.version: ${{ parameters.ICU_VERSION }}
-      tensorflow.version: 2.4.0
       xml2.version: development
       zlib.version: 1.2.11
 
       curl.directory: $(Pipeline.Workspace)/curl/curl-${{ parameters.platform }}-${{ parameters.host }}/Library/libcurl-$(curl.version)
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
-      tensorflow.directory: $(Pipeline.Workspace)/tensorflow/tensorflow-${{ parameters.platform }}-${{ parameters.host }}/Library/tensorflow-$(tensorflow.version)
       xml2.directory: $(Pipeline.Workspace)/xml2/xml2-${{ parameters.platform }}-${{ parameters.host }}/Library/libxml2-$(xml2.version)
       zlib.directory: $(Pipeline.Workspace)/zlib/zlib-${{ parameters.platform }}-${{ parameters.host }}/Library/zlib-$(zlib.version)
 
@@ -83,11 +77,6 @@ jobs:
         artifact: toolchain-darwin-x64
         displayName: download toolchain
 
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - download: tensorflow
-          artifact: tensorflow-${{ parameters.platform }}-${{ parameters.host }}
-          displayName: download TensorFlow
-
       - script: |
           git config --global --add core.autocrlf false
           git config --global --add core.symlinks true
@@ -112,11 +101,6 @@ jobs:
       - checkout: apple/swift-corelibs-xctest
         displayName: checkout apple/swift-corelibs-xctest
 
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - checkout: tensorflow/swift-apis
-          displayName: checkout tensorflow/swift-apis
-          path: s/tensorflow-swift-apis
-
       - script: |
           function ApplyPatches() {
             local repository=${1} ; shift
@@ -134,19 +118,6 @@ jobs:
           ApplyPatches swift-corelibs-foundation ${FOUNDATION_PR}
           ApplyPatches swift-corelibs-xctest ${XCTEST_PR}
         displayName: Apply Patches
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - script: |
-            function ApplyPatches() {
-              local repository=${1} ; shift
-              for PR in "${@}" ; do
-                git -C ${repository} fetch origin pull/${PR}/head
-                git -C ${repository} cherry-pick FETCH_HEAD
-              done
-            }
-
-            ApplyPatches tensorflow-swift-apis ${SWIFT_APIS_PR}
-          displayName: Apply Patches
 
       - task: BatchScript@1
         condition: eq( variables['Agent.OS'], 'Windows_NT' )
@@ -294,35 +265,6 @@ jobs:
         enabled: false
         inputs:
           cmakeArgs: --build $(Build.BinariesDirectory)/xctest
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - task: CMake@1
-          displayName: Configure tensorflow-swift-apis
-          inputs:
-            cmakeArgs:
-              -B $(Build.BinariesDirectory)/tensorflow-swift-apis
-              -D BUILD_SHARED_LIBS=YES
-              -D SWIFT_STDLIB_DIR=$(Build.BinariesDirectory)/swift-stdlib
-              -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
-              -D BUILD_TESTING=NO
-              -D CMAKE_Swift_COMPILER=$(toolchain.directory)/usr/bin/swiftc
-              -D CMAKE_BUILD_TYPE=Release
-              -D CMAKE_INSTALL_PREFIX=$(install.directory)
-              -D BUILD_X10=YES
-              -D X10_LIBRARY=$(tensorflow.directory)/usr/lib/libx10.dylib
-              -D X10_INCLUDE_DIRS=$(tensorflow.directory)/usr/include
-              -G Ninja
-              -S $(Build.SourcesDirectory)/tensorflow-swift-apis
-
-        - task: CMake@1
-          displayName: Build tensorflow-swift-apis
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis
-
-        - task: CMake@1
-          displayName: Install tensorflow-swift-apis
-          inputs:
-            cmakeArgs: --build $(Build.BinariesDirectory)/tensorflow-swift-apis --target install
 
       - task: CMake@1
         displayName: Install Foundation

@@ -7,10 +7,6 @@ parameters:
     type: boolean
     default: false
 
-  - name: TENSORFLOW
-    type: boolean
-    default: false
-
   - name: LLVM_OPTIONS
     type: string
     default: ''
@@ -59,8 +55,6 @@ jobs:
       icu.version: ${{ parameters.ICU_VERSION }}
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
 
-      tensorflow.directory: $(Pipeline.Workspace)/tensorflow-${{ parameters.platform }}-${{ parameters.host }}/Library
-
       install.directory: $(Build.StagingDirectory)/toolchain-${{ parameters.platform }}-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
 
     workspace:
@@ -103,11 +97,6 @@ jobs:
         artifact: icu-${{ parameters.platform }}-${{ parameters.host }}
         condition: not( eq( variables['Agent.OS'], 'Darwin' ) )
         displayName: download ICU
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - download: tensorflow
-          artifact: tensorflow-${{ parameters.platform }}-${{ parameters.host }}
-          displayName: download TensorFlow
 
       - script: |
           git config --global --add core.autocrlf false
@@ -166,10 +155,6 @@ jobs:
 
       - checkout: apple/sourcekit-lsp
         displayName: checkout apple/sourcekit-lsp
-
-      - ${{ if eq(parameters.TENSORFLOW, true) }}:
-        - checkout: tensorflow/swift-apis
-          displayName: checkout tensorflow/swift-apis
 
       - script: |
           git config --global user.name builder
