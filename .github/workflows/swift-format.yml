@@ -8,20 +8,22 @@ on:
   workflow_dispatch:
 
 jobs:
-  windows@5.4:
+  windows_5_5:
     runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 1
-          repository: apple/swift-format
+          # repository: apple/swift-format
+          repository: compnerd/swift-format
+          ref: async
 
       - uses: seanmiddleditch/gha-setup-vsdevenv@master
 
-      - name: Install swift-5.4
+      - name: Install Swift v5.5 (2021-04-19 Snapshot)
         run: |
-          Install-Binary -Url "https://swift.org/builds/swift-5.4-release/windows10/swift-5.4-RELEASE/swift-5.4-RELEASE-windows10.exe" -Name "installer.exe" -ArgumentList ("-q")
+          Install-Binary -Url "https://swift.org/builds/swift-5.5-branch/windows10/swift-5.5-DEVELOPMENT-SNAPSHOT-2021-04-19-a/swift-5.5-DEVELOPMENT-SNAPSHOT-2021-04-19-a-windows10.exe" -Name "installer.exe" -ArgumentList ("-q")
       - name: Set Environment Variables
         run: |
           echo "SDKROOT=C:\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -39,4 +41,9 @@ jobs:
 
       - name: build
         run: |
-          swift build -c release
+          swift build -c release -Xcc -IC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\include -Xlinker -LC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\lib
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: swift-format
+          path: .build\x86_64-unknown-windows-msvc\release\swift-format.exe
