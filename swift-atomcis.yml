@@ -24,6 +24,7 @@ variables:
   toolchain.directory: $(Pipeline.Workspace)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
   sdk.directory: $(Pipeline.Workspace)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
   developer.directory: $(Pipeline.Workspace)/Library/Developer/Platforms/Windows.platform/Developer/Library
+  icu.directory: $(Pipeline.Workspace)/Library/icu-67
 
 steps:
   - script: |
@@ -72,6 +73,16 @@ steps:
       artifactName: 'sdk-windows-x64'
       targetPath: '$(Pipeline.Workspace)'
 
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      buildType: 'specific'
+      project: '3133d6ab-80a8-4996-ac4f-03df25cd3224'
+      definition: '9'
+      buildVersionToDownload: 'latest'
+      allowPartiallySucceededBuilds: true
+      artifactName: 'icu-windows-x64'
+      targetPath: '$(Pipeline.Workspace)'
+
   - task: BatchScript@1
     displayName: VsDevCmd
     inputs:
@@ -98,7 +109,7 @@ steps:
         -D BUILD_SHARED_LIBS=YES
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/swift-atomics-windows-x64/Library/swift-atomics/usr
-        -D CMake_Swift_FLAGS="-sdk $(sdk.directory) -resource-dir $(sdk.directory)/usr/lib/swift -I$(sdk.directory)/usr/lib/swift -L$(sdk.directory)/usr/lib/swift/windows -I$(developer.directory)/XCTest-development/usr/lib/swift/windows/x86_64 -L$(developer.directory)/XCTest-development/usr/lib/swift/windows"
+        -D CMAKE_Swift_FLAGS="-resource-dir $(sdk.directory)/usr/lib/swift -L$(sdk.directory)/usr/lib/swift/windows -I$(developer.directory)/XCTest-development/usr/lib/swift/windows/x86_64 -L$(developer.directory)/XCTest-development/usr/lib/swift/windows"
         -G Ninja
         -S $(Build.SourcesDirectory)
 
@@ -114,3 +125,16 @@ steps:
 
   - publish: $(Build.StagingDirectory)/swift-atomics-windows-x64
     artifact: swift-atomics-windows-x64
+
+  - script: |
+      echo ##vso[task.prependpath]$(icu.directory)/usr/bin
+      echo ##vso[task.prependpath]$(sdk.directory)/usr/bin
+      echo ##vso[task.prependpath]$(developer.directory)/XCTest-development/usr/bin
+      echo ##vso[task.setvariable variable=CTEST_OUTPUT_ON_FAILURE]1
+    displayName: Configure CTest
+
+  - task: CMake@1
+    continueOnError: true
+    displayName: Test swift-atomics
+    inputs:
+      cmakeArgs: --build $(Build.BinariesDirectory)/swift-atomics --target test
