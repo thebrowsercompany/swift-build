@@ -46,10 +46,15 @@
                     <!-- FIXME(compnerd) should we include the TSC, SPM import libraries? -->
                     <Directory Id="USR_LIB_SWIFT" Name="swift">
                       <Directory Id="USR_LIB_SWIFT_PM" Name="pm">
+                        <?if $(var.HAVE_UNIFIED_SPM_MANIFEST) = true?>
+                        <Directory Id="USR_LIB_SWIFT_PM_MANIFEST_API" Name="ManifestAPI">
+                        </Directory>
+                        <?else?>
                         <Directory Id="USR_LIB_SWIFT_PM_4" Name="4">
                         </Directory>
                         <Directory Id="USR_LIB_SWIFT_PM_4_2" Name="4_2">
                         </Directory>
+                        <?endif?>
                       </Directory>
                       <!--
                       FIXME(compnerd) should we include the import libraries and swiftmodules for Yams, ArgumentParser?
@@ -251,6 +256,22 @@
       <?endif?>
     </DirectoryRef>
 
+    <?if $(var.HAVE_UNIFIED_SPM_MANIFEST) = true?>
+    <DirectoryRef Id="USR_LIB_SWIFT_PM_MANIFEST_API">
+      <Component Id="MANIFEST_API" Guid="8680a7e7-654d-4980-be93-6d34142846f2">
+        <File Id="MANIFEST_API_PACKAGE_DESCRIPTION_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\ManifestAPI\PackageDescription.dll" Checksum="yes" />
+        <File Id="MANIFEST_API_PACKAGE_DESCRIPTION_LIB" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\ManifestAPI\PackageDescription.lib" Checksum="yes" />
+        <File Id="MANIFEST_API_PACKAGE_DESCRIPTION_SWIFTDOC" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\ManifestAPI\PackageDescription.swiftdoc" Checksum="yes" />
+        <File Id="MANIFEST_API_PACKAGE_DESCRIPTION_SWIFTMODULE" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\ManifestAPI\PackageDescription.swiftmodule" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO?>
+      <Component Id="MANIFEST_API_DEBUGINFO" Guid="f4c75c22-bdc9-4cf2-b7d0-cf9ac8a95bef">
+        <File Id="MANIFESAT_API_PACKAGE_DESCRIPTION_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\lib\swift\pm\ManifestAPI\PackageDescription.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+    </DirectoryRef>
+    <?else?>
     <DirectoryRef Id="USR_LIB_SWIFT_PM_4">
       <!-- Swift PackageDescription 4 -->
       <Component Id="SWIFT_PD_4" Guid="c827d4fc-2498-402d-8052-aff2ed731d0a">
@@ -282,6 +303,7 @@
       </Component>
       <?endif?>
     </DirectoryRef>
+    <?endif?>
 
     <Feature Id="DEVTOOLS" Level="1">
       <ComponentRef Id="INDEXSTOREDB_BINS" />
@@ -294,8 +316,12 @@
       <ComponentRef Id="SWIFT_DRIVER_BINS" />
       <ComponentRef Id="SWIFT_PACKAGE_MANAGER_BINS" />
       <ComponentRef Id="SWIFT_TOOLS_SUPPORT_CORE_BINS" />
+      <?if $(var.HAVE_UNIFIED_SPM_MANIFEST) = true?>
+      <ComponentRef Id="MANIFEST_API" />
+      <?else?>
       <ComponentRef Id="SWIFT_PD_4" />
       <ComponentRef Id="SWIFT_PD_4_2" />
+      <?endif?>
       <ComponentRef Id="YAMS_BINS" />
     </Feature>
 
@@ -312,8 +338,12 @@
       <ComponentRef Id="SWIFT_DRIVER_DEBUGINFO" />
       <ComponentRef Id="SWIFT_PACKAGE_MANAGER_DEBUGINFO" />
       <ComponentRef Id="SWIFT_TOOLS_SUPPORT_CORE_DEBUGINFO" />
+      <?if $(var.HAVE_UNIFIED_SPM_MANIFEST) = true?>
+      <ComponentRef Id="MANIFEST_API_DEBUGINFO" />
+      <?else?>
       <ComponentRef Id="SWIFT_PD_4_DEBUGINFO" />
       <ComponentRef Id="SWIFT_PD_4_2_DEBUGINFO" />
+      <?endif?>
       <ComponentRef Id="YAMS_DEBUGINFO" />
     </Feature>
     <?endif?>
