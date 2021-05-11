@@ -17,7 +17,9 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 1
-          repository: SwiftDocOrg/swift-doc
+          # repository: SwiftDocOrg/swift-doc
+          repository: compnerd/swift-doc
+          ref: swift-semantics-main
 
       - uses: seanmiddleditch/gha-setup-vsdevenv@master
 
@@ -52,4 +54,22 @@ jobs:
 
       - name: build
         run: |
-          swift build -c release swift build -c release -Xlinker -LC:\Library\graphviz-development\usr\lib -Xcc -DLIBXML_STATIC -Xcc -IC:\Library\libxml2-development\usr\include -Xcc -IC:\Library\libxml2-development\usr\include\libxml2 -Xlinker -LC:\Library\libxml2-development\usr\lib -Xcc -IC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\include -Xlinker -LC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\lib
+          swift build -c release -Xlinker -LC:\Library\graphviz-development\usr\lib -Xcc -DLIBXML_STATIC -Xcc -IC:\Library\libxml2-development\usr\include -Xcc -IC:\Library\libxml2-development\usr\include\libxml2 -Xlinker -LC:\Library\libxml2-development\usr\lib -Xcc -IC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\include -Xlinker -LC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\lib
+
+      - uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: create_release
+        with:
+          draft: true
+          prerelease: true
+          release_name: swift-doc-${{ matrix.tag }}
+          tag_name: swift-doc-${{ matrix.tag }}
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_content_type: application/octet-stream
+          asset_name: swift-doc.exe
+          asset_path: .build\x86_64-unknown-windows-msvc\release\swift-doc.exe
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
