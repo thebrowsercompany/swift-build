@@ -350,6 +350,16 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target install-distribution
 
       - task: CMake@1
+        displayName: Configure Compiler Runtime
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain --target runtimes-configure
+
+      - task: CMake@1
+        displayName: Install Compiler Runtime (Profiling)
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/toolchain/runtimes/runtimes-bins --target install-clang_rt.profile-${{ parameters.arch }}-stripped
+
+      - task: CMake@1
         condition: eq( variables['Agent.OS'], 'Darwin' )
         displayName: Install builtins
         inputs:
