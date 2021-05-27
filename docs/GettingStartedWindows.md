@@ -8,7 +8,7 @@
 
 ## Requirements
 
-- Windows 10 RedStone 4 (10.0.17763.0) or newer
+- Windows 10 RedStone 5 (10.0.17763.0) or newer
 
 - Visual Studio 2017 or newer (Visual Studio 2019 recommended)
 
