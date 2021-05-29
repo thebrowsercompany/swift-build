@@ -21,7 +21,7 @@
 
     <!-- Directory Structure -->
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="WINDOWSVOLUME">
+      <Directory Id="INSTALLDIR">
         <Directory Id="LIBRARY" Name="Library">
           <Directory Id="LIBRARY_DEVELOPER" Name="Developer">
             <Directory Id="LIBRARY_DEVELOPER_PLATFORMS" Name="Platforms">
@@ -127,7 +127,9 @@
       </Directory>
     </Directory>
 
-    <SetDirectory Id="WINDOWSVOLUME" Value="[WindowsVolume]" />
+    <SetDirectory Id="INSTALLDIR" Value="[WindowsVolume]">
+      NOT INSTALLDIR
+    </SetDirectory>
 
     <!-- Components -->
     <DirectoryRef Id="XCTEST_USR_BIN">
@@ -455,15 +457,19 @@
     </ComponentGroup>
 
     <DirectoryRef Id="TARGETDIR">
+      <Component Id="AuxiliaryFiles" Guid="cc168d3c-1826-414a-be5f-3b943b3a89ff">
+        <!-- Filled in by the Custom Action -->
+      </Component>
+
       <Component Id="ENV_VARS" Guid="0fe99b48-0366-4790-844f-137029531da7">
         <!-- <Condition> %PROCESSOR_ARCHITECTURE~="amd64" </Condition> -->
-        <Environment Id="DEVELOPER_DIR" Action="set" Name="DEVELOPER_DIR" Part="all" Permanent="no" System="yes" Value="[WindowsVolume]Library\Developer" />
-        <Environment Id="SDKROOT" Action="set" Name="SDKROOT" Part="all" Permanent="no" System="yes" Value="[WindowsVolume]Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk" />
+        <Environment Id="DEVELOPER_DIR" Action="set" Name="DEVELOPER_DIR" Part="all" Permanent="no" System="yes" Value="[INSTALLDIR]Library\Developer" />
+        <Environment Id="SDKROOT" Action="set" Name="SDKROOT" Part="all" Permanent="no" System="yes" Value="[INSTALLDIR]Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk" />
       </Component>
     </DirectoryRef>
 
     <!-- Features -->
-    <Feature Id="SDK" Level="1">
+    <Feature Id="SDK" ConfigurableDirectory="INSTALLDIR" Level="1">
       <ComponentRef Id="XCTEST_RUNTIME" />
       <ComponentRef Id="XCTEST_IMPORT_LIBS" />
       <ComponentRef Id="XCTEST_SWIFT_MODULES" />
@@ -527,6 +533,7 @@
 
       <ComponentRef Id="WINDOWS_MODULE_MAPS_AND_APINOTES" />
 
+      <ComponentRef Id="AuxiliaryFiles" />
       <ComponentRef Id="ENV_VARS" />
       <ComponentGroupRef Id="PLISTS" />
 
@@ -548,5 +555,39 @@
 
     <!-- UI -->
     <UI />
+
+    <!-- Custom Actions -->
+    <Binary Id="SwiftInstaller.dll"
+            SourceFile="$(var.SwiftInstaller.TargetDir)\SwiftInstaller.dll" />
+
+    <CustomAction Id="SwiftInstaller_RecordAuxiliaryFiles"
+                  BinaryKey="SwiftInstaller.dll"
+                  DllEntry="SwiftInstaller_RecordAuxiliaryFiles"
+                  Impersonate="yes" />
+
+    <CustomAction Id="SwiftInstaller_InstallAuxiliaryFiles"
+                  BinaryKey="SwiftInstaller.dll"
+                  DllEntry="SwiftInstaller_InstallAuxiliaryFiles"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+    <CustomAction Id="SwiftInstaller_InstallAuxiliaryFiles.SetProperty"
+                  Property="SwiftInstaller_InstallAuxiliaryFiles"
+                  Value="[INSTALLDIR]Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk"
+                  Return="check" />
+
+    <!-- Hooks -->
+    <InstallExecuteSequence>
+      <Custom Action="SwiftInstaller_RecordAuxiliaryFiles" Before="InstallInitialize">
+        NOT REMOVE
+      </Custom>
+
+      <Custom Action="SwiftInstaller_InstallAuxiliaryFiles.SetProperty"
+              Before="SwiftInstaller_InstallAuxiliaryFiles" />
+
+      <Custom Action="SwiftInstaller_InstallAuxiliaryFiles" After="InstallFiles">
+        NOT REMOVE
+      </Custom>
+    </InstallExecuteSequence>
   </Product>
 </Wix>
