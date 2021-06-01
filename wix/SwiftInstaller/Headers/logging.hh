@@ -53,9 +53,6 @@ log_message &operator<<(log_message &message, const Value_ &value) noexcept {
 extern template
 log_message &operator<<<std::wstring>(log_message &,
                                       const std::wstring &) noexcept;
-
-extern template
-log_message &operator<<<MSIHANDLE>(log_message &, const MSIHANDLE &) noexcept;
 }
 
 #define LOG(Install,Severity)                                                   \

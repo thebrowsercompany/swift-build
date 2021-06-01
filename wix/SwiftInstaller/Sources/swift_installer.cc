@@ -280,113 +280,9 @@ std::wstring get_property(MSIHANDLE hInstall, std::wstring_view key) noexcept {
 
   return {buffer.data(), buffer.capacity()};
 }
-
-void record_auxiliary_file(MSIHANDLE hInstall, MSIHANDLE database,
-                           const std::filesystem::path &path) noexcept {
-#if WORKING_MSI_RECORDING
-  // See https://docs.microsoft.com/en-us/windows/win32/msi/removefile-table
-  // for details about the schema details about the `RemoveFile` table.
-  static const wchar_t query[] = LR"(
-INSERT INTO `RemoveFile` (`FileKey`, `Component_`, `FileName`, `DirProperty`, `InstallMode`)
-VALUES ([1], [2], [3], [4], [5])
-  )";
-
-  PMSIHANDLE view;
-  if (!MsiDatabaseOpenViewW(database, query, &view)) {
-    LOG(hInstall, warning)
-        << "unable to create database view: " << MsiGetLastErrorRecord();
-    return;
-  }
-
-  PMSIHANDLE record = MsiCreateRecord(5);
-  if (!record) {
-    LOG(hInstall, warning)
-        << "unable to create AuxiliaryFile record: " << MsiGetLastErrorRecord();
-    return;
-  }
-
-  UINT status;
-  std::hash<std::wstring> hasher;
-  std::wostringstream component;
-
-  component << "cmp" << hasher(path.wstring());
-  status = MsiRecordSetStringW(record, 1, component.str().c_str());
-  // TODO(compnerd) handle error
-
-  // NOTE(compnerd) this maps the AuxiliaryFiles component created in the WiX
-  // definition for the MSI.
-  status = MsiRecordSetStringW(record, 2, L"AuxiliaryFiles");
-  // TODO(compnerd) handle error
-
-  status = MsiRecordSetStringW(record, 3, path.stem().wstring().c_str());
-  // TODO(compnerd) handle error
-
-  // TODO(compnerd) this needs to be a dynamically constructed property
-  status = MsiRecordSetStringW(record, 4, path.parent_path().wstring().c_str());
-  // TODO(compnerd) handle error
-
-  // https://docs.microsoft.com/en-us/windows/win32/msi/removefile-table
-  // msidbRemoveFileInstallModeOnInstall  0x001   Remove During Installation
-  // msidbRemoveFileInstallModeOnRemove   0x002   Remove During Removal
-  // msidbRemoveFileInstallModeOnBoth     0x003   Remove Always
-  status = MsiRecordSetInteger(record, 5, 0x002);
-  // TODO(compnerd) handle error
-
-  status = MsiViewExecute(view, record);
-  if (status)
-    LOG(hInstall, warning)
-        << "unable to insert AuxiliaryFile " << path << ": " << status;
-#endif
-}
-}
-
-UINT SwiftInstaller_RecordAuxiliaryFiles(MSIHANDLE hInstall) {
-  std::vector<std::filesystem::path> additional_content;
-
-  // SDK Module Maps
-  std::filesystem::path UniversalCRTSdkDir = winsdk::install_root();
-  if (UniversalCRTSdkDir.empty()) {
-    LOG(hInstall, warning) << "UniversalCRTSdkDir is unset";
-  } else {
-    // FIXME(compnerd) Technically we are using the UniversalCRTSdkDir here
-    // instead of the WindowsSdkDir which would contain `um`.
-
-    // FIXME(compnerd) we may end up in a state where the ucrt and Windows SDKs
-    // do not match.  Users have reported cases where they somehow managed to
-    // setup such a configuration.  We should split this up to explicitly
-    // handle the UCRT and WinSDK paths separately.
-    for (const auto &version : winsdk::available_versions()) {
-      additional_content.emplace_back(UniversalCRTSdkDir / "Include" / version / "ucrt" / "module.modulemap");
-      additional_content.emplace_back(UniversalCRTSdkDir / "Include" / version / "um" / "module.modulemap");
-    }
-  }
-
-  // MSVC Tools Module Maps
-  for (const auto &VCToolsInstallDir : msvc::available_toolsets()) {
-    additional_content.emplace_back(VCToolsInstallDir / "include" / "module.modulemap");
-    additional_content.emplace_back(VCToolsInstallDir / "include" / "visualc.apinotes");
-  }
-
-  std::wstring product_code = msi::get_property(hInstall, L"ProductCode");
-  LOG(hInstall, info) << "Product Code: " << product_code;
-
-  LOG(hInstall, info) << "Additional Content:";
-  for (const auto &content : additional_content)
-    LOG(hInstall, info) << "  - " << content.string();
-
-  if (PMSIHANDLE database = MsiGetActiveDatabase(hInstall))
-    for (const auto &content : additional_content)
-      msi::record_auxiliary_file(hInstall, database, content);
-  else
-    LOG(hInstall, warning)
-        << "unable to access active database: " << MsiGetLastErrorRecord();
-
-  return ERROR_SUCCESS;
 }
 
 UINT SwiftInstaller_InstallAuxiliaryFiles(MSIHANDLE hInstall) {
-  std::vector<std::filesystem::path> additional_content;
-
   std::wstring data = msi::get_property(hInstall, L"CustomActionData");
   trim(data);
 
@@ -458,6 +354,69 @@ UINT SwiftInstaller_InstallAuxiliaryFiles(MSIHANDLE hInstall) {
       LOG(hInstall, info) << "Deployed " << item.dst;
     }
   }
+
+  // TODO(compnerd) it would be ideal to record the files deployed here to the
+  // `RemoveFile` table which would allow them to be cleaned up on removal.
+  // This is tricky as we cannot modify the on-disk database.  The deferred
+  // action is already executed post-InstallExecute which means that we can now
+  // identify the cached MSI by:
+  //
+  //  std::wstring product_code = msi::get_property(hInstall, L"ProductCode");
+  //
+  //  DWORD size = 0;
+  //  (void)MsiGetProductInfoW(product_code.c_str(),
+  //                           INSTALLPROPERTY_LOCALPACKAGE, L"", &size);
+  //  std::vector<wchar_t> buffer;
+  //  buffer.resize(++size);
+  //  (void)MsiGetProductInfoW(product_code.c_str(),
+  //                           INSTALLPROPERTY_LOCALPACKAGE, buffer.data(),
+  //                           &size);
+  //
+  // We can then create a new property for the location of the entry and a new
+  // RemoveFile entry for cleaning up the file.  Note that we may have to tweak
+  // things to get repairs to work properly with the tracking.
+  //
+  //  PMSIHANDLE database;
+  //  (void)MsiOpenDatabaseW(buffer.data(), MSIDBOPEN_TRANSACT, &database);
+  //
+  //  static const wchar_t query[] =
+  //      LR"SQL(
+  //INSERT INTO `Property` (`Property`, `Value`)
+  //  VALUES(?, ?);
+  //INSERT INTO `RemoveFile` (`FileKey`, `Component_`, `FileName`, `DirProperty`, `InstallMode`
+  //  VALUES (?, ?, ?, ?, ?);
+  //      )SQL";
+  //
+  //  PMSIHANDLE view;
+  //  (void)MsiDatabaseOpenViewW(database, query, &view);
+  //
+  //  std::hash<std::wstring> hasher;
+  //
+  //  std::wostringstream component;
+  //  component << "cmp" << hasher(path.wstring());
+  //
+  //  std::wostringstream property;
+  //  property << "prop" << hasher(path.wstring());
+  //
+  //  PMSIHANDLE record = MsiRecordCreate(7);
+  //  (void)MsiRecordSetStringW(record, 1, property.str().c_str());
+  //  (void)MsiRecordSetStringW(record, 2, path.parent_path().wstring().c_str());
+  //  (void)MsiRecordSetStringW(record, 3, component.str().c_str());
+  //  (void)MsiRecordSetStringW(record, 4, component.str().c_str());
+  //  (void)MsiRecordSetStringW(record, 5, path.filename().wstring().c_str());
+  //  (void)MsiRecordSetStringW(record, 6, property.str().c_str());
+  //  (void)MsiRecordSetInteger(record, 7, 2);
+  //
+  //  (void)MsiViewExecute(view, record);
+  //
+  //  (void)MsiDatabaseCommit(database);
+  //
+  // Currently, this seems to fail with the commiting of the database, which is
+  // still a mystery to me.  This relies on the clever usage of the
+  // `EnsureTable` in the WiX definition to ensure that we do not need to create
+  // the table.
+  //
+  // The error handling has been elided here for brevity's sake.
 
   return ERROR_SUCCESS;
 }

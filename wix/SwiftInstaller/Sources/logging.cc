@@ -69,27 +69,4 @@ log_message &operator<<<std::wstring>(log_message &message,
   message.stream_ << utf8.to_bytes(str.data(), str.data() + str.size());
   return message;
 }
-
-template <>
-log_message &
-operator<<<MSIHANDLE>(log_message &message, const MSIHANDLE &record) noexcept {
-#if WORKING_MSI_ERROR_LOOKUP
-  UINT status;
-  DWORD size = 0;
-
-  status = MsiFormatRecordW(message.install_, record, L"", &size);
-  if (status == ERROR_MORE_DATA) {
-    std::vector<wchar_t> buffer;
-    buffer.resize(++size);
-
-    status = MsiFormatRecordW(message.install_, record, buffer.data(), &size);
-    if (status == ERROR_SUCCESS) {
-      message << std::wstring{buffer.data(), buffer.size()};
-      return message;
-    }
-  }
-#endif
-  message << "[\\{]record conversion failure - " << MsiRecordGetInteger(record, 1) << "[\\}]";
-  return message;
-}
 }

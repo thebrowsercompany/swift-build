@@ -25,9 +25,6 @@ extern "C" {
 #endif
 
 UINT SWIFT_INSTALLER_API
-SwiftInstaller_RecordAuxiliaryFiles(MSIHANDLE hInstall);
-
-UINT SWIFT_INSTALLER_API
 SwiftInstaller_InstallAuxiliaryFiles(MSIHANDLE hInstall);
 
 #if defined(__cplusplus)
