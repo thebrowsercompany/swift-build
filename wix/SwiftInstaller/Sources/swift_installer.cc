@@ -72,7 +72,6 @@ static const wchar_t kits_installed_roots_keypath[] =
     L"SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots";
 
 std::filesystem::path install_root() noexcept {
-  std::vector<wchar_t> buffer;
   DWORD cbData = 0;
 
   if (FAILED(RegGetValueW(HKEY_LOCAL_MACHINE, kits_installed_roots_keypath,
@@ -80,7 +79,12 @@ std::filesystem::path install_root() noexcept {
                           &cbData)))
     return {};
 
+  if (cbData == 0)
+    return {};
+
+  std::vector<wchar_t> buffer;
   buffer.resize(cbData);
+
   if (FAILED(RegGetValueW(HKEY_LOCAL_MACHINE, kits_installed_roots_keypath,
                           kits_root_key, RRF_RT_REG_SZ, nullptr, buffer.data(),
                           &cbData)))
@@ -291,9 +295,8 @@ UINT SwiftInstaller_InstallAuxiliaryFiles(MSIHANDLE hInstall) {
 
   // Copy SDK Module Maps
   std::filesystem::path UniversalCRTSdkDir = winsdk::install_root();
-  if (UniversalCRTSdkDir.empty()) {
-    LOG(hInstall, warning) << "UniversalCRTSdkDir is unset";
-  } else {
+  LOG(hInstall, info) << "UniversalCRTSdkDir: " << UniversalCRTSdkDir;
+  if (!UniversalCRTSdkDir.empty()) {
     // FIXME(compnerd) Technically we are using the UniversalCRTSdkDir here
     // instead of the WindowsSdkDir which would contain `um`.
 
