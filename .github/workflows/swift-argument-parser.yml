@@ -2,6 +2,11 @@ name: swift-argument-parser
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'revision to build'
+        required: true
+        default: 'refs/heads/main'
 
 jobs:
   windows:
@@ -16,8 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          fetch-depth: 1
           repository: apple/swift-argument-parser
+          ref: ${{ inputs.ref }}
 
       - name: Install Swift ${{ matrix.tag }}
         run: |
@@ -46,4 +51,4 @@ jobs:
 
       - name: test
         run: |
-          swift test -c release
+          swift test -c release --enable-test-discovery
