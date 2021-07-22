@@ -149,6 +149,9 @@ jobs:
       - checkout: apple/sourcekit-lsp
         displayName: checkout apple/sourcekit-lsp
 
+      - checkout: apple/swift-collections
+        displayName: checkout apple/swift-collections
+
       - script: |
           choco install cmake --version=3.19.7 --installargs 'ADD_CMAKE_TO_PATH=User'
         condition: and(eq( variables['Agent.OS'], 'Windows_NT' ), or(eq( variables['Agent.Name'], 'Hosted Agent' ), contains(variables['Agent.Name'], 'Azure Pipelines')))
@@ -165,6 +168,7 @@ jobs:
           call :ApplyPatches "%SWIFTDRIVER_PR%" swift-driver
           call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
           call :ApplyPatches "%SOURCEKITLSP_PR%" sourcekit-lsp
+          call :ApplyPatches "%SWIFTCOLLECTIONS_PR%" swift-collections
 
           goto :eof
 
@@ -358,6 +362,24 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-crypto --target install
 
       - task: CMake@1
+        displayName: Configure swift-collections
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/swift-collections
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D BUILD_TESTING=NO
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-collections
+
+      - task: CMake@1
+        displayName: Build swift-collections
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-collections --target install
+
+      - task: CMake@1
         displayName: Configure swift-package-manager
         inputs:
           cmakeArgs:
@@ -373,6 +395,7 @@ jobs:
             -D SwiftDriver_DIR=$(Build.BinariesDirectory)/swift-driver/cmake/modules
             -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
             -D SwiftCrypto_DIR=$(Build.BinariesDirectory)/swift-crypto/cmake/modules
+            -D SwiftCollections_DIR=$(Build.BinariesDirectory)/swift-collections/cmake/modules
             -G Ninja
             -S $(Build.SourcesDirectory)/swift-package-manager
 
@@ -427,6 +450,7 @@ jobs:
             -D SwiftPM_DIR=$(Build.BinariesDirectory)/swift-package-manager/cmake/modules
             -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
             -D IndexStoreDB_DIR=$(Build.BinariesDirectory)/indexstore-db/cmake/modules
+            -D SwiftCollections_DIR=$(Build.BinariesDirectory)/swift-collections/cmake/modules
             -G Ninja
             -S $(Build.SourcesDirectory)/sourcekit-lsp
 
