@@ -20,6 +20,8 @@ jobs:
           ref: refs/tags/0.50500.0
           repository: apple/swift-format
 
+      - uses: microsoft/setup-msbuild@v1.0.3
+
       - name: Install Swift ${{ matrix.tag }}
         run: |
           function Update-EnvironmentVariables {
@@ -49,6 +51,14 @@ jobs:
         run: |
           swift build -c release -Xcc -IC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\include -Xlinker -LC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\lib
 
+      - uses: actions/checkout@v2
+        with:
+          path: swift-build
+
+      - name: package
+        run: |
+          msbuild swift-build/wix/swift-format.wixproj -nologo -p:Configuration=Release -p:ProductVersion=5.5 -p:SWIFT_FORMAT_BUILD=$PWD\.build\release -p:OutputPath=$PWD\.build\artifacts -p:RunWixToolsOutOfProc=true
+
       - uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -65,4 +75,12 @@ jobs:
           asset_content_type: application/octet-stream
           asset_name: swift-format.exe
           asset_path: .build\x86_64-unknown-windows-msvc\release\swift-format.exe
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_content_type: application/octet-stream
+          asset_name: swift-format.msi
+          asset_path: .build\artifacts\swift-format.msi
           upload_url: ${{ steps.create_release.outputs.upload_url }}

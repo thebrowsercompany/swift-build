@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Language="1033"
+           Manufacturer="dt.compnerd.org"
+           Name="swift-format"
+           UpgradeCode="94c1f591-2751-450e-82cd-571f7223177a"
+           Version="$(var.ProductVersion)">
+    <Package Comments="Copyright 2021 Saleem Abdulrasool &lt;compnerd@compnerd.org&gt;"
+             Compressed="yes"
+             Description="swift-format"
+             InstallScope="perMachine"
+             Manufacturer="dt.compnerd.org" />
+
+    <!-- NOTE(compnerd) use pre-3.0 schema for better compatibility. -->
+    <Media Id="1" Cabinet="swift_format.cab" EmbedCab="yes" />
+
+    <?ifdef INCLUDE_DEBUG_INFO?>
+    <Media Id="2" Cabinet="swift_format_PDBs.cab" EmbedCab="yes" />
+    <?endif?>
+
+    <!-- Directory Structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="INSTALLDIR">
+        <Directory Id="LIBRARY" Name="Library">
+          <Directory Id="DEVELOPER" Name="Developer">
+            <Directory Id="SWIFT_FORMAT" Name="SwiftFormat">
+              <Directory Id="USR" Name="usr">
+                <Directory Id="USR_BIN" Name="bin">
+                </Directory>
+              </Directory>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <SetDirectory Id="INSTALLDIR" Value="[WindowsVolume]">
+      NOT INSTALLDIR
+    </SetDirectory>
+
+    <!-- Components -->
+    <DirectoryRef Id="USR_BIN">
+      <!-- swift-format -->
+      <Component Id="SwiftFormat_BINS" Guid="1beb0b8c-4f3d-4ccc-beb1-36b9545a51d6">
+        <File Id="SWIFT_FORMAT_EXE" Source="$(var.SWIFT_FORMAT_BUILD)\swift-format.exe" Checksum="yes" />
+      </Component>
+
+      <?ifdef INCLUDE_DEBUG_INFO?>
+      <Component Id="SwiftFormat_DEBUGINFO" Guid="cd0d5b68-34e0-4499-b924-a99d9d4393ba">
+        <File Id="SWIFT_FORMAT_PDB" Source="$(var.SWIFT_FORMAT_BUILD)\swift-format.pdb" Checksum="yes" />
+      </Component>
+      <?endif?>
+    </DirectoryRef>
+
+    <DirectoryRef Id="TARGETDIR">
+      <Component Id="ENV_VARS" Guid="2ac681d5-8625-4742-9b80-30378aa31027">
+        <Environment Id="PATH" Action="set" Name="PATH" Part="last" Permanent="no" System="yes" Value="[WindowsVolume]Library\Developer\SwiftFormat\usr\bin"/>
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="SwiftFormat" ConfigurableDirectory="INSTALLDIR" Level="1">
+      <ComponentRef Id="SwiftFormat_BINS" />
+      <ComponentRef Id="ENV_VARS"/>
+    </Feature>
+
+    <?ifdef INCLUDE_DEBUG_INFO?>
+    <Feature Id="DEBUGINFO" ConfigurableDirectory="INSTALLDIR" Level="0">
+      <Condition Level="1">INSTALL_DEBUGINFO</Condition>
+      <ComponentRef Id="SwiftFormat_DEBUGINFO" />
+    </Feature>
+    <?endif?>
+  </Product>
+</Wix>
