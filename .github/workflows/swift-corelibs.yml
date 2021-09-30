@@ -1,0 +1,72 @@
+name: swift-corelibs
+
+on:
+  workflow_dispatch:
+    inputs:
+      dispatch_revision:
+        description: 'swift-corelibs-libdispatch revision to build'
+        required: true
+        default: 'refs/heads/main'
+      foundation_revision:
+        description: 'swift-corelibs-foundation revision to build'
+        required: true
+        default: 'refs/heads/main'
+      xctest_revision:
+        description: 'swift-corelibs-xctest revision to build'
+        required: true
+        default: 'refs/heads/main'
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        include:
+          - branch: swift-5.5-release
+            tag: 5.5-RELEASE
+
+    steps:
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          tag: ${{ matrix.tag }}
+          branch: ${{ matrix.branch }}
+
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-corelibs-libdispatch
+          ref: ${{ github.event.inputs.dispatch_revision }}
+          path: ${{ github.workspace }}/swift-corelibs-libdispatch
+
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-corelibs-foundation
+          ref: ${{ github.event.inputs.foundation_revision }}
+          path: ${{ github.workspace }}/swift-corelibs-foundation
+
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-corelibs-xctest
+          ref: ${{ github.event.inputs.xctest_revision }}
+          path: ${{ github.workspace }}/swift-corelibs-xctest
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@master
+
+      - name: build libdispatch
+        run: |
+          $SDK_ROOT = cygpath -m $env:SDKROOT
+          cmake -B libdispatch -D CMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER=clang-cl -D CMAKE_CXX_COMPILER=clang-cl -D CMAKE_MT=mt -D CMAKE_Swift_FLAGS="-sdk $SDK_ROOT" -G Ninja -S ${{ github.workspace }}/swift-corelibs-libdispatch
+          cmake --build libdispatch --config Release
+
+      # TODO(compnerd) build and wire up dependencise (ICU, ZLIB, CURL, LIBXML2)
+      - name: build Foundation
+        run: |
+          $SDK_ROOT = cygpath -m $env:SDKROOT
+          cmake -B foundation -D CMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER=clang-cl -D CMAKE_CXX_COMPILER=clang-cl -D CMAKE_MT=mt -D CMAKE_Swift_FLAGS="-sdk $SDK_ROOT" -G Ninja -S ${{ github.workspace }}/swift-corelibs-foundation -D dispatch_DIR=${{ github.workspace }}/libdispatch/lib/cmake/modules
+          cmake --build foundation --config Release
+
+      - name: build xctest
+        run: |
+          $SDK_ROOT = cygpath -m $env:SDKROOT
+          cmake -B foundation -D CMAKE_BUILD_TYPE=Release -D CMAKE_C_COMPILER=clang-cl -D CMAKE_CXX_COMPILER=clang-cl -D CMAKE_MT=mt -D CMAKE_Swift_FLAGS="-sdk $SDK_ROOT" -G Ninja -S ${{ github.workspace }}/swift-corelibs-xctest -D Foundation_DIR=${{ github.workspace }}/foundation/lib/cmake/modules -D dispatch_DIR=${{ github.workspace }}/dispatch/lib/cmake/modules
+          cmake --build foundation --config Release
