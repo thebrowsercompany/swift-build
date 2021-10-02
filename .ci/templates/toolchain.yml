@@ -52,6 +52,8 @@ jobs:
     timeoutInMinutes: 0
 
     variables:
+      swift.version: ${{ parameters.VERSION }}
+
       icu.version: ${{ parameters.ICU_VERSION }}
       icu.directory: $(Pipeline.Workspace)/icu/icu-${{ parameters.platform }}-${{ parameters.host }}/Library/icu-$(icu.version)
 
@@ -158,8 +160,13 @@ jobs:
 
       - script: |
           choco install cmake --version=3.21.3 --installargs 'ADD_CMAKE_TO_PATH=User'
-        condition: and(eq( variables['Agent.OS'], 'Windows_NT' ), or(eq( variables['Agent.Name'], 'Hosted Agent' ), contains(variables['Agent.Name'], 'Azure Pipelines')))
+        condition: and(ne(variables['swift.version'], '5.4'), and(eq( variables['Agent.OS'], 'Windows_NT' ), or(eq( variables['Agent.Name'], 'Hosted Agent' ), contains(variables['Agent.Name'], 'Azure Pipelines'))))
         displayName: Install CMake 3.21.3
+
+      - script: |
+          choco install cmake --version=3.19.8 --installargs 'ADD_CMAKE_TO_PATH=User'
+        condition: and(eq(variables['swift.version'], '5.4'), and(eq( variables['Agent.OS'], 'Windows_NT' ), or(eq( variables['Agent.Name'], 'Hosted Agent' ), contains(variables['Agent.Name'], 'Azure Pipelines'))))
+        displayName: Install CMake 3.19.8
 
       - script: |
           git config --global user.name builder
