@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       # depdendencies
+      icu_revision:
+        description: 'ICU revision'
+        required: true
+        default: 'refs/heads/maint/maint-69'
       curl_revision:
         description: 'libcurl revision'
         required: true
@@ -22,94 +26,84 @@ on:
         description: 'llvm-project revision'
         required: true
         default: 'refs/heads/stable/20210726'
-      swift_cmark_revision:
-        description: 'swift-cmark revision'
-        required: true
-        default: 'refs/heads/main'
-      swift_revision:
-        description: 'swift revision'
+      swift_tag:
+        description: 'swift repositories tag'
         required: true
         default: 'refs/heads/main'
 
-      # corelibs
-      dispatch_revision:
-        description: 'swift-corelibs-libdispatch revision'
+      # devtools
+      yams_revision:
+        description: 'Yams revision'
         required: true
         default: 'refs/heads/main'
-      foundation_revision:
-        description: 'swift-corelibs-foundation revision'
+      swift_argument_parser_revision:
+        description: 'swift-argument-parser revision'
         required: true
         default: 'refs/heads/main'
-      xctest_revision:
-        description: 'swift-corelibs-xctest revision'
+      swift_crypto_revision:
+        description: 'swift-crypto revision'
         required: true
         default: 'refs/heads/main'
-
-      # # devtools
-      # llbuild_revision:
-      #   description: 'swift-llbuild revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # tools_support_core_revision:
-      #   description: 'swift-tools-support-core revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # yams_revision:
-      #   description: 'Yams revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # swift_argument_parser_revision:
-      #   description: 'swift-argument-parser revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # swift_driver_revision:
-      #   description: 'swift-driver revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # swift_crypto_revision:
-      #   description: 'swift-crypto revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # swift_package_manager_revision:
-      #   description: 'swift-package-manager revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # indexstore_db_revision:
-      #   description: 'indexstore-db revision'
-      #   required: true
-      #   default: 'refs/heads/main'
-      # sourcekit_lsp_revision:
-      #   description: 'sourcekit-lsp revision'
-      #   required: true
-      #   default: 'refs/heads/main'
 
 jobs:
-  windows:
+  icu:
     runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64']
 
     steps:
       - uses: actions/checkout@v2
         with:
           path: ${{ github.workspace }}/SourceCache/swift-build
 
-      # depdendencies
       - uses: actions/checkout@v2
         with:
-          repository: curl/curl
-          ref: ${{ github.event.inputs.curl_revision }}
-          path: ${{ github.workspace }}/SourceCache/curl
-      - uses: actions/checkout@v2
-        with:
-          repository: gnome/libxml2
-          ref: ${{ github.event.inputs.libxml2_revision }}
-          path: ${{ github.workspace }}/SourceCache/libxml2
-      - uses: actions/checkout@v2
-        with:
-          repository: madler/zlib
-          ref: ${{ github.event.inputs.zlib_revision }}
-          path: ${{ github.workspace }}/SourceCache/zlib
+          repository: unicode-org/icu
+          ref: ${{ github.event.inputs.icu_revision }}
+          path: ${{ github.workspace }}/SourceCache/icu
 
-      # toolchain
+      - name: Copy CMakeLists.txt
+        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\ICU\CMakeLists69.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Configure ICU
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
+                -D BUILD_SHARED_LIBS=YES `
+                -D BUILD_TOOLS=$env:BUILD_TOOLS `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/icu/icu4c
+        env:
+          BUILD_TOOLS: ${{ matrix.arch == 'amd64' }}
+      - name: Build ICU
+        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1
+      - name: Install ICU
+        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1 --target install
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: icu-${{ matrix.arch }}-69.1
+          path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
+
+  build_tools:
+    runs-on: windows-latest
+
+    steps:
       - uses: actions/checkout@v2
         with:
           repository: apple/llvm-project
@@ -118,110 +112,377 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: apple/swift-cmark
-          ref: ${{ github.event.inputs.swift_cmark_revision }}
+          ref: ${{ github.event.inputs.swift_tag }}
           path: ${{ github.workspace }}/SourceCache/swift-cmark
       - uses: actions/checkout@v2
         with:
           repository: apple/swift
-          ref: ${{ github.event.inputs.swift_revision }}
+          ref: ${{ github.event.inputs.swift_tag }}
           path: ${{ github.workspace }}/SourceCache/swift
-
-      # corelibs
       - uses: actions/checkout@v2
         with:
           repository: apple/swift-corelibs-libdispatch
-          ref: ${{ github.event.inputs.dispatch_revision }}
+          ref: ${{ github.event.inputs.swift_tag }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
-      - uses: actions/checkout@v2
-        with:
-          repository: apple/swift-corelibs-foundation
-          ref: ${{ github.event.inputs.foundation_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
-      - uses: actions/checkout@v2
-        with:
-          repository: apple/swift-corelibs-xctest
-          ref: ${{ github.event.inputs.xctest_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
 
-      # # devtools
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/swift-llbuild
-      #     ref: ${{ github.event.inputs.llbuild_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/swift-llbuild
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/swift-tools-support-core
-      #     ref: ${{ github.event.inputs.llbuild_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/swift-tools-support-core
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: jpsim/Yams
-      #     ref: ${{ github.event.inputs.yams_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/Yams
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/swift-argument-parser
-      #     ref: ${{ github.event.inputs.swift_argument_parser_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/swift-argument-parser
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/swift-driver
-      #     ref: ${{ github.event.inputs.swift_driver_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/swift-driver
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/swift-crypto
-      #     ref: ${{ github.event.inputs.swift_crypto_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/swift-crypto
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/swift-package-manager
-      #     ref: ${{ github.event.inputs.swift_package_manager_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/swift-package-manager
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/indexstore-db
-      #     ref: ${{ github.event.inputs.indexstore_db_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/indexstore-db
-      # - uses: actions/checkout@v2
-      #   with:
-      #     repository: apple/sourcekit-lsp
-      #     ref: ${{ github.event.inputs.sourcekit_lsp_revision }}
-      #     path: ${{ github.workspace }}/SourceCache/sourcekit-lsp
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
 
-      - uses: seanmiddleditch/gha-setup-vsdevenv@master
-
-      # build tools
       - name: Configure Tools
-        run: cmake -B ${{ github.workspace }}/BinaryCache/0 -C ${{ github.workspace }}/SourceCache/swift-build/cmake/caches/windows-x86_64.cmake -D CMAKE_BUILD_TYPE=Release -D LLVM_ENABLE_ASSERTIONS=NO -D LLVM_ENABLE_LIBEDIT=NO -D LLVM_ENABBLE_LIBXML2=NO -D LLVM_ENABLE_PROJECTS="clang;lldb" -D LLVM_EXTERNAL_PROJECTS="cmark;swift" -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift -D LLDB_ENABLE_PYTHON=NO -D LLDB_INCLUDE_TESTS=NO -D LLDB_ENABLE_SWIFT_SUPPORT=NO -D SWIFT_INCLUDE_DOCS=NO -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch -D SWIFT_BUILD_DYNAMIC_STDLIB=NO -D SWIFT_BUILD_STATIC_STDLIB=NO -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO -G Ninja -S ${{ github.workspace }}/SourceCache/llvm-project/llvm
-      - run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen 
-      - run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target clang-tblgen 
-      - run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target lldb-tblgen 
-      - run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target swift-def-to-yaml-converter
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/0 `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
+                -D LLVM_ENABLE_ASSERTIONS=NO `
+                -D LLVM_ENABLE_LIBEDIT=NO `
+                -D LLVM_ENABLE_LIBXML2=NO `
+                -D LLVM_ENABLE_PROJECTS="clang;lldb" `
+                -D LLVM_EXTERNAL_PROJECTS="cmark;swift" `
+                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
+                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
+                -D LLDB_ENABLE_PYTHON=NO `
+                -D LLDB_INCLUDE_TESTS=NO `
+                -D LLDB_ENABLE_SWIFT_SUPPORT=NO `
+                -D SWIFT_INCLUDE_DOCS=NO `
+                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
+                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_STATIC_STDLIB=NO `
+                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
+                -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO
+      - name: Build llvm-tblgen
+        run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
+      - name: Build clang-tblgen
+        run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target clang-tblgen
+      - name: Build lldb-tblgen
+        run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target lldb-tblgen
+      - name: Build swift-def-to-yaml-converter
+        run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target swift-def-to-yaml-converter
+      - name: Build swift-serialize-diagnostics
+        run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target swift-serialize-diagnostics
 
-      - run: |
-          echo "LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-          echo "CLANG_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-          echo "LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build-tools
+          path: |
+            ${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe
+            ${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe
+            ${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe
+            ${{ github.workspace }}/BinaryCache/0/bin/swift-def-to-yaml-converter.exe
+            ${{ github.workspace }}/BinaryCache/0/bin/swift-serialize-diagnostics.exe
 
-      # setup
+  toolchain:
+    runs-on: windows-latest
+    needs: [icu, build_tools]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64']
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: icu-${{ matrix.arch }}-69.1
+          path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: build-tools
+          path: ${{ github.workspace }}/BinaryCache/0/bin
+
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/llvm-project
+          ref: ${{ github.event.inputs.llvm_revision }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-cmark
+          ref: ${{ github.event.inputs.swift_tag }}
+          path: ${{ github.workspace }}/SourceCache/swift-cmark
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift
+          ref: ${{ github.event.inputs.swift_tag }}
+          path: ${{ github.workspace }}/SourceCache/swift
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-corelibs-libdispatch
+          ref: ${{ github.event.inputs.swift_tag }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
       - name: 'Copy Support Files'
         run: |
-          Copy-Item "$env:SDKROOT\usr\share\ucrt.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\ucrt\module.modulemap"
-          Copy-Item "$env:SDKROOT\usr\share\visualc.modulemap" -destination "$env:VCToolsInstallDir\include\module.modulemap"
-          Copy-Item "$env:SDKROOT\usr\share\visualc.apinotes" -destination "$env:VCToolsInstallDir\include\visualc.apinotes"
-          Copy-Item "$env:SDKROOT\usr\share\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
-        shell: pwsh
+          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\ucrt.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\ucrt\module.modulemap"
+          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\visualc.modulemap" -destination "$env:VCToolsInstallDir\include\module.modulemap"
+          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\visualc.apinotes" -destination "$env:VCToolsInstallDir\include\visualc.apinotes"
+          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
 
-      # TODO(compnerd) build ICU
-      - run: |
-          curl -sL "https://github.com/unicode-org/icu/releases/download/release-67-1/icu4c-67_1-Win64-MSVC2017.zip" -o ${{ github.workspace }}/BinaryCache/icu4c-67_1-Win64-MSVC2017.zip
-          md ${{ github.workspace }}\BinaryCache\Library\icu-67.1
-          "%SystemDrive%\Program Files\Git\usr\bin\unzip.exe" -o ${{ github.workspace }}/BinaryCache/icu4c-67_1-Win64-MSVC2017.zip -d ${{ github.workspace }}/BinaryCache/Library/icu-67.1
-      
-      # build toolchain
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9.x'
+
+      # TODO(compnerd) switch this to Python 3.6.8
       - name: Configure Toolchain
-        run: cmake -B ${{ github.workspace }}/BinaryCache/1 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-x86_64.cmake -C ${{ github.workspace }}/SourceCache/swift-build/cmake/caches/windows-x86_64.cmake -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr -D PACKAGE_VENDOR=compnerd.org -D CLANG_VENDOR=compnerd.org -D CLANG_VENDOR_UTI=org.compnerd.dt -D LLVM_APPEND_VC_REV=NO -D LLVM_VERSION_SUFFIX="" -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/cmark -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch -D SWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-67.1/include/unicode -D SWIFT_WINDOWS_x86_64_ICU_UC=${{ github.workspace }}/BuildRoot/Library/icu-67.1/lib/icuuc.lib -D SWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-67.1/include -D SWIFT_WINDOWS_x86_64_I18N=${{ github.workspace }}/BuildRoot/Library/icu-67.1/lib/icuin.lib -G Ninja -S ${{ github.workspace }}/SourceCache/llvm-project/llvm
-      - run: cmake --build ${{ github.workspace }}/BinaryCache/1
-      - run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install
+        run: |
+          if ( "${{ matrix.arch }}" -eq "arm64" ) {
+            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
+            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
+            $LLDB_PYTHON_RELATIVE_PATH="-D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages"
+            $CACHE="Windows-arm64.cmake"
+
+            # FIXME(compnerd) re-enable python after we have nuget wired up for Python
+            $LLDB_ENABLE_PYTHON="-D LLDB_ENABLE_PYTHON=NO"
+            (Get-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake).replace(' lldb-python-scripts', '') | Set-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake
+
+            # FIXME(compnerd) re-enable SourceKit after we sort out libdispatch
+            $SWIFT_BUILD_SOURCEKIT="-D SWIFT_BUILD_SOURCEKIT=NO"
+            (Get-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake).replace(' sourcekit-inproc', '') | Set-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake
+
+            # FIXME(compnerd) re-enable SyntaxParser after we sort out libdispatch
+            $SWIFT_BUILD_SYNTAXPARSERLIB="-D SWIFT_BUILD_SYNTAXPARSERLIB=NO"
+            (Get-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake).replace(' parser-lib', '') | Set-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake
+
+            # FIXME(compnerd) re-enable runtimes after we sort out compiler-rt
+            (Get-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake).replace(' runtimes', '') | Set-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-arm64.cmake
+          } else {
+            $CACHE="Windows-x86_64.cmake"
+          }
+          cmake -B ${{ github.workspace }}/BinaryCache/1 `
+                -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/${CACHE} `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                ${CMAKE_SYSTEM_NAME} `
+                ${CMAKE_SYSTEM_PROCESSOR} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
+                -D PACKAGE_VENDOR=compnerd.org `
+                -D CLANG_VENDOR=compnerd.org `
+                -D CLANG_VENDOR_UTI=org.compnerd.dt `
+                -D SWIFT_VENDOR=compnerd.org `
+                -D LLVM_APPEND_VC_REV=NO `
+                -D LLVM_VERSION_SUFFIX="" `
+                ${LLDB_PYTHON_RELATIVE_PATH} `
+                -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
+                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
+                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
+                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
+                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
+                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
+                -D SWIFT_WINDOWS_aarch64_ICU_UC_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include/unicode `
+                -D SWIFT_WINDOWS_aarch64_ICU_UC=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/icuuc69.lib `
+                -D SWIFT_WINDOWS_aarch64_ICU_I18N_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include `
+                -D SWIFT_WINDOWS_aarch64_ICU_I18N=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/icuin69.lib `
+                -D SWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include/unicode `
+                -D SWIFT_WINDOWS_x86_64_ICU_UC=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/icuuc69.lib `
+                -D SWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include `
+                -D SWIFT_WINDOWS_x86_64_ICU_I18N=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/icuin69.lib `
+                -D LLVM_USE_HOST_TOOLS=NO `
+                -D LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe `
+                -D CLANG_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe `
+                -D LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe `
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
+                -D LLVM_PARALLEL_LINK_JOBS=2 `
+                -D SWIFT_PARALLEL_LINK_JOBS=2 `
+                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
+                ${LLDB_ENABLE_PYTHON} `
+                ${SWIFT_BUILD_SOURCEKIT} `
+                ${SWIFT_BUILD_SYNTAXPARSERLIB}
+      - name: Build Toolchain Distribution
+        run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
+      - name: Install Toolchain Distribution
+        run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: toolchain-${{ matrix.arch }}
+          path: |
+            ${{ github.workspace }}/BuildRoot/Library
+            !${{ github.workspace }}/BuildRoot/Library/icu-69.1
+
+  zlib:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64']
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: madler/zlib
+          ref: ${{ github.event.inputs.zlib_revision }}
+          path: ${{ github.workspace }}/SourceCache/zlib
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Configure zlib
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/zlib-1.2.11 `
+                -D BUILD_SHARED_LIBS=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/zlib `
+                -D SKIP_INSTALL_FILES=YES
+      - name: Build zlib
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.2.11
+      - name: Install zlib
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.2.11 --target install
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: zlib-${{ matrix.arch }}-1.2.11
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
+
+  curl:
+    runs-on: windows-latest
+    needs: zlib
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64']
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: curl/curl
+          ref: ${{ github.event.inputs.curl_revision }}
+          path: ${{ github.workspace }}/SourceCache/curl
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: zlib-${{ matrix.arch }}-1.2.11
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Configure curl
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/curl-7.77.0 `
+                -D BUILD_SHARED_LIBS=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/curl `
+                -D BUILD_TESTING=NO `
+                -D BUILD_CURL_EXE=NO `
+                -D CMAKE_USE_OPENSSL=NO `
+                -D CURL_CA_PATH=none `
+                -D CMAKE_USE_SCHANNEL=YES `
+                -D CMAKE_USE_LIBSSH2=NO `
+                -D HAVE_POLL_FINE=NO `
+                -D CURL_DISABLE_LDAP=YES `
+                -D CURL_DISABLE_LDAPS=YES `
+                -D CURL_DISABLE_TELNET=YES `
+                -D CURL_DISABLE_DICT=YES `
+                -D CURL_DISABLE_FILE=YES `
+                -D CURL_DISABLE_TFTP=YES `
+                -D CURL_DISABLE_RTSP=YES `
+                -D CURL_DISABLE_PROXY=YES `
+                -D CURL_DISABLE_POP3=YES `
+                -D CURL_DISABLE_IMAP=YES `
+                -D CURL_DISABLE_SMTP=YES `
+                -D CURL_DISABLE_GOPHER=YES `
+                -D CURL_ZLIB=YES `
+                -D ENABLE_UNIX_SOCKETS=NO `
+                -D ENABLE_THREADED_RESOLVER=NO `
+                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr  `
+                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr/lib/zlibstatic.lib
+      - name: Build curl
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-7.77.0
+      - name: Install curl
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-7.77.0 --target install
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: curl-${{ matrix.arch }}-7.77.0
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
+
+  libxml2:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64']
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: gnome/libxml2
+          ref: ${{ github.event.inputs.libxml2_revision }}
+          path: ${{ github.workspace }}/SourceCache/libxml2
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Configure libxml2
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 `
+                -D BUILD_SHARED_LIBS=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/libxml2 `
+                -D LIBXML2_WITH_ICONV=NO `
+                -D LIBXML2_WITH_ICU=NO `
+                -D LIBXML2_WITH_LZMA=NO `
+                -D LIBXML2_WITH_PYTHON=NO `
+                -D LIBXML2_WITH_TESTS=NO `
+                -D LIBXML2_WITH_THREADS=YES `
+                -D LIBXML2_WITH_ZLIB=NO
+      - name: Build libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12
+      - name: Install libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 --target install
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: libxml2-${{ matrix.arch }}-2.9.12
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr
