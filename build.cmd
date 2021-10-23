@@ -91,7 +91,7 @@ md S:\var\cache
 IF NOT EXIST S:\var\cache\sqlite-amalgamation-3360000.zip curl -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
 IF NOT EXIST %SourceCache%\sqlite-3.36.0  (
   md %SourceCache%\sqlite-3.36.0
-  "%ProgramFiles%\Git\usr\bin\unzip.exe" -o S:\var\cache\sqlite-amalgamation-3360000.zip -d %SourceCache%\sqlite-3.36.0
+  "%ProgramFiles%\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d %SourceCache%\sqlite-3.36.0
   copy /Y %SourceCache%\swift-build\cmake\SQLite\CMakeLists.txt %SourceCache%\sqlite-3.36.0\
 )
 cmake                                                                           ^
