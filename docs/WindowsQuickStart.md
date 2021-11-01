@@ -1,7 +1,5 @@
 # Building the toolchain on Windows
 
----
-
 Visual Studio 2022 is required to build Swift on Windows; any edition is fine.
 Visual Studio 2017 should be possible to use, though it may require some
 additional work to repair the build.  Visual Studio 2019 can be used to build,
@@ -24,7 +22,7 @@ vs_community ^
   --add Microsoft.VisualStudio.Component.VC.CMake.Project ^
   --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
   --add Microsoft.VisualStudio.Component.Windows10SDK ^
-  --add Microsoft.VisualStudio.Component.Windows10SDK.22000
+  --add Microsoft.VisualStudio.Component.Windows10SDK.17763
 del /q vs_community.exe
 ```
 
