@@ -775,3 +775,27 @@ jobs:
         with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+
+  vscode_plugin:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/sourcekit-lsp
+          ref: ${{ github.event.inputs.swift_tag }}
+          path: ${{ github.workspace }}/SourceCache/sourcekit-lsp
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+
+      - name: Build sourcekit-lsp-development.vsix
+        run: |
+          cd ${{ github.workspace }}/SourceCache/sourcekit-lsp/Editors/vscode
+          npm install
+          npm run dev-package
+      - uses: actions/upload-artifact@v2
+        with:
+          name: sourcekit-lsp-vsix
+          path: ${{ github.workspace }}/SourceCache/sourcekit-lsp/Editors/vscode/sourcekit-lsp-development.vsix
