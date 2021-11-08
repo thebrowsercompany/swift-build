@@ -48,6 +48,57 @@ on:
 jobs:
   # TODO(compnerd) use environment variables for package version information and wire that throughout
 
+  sqlite:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64', 'x86']
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ${{ github.workspace }}/SourceCache/swift-build
+
+      - name: download sqlite
+        run: |
+          curl.exe -sL "https://sqlite.org/2021/sqlite-amalgamation-3360000.zip" -o $env:TEMP\sqlite-amalgamation-3360000.zip
+          New-Item -ItemType Directory -Path ${{ github.workspace }}\SourceCache\sqlite-3.36.0
+          unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3360000.zip -d ${{ github.workspace }}\SourceCache\sqlite-3.36.0
+
+      - name: Copy CMakeLists.txt
+        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\SQLite\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\sqlite-3.36.0\CMakeLists.txt
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Configure SQLite
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.36.0 `
+                -D BUILD_SHARED_LIBS=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/sqlite-3.36.0
+      - name: Build SQLite
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.36.0
+      - name: Install SQLite
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.36.0 --target install
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: sqlite-${{ matrix.arch }}-3.36.0
+          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
+
   icu:
     runs-on: windows-latest
 
