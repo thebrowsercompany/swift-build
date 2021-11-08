@@ -1,0 +1,90 @@
+name: packaging
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_number:
+        description: 'run number'
+        required: true
+      swift_tag:
+        description: 'swift repositories tag'
+        required: true
+        default: 'refs/heads/main'
+
+
+jobs:
+  packaging:
+    runs-on: windows-latest
+
+    strategy:
+       fail-fast: false
+       matrix:
+         arch: ['amd64'] # , 'arm64']
+
+     steps:
+       - uses: dawidd6/action-download-artifact@v2
+         with:
+           workflow: swift-toolchain.yml
+           run_number: ${{ github.event.input.run_number }}
+           name: windows-sdk-${{ matrix.arch }}
+           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+
+       # TODO(compnerd) hoist the revision to an input
+       - uses: actions/checkout@v2
+         with:
+           repository: apple/swift-installer-scripts
+           ref: refs/heads/main
+           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+       - uses: actions/checkout@v2
+         with:
+           repository: apple/swift
+           ref: ${{ github.event.inputs.swift_tag }}
+           path: ${{ github.workspace }}/SourceCache/swift
+
+       - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+         with:
+           host_arch: amd64
+           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+           arch: ${{ matrix.arch }}
+
+       - uses: nuget/setup-nuget@v1
+         with:
+           nuget-version: 'latest'
+
+       - name: Package SDK
+         run: |
+           msbuild -nologo ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj -t:restore
+           # TODO(compnerd) determine why PlatformToolset is set to v100 on GHA
+           msbuild -nologo `
+               -p:Configuration=Release `
+               -p:RunWixToolsOutOfProc=true `
+               -p:OutputPath=${{ github.workspace }}\BinaryCache\sdk\ `
+               -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\sdk\ `
+               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
+               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
+               -p:SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
+               -p:PlatformToolset=v142 `
+               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj
+           # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/sdk/sdk.msi
+
+       - name: Package Runtime
+         run: |
+           msbuild -nologo `
+               -p:Configuration=Release `
+               -p:RunWixToolsOutOfProc=true `
+               -p:OutputPath=${{ github.workspace }}\BinaryCache\runtime\ `
+               -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\runtime\ `
+               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
+               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
+               -p:SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
+               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/runtime.wixproj
+           # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/runtime/runtime.msi
+
+       - uses: actions/upload-artifact@v2
+         with:
+           name: sdk-windows-${{ matrix.arch }}-msi
+           path: ${{ github.workspace }}/BinaryCache/sdk/sdk.msi
+       - uses: actions/upload-artifact@v2
+         with:
+           name: runtime-windows-${{ matrix.arch }}-msi
+           path: ${{ github.workspace }}/BinaryCache/runtime/runtime.msi
