@@ -1336,7 +1336,7 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: windows-sdk-${{ matrix.arch }}
+          name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot-DevTools/Library
 
   vscode_plugin:
@@ -1518,3 +1518,43 @@ jobs:
         with:
           name: runtime-windows-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/runtime/runtime.msi
+
+  package_devtools:
+    runs-on: windows-latest
+    needs: [devtools, vscode_plugin]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64'] # , 'arm64']
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: devtools-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+      # TODO(compnerd) hoist the revision to an input
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-installer-scripts
+          ref: refs/heads/main
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - uses: microsoft/setup-msbuild@v1.0.3
+
+      - name: Package
+        run: |
+          msbuild -nologo `
+              -p:Configuration=Release `
+              -p:RunWixToolsOutOfProc=true `
+              -p:OutputPath=${{ github.workspace }}\BinaryCache\devtools\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\devtools\ `
+              -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/devtools.wixproj
+          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/devtools/devtools.msi
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: devtools-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BinaryCache/devtools/devtools.msi
