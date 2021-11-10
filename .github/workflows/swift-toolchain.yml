@@ -1614,3 +1614,58 @@ jobs:
         with:
           name: installer-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/installer/installer.exe
+
+  smoke_test:
+    runs-on: windows-latest
+    needs: [installer]
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: installer-amd64
+          path: ${{ github.workspace }}/tmp
+
+      - run: |
+          function Update-EnvironmentVariables {
+            foreach ($level in "Machine", "User") {
+              [Environment]::GetEnvironmentVariables($level).GetEnumerator() | % {
+                # For Path variables, append the new values, if they're not already in there
+                if ($_.Name -Match 'Path$') {
+                  $_.Value = ($((Get-Content "Env:$($_.Name)") + ";$($_.Value)") -Split ';' | Select -Unique) -Join ';'
+                }
+                $_
+              } | Set-Content -Path { "Env:$($_.Name)" }
+            }
+          }
+
+          try {
+            Write-Host "Starting Install installer.exe..."
+            $Process = Start-Process -FilePath ${{ github.workspace }}/tmp/installer.exe -ArgumentList ("-q") -Wait -PassThru
+            $ExitCode = $Process.ExitCode
+            if ($ExitCode -eq 0 -or $ExitCode -eq 3010) {
+              Write-Host "Installation successful"
+            } else {
+              Write-Host "non-zero exit code returned by the installation process: $ExitCode"
+              exit $ExitCode
+            }
+          } catch {
+            Write-Host "Failed to install: $($_.Exception.Message)"
+            exit 1
+          }
+          Update-EnvironmentVariables
+
+          # Reset Path and environment
+          echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
+          Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+
+      - uses: actions/checkout@v2
+        with:
+          repository: compnerd/swift-win32
+          ref: refs/heads/main
+          path: ${{ github.workspace }}/SourceCache/swift-win32
+
+      - run: swift build
+        working-directory: ${{ github.workspace }}/SourceCache/swift-win32
+
+      - run: swift test -Xswiftc -DENABLE_TESTING
+        working-directory: ${{ github.workspace }}/SourceCache/swift-win32
