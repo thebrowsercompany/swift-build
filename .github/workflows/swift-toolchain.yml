@@ -1558,3 +1558,59 @@ jobs:
         with:
           name: devtools-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/devtools/devtools.msi
+
+  installer:
+    runs-on: windows-latest
+    needs: [package_icu, package_toolchain, package_sdk_runtime, package_devtools]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64'] # , 'arm64']
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: icu-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+      - uses: actions/download-artifact@v2
+        with:
+          name: toolchain-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+      - uses: actions/download-artifact@v2
+        with:
+          name: runtime-windows-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+      - uses: actions/download-artifact@v2
+        with:
+          name: sdk-windows-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+      - uses: actions/download-artifact@v2
+        with:
+          name: devtools-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+
+      # TODO(compnerd) hoist the revision to an input
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-installer-scripts
+          ref: refs/heads/main
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - uses: microsoft/setup-msbuild@v1.0.3
+
+      - name: Package
+        run: |
+          msbuild -nologo `
+              -p:Configuration=Release `
+              -p:RunWixToolsOutOfProc=true `
+              -p:OutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:MSI_LOCATION=${{ github.workspace }}/BuildRoot `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/installer.wixproj
+          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/installer/installer.exe
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: installer-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/installer/installer.exe
