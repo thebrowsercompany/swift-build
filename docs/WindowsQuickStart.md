@@ -76,6 +76,7 @@ from repo to install repo.
 S:
 md SourceCache
 cd SourceCache
+set PYTHONUTF8=1
 repo init -u https://github.com/compnerd/swift-build
 repo sync -j 8
 ```
