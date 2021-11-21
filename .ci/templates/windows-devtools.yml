@@ -152,6 +152,9 @@ jobs:
       - checkout: apple/swift-collections
         displayName: checkout apple/swift-collections
 
+      - checkout: apple/swift-system
+        displayName: checkout apple/swift-system
+
       - script: |
           choco install cmake --version=3.19.7 --installargs 'ADD_CMAKE_TO_PATH=User'
         condition: and(eq( variables['Agent.OS'], 'Windows_NT' ), or(eq( variables['Agent.Name'], 'Hosted Agent' ), contains(variables['Agent.Name'], 'Azure Pipelines')))
@@ -169,6 +172,7 @@ jobs:
           call :ApplyPatches "%INDEXSTOREDB_PR%" indexstore-db
           call :ApplyPatches "%SOURCEKITLSP_PR%" sourcekit-lsp
           call :ApplyPatches "%SWIFTCOLLECTIONS_PR%" swift-collections
+          call :ApplyPatches "%SWIFTSYSTEM_PR%" swift-system
 
           goto :eof
 
@@ -236,6 +240,30 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/swift-llbuild --target install
 
       - task: CMake@1
+        displayName: Configure swift-system
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/swift-system
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-clang.cmake
+            -D BUILD_SHARED_LIBS=YES
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-system
+
+      - task: CMake@1
+        displayName: Build swift-system
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-system
+
+      - task: CMake@1
+        displayName: Install swift-system
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-system --target install
+
+      - task: CMake@1
         displayName: Configure swift-tools-support-core
         inputs:
           cmakeArgs:
@@ -245,6 +273,7 @@ jobs:
             -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
             -D CMAKE_BUILD_TYPE=Release
             -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -D SwiftSystem_DIR=$(Build.BinariesDirectory)/swift-system/cmake/modules
             -D SQLite3_LIBRARY=$(sqlite.directory)/usr/lib/SQLite3.lib
             -D SQLite3_INCLUDE_DIR=$(sqlite.directory)/usr/include
             -G Ninja
@@ -322,6 +351,7 @@ jobs:
             -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
             -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
             -D LLBuild_DIR=$(Build.BinariesDirectory)/swift-llbuild/cmake/modules
+            -D SwiftSystem_DIR=$(Build.BinariesDirectory)/swift-system/cmake/modules
             -D TSC_DIR=$(Build.BinariesDirectory)/swift-tools-support-core/cmake/modules
             -D Yams_DIR=$(Build.BinariesDirectory)/Yams/cmake/modules
             -G Ninja
@@ -396,6 +426,7 @@ jobs:
             -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
             -D SwiftCrypto_DIR=$(Build.BinariesDirectory)/swift-crypto/cmake/modules
             -D SwiftCollections_DIR=$(Build.BinariesDirectory)/swift-collections/cmake/modules
+            -D SwiftSystem_DIR=$(Build.BinariesDirectory)/swift-system/cmake/modules
             -G Ninja
             -S $(Build.SourcesDirectory)/swift-package-manager
 
@@ -451,6 +482,7 @@ jobs:
             -D ArgumentParser_DIR=$(Build.BinariesDirectory)/swift-argument-parser/cmake/modules
             -D IndexStoreDB_DIR=$(Build.BinariesDirectory)/indexstore-db/cmake/modules
             -D SwiftCollections_DIR=$(Build.BinariesDirectory)/swift-collections/cmake/modules
+            -D SwiftSystem_DIR=$(Build.BinariesDirectory)/swift-system/cmake/modules
             -G Ninja
             -S $(Build.SourcesDirectory)/sourcekit-lsp
 
