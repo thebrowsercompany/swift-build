@@ -116,6 +116,9 @@ cmake                                                                           
   -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=%SourceCache%\cmark                         ^
   -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=%SourceCache%\swift                         ^
   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D SWIFT_WINDOWS_x86_64_ICU_I18N=S:\Library\icu-69.1\usr\lib\icuin69.lib      ^
   -D SWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=S:\Library\icu-69.1\usr\include      ^
@@ -156,6 +159,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
   -D SWIFT_WINDOWS_x86_64_ICU_I18N=S:\Library\icu-69.1\usr\lib\icuin69.lib      ^
   -D SWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=S:\Library\icu-69.1\usr\include      ^
