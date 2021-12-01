@@ -134,7 +134,7 @@ cmake --build S:\b\1 --target install || (exit /b)
 FOR %%M IN (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
   dir "%ToolchainInstallRoot%\usr\include\%%M" >NUL 2>NUL
   IF NOT ERRORLEVEL 1 ( rd /s /q "%ToolchainInstallRoot%\usr\include\%%M" )
-  move /Y %ToolchainInstallRoot%\usr\lib\%%M %ToolchainInstallRoot%\usr\include
+  move /Y %ToolchainInstallRoot%\usr\lib\swift\%%M %ToolchainInstallRoot%\usr\include
   move %ToolchainInstallRoot%\usr\lib\swift\windows\%%M.lib %ToolchainInstallRoot%\usr\lib
 )
 
