@@ -6,6 +6,7 @@ set PlatformInstallRoot=S:\Library\Developer\Platforms\Windows.platform
 set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 
 FOR %%M In (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
+  copy /Y %ToolchainInstallRoot%\usr\include\%%M %ToolchainInstallRoot%\usr\lib\swift\%%M
   copy /Y %ToolchainInstallRoot%\usr\lib\%%M.lib %ToolchainInstallRoot%\usr\lib\swift\windows\%%M.lib
 )
 
