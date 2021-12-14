@@ -359,6 +359,7 @@ cmake                                                                           
   -D CMAKE_MT=mt                                                                ^
   -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
   -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
   -D SQLite3_INCLUDE_DIR=S:\Library\sqlite-3.36.0\usr\include                   ^
   -D SQLite3_LIBRARY=S:\Library\sqlite-3.36.0\usr\lib\SQLite3.lib               ^
   -G Ninja                                                                      ^
@@ -430,6 +431,7 @@ cmake                                                                           
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
   -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
   -D TSC_DIR=S:\b\6\cmake\modules                                               ^
   -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
   -D Yams_DIR=S:\b\8\cmake\modules                                              ^
@@ -478,6 +480,7 @@ cmake                                                                           
   -D CMAKE_MT=mt                                                                ^
   -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
   -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
   -D TSC_DIR=S:\b\6\cmake\modules                                               ^
   -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
   -D ArgumentParser_DIR=S:\b\9\cmake\modules                                    ^
@@ -520,6 +523,7 @@ cmake                                                                           
   -D CMAKE_MT=mt                                                                ^
   -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
   -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
   -D TSC_DIR=S:\b\6\cmake\modules                                               ^
   -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
   -D ArgumentParser_DIR=S:\b\9\cmake\modules                                    ^
