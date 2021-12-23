@@ -26,7 +26,7 @@ on:
         description: 'swift-collections revision'
         required: true
         default: 'refs/heads/main'
-      swift_experimental_string_processing:
+      swift_experimental_string_processing_revision:
         description: 'swift-experimental-string-processing revision'
         required: true
         default: 'refs/heads/main'
@@ -608,6 +608,12 @@ jobs:
           ref: ${{ github.event.inputs.swift_tag }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
 
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-experimental-string-processing
+          ref: ${{ github.event.inputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+
       - uses: seanmiddleditch/gha-setup-vsdevenv@v4
         with:
           host_arch: amd64
@@ -669,6 +675,7 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
+                -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
                 -D SWIFT_WINDOWS_aarch64_ICU_UC_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include/unicode `
                 -D SWIFT_WINDOWS_aarch64_ICU_UC=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/icuuc69.lib `
                 -D SWIFT_WINDOWS_aarch64_ICU_I18N_INCLUDE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include `
