@@ -9,9 +9,48 @@ on:
         default: 'refs/heads/main'
 
 jobs:
-  windows:
+  windows_cmake:
     runs-on: windows-latest
 
+    strategy:
+      matrix:
+        include:
+          - tag: 5.5-DEVELOPMENT-SNAPSHOT-06-02-a
+            branch: swift-5.5-branch
+
+    steps:
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          tag: ${{ matrix.tag }}
+          branch: ${{ matrix.branch }}
+
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-argument-parser
+          ref: ${{ github.event.inputs.ref }}
+          path: ${{ github.workspace }}/SourceCache/swift-argument-parser
+
+      - name: Configure
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/swift-argument-parser `
+                -D BUILD_SHARED_LIBS=YES `
+                -D BUILD_TESTING=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/swift-argument-parser-development/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-argument-parser
+
+      - name: Build
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser
+
+      - name: Install
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser --target install
+
+  windows_spm:
+    runs-on: windows-latest
+    
     strategy:
       matrix:
         include:
