@@ -22,7 +22,7 @@ vs_community ^
   --add Microsoft.VisualStudio.Component.VC.CMake.Project ^
   --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
   --add Microsoft.VisualStudio.Component.Windows10SDK ^
-  --add Microsoft.VisualStudio.Component.Windows10SDK.17763
+  --add Microsoft.VisualStudio.Component.Windows11SDK.22000
 del /q vs_community.exe
 ```
 
