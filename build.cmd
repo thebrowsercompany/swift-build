@@ -437,6 +437,8 @@ cmake                                                                           
   -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
   -D Yams_DIR=S:\b\8\cmake\modules                                              ^
   -D ArgumentParser_DIR=S:\b\9\cmake\modules                                    ^
+  -D SQLite3_INCLUDE_DIR=S:\Library\sqlite-3.36.0\usr\include                   ^
+  -D SQLite3_LIBRARY=S:\Library\sqlite-3.36.0\usr\lib\SQLite3.lib               ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-driver || (exit /b)
 
