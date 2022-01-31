@@ -38,6 +38,10 @@ on:
         description: 'Yams revision'
         required: true
         default: 'refs/heads/main'
+      vscode_swift_revision:
+        description: 'vscode-swift revision'
+        required: true
+        default: 'refs/heads/main'
 
 jobs:
   # TODO(compnerd) use environment variables for package version information and wire that throughout
@@ -1414,23 +1418,23 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          repository: apple/sourcekit-lsp
-          ref: ${{ github.event.inputs.swift_tag }}
-          path: ${{ github.workspace }}/SourceCache/sourcekit-lsp
+          repository: swift-server/vscode-swift
+          ref: ${{ github.event.inputs.vscode_swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/vscode-swift
 
       - uses: actions/setup-node@v2
         with:
           node-version: '16'
 
-      - name: Build sourcekit-lsp-development.vsix
+      - name: Build swift-lang-development.vsix
         run: |
-          cd ${{ github.workspace }}/SourceCache/sourcekit-lsp/Editors/vscode
+          cd ${{ github.workspace }}/SourceCache/vscode-swift
           npm install
           npm run dev-package
       - uses: actions/upload-artifact@v2
         with:
-          name: sourcekit-lsp-vsix
-          path: ${{ github.workspace }}/SourceCache/sourcekit-lsp/Editors/vscode/sourcekit-lsp-development.vsix
+          name: swift-lang-vsix
+          path: ${{ github.workspace }}/SourceCache/vscode-swift/swift-lang-development.vsix
 
   package_icu:
     runs-on: windows-latest
