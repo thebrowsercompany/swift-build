@@ -26,6 +26,13 @@
     <Media Id="5" Cabinet="Swift_PDBs.cab" EmbedCab="yes" />
     <Media Id="6" Cabinet="SourceKit_PDBs.cab" EmbedCab="yes" />
     <Media Id="7" Cabinet="LLD_PDBs.cab" EmbedCab="yes" />
+    <?if $(var.ENABLE_SWIFT_DRIVER) != true ?>
+    <Media Id="8" Cabinet="LLBuild_PDBs.cab" EmbedCab="yes" />
+    <Media Id="9" Cabinet="SwiftDriver_PDBs.cab" EmbedCab="yes" />
+    <Media Id="10" Cabinet="ArgumentParser_PDBs.cab" EmbedCab="yes" />
+    <Media Id="11" Cabinet="ToolsSupportCore_PDBs.cab" EmbedCab="yes" />
+    <Media Id="12" Cabinet="Yams_PDBs.cab" EmbedCab="yes" />
+    <?endif?>
     <?endif?>
 
     <!-- Directory Structure -->
@@ -155,15 +162,22 @@
         <File Id="LLVM_SYMBOLIZER_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\llvm-symbolizer.exe" Checksum="yes" />
         <File Id="LLVM_UNDNAME_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\llvm-undname.exe" Checksum="yes" />
         <File Id="LTO_DLL" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\LTO.dll" Checksum="yes" />
+
         <!-- swift -->
         <!-- symlinks -->
         <!-- swift-indent.exe -->
         <File Id="SWIFT_AUTOLINK_EXTRACT_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift-autolink-extract.exe" Checksum="yes" />
+        <?if $(var.ENABLE_SWIFT_DRIVER) = true ?>
+        <File Id="SWIFT_FRONTEND_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift-frontend.exe" Checksum="yes" />
+        <?else?>
         <File Id="SWIFTC_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swiftc.exe" Checksum="yes" />
+        <?endif?>
         <!-- /symlinks -->
         <File Id="SWIFT_DEMANGLE_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift-demangle.exe" Checksum="yes" />
         <File Id="SWIFT_REFACTOR_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift-refactor.exe" Checksum="yes" />
+        <?if $(var.ENABLE_SWIFT_DRIVER) != true ?>
         <File Id="SWIFT_EXE" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift.exe" Checksum="yes" />
+        <?endif?>
         <File Id="SWIFTDEMANGLE_DLL" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swiftDemangle.dll" Checksum="yes" />
         <?if $(var.HAVE__INTERNAL_SWIFT_SCAN) = true ?>
           <File Id="_INTERNALSWIFTSCAN_DLL" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\_InternalSwiftScan.dll" Checksum="yes" />
@@ -175,6 +189,41 @@
         <File Id="BLOCKSRUNTIME_DLL" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\BlocksRuntime.dll" Checksum="yes" />
         <File Id="DISPATCH_DLL" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\dispatch.dll" Checksum="yes" />
         <File Id="SOURCEKITDINPROC_DLL" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\sourcekitdInProc.dll" Checksum="yes" />
+
+        <!-- non-LLVM build components -->
+
+        <?if $(var.ENABLE_SWIFT_DRIVER) = true ?>
+        <!-- llbuild -->
+        <File Id="LLBUILD_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuild.dll" Checksum="yes" />
+        <File Id="LLBUILDSWIFT_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuildSwift.dll" Checksum="yes" />
+
+        <File Id="SWIFT_BUILD_TOOL_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-build-tool.exe" Checksum="yes" />
+
+        <!-- swift-driver -->
+        <!-- symlinks -->
+        <File Id="SWIFTC_EXE" Name="swiftc.exe" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-driver.exe" Checksum="yes" />
+        <!-- /symlinks -->
+
+        <File Id="SWIFT_EXE" Name="swift.exe" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-driver.exe" Checksum="yes" />
+        <File Id="SWIFT_HELP_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-help.exe" Checksum="yes" />
+        <File Id="SWIFT_BUILD_SDK_INTERFACES_EXE" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-build-sdk-interfaces.exe" Checksum="yes" />
+        <File Id="SWIFT_OPTIONS_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SwiftOptions.dll" Checksum="yes" />
+        <File Id="SWIFT_DRIVER_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SwiftDriver.dll" Checksum="yes" />
+        <File Id="SWIFT_DRIVER_EXECUTION_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\SwiftDriverExecution.dll" Checksum="yes" />
+
+        <!-- swift-argument-parser -->
+        <File Id="ARGUMENT_PARSER_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\ArgumentParser.dll" Checksum="yes" />
+        <File Id="ARGUMENT_PARSER_TOOL_INFO_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\ArgumentParserToolInfo.dll" Checksum="yes" />
+
+        <!-- tools-support-core -->
+        <File Id="TSC_BASIC_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCBasic.dll" Checksum="yes" />
+        <File Id="TSC_LIBC_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCLibc.dll" Checksum="yes" />
+        <File Id="TSC_UTILITY_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCUtility.dll" Checksum="yes" />
+
+        <!-- Yams -->
+        <File Id="CYAML_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\CYaml.dll" Checksum="yes" />
+        <File Id="YAMS_DLL" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Yams.dll" Checksum="yes" />
+        <?endif?>
       </Component>
 
       <?ifdef INCLUDE_DEBUG_INFO ?>
@@ -221,7 +270,9 @@
         <!-- swift -->
         <File Id="SWIFT_DEMANGLE_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift-demangle.pdb" Checksum="yes" DiskId="5" />
         <File Id="SWIFT_REFACTOR_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift-refactor.pdb" Checksum="yes" DiskId="5" />
+        <?if $(var.ENABLE_SWIFT_DRIVER) != true ?>
         <File Id="SWIFT_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift.pdb" Checksum="yes" DiskId="5" />
+        <?endif?>
         <File Id="SWIFTDEMANGLE_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swiftDemangle.pdb" Checksum="yes" DiskId="5" />
         <?if $(var.HAVE__INTERNAL_SWIFT_SCAN) = true ?>
           <File Id="_INTERNALSWIFTCAN_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\_InternalSwiftScan.pdb" Checksum="yes" DiskId="5" />
@@ -234,6 +285,33 @@
         <File Id="BLOCKSRUNTIME_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\BlocksRuntime.pdb" Checksum="yes" DiskId="6" />
         <File Id="DISPATCH_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\dispatch.pdb" Checksum="yes" DiskId="6" />
         <File Id="SOURCEKITDINPROC_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\sourcekitdInProc.pdb" Checksum="yes" DiskId="6" />
+
+        <?if $(var.ENABLE_SWIFT_DRIVER) = true ?>
+        <!-- llbuild -->
+        <File Id="LLBUILD_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuild.pdb" Checksum="yes" DiskId="8" />
+        <File Id="LLBUILDSWIFT_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\llbuildSwift.pdb" Checksum="yes" DiskId="8" />
+
+        <File Id="SWIFT_BUILD_TOOL_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\swift-build-tool.pdb" Checksum="yes" DiskId="8" />
+
+        <!-- swift-driver -->
+        <File Id="SWIFT_PDB" Name="swift.pdb" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\swift-driver.pdb" Checksum="yes" DiskId="9" />
+        <File Id="SWIFT_OPTIONS_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\SwiftOptions.pdb" Checksum="yes" DiskId="9" />
+        <File Id="SWIFT_DRIVER_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\SwiftDriver.pdb" Checksum="yes" DiskId="9" />
+        <File Id="SWIFT_DRIVER_EXECUTION_PDB" Source="$(var.TOOLCHAIN_ROOT)\usr\bin\SwiftDriverExecution.pdb" Checksum="yes" DiskId="9" />
+
+        <!-- swift-argument-parser -->
+        <File Id="ARGUMENT_PARSER_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\ArgumentParser.pdb" Checksum="yes" DiskId="10" />
+        <File Id="ARGUMENT_PARSER_TOOL_INFO_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\ArgumentParserToolInfo.pdb" Checksum="yes" DiskId="10" />
+
+        <!-- tools-support-core -->
+        <File Id="TSC_BASIC_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCBasic.pdb" Checksum="yes" DiskId="11" />
+        <File Id="TSC_LIBC_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCLibc.pdb" Checksum="yes" DiskId="11" />
+        <File Id="TSC_UTILITY_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\TSCUtility.pdb" Checksum="yes" DiskId="11" />
+
+        <!-- Yams -->
+        <File Id="CYAML_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\CYaml.pdb" Checksum="yes" DiskId="12" />
+        <File Id="YAMS_PDB" Source="$(var.DEVTOOLS_ROOT)\usr\bin\Yams.pdb" Checksum="yes" DiskId="12" />
+        <?endif?>
       </Component>
       <?endif?>
     </DirectoryRef>

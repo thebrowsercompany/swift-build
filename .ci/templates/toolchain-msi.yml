@@ -4,6 +4,8 @@ jobs:
     condition: eq( '${{ parameters.host }}', 'x64' )
     variables:
       toolchain.directory: $(Pipeline.Workspace)/toolchain-windows-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+      devtools.directory: $(Pipeline.Workspace)/devtools-windows-${{ parameters.host }}/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+
     steps:
       - ${{ if eq(parameters.USE_PREBUILT_TOOLCHAIN, true) }}:
         - task: DownloadPipelineArtifact@2
@@ -18,9 +20,24 @@ jobs:
             artifact: toolchain-${{ parameters.platform }}-${{ parameters.host }}
             targetPath: $(Pipeline.Workspace)/toolchain-${{ parameters.platform }}-${{ parameters.host }}
 
+        - task: DownloadPipelineArtifact@2
+          displayName: download toolchain
+          inputs:
+            buildType: specific
+            project: 3133d6ab-80a8-4996-ac4f-03df25cd3224
+            definition: 7
+            buildVersionToDownload: latest
+            allowPartiallySucceededBuilds: true
+            specificBuildWithTriggering: true
+            artifact: devtools-${{ parameters.platform }}-${{ parameters.host }}
+            targetPath: $(Pipeline.Workspace)/toolchain-${{ parameters.platform }}-${{ parameters.host }}
+
       - ${{ if not(eq(parameters.USE_PREBUILT_TOOLCHAIN, true)) }}:
         - download: current
           artifact: toolchain-windows-${{ parameters.host }}
+
+        - download: current
+          artifact: devtools-windows-${{ parameters.host }}
 
       - script: |
           git config --global --add core.autocrlf false
@@ -60,12 +77,19 @@ jobs:
             solution: $(Build.SourcesDirectory)/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true
 
-      - ${{ if and(ne(parameters.VERSION, '5.2'), ne(parameters.VERSION, '5.3'), ne(parameters.VERSION, '5.4')) }}:
+      - ${{ if or(eq(parameters.VERSION, '5.5'), eq(parameters.VERSION, '5.6')) }}:
         - task: MSBuild@1
           displayName: toolchain.msi
           inputs:
             solution: $(Build.SourcesDirectory)/wix/windows-toolchain.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true -p:HAVE__INTERNAL_SWIFT_SYNTAX_PARSER=true -p:HAVE__INTERNAL_SWIFT_SCAN=true
+
+      - ${{ if and(ne(parameters.VERSION, '5.2'), ne(parameters.VERSION, '5.3'), ne(parameters.VERSION, '5.4'), ne(parameters.VERSION, '5.5'), ne(parameters.VERSION, '5.6')) }}:
+        - task: MSBuild@1
+          displayName: toolchain.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/wix/windows-toolchain.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\toolchain-msi\ -p:DEVTOOLS_ROOT=$(devtools.directory) -p:TOOLCHAIN_ROOT=$(toolchain.directory) -p:INCLUDE_LLDB_PYTHON_SCRIPTS=true -p:HAVE__INTERNAL_SWIFT_SYNTAX_PARSER=true -p:HAVE__INTERNAL_SWIFT_SCAN=true -p:ENABLE_SWIFT_DRIVER=true
 
       - script: |
           signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/toolchain-msi/toolchain.msi

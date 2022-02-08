@@ -63,12 +63,19 @@ jobs:
             solution: $(Build.SourcesDirectory)/wix/windows-devtools.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\devtools-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:DEVTOOLS_ROOT=$(devtools.directory) -p:HAVE_SWIFT_CRYPTO=true -p:HAVE_SWIFT_COLLECTIONS=true -p:HAVE_SWIFT_PACKAGE_COLLECTIONS=true -p:HAVE_UNIFIED_SPM_MANIFEST=true -p:TENSORFLOW=${{ parameters.tensorflow }}
 
-      - ${{ if and(ne(parameters.VERSION, '5.5'), ne(parameters.VERSION, '5.4')) }}:
+      - ${{ if eq(parameters.VERSION, '5.6') }}:
         - task: MSBuild@1
           displayName: ${{ parameters.platform }}-devtools-${{ parameters.proc }}.msi
           inputs:
             solution: $(Build.SourcesDirectory)/wix/windows-devtools.wixproj
             msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\devtools-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:DEVTOOLS_ROOT=$(devtools.directory) -p:HAVE_SWIFT_CRYPTO=true -p:HAVE_SWIFT_COLLECTIONS=true -p:HAVE_SWIFT_PACKAGE_COLLECTIONS=true -p:HAVE_SWIFT_PACKAGE_REGISTRY=true -p:HAVE_UNIFIED_SPM_MANIFEST=true -p:HAVE_SWIFT_ARGUMENT_PARSER_TOOL_INFO=true -p:HAVE_SWIFT_SYSTEM=true -p:HAVE_PACKAGE_FINGERPRINT=true -p:TENSORFLOW=${{ parameters.tensorflow }}
+
+      - ${{ if and(ne(parameters.VERSION, '5.5'), ne(parameters.VERSION, '5.4'), ne(parameters.VERSION, '5.5'), ne(parameters.VERSION, '5.6')) }}:
+        - task: MSBuild@1
+          displayName: ${{ parameters.platform }}-devtools-${{ parameters.proc }}.msi
+          inputs:
+            solution: $(Build.SourcesDirectory)/wix/windows-devtools.wixproj
+            msbuildArguments: /p:RunWixToolsOutOfProc=true -p:OutputPath=$(Build.BinariesDirectory)\devtools-msi\ -p:IntermediateOutputPath=$(Build.BinariesDirectory)\sdk-msi\ -p:DEVTOOLS_ROOT=$(devtools.directory) -p:HAVE_SWIFT_CRYPTO=true -p:HAVE_SWIFT_COLLECTIONS=true -p:HAVE_SWIFT_PACKAGE_COLLECTIONS=true -p:HAVE_SWIFT_PACKAGE_REGISTRY=true -p:HAVE_UNIFIED_SPM_MANIFEST=true -p:HAVE_SWIFT_ARGUMENT_PARSER_TOOL_INFO=true -p:HAVE_SWIFT_SYSTEM=true -p:HAVE_PACKAGE_FINGERPRINT=true -p:ENABLE_SWIFT_DRIVER=true -p:TENSORFLOW=${{ parameters.tensorflow }}
 
       - script: |
           signtool sign /f $(certificate.secureFilePath) /p $(CERTIFICATE_PASSWORD) /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Build.BinariesDirectory)/devtools-msi/devtools.msi

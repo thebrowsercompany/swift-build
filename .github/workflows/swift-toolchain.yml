@@ -1457,7 +1457,7 @@ jobs:
 
   package_toolchain:
     runs-on: windows-latest
-    needs: [toolchain]
+    needs: [toolchain,devtools]
 
     strategy:
       fail-fast: false
@@ -1468,6 +1468,11 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
           name: toolchain-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
       # TODO(compnerd) hoist the revision to an input
@@ -1486,6 +1491,7 @@ jobs:
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\toolchain\ `
               -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\toolchain\ `
+              -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/toolchain.wixproj
           # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/toolchain/toolchain.msi
