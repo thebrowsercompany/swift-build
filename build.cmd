@@ -445,6 +445,10 @@ cmake                                                                           
 cmake --build S:\b\10 || (exit /b)
 cmake --build S:\b\10 --target install || (exit /b)
 
+:: Switch to swift-driver
+copy /Y S:\b\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swift.exe
+copy /Y S:\b\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swiftc.exe
+
 :: swift-crypto
 cmake                                                                           ^
   -B S:\b\11                                                                    ^
