@@ -125,7 +125,7 @@ cmake                                                                           
   -S %SourceCache%\llvm-project\llvm || (exit /b)
 
 cmake --build S:\b\1 || (exit /b)
-cmake --build S:\b\1 --target install || (exit /b)
+cmake --build S:\b\1 --target install-distribution || (exit /b)
 
 :: Restructure Internal Modules
 FOR %%M IN (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
