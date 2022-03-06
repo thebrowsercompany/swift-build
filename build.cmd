@@ -159,6 +159,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+  -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
 
@@ -192,6 +193,7 @@ FOR %%M IN (_Concurrency, _Differentiation, _Distributed, CRT, Swift, SwiftOnone
 ::   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
 ::   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
 ::   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+::   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
 ::   -G Ninja                                                                      ^
 ::   -S %SourceCache%\swift || (exit /b)
 
