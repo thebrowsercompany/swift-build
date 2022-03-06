@@ -158,10 +158,6 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
-  -D SWIFT_WINDOWS_x86_64_ICU_I18N=S:\Library\icu-69.1\usr\lib\icuin69.lib      ^
-  -D SWIFT_WINDOWS_x86_64_ICU_I18N_INCLUDE=S:\Library\icu-69.1\usr\include      ^
-  -D SWIFT_WINDOWS_x86_64_ICU_UC=S:\Library\icu-69.1\usr\lib\icuuc69.lib        ^
-  -D SWIFT_WINDOWS_x86_64_ICU_UC_INCLUDE=S:\Library\icu-69.1\usr\include        ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
@@ -195,10 +191,6 @@ FOR %%M IN (_Concurrency, _Differentiation, _Distributed, CRT, Swift, SwiftOnone
 ::   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
 ::   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
 ::   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
-::   -D SWIFT_WINDOWS_i686_ICU_I18N=S:\Library\icu-69.1-32\usr\lib\icuin69.lib     ^
-::   -D SWIFT_WINDOWS_i686_ICU_I18N_INCLUDE=S:\Library\icu-69.1-32\usr\include     ^
-::   -D SWIFT_WINDOWS_i686_ICU_UC=S:\Library\icu-69.1-32\usr\lib\icuuc69.lib       ^
-::   -D SWIFT_WINDOWS_i686_ICU_UC_INCLUDE=S:\Library\icu-69.1-32\usr\include       ^
 ::   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
 ::   -G Ninja                                                                      ^
 ::   -S %SourceCache%\swift || (exit /b)
@@ -219,10 +211,6 @@ FOR %%M IN (_Concurrency, _Differentiation, _Distributed, CRT, Swift, SwiftOnone
 ::   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
 ::   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
 ::   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
-::   -D SWIFT_WINDOWS_aarch64_ICU_I18N=S:\Library\icu-69.1-arm64\usr\lib\icuin69.lib  ^
-::   -D SWIFT_WINDOWS_aarch64_ICU_I18N_INCLUDE=S:\Library\icu-69.1-arm64\usr\include  ^
-::   -D SWIFT_WINDOWS_aarch64_ICU_UC=S:\Library\icu-69.1-arm64\usr\lib\icuuc69.lib    ^
-::   -D SWIFT_WINDOWS_aarch64_ICU_UC_INCLUDE=S:\Library\icu-69.1-arm64\usr\include    ^
 ::   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
 ::   -G Ninja                                                                      ^
 ::   -S %SourceCache%\swift || (exit /b)
