@@ -261,6 +261,7 @@ cmake                                                                           
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
+  -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD"      ^
   -D CMAKE_MT=mt                                                                ^
   -D CURL_DIR=S:\Library\curl-7.77.0\usr\lib\cmake\CURL                         ^
   -D ICU_I18N_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\icuin69.lib           ^
