@@ -509,7 +509,6 @@ cmake --build S:\b\14 --target install || (exit /b)
 :: sourcekit-lsp
 cmake                                                                           ^
   -B S:\b\15                                                                    ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
