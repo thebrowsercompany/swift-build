@@ -37,6 +37,7 @@ msbuild %SourceCache%\swift-installer-scripts\platforms\Windows\toolchain.wixpro
   -p:RunWixToolsOutOfProc=true                                                    ^
   -p:OutputPath=S:\b\msi\                                                         ^
   -p:IntermediateOutputPath=S:\b\toolchain\                                       ^
+  -p:DEVTOOLS_ROOT=%ToolchainInstallRoot%\                                        ^
   -p:TOOLCHAIN_ROOT=%ToolchainInstallRoot%\
 
 msbuild %SourceCache%\swift-installer-scripts\platforms\Windows\CustomActions\SwiftInstaller\SwiftInstaller.vcxproj -t:restore
