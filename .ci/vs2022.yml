@@ -248,7 +248,7 @@ stages:
             inputs:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/icu-69.1 --target install
-          - publish: $(Build.StagingDirectory)/icu-69.1
+          - publish: $(Build.StagingDirectory)/Library
             artifact: icu-x64-69.1
 
   - stage: zlib
@@ -289,7 +289,7 @@ stages:
             inputs:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/zlib-1.2.11 --target install
-          - publish: $(Build.StagingDirectory)/zlib-1.2.11
+          - publish: $(Build.StagingDirectory)/Library
             artifact: zlib-x64-1.2.11
 
   - stage: curl
@@ -354,13 +354,22 @@ stages:
             inputs:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/curl-7.77.0 --target install
-          - publish: $(Build.StagingDirectory)/curl-7.77.0
+          - publish: $(Build.StagingDirectory)/Library
             artifact: curl-x64-7.77.0
 
   - stage: sqlite
     dependsOn: []
     jobs:
-      - job: x64
+      - job: sqlite
+        strategy:
+          matrix:
+            'x86':
+              arch: x86
+            'x64':
+              arch: amd64
+            'arm64':
+              arch: arm64
+        displayName: $(arch)
         steps:
           - script: |
               git config --global --add core.autocrlf false
@@ -382,7 +391,7 @@ stages:
           - task: BatchScript@1
             inputs:
               filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
-              arguments: -no_logo -arch=amd64 -host_arch=amd64
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: CMake@1
             inputs:
@@ -405,5 +414,5 @@ stages:
             inputs:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/sqlite-3.36.0 --target install
-          - publish: $(Build.StagingDirectory)/sqlite-3.36.0
-            artifact: sqlite-x64-3.36.0
+          - publish: $(Build.StagingDirectory)/Library
+            artifact: sqlite-$(arch)-3.36.0
