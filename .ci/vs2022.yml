@@ -29,12 +29,20 @@ resources:
       name: apple/swift-corelibs-libdispatch
       ref: refs/heads/main
       type: github
+    - repository: apple/swift-experimental-string-processing
+      endpoint: GitHub
+      name: apple/swift-experimental-string-processing
+      ref: refs/heads/main
+      type: github
 
 stages:
   - stage: build_tools
     jobs:
       - job: x64
         steps:
+          - script: |
+              git config --global --add core.autocrlf false
+              git config --global --add core.symlinks true
           - checkout: apple/llvm-project
             fetchDepth: 1
           - checkout: apple/swift-cmark
@@ -81,7 +89,7 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --buld $(Agent.BuildDirectory)/0 --target clang-tblgen
+                --build $(Agent.BuildDirectory)/0 --target clang-tblgen
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -98,17 +106,16 @@ stages:
             inputs:
              cmakeArgs:
                --build $(Agent.BuildDirectory)/0 --target swift-serialize-diagnostics
-          - task: CopyPublishBuildArtifacts@1
-            inputs:
-              CopyRoot: '$(Build.BinariesDirectory)/0'
-              Contents: |
-                bin/llvm-tblgen.exe
-                bin/clang-tblgen.exe
-                bin/lldb-tblgen.ex
-                bin/llvm-config.exe
-                bin/swift-def-to-yaml-converter.exe
-                bin/swift-serialize-diagnostics.exe
-              ArtifactName: 'build-tools'
+          - script: |
+              md $(Build.StagingDirectory)/build-tools/bin
+              copy $(Build.BinariesDirectory)/0/bin/llvm-tblgen.exe $(Build.StagingDirectory)/build-tools/bin/llvm-tblgen.exe
+              copy $(Build.BinariesDirectory)/0/bin/clang-tblgen.exe $(Build.StagingDirectory)/build-tools/bin/clang-tblgen.exe
+              copy $(Build.BinariesDirectory)/0/bin/lldb-tblgen.exe $(Build.StagingDirectory)/build-tools/bin/lldb-tblgen.exe
+              copy $(Build.BinariesDirectory)/0/bin/llvm-config.exe $(Build.StagingDirectory)/build-tools/bin/llvm-config.exe
+              copy $(Build.BinariesDirectory)/0/bin/swift-def-to-yaml-converter.exe $(Build.StagingDirectory)/build-tools/bin/swift-def-to-yaml-converter.exe
+              copy $(Build.BinariesDirectory)/0/bin/swift-serialize-diagnostics.exe $(Build.StagingDirectory)/build-tools/bin/swift-serialize-diagnostics.exe
+          - publish: $(Build.StagingDirectory)/build-tools/bin
+            artifact: build-tools
 
   - stage: build_toolchain
     dependsOn: [build_tools]
@@ -116,6 +123,9 @@ stages:
       - job: x64
         steps:
           - download: build-tools
+          - script: |
+              git config --global --add core.autocrlf false
+              git config --global --add core.symlinks true
           - checkout: apple/llvm-project
             fetchDepth: 1
           - checkout: apple/swift-cmark
@@ -123,6 +133,8 @@ stages:
           - checkout: apple/swift
             fetchDepth: 1
           - checkout: apple/swift-corelibs-libdispatch
+            fetchDepth: 1
+          - checkout: apple/swift-experimental-string-processing
             fetchDepth: 1
           - task: BatchScript@1
             inputs:
@@ -157,13 +169,24 @@ stages:
                 -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+                -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=$(Build.SourcesDirectory)/swift-experimental-string-processing
                 -D LLVM_USE_HOST_TOOLS=NO
-                -D LLVM_TABLEGEN=$()/bin/llvm-tblgen.exe
-                -D CLANG_TABLEGEN=$()/bin/clang-tblgen.exe
-                -D LLDB_TABLEGEN=$()/bin/lldb-tblgen.exe
-                -D LLVM_CONFIG_PATH=$()/bin/llvm-config.exe
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$()/bin
+                -D LLVM_TABLEGEN=$(Pipeline.Workspace)/build-tools/bin/llvm-tblgen.exe
+                -D CLANG_TABLEGEN=$(Pipeline.Workspace)/build-tools/bin/clang-tblgen.exe
+                -D LLDB_TABLEGEN=$(Pipeline.Workspace)/build-tools/bin/lldb-tblgen.exe
+                -D LLVM_CONFIG_PATH=$(Pipeline.Workspace)/build-tools/bin/llvm-config.exe
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(Pipeline.Workspace)/build-tools/bin
                 -D LLVM_PARALLEL_LINK_JOBS=2
                 -D SWIFT_PARALLEL_LINK_JOBS=2
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Build.BinariesDirectory)/1 --target distribution
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Build.BinariesDirectory)/1 --target install-distribution-stripped
+          - publish: $(Build.StagingDirectory)/Library
+            artifact: toolchain-windows-x64
