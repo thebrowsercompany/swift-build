@@ -124,12 +124,12 @@ stages:
                --build $(Agent.BuildDirectory)/0 --target swift-serialize-diagnostics
           - script: |
               md $(Build.StagingDirectory)\build-tools\bin
-              copy $(Build.BinariesDirectory)\0\bin\llvm-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\llvm-tblgen.exe
-              copy $(Build.BinariesDirectory)\0\bin\clang-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\clang-tblgen.exe
-              copy $(Build.BinariesDirectory)\0\bin\lldb-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\lldb-tblgen.exe
-              copy $(Build.BinariesDirectory)\0\bin\llvm-config.exe $(Build.StagingDirectory)\build-tools\bin\llvm-config.exe
-              copy $(Build.BinariesDirectory)\0\bin\swift-def-to-yaml-converter.exe $(Build.StagingDirectory)\build-tools\bin\swift-def-to-yaml-converter.exe
-              copy $(Build.BinariesDirectory)\0\bin\swift-serialize-diagnostics.exe $(Build.StagingDirectory)\build-tools\bin\swift-serialize-diagnostics.exe
+              copy $(Build.BuildDirectory)\0\bin\llvm-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\llvm-tblgen.exe
+              copy $(Build.BuildDirectory)\0\bin\clang-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\clang-tblgen.exe
+              copy $(Build.BuildDirectory)\0\bin\lldb-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\lldb-tblgen.exe
+              copy $(Build.BuildDirectory)\0\bin\llvm-config.exe $(Build.StagingDirectory)\build-tools\bin\llvm-config.exe
+              copy $(Build.BuildDirectory)\0\bin\swift-def-to-yaml-converter.exe $(Build.StagingDirectory)\build-tools\bin\swift-def-to-yaml-converter.exe
+              copy $(Build.BuildDirectory)\0\bin\swift-serialize-diagnostics.exe $(Build.StagingDirectory)\build-tools\bin\swift-serialize-diagnostics.exe
           - publish: $(Build.StagingDirectory)/build-tools/bin
             artifact: build-tools
 
@@ -199,11 +199,11 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/1 --target distribution
+                --build $(Build.BuildDirectory)/1 --target distribution
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/1 --target install-distribution-stripped
+                --build $(Build.BuildDirectory)/1 --target install-distribution-stripped
           - publish: $(Build.StagingDirectory)/Library
             artifact: toolchain-windows-x64
 
@@ -228,14 +228,14 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                -B $(Build.BinariesDirectory)/icu-69.1
+                -B $(Build.BuildDirectory)/icu-69.1
                 -D BUILD_SHARED_LIBS=YES
                 -D BUILD_TOOLS=YES
                 -D CMAKE_BUILD_TYPE=Release
                 -D CMAKE_C_COMPILER=cl
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
                 -D CMAKE_CXX_COMPILER=cl
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw Gy"
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
                 -D CMAKE_MT=mt
                 -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/icu-69.1/usr
                 -G Ninja
@@ -243,11 +243,11 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/icu-69.1
+                --build $(Build.BuildDirectory)/icu-69.1
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/icu-69.1 --target install
+                --build $(Build.BuildDirectory)/icu-69.1 --target install
           - publish: $(Build.StagingDirectory)/icu-69.1
             artifact: icu-x64-69.1
 
@@ -269,7 +269,7 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                -B $(Build.BinariesDirectory)/zlib-1.2.11
+                -B $(Build.BuildDirectory)/zlib-1.2.11
                 -D BUILD_SHARED_LIBS=NO
                 -D CMAKE_BUILD_TYPE=Release
                 -D CMAKE_C_COMPILER=cl
@@ -279,16 +279,16 @@ stages:
                 -D CMAKE_MT=mt
                 -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/zlib-1.2.11/usr
                 -G Ninja
-                -S $(Build.SourcesDirectory)/zlib
+                -S $(Build.SourcesDirectory)
                 -D SKIP_INSTALL_FILES=YES
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/zlib-1.2.11
+                --build $(Build.BuildDirectory)/zlib-1.2.11
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/zlib-1.2.11 --target install
+                --build $(Build.BuildDirectory)/zlib-1.2.11 --target install
           - publish: $(Build.StagingDirectory)/zlib-1.2.11
             artifact: zlib-x64-1.2.11
 
@@ -311,7 +311,7 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                -B $(Build.BinariesDirectory)/curl-7.77.0
+                -B $(Build.BuildDirectory)/curl-7.77.0
                 -D BUILD_SHARED_LIBS=NO
                 -D CMAKE_BUILD_TYPE=Release
                 -D CMAKE_C_COMPILER=cl
@@ -321,7 +321,7 @@ stages:
                 -D CMAKE_MT=mt
                 -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/curl-7.77.0/usr
                 -G Ninja
-                -S $(Build.SourcesDirectory)/usr
+                -S $(Build.SourcesDirectory)
                 -D BUILD_TESTING=NO
                 -D BUILD_CURL_EXE=NO
                 -D CMAKE_USE_OPENSSL=NO
@@ -349,10 +349,10 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/curl-7.77.0
+                --build $(Build.BuildDirectory)/curl-7.77.0
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Build.BinariesDirectory)/curl-7.77.0 --target install
+                --build $(Build.BuildDirectory)/curl-7.77.0 --target install
           - publish: $(Build.StagingDirectory)/curl-7.77.0
             artifact: curl-x64-7.77.0
