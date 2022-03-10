@@ -1,0 +1,108 @@
+trigger:
+  batch: yes
+  branches:
+    include:
+      - master
+
+pool:
+  vmImage: windows-2022
+
+resources:
+ repositories:
+    - repository: apple/llvm-project
+      endpoint: GitHub
+      ref: refs/heads/stable/20211026
+      type:
+    - repository: apple/swift-cmark
+      endpoint: GitHub
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift
+      endpoint: GitHub
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-corelibs-libdispatch
+      endpoint: GitHub
+      ref: refs/heads/main
+      type: github
+
+stages:
+  - stage: build_tools
+    jobs:
+      - job: build_host
+        steps:
+          - checkout: apple/llvm-project
+            fetchDepth: 1
+          - checkout: apple/swift-cmark
+            fetchDepth: 1
+          - checkout: apple/swift
+            fetchDepth: 1
+          - checkout: apple/swift-corelibs-libdispatch
+            fetchDepth: 1
+          - task: 
+          - task: BatchScript@1
+            inputs:
+              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              arguments: -no_logo -arch=amd64 -host_arch=amd64
+              modifyEnvironment: true
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                -B $(Agent.BuildDirectory)/0
+                -D CMAKE_BUILD_TYPE=Release
+                -D CMAKE_C_COMPILER=cl
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_CXX_COMPILER=cl
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_MT=mt
+                -G Ninja
+                -S $(Build.SourcesDirectory)/llvm-project/llvm
+                -D LLVM_ENABLE_ASSERTIONS=NO
+                -D LLVM_ENABLE_LIBEDIT=NO
+                -D LLVM_ENABLE_PROJECTS="clang;lldb"
+                -D LLVM_EXTERNAL_PROJECTS="cmark;swift"
+                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
+                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
+                -D LLDB_ENABLE_PYTHON=NO
+                -D LLDB_INCLUDE_TESTS=NO
+                -D SWIFT_INCLUDE_DOCS=NO
+                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO
+                -D SWIFT_BUILD_STATIC_STDLIB=NO
+                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO
+                -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/0 --target llvm-tblgen
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --buld $(Agent.BuildDirectory)/0 --target clang-tblgen
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/0 --target lldb-tblgen
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/0 --target llvm-config
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/0 --target swift-def-to-yaml-converter
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               --build $(Agent.BuildDirectory)/0 --target swift-serialize-diagnostics
+          - task: CopyPublishBuildArtifacts@1
+            inputs:
+              CopyRoot: '$(Build.BinariesDirectory)/0'
+              Contents: |
+                bin/llvm-tblgen.exe
+                bin/clang-tblgen.exe
+                bin/lldb-tblgen.ex
+                bin/llvm-config.exe
+                bin/swift-def-to-yaml-converter.exe
+                bin/swift-serialize-diagnostics.exe
+              ArtifactName: 'build-tools'
