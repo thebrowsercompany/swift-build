@@ -219,6 +219,15 @@ stages:
     jobs:
       - job: x64
         timeoutInMinutes: 0
+        strategy:
+          matrix:
+            'x64':
+              arch: amd64
+              platform: x64
+            # TODO(compnerd) enable AArch64 SDK
+            # 'arm64':
+            #  arch: arm64
+            #  platform: aarch64
         steps:
           - download: current
             artifact: build-tools
@@ -1179,6 +1188,7 @@ stages:
           - publish: $(Build.StagingDirectory)
             artifact: devtools-$(arch)
   - stage: vscode
+    dependsOn: []
     jobs:
       - job: build
         steps:
@@ -1226,5 +1236,44 @@ stages:
                 -p:ICU_ROOT=$(Pipeline.Workspace)\icu-$(arch)-69.1
                 -p:ProductVersion=69.1
                 -p:ProductVersionMajor=69
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
+                -p:OutputPath=$(Agent.BuildDirectory)
           - publish: $(Agent.BuildDirectory)\icu.msi
             artifact: icu-$(arch)-msi
+  - stage: package_toolchain
+    dependsOn: [toolchain, devtools]
+    jobs:
+      - job: build
+        strategy:
+          matrix:
+            'x64':
+              arch: amd64
+              platform: x64
+            # TODO(compnerd) enable AArch64 SDK
+            # 'arm64':
+            #  arch: arm64
+            #  platform: aarch64
+        steps:
+          - download: current
+            artifact: toolchain-$(arch)
+          - download: current
+            artifact: devtools-$(arch)
+          - checkout: apple/swift-installer-scripts
+            fetchDepth: 1
+          - task: MSBuild@1
+            inputs:
+              solution: $(Build.SourcesDirectory)/platforms/Windows/toolchain.wixproj
+              msbuildArchitecture: $(arch)
+              platform: $(platform)
+              configuration: Release
+              maximumCpuCount: true
+              restoreNugetPackages: false
+              createLogFile: true
+              msbuildArguments:
+                -p:RunWixToolsOutOfProc=true
+                -p:DEVTOOLS_ROOT=$(Pipeline.Workspace)/devtools-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+                -p:TOOLCHAIN_ROOT=$(Pipeline.Workspace)/toolchain-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
+                -p:OutputPath=$(Agent.BuildDirectory)
+          - publish: $(Agent.BuildDirectory)\toolchain.msi
+            artifact: toolchain-$(arch)-msi
