@@ -9,14 +9,19 @@ pool:
 
 resources:
   repositories:
+    - repository: apple/indexstore-db
+      endpoint: GitHub
+      name: apple/indexstore-db
+      ref: refs/heads/main
+      type: github
     - repository: apple/llvm-project
       endpoint: GitHub
       name: apple/llvm-project
       ref: refs/heads/stable/20211026
       type: github
-    - repository: apple/swift-cmark
+    - repository: apple/sourcekit-lsp
       endpoint: GitHub
-      name: apple/swift-cmark
+      name: apple/sourcekit-lsp
       ref: refs/heads/main
       type: github
     - repository: apple/swift
@@ -24,14 +29,24 @@ resources:
       name: apple/swift
       ref: refs/heads/main
       type: github
+    - repository: apple/swift-argument-parser
+      endpoint: GitHub
+      name: apple/swift-argument-parser
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-collections
+      endpoint: GitHub
+      name: apple/swift-collections
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-cmark
+      endpoint: GitHub
+      name: apple/swift-cmark
+      ref: refs/heads/main
+      type: github
     - repository: apple/swift-corelibs-libdispatch
       endpoint: GitHub
       name: apple/swift-corelibs-libdispatch
-      ref: refs/heads/main
-      type: github
-    - repository: apple/swift-experimental-string-processing
-      endpoint: GitHub
-      name: apple/swift-experimental-string-processing
       ref: refs/heads/main
       type: github
     - repository: apple/swift-corelibs-foundation
@@ -44,15 +59,40 @@ resources:
       name: apple/swift-corelibs-xctest
       ref: refs/heads/main
       type: github
-    - repository: unicode-org/icu
+    - repository: apple/swift-crypto
       endpoint: GitHub
-      name: unicode-org/icu
-      ref: refs/heads/maint/maint-69
+      name: apple/swift-crypto
+      ref: refs/heads/main
       type: github
-    - repository: madler/zlib
+    - repository: apple/swift-driver
       endpoint: GitHub
-      name: madler/zlib
-      ref: refs/heads/master
+      name: apple/swift-driver
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-experimental-string-processing
+      endpoint: GitHub
+      name: apple/swift-experimental-string-processing
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-llbuild
+      endpoint: GitHub
+      name: apple/swift-llbuild
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-package-manager
+      endpoint: GitHub
+      name: apple/swift-package-manager
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-system
+      endpoint: GitHub
+      name: apple/swift-system
+      ref: refs/heads/main
+      type: github
+    - repository: apple/swift-tools-support-core
+      endpoint: GitHub
+      name: apple/swift-tools-support-core
+      ref: refs/heads/main
       type: github
     - repository: curl/curl
       endpoint: GitHub
@@ -63,6 +103,21 @@ resources:
       endpoint: GitHub
       name: gnome/libxml2
       ref: refs/tags/v2.9.12
+      type: github
+    - repository: jpsim/Yams
+      endpoint: GitHub
+      name: jpsim/Yams
+      ref: refs/heads/main
+      type: github
+    - repository: unicode-org/icu
+      endpoint: GitHub
+      name: unicode-org/icu
+      ref: refs/heads/maint/maint-69
+      type: github
+    - repository: madler/zlib
+      endpoint: GitHub
+      name: madler/zlib
+      ref: refs/heads/master
       type: github
 
 stages:
@@ -245,6 +300,7 @@ stages:
           - checkout: self
             fetchDepth: 1
           - checkout: unicode-org/icu
+            fetchDepth: 1
           - script: |
               copy $(Build.SourcesDirectory)\swift-build\cmake\ICU\CMakeLists69.txt $(Build.SourcesDirectory)\icu\icu4c\CMakeLists.txt
           - task: BatchScript@1
@@ -418,6 +474,7 @@ stages:
               git config --global --add core.autocrlf false
               git config --global --add core.symlinks true
           - checkout: self
+            fetchDepth: 1
           - task: PowerShell@2
             inputs:
               targetType: 'inline'
@@ -716,3 +773,397 @@ stages:
           # TODO(compnerd) fill in Info.plist and SDKSettings.plist
           - publish: $(Build.StagingDirectory)
             artifact: windows-sdk-$(arch)
+
+  - stage: devtools
+    dependsOn: [sqlite, toolchain, sdk]
+    jobs:
+      - job: build
+        strategy:
+          matrix:
+            'x86':
+              arch: x86
+              platform: i686
+            # TODO(compnerd) enable AArch64 SDK
+            # 'arm64':
+            #  arch: arm64
+            #  platform: aarch64
+        steps:
+          - script: |
+              git config --global --add core.autocrlf false
+              git config --global --add core.symlinks true
+          - download: current
+            artifact: sqlite-$(arch)-3.36.0
+          - download: current
+            artifact: toolchain-amd64
+          - download: current
+            artifact: windows-sdk-$(arch)
+          - checkout: apple/indexstore-db
+            fetchDepth: 1
+          - checkout: apple/sourcekit-lsp
+            fetchDepth: 1
+          - checkout: apple/swift-argument-parser
+            fetchDepth: 1
+          - checkout: apple/swift-collections
+            fetchDepth: 1
+          - checkout: apple/swift-crypto
+            fetchDepth: 1
+          - checkout: apple/swift-driver
+            fetchDepth: 1
+          - checkout: apple/swift-llbuild
+            fetchDepth: 1
+          - checkout: apple/swift-package-manager
+            fetchDepth: 1
+          - checkout: apple/swift-system
+            fetchDepth: 1
+          - checkout: apple/swift-tools-support-core
+            fetchDepth: 1
+          - checkout: apple/swift
+            fetchDepth: 1
+          - checkout: jpsim/Yams
+            fetchDepth: 1
+          - task: BatchScript@1
+            inputs:
+              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              modifyEnvironment: true
+          - task: PowerShell@2
+            inputs:
+              targetType: inline
+              script: |
+                Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\ucrt.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\ucrt\module.modulemap"
+                Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.modulemap" -destination "$env:VCToolsInstallDir\include\module.modulemap"
+                Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes" -destination "$env:VCToolsInstallDir\include\visualc.apinotes"
+                Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-argument-parser
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-argument-parser
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-argument-parser
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-collections
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-collections
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-collections
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-crypto
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-crypto
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-crypto
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/Yams
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/Yams
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/Yams
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-llbuild
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-llbuild
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D SQLite3_LIBRARY=$(Pipeline.Workspace)/sqlite-$(arch)-3.36.0/Library/sqlite-3.36.0/usr/lib/SQLite3.lib
+               -D SQLite3_INCLUDE_DIR=$(Pipeline.Workspace)/sqlite-$(arch)-3.36.0/Library/sqlite-3.36.0/usr/include
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-llbuild
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-system
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-system
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-system
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-tools-support-core
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-tools-support-core
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D SwiftSystem_DIR=$(Agent.BuildDirectory)/swift-system/cmake/modules
+               -D SQLite3_LIBRARY=$(Pipeline.Workspace)/sqlite-$(arch)-3.36.0/Library/sqlite-3.36.0/usr/lib/SQLite3.lib
+               -D SQLite3_INCLUDE_DIR=$(Pipeline.Workspace)/sqlite-$(arch)-3.36.0/Library/sqlite-3.36.0/usr/include
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-tools-support-core
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-driver
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-driver
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D ArgumentParser_DIR=$(Agent.BuildDirectory)/swift-argument-parser/cmake/modules
+               -D LLBuild_DIR=$(Agent.BuildDirectory)/swift-llbuild/cmake/modules
+               -D SwiftSystem_DIR=$(Agent.BuildDirectory)/swift-system/cmake/modules
+               -D TSC_DIR=$(Agent.BuildDirectory)/swift-tools-support-core/cmake/modules
+               -D Yams_DIR=$(Agent.BuildDirectory)/Yams/cmake/modules
+               -D SQLite3_LIBRARY=$(Pipeline.Workspace)/sqlite-$(arch)-3.36.0/Library/sqlite-3.36.0/usr/lib/SQLite3.lib
+               -D SQLite3_INCLUDE_DIR=$(Pipeline.Workspace)/sqlite-$(arch)-3.36.0/Library/sqlite-3.36.0/usr/include
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-driver
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-package-manager
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-package-manager
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D ArgumentParser_DIR=$(Agent.BuildDirectory)/swift-argument-parser/cmake/modules
+               -D LLBuild_DIR=$(Agent.BuildDirectory)/swift-llbuild/cmake/modules
+               -D SwiftCollections_DIR=$(Agent.BuildDirectory)/swift-collections/cmake/modules
+               -D SwiftCrypto_DIR=$(Agent.BuildDirectory)/swift-crypto/cmake/modules
+               -D SwiftDriver_DIR=$(Agent.BuildDirectory)/swift-driver/cmake/modules
+               -D SwiftSystem_DIR=$(Agent.BuildDirectory)/swift-system/cmake/modules
+               -D TSC_DIR=$(Agent.BuildDirectory)/swift-tools-support-core/cmake/modules
+               -D Yams_DIR=$(Agent.BuildDirectory)/Yams/cmake/modules
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-package-manager
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/indexstore-db
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/indexstore-db
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/indexstore-db
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
+               -B $(Agent.BuildDirectory)/sourcekit-lsp
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
+               -D CMAKE_CXX_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(Pipeline.Workspace)/toolchain/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/sourcekit-lsp
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D ArgumentParser_DIR=$(Agent.BuildDirectory)/swift-argument-parser/cmake/modules
+               -D IndexStoreDB_DIR=$(Agent.BuildDirectory)/indexstore-db/cmake/modules
+               -D LLBuild_DIR=$(Agent.BuildDirectory)/swift-llbuild/cmake/modules
+               -D SwiftCollections_DIR=$(Agent.BuildDirectory)/swift-collections/cmake/modules
+               -D SwiftPM_DIR=$(Agent.BuildDirectory)/swift-package-manager/cmake/modules
+               -D SwiftSystem_DIR=$(Agent.BuildDirectory)/swift-system/cmake/modules
+               -D TSC_DIR=$(Agent.BuildDirectory)/swift-tools-support-core/cmake/modules
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/sourcekit-lsp
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-argument-parser --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-collections --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-crypto --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/Yams --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-llbuild --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-system --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-driver --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-package-manager --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/indexstore-db --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/sourcekit-lsp --target install
+          - publish: $(Build.StagingDirectory)
+            artifact: devtools-$(arch)
