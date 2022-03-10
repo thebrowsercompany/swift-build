@@ -74,6 +74,11 @@ resources:
       name: apple/swift-experimental-string-processing
       ref: refs/heads/main
       type: github
+    - repository: apple/swift-installer-scripts
+      endpoint: GitHub
+      name: apple/swift-installer-scripts
+      ref: refs/heads/main
+      type: github
     - repository: apple/swift-llbuild
       endpoint: GitHub
       name: apple/swift-llbuild
@@ -109,16 +114,22 @@ resources:
       name: jpsim/Yams
       ref: refs/heads/main
       type: github
-    - repository: unicode-org/icu
-      endpoint: GitHub
-      name: unicode-org/icu
-      ref: refs/heads/maint/maint-69
-      type: github
     - repository: madler/zlib
       endpoint: GitHub
       name: madler/zlib
       ref: refs/heads/master
       type: github
+    - repository: swift-server/vscode-swift
+      endpoint: GitHub
+      name: swift-server/vscode-swift
+      ref: refs/heads/main
+      type: github
+    - repository: unicode-org/icu
+      endpoint: GitHub
+      name: unicode-org/icu
+      ref: refs/heads/maint/maint-69
+      type: github
+
 
 stages:
   - stage: tools
@@ -1167,3 +1178,53 @@ stages:
                 --build $(Agent.BuildDirectory)/sourcekit-lsp --target install
           - publish: $(Build.StagingDirectory)
             artifact: devtools-$(arch)
+  - stage: vscode
+    jobs:
+      - job: build
+        steps:
+          - checkout: swift-server/vscode-swift
+            fetchDepth: 1
+          - script: |
+              cd $(Build.SourcesDirectory)
+              npm install
+              npm run dev-package
+          - publish: $(Build.SourcesDirectory)/swift-lang-development.vsix
+            artifact: swift-lang-vsix
+  - stage: package_icu
+    dependsOn: [icu]
+    jobs:
+      - job: build
+        strategy:
+          matrix:
+            # TODO(compnerd) enable the x86 SDK
+            # 'x86':
+            #  arch: x86
+            #  platform: i686
+            'x64':
+              arch: amd64
+              platform: x86_64
+            # TODO(compnerd) enable AArch64 SDK
+            # 'arm64':
+            #  arch: arm64
+            #  platform: aarch64
+        steps:
+          - download: current
+            artifact: icu-$(arch)-69.1
+          - checkout: apple/swift-installer-scripts
+            fetchDepth: 1
+          - task: MSBuild@1
+            inputs:
+              solution: $(Build.SourcesDirectory)/platforms/Windows/icu.wixproj
+              msbuildArchitecture: $(arch)
+              platform: $(arch)
+              configuration: Release
+              maximumCpuCount: true
+              restoreNugetPackages: false
+              createLogFile: true
+              msbuildArguments:
+                -p:RunWixToolsOutOfProc=true
+                -p:ICU_ROOT=$(Pipeline.Workspace)\icu-$(arch)-69.1
+                -p:ProductVersion=69.1
+                -p:ProductVersionMajor=69
+          - publish: $(Agent.BuildDirectory)\icu.msi
+            artifact: icu-$(arch)-msi
