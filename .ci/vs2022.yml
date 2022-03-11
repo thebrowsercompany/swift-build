@@ -297,7 +297,7 @@ stages:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/1 --target install-distribution-stripped
           - publish: $(Build.StagingDirectory)
-            artifact: toolchain-windows-x64
+            artifact: toolchain-$(arch)
 
   - stage: icu
     dependsOn: []
@@ -1201,6 +1201,7 @@ stages:
           - publish: $(Build.SourcesDirectory)/swift-lang-development.vsix
             artifact: swift-lang-vsix
   - stage: package_icu
+    displayName: ICU MSI
     dependsOn: [icu]
     jobs:
       - job: build
@@ -1233,14 +1234,15 @@ stages:
               createLogFile: true
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
-                -p:ICU_ROOT=$(Pipeline.Workspace)\icu-$(arch)-69.1
+                -p:ICU_ROOT=$(Pipeline.Workspace)/icu-$(arch)-69.1
                 -p:ProductVersion=69.1
                 -p:ProductVersionMajor=69
-                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
-                -p:OutputPath=$(Agent.BuildDirectory)
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
+                -p:OutputPath=$(Agent.BuildDirectory)\
           - publish: $(Agent.BuildDirectory)\icu.msi
             artifact: icu-$(arch)-msi
   - stage: package_toolchain
+    displayName: Toolchain MSI
     dependsOn: [toolchain, devtools]
     jobs:
       - job: build
@@ -1273,11 +1275,12 @@ stages:
                 -p:RunWixToolsOutOfProc=true
                 -p:DEVTOOLS_ROOT=$(Pipeline.Workspace)/devtools-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
                 -p:TOOLCHAIN_ROOT=$(Pipeline.Workspace)/toolchain-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
-                -p:OutputPath=$(Agent.BuildDirectory)
-          - publish: $(Agent.BuildDirectory)\toolchain.msi
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
+                -p:OutputPath=$(Agent.BuildDirectory)\
+          - publish: $(Agent.BuildDirectory)/toolchain.msi
             artifact: toolchain-$(arch)-msi
   - stage: package_sdk_runtime
+    displayName: SDK/Runtime MSI
     dependsOn: [sdk]
     jobs:
       - job: build
@@ -1315,8 +1318,8 @@ stages:
                 -p:PLATFORM_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform
                 -p:SDK_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
                 -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
-                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
-                -p:OutputPath=$(Agent.BuildDirectory)
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
+                -p:OutputPath=$(Agent.BuildDirectory)\
           - task: MSBuild@1
             inputs:
               solution: $(Build.SourcesDirectory)/swift-installer-scripts/platforms/Windows/runtime.wixproj
@@ -1331,13 +1334,14 @@ stages:
                 -p:PLATFORM_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform
                 -p:SDK_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
                 -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
-                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
-                -p:OutputPath=$(Agent.BuildDirectory)
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
+                -p:OutputPath=$(Agent.BuildDirectory)\
           - publish: $(Agent.BuildDirectory)/sdk.msi
             artifact: sdk-windows-$(arch)-msi
           - publish: $(Agent.BuildDirectory)/runtime.msi
             artifact: runtime-windows-$(arch)-msi
   - stage: package_devtools
+    displayName: Developer Tools MSI
     dependsOn: [devtools, vscode]
     jobs:
       - job: build
@@ -1367,8 +1371,8 @@ stages:
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
                 -p:DEVTOOLS_ROOT=$(Pipeline.Workspace)/devtools-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
-                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
-                -p:OutputPath=$(Agent.BuildDirectory)
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
+                -p:OutputPath=$(Agent.BuildDirectory)\
           - publish: $(Agent.BuildDirectory)/devtools.msi
             artifact: devtools-$(arch)-msi
   - stage: installer
@@ -1418,7 +1422,7 @@ stages:
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
                 -p:MSI_LOCATION=$(Build.SourcesDirectory)
-                -p:IntermediateOutputPath=$(Agent.BuildDirectory)
-                -p:OutputPath=$(Agent.BuildDirectory)
+                -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
+                -p:OutputPath=$(Agent.BuildDirectory)\
           - publish: $(Agent.BuildDirectory)/installer.exe
             artifact: installer-$(arch)
