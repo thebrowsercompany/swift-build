@@ -1,3 +1,6 @@
+# Copyright 2019 Saleem Abdulrasool.  All Rights Reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+
 GENCCODE_ASSEMBLY_TYPE=-a gcc
 SO=so
 SOBJ=so
