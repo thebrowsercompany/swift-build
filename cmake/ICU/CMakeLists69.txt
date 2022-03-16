@@ -643,7 +643,7 @@ if(BUILD_TOOLS)
     set(U_ICUDATA_PKGN icudt${PROJECT_VERSION_MAJOR}l)
   endif()
 
-  add_custom_target(icudata_lst
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
     COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${PROJECT_SOURCE_DIR}/source/python
       ${Python3_EXECUTABLE} -B -m icutools.databuilder
       --mode $<IF:$<STREQUAL:${CMAKE_HOST_SYSTEM_NAME},Windows>,windows-exec,unix-exec>
@@ -654,18 +654,28 @@ if(BUILD_TOOLS)
       --tool_cfg ..
       --out_dir ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}
       --tmp_dir ${CMAKE_CURRENT_BINARY_DIR}/data/tmp
+    DEPENDS gencnval gencfu makeconv genbrk gensprep gendict icupkg genrb
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/source/data)
-  add_dependencies(icudata_lst
-    gencnval gencfu makeconv genbrk gensprep gendict icupkg genrb)
 
   if(CMAKE_SYSTEM_NAME STREQUAL Windows)
-    add_custom_target(icudata ALL
-      COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m dll -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s . ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
-    add_dependencies(icudata pkgdata icudata_lst)
+    if(BUILD_SHARED_LIBS)
+      set(_U_ICUDATA_LIB ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/${CMAKE_SHARED_LIBRARY_PREFIX}${U_ICUDATA_NAME}${CMAKE_SHARED_LIBRARY_SUFFIX})
+    else()
+      set(_U_ICUDATA_LIB ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/${CMAKE_STATIC_LIBRARY_PREFIX}${U_ICUDATA_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX})
+    endif()
 
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN}/${U_ICUDATA_NAME}.dll
-      DESTINATION bin)
+    add_custom_command(OUTPUT ${_U_ICUDATA_LIB}
+      COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m $<IF:$<BOOL:${BUILD_SHARED_LIBS}>,dll,static> -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
+      DEPENDS pkgdata ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
+      BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}.dat ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}_dat.obj)
+    add_custom_target(icudata ALL
+      DEPENDS ${_U_ICUDATA_LIB})
+
+    if(BUILD_SHARED_LIBS)
+      install(FILES ${_U_ICUDATA_LIB} DESTINATION bin)
+    else()
+      install(FILES ${_U_ICUDATA_LIB} DESTINATION lib)
+    endif()
   elseif(CMAKE_SYSTEM_NAME STREQUAL Darwin)
     message(FATAL_ERROR "cannot build ICU data library")
   else()
@@ -674,11 +684,11 @@ if(BUILD_TOOLS)
     configure_file(icupkg.inc.cmake ${CMAKE_BINARY_DIR}/icupkg.inc)
 
     add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}_dat.S
-      COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m dll -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s . ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst -O ${CMAKE_BINARY_DIR}/icupkg.inc
-      DEPENDS pkgdata icudata_lst
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN})
+      COMMAND $<TARGET_FILE:pkgdata> -f -e ${U_ICUDATA_NAME} -v -m $<IF:$<BOOL:${BUILD_SHARED_LIBS}>,dll,static> -c -p ${U_ICUDATA_PKGN} -T ${CMAKE_CURRENT_BINARY_DIR}/data/tmp -L ${U_ICUDATA_NAME} -d ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} -s ${CMAKE_CURRENT_BINARY_DIR}/data/${U_ICUDATA_PKGN} ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst -O ${CMAKE_BINARY_DIR}/icupkg.inc
+      DEPENDS pkgdata ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/icudata.lst
+      BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}.dat ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}_dat.S)
 
-    add_library(${U_ICUDATA_NAME} SHARED
+    add_library(${U_ICUDATA_NAME}
       ${CMAKE_CURRENT_BINARY_DIR}/data/tmp/${U_ICUDATA_PKGN}_dat.S)
     set_target_properties(${U_ICUDATA_NAME} PROPERTIES
       LINKER_LANGUAGE C
