@@ -25,6 +25,10 @@ if(NOT BUILD_SHARED_LIBS)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+  # NOTE(compnerd) we alter the user-controlled flags here as we cannot override
+  # this as a setting otherwise.
+  string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+
   add_compile_definitions(_CRT_SECURE_NO_DEPRECATE)
   add_compile_definitions(_HAS_EXCEPTIONS=0)
   add_compile_definitions(U_PLATFORM_USES_ONLY_WIN32_API=1)
@@ -32,7 +36,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   add_compile_options(/Zc:wchar_t)
   add_compile_options(/utf-8)
 
-  add_compile_options(/EHs-c-)
   add_compile_options(/GF)
   add_compile_options(/Gy)
 elseif(CMAKE_SYSTEM_NAME STREQUAL Linux OR CMAKE_SYSTEM_NAME STREQUAL Android)
