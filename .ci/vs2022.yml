@@ -648,7 +648,8 @@ stages:
                 Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes" -destination "$env:VCToolsInstallDir\include\visualc.apinotes"
                 Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
           - bash: |
-              echo ##vso[task.setvariable variable=workspace.root]$(cygpath -m '$(Pipeline.Workspace)')
+              echo "##vso[task.setvariable variable=root;isOutput=true]$(cygpath -m '$(Pipeline.Workspace)')"
+            name: workspace
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -857,7 +858,7 @@ stages:
                 Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\visualc.apinotes" -destination "$env:VCToolsInstallDir\include\visualc.apinotes"
                 Copy-Item "$(Build.SourcesDirectory)\swift\stdlib\public\Platform\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
           - bash: |
-              echo ##vso[task.setvariable variable=root;isOutput=true]$(cygpath -m '$(Pipeline.Workspace)')
+              echo "##vso[task.setvariable variable=root;isOutput=true]$(cygpath -m '$(Pipeline.Workspace)')"
             name: workspace
           - task: CMake@1
             inputs:
@@ -1201,8 +1202,8 @@ stages:
             fetchDepth: 1
           - script: |
               cd $(Build.SourcesDirectory)
-              npm install
-              npm run dev-package
+              call npm install
+              call npm run dev-package
           - publish: $(Build.SourcesDirectory)/swift-lang-development.vsix
             artifact: swift-lang-vsix
   - stage: package_icu
