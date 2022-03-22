@@ -10,17 +10,15 @@ jobs:
     strategy:
       matrix:
         include:
-          - tag: 5.5-RELEASE
-            branch: swift-5.5-release
+          - tag: 5.6-RELEASE
+            branch: swift-5.6-release
 
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 1
-          ref: refs/tags/0.50500.0
+          ref: refs/tags/0.50600.1
           repository: apple/swift-format
-
-      - uses: microsoft/setup-msbuild@v1.0.3
 
       - uses: compnerd/gha-setup-swift@main
         with:
@@ -35,10 +33,11 @@ jobs:
         run: |
           swift build -c release -Xcc -IC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\include -Xlinker -LC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\lib
 
+      # Package
       - uses: actions/checkout@v2
         with:
           path: swift-build
-
+      - uses: microsoft/setup-msbuild@v1.0.3
       - name: package
         run: |
           msbuild swift-build/wix/swift-format.wixproj -nologo -p:Configuration=Release -p:ProductVersion=5.5 -p:SWIFT_FORMAT_BUILD=$PWD\.build\release -p:OutputPath=$PWD\.build\artifacts -p:RunWixToolsOutOfProc=true
