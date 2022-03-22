@@ -718,22 +718,16 @@ stages:
                 -D CMAKE_SYSTEM_NAME=Windows
                 -D CMAKE_SYSTEM_PROCESSOR=$(platform)
                 -D CMAKE_Swift_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+                -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
                 -D CMAKE_Swift_FLAGS="-resource-dir $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
                 -G Ninja
                 -S $(Build.SourcesDirectory)/swift-corelibs-libdispatch
-                -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
-                -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
-                -D CMAKE_Swift_COMPILE_TARGET=$(platform)-unknown-windows-msvc
                 -D BUILD_TESTING=NO
                 -D ENABLE_SWIFT=YES
           - task: CMake@1
             inputs:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/libdispatch
-          - task: CMake@1
-            inputs:
-              cmakeArgs:
-                --build $(Agent.BuildDirectory)/libdispatch --target install
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -752,7 +746,7 @@ stages:
                 -D CMAKE_SYSTEM_NAME=Windows
                 -D CMAKE_SYSTEM_PROCESSOR=$(platform)
                 -D CMAKE_Swift_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-                -D CMAKE_Swift_COMPILE_TARGET=$(platform)-unknown-windows-msvc
+                -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
                 -D CMAKE_Swift_FLAGS="-resource-dir $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
                 -G Ninja
                 -S $(Build.SourcesDirectory)/swift-corelibs-foundation
@@ -774,10 +768,6 @@ stages:
           - task: CMake@1
             inputs:
               cmakeArgs:
-                --build $(Agent.BuildDirectory)/foundation --target install
-          - task: CMake@1
-            inputs:
-              cmakeArgs:
                 -B $(Agent.BuildDirectory)/xctest
                 -D BUILD_SHARED_LIBS=YES
                 -D CMAKE_BUILD_TYPE=Release
@@ -792,7 +782,7 @@ stages:
                 -D CMAKE_SYSTEM_NAME=Windows
                 -D CMAKE_SYSTEM_PROCESSOR=$(platform)
                 -D CMAKE_Swift_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-                -D CMAKE_Swift_COMPILE_TARGET=$(platform)-unknown-windows-msvc
+                -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
                 -D CMAKE_Swift_FLAGS="-resource-dir $(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
                 -G Ninja
                 -S $(Build.SourcesDirectory)/swift-corelibs-foundxctestation
@@ -803,6 +793,14 @@ stages:
             inputs:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/xctest
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/libdispatch --target install
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/foundation --target install
           - task: CMake@1
             inputs:
               cmakeArgs:
