@@ -225,7 +225,7 @@ cmake                                                                           
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=S:\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk\usr ^
+  -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
   -D CMAKE_MT=mt                                                                ^
   -D ENABLE_SWIFT=YES                                                           ^
   -G Ninja                                                                      ^
