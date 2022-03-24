@@ -806,7 +806,24 @@ stages:
             inputs:
               cmakeArgs:
                 --build $(Agent.BuildDirectory)/xctest --target install
-          # TODO(compnerd) fill in Info.plist and SDKSettings.plist
+          - task: PythonScript@0
+            inputs:
+              scriptSource: inline
+              script: |
+                import os
+                import plistlib
+
+                info_plist = r'$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Info.plist'
+                with open(os.path.normpath(info_plist), 'wb') as plist:
+                  # TODO(compnerd) derive this from the install directory
+                  plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': 'development', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
+
+                sdk_settings_plist = r'$(Build.StagingDirectory)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/SDKSettings.plist'
+                with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
+                  # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
+                  # runtime.
+                  plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
+              failOnStderr: true
           - publish: $(Build.StagingDirectory)
             artifact: windows-sdk-$(arch)
 
