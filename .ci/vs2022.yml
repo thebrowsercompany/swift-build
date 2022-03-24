@@ -1324,16 +1324,15 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift
             fetchDepth: 1
-          - task: NuGetToolInstaller@1
           - task: MSBuild@1
             inputs:
-              solution: $(Build.SourcesDirectory)/swift-installer-scripts/platforms/Windows/sdk.wixproj
-              msbuildArchitecture: $(arch)
+              solution: $(Build.SourcesDirectory)/swift-installer-scripts/platforms/Windows/CustomActions/SwiftInstaller/SwiftInstaller.vcxproj
+              msbuildArchitecture: x64
               platform: $(platform)
               configuration: Release
-              maximumCpuCount: true
               msbuildArguments:
-                -t:restore
+                -restore
+              maximumCpuCount: true
           - task: MSBuild@1
             inputs:
               solution: $(Build.SourcesDirectory)/swift-installer-scripts/platforms/Windows/sdk.wixproj
@@ -1341,8 +1340,6 @@ stages:
               platform: $(platform)
               configuration: Release
               maximumCpuCount: true
-              restoreNugetPackages: true
-              createLogFile: true
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
                 -p:PLATFORM_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform
@@ -1357,8 +1354,6 @@ stages:
               platform: $(platform)
               configuration: Release
               maximumCpuCount: true
-              restoreNugetPackages: false
-              createLogFile: true
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
                 -p:PLATFORM_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform
