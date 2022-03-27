@@ -1280,7 +1280,13 @@ stages:
                 -p:ProductVersionMajor=69
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
-          - publish: $(Agent.BuildDirectory)\icu.msi
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/icu.msi
+          - publish: $(Agent.BuildDirectory)/icu.msi
             artifact: icu-$(arch)-msi
   - stage: package_toolchain
     displayName: Toolchain MSI
@@ -1320,6 +1326,12 @@ stages:
                 -p:TOOLCHAIN_ROOT=$(Pipeline.Workspace)/toolchain-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/toolchain.msi
           - publish: $(Agent.BuildDirectory)/toolchain.msi
             artifact: toolchain-$(arch)-msi
   - stage: package_sdk_runtime
@@ -1384,6 +1396,14 @@ stages:
                 -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/sdk.msi
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/runtime.msi
           - publish: $(Agent.BuildDirectory)/sdk.msi
             artifact: sdk-windows-$(arch)-msi
           - publish: $(Agent.BuildDirectory)/runtime.msi
@@ -1421,6 +1441,12 @@ stages:
                 -p:DEVTOOLS_ROOT=$(Pipeline.Workspace)/devtools-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/devtools.msi
           - publish: $(Agent.BuildDirectory)/devtools.msi
             artifact: devtools-$(arch)-msi
   - stage: installer
@@ -1472,5 +1498,14 @@ stages:
                 -p:MSI_LOCATION=$(Build.SourcesDirectory)
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              "%WIX%bin\insignia.exe" -ib $(Agent.BuildDirectory)/installer.exe -o $(Agent.BuildDirectory)/engine.exe
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/engine.exe
+              "%WIX%bin\insignia.exe" -ab $(Agent.BuildDirectory)/engine.exe $(Agent.BuildDirectory)/installer.exe -o $(Agent.BuildDirectory)/installer.exe
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/installer.exe
           - publish: $(Agent.BuildDirectory)/installer.exe
             artifact: installer-$(arch)
