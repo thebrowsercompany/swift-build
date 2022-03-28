@@ -1,3 +1,5 @@
+# Copyright 2019 Saleem Abdulrasool.  All Rights Reserved.
+# SPDX-License-Identifier: BSD-3-Clause
 
 cmake_minimum_required(VERSION 3.12.3)
 
