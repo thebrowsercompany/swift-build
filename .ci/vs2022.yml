@@ -330,7 +330,7 @@ stages:
           matrix:
             'x86':
               arch: x86
-              BUILD_TOOLS: NO
+              BUILD_TOOLS: YES
             'x64':
               arch: amd64
               BUILD_TOOLS: YES
@@ -360,8 +360,51 @@ stages:
           - task: BatchScript@1
             inputs:
               filename: $(VsDevCmd)
+              arguments: -no_logo -arch=amd64 -host_arch=amd64
+              modifyEnvironment: true
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                -B $(Agent.BuildDirectory)/icu-69.1-build
+                -D BUILD_SHARED_LIBS=NO
+                -D BUILD_TOOLS=YES
+                -D CMAKE_BUILD_TYPE=Release
+                -D CMAKE_C_COMPILER=cl
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_CXX_COMPILER=cl
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_MT=mt
+                -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/icu-69.1/usr
+                -G Ninja
+                -S $(Build.SourcesDirectory)/icu/icu4c
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/icu-69.1-build
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
+          - task: BatchScript@1
+            inputs:
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                -B $(Agent.BuildDirectory)/icu-69.1
+                -D BUILD_SHARED_LIBS=YES
+                -D ICU_TOOLS_DIR=$(Agent.BuildDirectory)/icu-69.1-build
+                -D CMAKE_BUILD_TYPE=Release
+                -D CMAKE_C_COMPILER=cl
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_CXX_COMPILER=cl
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_MT=mt
+                -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/icu-69.1/usr
+                -G Ninja
+                -S $(Build.SourcesDirectory)/icu/icu4c
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -377,6 +420,7 @@ stages:
                 -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/icu-69.1/usr
                 -G Ninja
                 -S $(Build.SourcesDirectory)/icu/icu4c
+            condition: eq(variables['BUILD_TOOLS'], 'YES')
           - task: CMake@1
             inputs:
               cmakeArgs:
