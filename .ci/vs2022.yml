@@ -213,14 +213,17 @@ stages:
             inputs:
              cmakeArgs:
                --build $(Agent.BuildDirectory)/0 --target swift-serialize-diagnostics
-          - script: |
-              md $(Build.StagingDirectory)\build-tools\bin
-              copy $(Agent.BuildDirectory)\0\bin\llvm-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\llvm-tblgen.exe
-              copy $(Agent.BuildDirectory)\0\bin\clang-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\clang-tblgen.exe
-              copy $(Agent.BuildDirectory)\0\bin\lldb-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\lldb-tblgen.exe
-              copy $(Agent.BuildDirectory)\0\bin\llvm-config.exe $(Build.StagingDirectory)\build-tools\bin\llvm-config.exe
-              copy $(Agent.BuildDirectory)\0\bin\swift-def-to-yaml-converter.exe $(Build.StagingDirectory)\build-tools\bin\swift-def-to-yaml-converter.exe
-              copy $(Agent.BuildDirectory)\0\bin\swift-serialize-diagnostics.exe $(Build.StagingDirectory)\build-tools\bin\swift-serialize-diagnostics.exe
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: $(Agent.BuildDirectory)/0
+              Contents: |
+                bin/llvm-tblgen.exe
+                bin/clang-tblgen.exe
+                bin/lldb-tblgen.exe
+                bin/llvm-config.exe
+                bin/swift-def-to-yaml-converter.exe
+                bin/swift-serialize-diagnostics.exe
+              TargetFolder: $(Build.StagingDirectory)/build-tools
           - publish: $(Build.StagingDirectory)/build-tools
             artifact: build-tools
 
@@ -553,11 +556,12 @@ stages:
                 curl.exe -sL "https://sqlite.org/2021/sqlite-amalgamation-3360000.zip" -o $env:TEMP\sqlite-amalgamation-3360000.zip
                 New-Item -ItemType Directory -Path $(Build.SourcesDirectory)\sqlite-3.36.0
                 unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3360000.zip -d $(Build.SourcesDirectory)\sqlite-3.36.0
-          - task: PowerShell@2
+          - task: CopyFiles@2
             inputs:
-              targetType: inline
-              script: |
-                Copy-Item $(Build.SourcesDirectory)\cmake\SQLite\CMakeLists.txt -destination $(Build.SourcesDirectory)\sqlite-3.36.0\CMakeLists.txt
+              SourceFolder: $(Build.SourcesDirectory)/cmake/SQLite
+              Contents: |
+                CMakeLists.txt
+              TargetFolder: $(Build.SourcesDirectory)/sqlite-3.36.0
           - script: |
               SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
               FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
@@ -1625,15 +1629,17 @@ stages:
             artifact: devtools-$(arch)-msi
           - checkout: apple/swift-installer-scripts
             fetchDepth: 1
-          - task: PowerShell@2
+          - task: CopyFiles@2
             inputs:
-              targetType: inline
-              script: |
-                Copy-Item $(Pipeline.Workspace)\icu-$(arch)-msi\icu.msi $(Build.SourcesDirectory)\icu.msi
-                Copy-Item $(Pipeline.Workspace)\toolchain-$(arch)-msi\toolchain.msi $(Build.SourcesDirectory)\toolchain.msi
-                Copy-Item $(Pipeline.Workspace)\runtime-windows-$(arch)-msi\runtime.msi $(Build.SourcesDirectory)\runtime.msi
-                Copy-Item $(Pipeline.Workspace)\sdk-windows-$(arch)-msi\sdk.msi $(Build.SourcesDirectory)\sdk.msi
-                Copy-Item $(Pipeline.Workspace)\devtools-$(arch)-msi\devtools.msi $(Build.SourcesDirectory)\devtools.msi
+              SourceFolder: $(Pipeline.Workspace)
+              Contents: |
+                icu-$(arch)-msi/icu.msi
+                toolchain-$(arch)-msi/toolchain.msi
+                runtime-windows-$(arch)-msi/runtime.msi
+                sdk-windows-$(arch)-msi/sdk.msi
+                devtools-$(arch)-msi/devtools.msi
+              TargetFolder: $(Build.SourcesDirectory)
+              flattenFolders: true
           - task: MSBuild@1
             inputs:
               solution: $(Build.SourcesDirectory)/platforms/Windows/installer.wixproj
