@@ -17,28 +17,32 @@ targets, or build on Windows natively without cross-compilation.
 
 ## Status
 
-**Dependencies**
+### Active Builds
 
 | Build | Status |
 | :-: | --- |
-| **CURL** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/CURL?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=11&branchName=master) |
-| **ICU** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/ICU?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=9&branchName=master) |
-| **SQLite3** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/SQLite?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=12&branchName=master) |
-| **TensorFlow** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/tensorflow?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=44&branchName=master) |
-| **XML2** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/XML2?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=10&branchName=master) |
-| **ZLIB** | [![Build Status](https://compnerd.visualstudio.com/swift-build/_apis/build/status/zlib?branchName=master)](https://compnerd.visualstudio.com/swift-build/_build/latest?definitionId=16&branchName=master) |
+| **VS2022 (main)** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2022?repoName=compnerd%2Fswift-build&branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=65&repoName=compnerd%2Fswift-build&branchName=master) |
+| **VS2019 (main)** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019?repoName=compnerd%2Fswift-build&branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=7&repoName=compnerd%2Fswift-build&branchName=master) |
+| **VS2019 (Swift 5.6)** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019%205.6?repoName=compnerd%2Fswift-build&branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=64&repoName=compnerd%2Fswift-build&branchName=master) |
+| **VS2019 (Swift 5.5)** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019%205.5?repoName=compnerd%2Fswift-build&branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=61&repoName=compnerd%2Fswift-build&branchName=master) |
+| **VS2019 (Swift 5.4)** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019%205.4?repoName=compnerd%2Fswift-build&branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=59&repoName=compnerd%2Fswift-build&branchName=master) |
 
-**Swift HEAD (Development)**
+### Pre-release builds
 
-| Build | Status |
-| :-: | --- |
-| **VS2017** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2017?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=1&branchName=master) |
-| **VS2019** | [![Build Status](https://dev.azure.com/compnerd/swift-build/_apis/build/status/VS2019?branchName=master)](https://dev.azure.com/compnerd/swift-build/_build/latest?definitionId=7&branchName=master) |
+- Unified VS2019 Swift 5.6
+- Unified VS2019 Swift 5.5
+
+### Retired Builds
+
+- VS2017 (main)
+- VS2019 (Swift 5.3)
+- VS2019 (Swift 5.2)
+- VS2017 (Swift 5.2)
 
 ## Getting the latest build
 
 ### Stable builds
-The latest stable build can be acuqired from the [releases](https://github.com/compnerd/swift-build/releases) page.
+The latest stable build can be acuqired from the Swift [downloads](https://download.swift.org).
 
 ### Development builds
 The `utilities/swift-build.py` script allows downloading of the latest build artifacts. The script requires the `azure-devops` and `tabulate` python packages. These can be installed with `pip`:
