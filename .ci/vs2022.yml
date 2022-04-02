@@ -1366,6 +1366,7 @@ stages:
                 --build $(Agent.BuildDirectory)/sourcekit-lsp --target install
           - publish: $(Build.StagingDirectory)
             artifact: devtools-$(arch)
+
   - stage: vscode
     dependsOn: []
     jobs:
@@ -1379,6 +1380,7 @@ stages:
               call npm run dev-package
           - publish: $(Build.SourcesDirectory)/swift-lang-development.vsix
             artifact: swift-lang-vsix
+
   - stage: package_icu
     displayName: ICU MSI
     dependsOn: [icu]
@@ -1441,6 +1443,7 @@ stages:
               signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/icu.msi
           - publish: $(Agent.BuildDirectory)/icu.msi
             artifact: icu-$(arch)-msi
+
   - stage: package_toolchain
     displayName: Toolchain MSI
     dependsOn: [toolchain, devtools]
@@ -1502,6 +1505,7 @@ stages:
               signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/toolchain.msi
           - publish: $(Agent.BuildDirectory)/toolchain.msi
             artifact: toolchain-$(arch)-msi
+
   - stage: package_sdk_runtime
     displayName: SDK/Runtime MSI
     dependsOn: [sdk]
@@ -1509,10 +1513,9 @@ stages:
       - job: build
         strategy:
           matrix:
-            # TODO(compnerd) enable the x86 SDK
-            # 'x86':
-            #  arch: x86
-            #  platform: i686
+            'x86':
+             arch: x86
+             platform: x86
             'x64':
               arch: amd64
               platform: x64
@@ -1545,6 +1548,7 @@ stages:
               maximumCpuCount: true
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
+                -p:ProductArchitecture=$(arch)
                 -p:PLATFORM_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform
                 -p:SDK_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
                 -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
@@ -1559,6 +1563,7 @@ stages:
               maximumCpuCount: true
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
+                -p:ProductArchitecture=$(arch)
                 -p:PLATFORM_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform
                 -p:SDK_ROOT=$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
                 -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
@@ -1591,6 +1596,7 @@ stages:
             artifact: sdk-windows-$(arch)-msi
           - publish: $(Agent.BuildDirectory)/runtime.msi
             artifact: runtime-windows-$(arch)-msi
+
   - stage: package_devtools
     displayName: Developer Tools MSI
     dependsOn: [devtools, vscode]
@@ -1647,6 +1653,7 @@ stages:
               signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/devtools.msi
           - publish: $(Agent.BuildDirectory)/devtools.msi
             artifact: devtools-$(arch)-msi
+
   - stage: installer
     dependsOn: [package_icu, package_toolchain, package_sdk_runtime, package_devtools]
     jobs:
