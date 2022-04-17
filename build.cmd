@@ -1,8 +1,9 @@
 :: Copyright 2020 Saleem Abdulrasool <compnerd@compnerd.org>
 
 set SourceCache=S:\SourceCache
-set ToolchainInstallRoot=S:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain
-set PlatformInstallRoot=S:\Library\Developer\Platforms\Windows.platform
+set InstallRoot=S:\Library
+set ToolchainInstallRoot=%InstallRoot%\Developer\Toolchains\unknown-Asserts-development.xctoolchain
+set PlatformInstallRoot=%InstallRoot%\Developer\Platforms\Windows.platform
 set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 
 set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
@@ -14,7 +15,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
-  -D CMAKE_INSTALL_PREFIX=S:\Library\zlib-1.2.11\usr                            ^
+  -D CMAKE_INSTALL_PREFIX=%InstallRoot%\zlib-1.2.11\usr                         ^
   -D SKIP_INSTALL_FILES=YES                                                     ^
   -G Ninja                                                                      ^
   -S %SourceCache%\zlib || (exit /b)
@@ -27,7 +28,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
-  -D CMAKE_INSTALL_PREFIX=S:\Library\libxml2-2.9.12\usr                         ^
+  -D CMAKE_INSTALL_PREFIX=%InstallRoot%\libxml2-2.9.12\usr                      ^
   -D LIBXML2_WITH_ICONV=NO                                                      ^
   -D LIBXML2_WITH_ICU=NO                                                        ^
   -D LIBXML2_WITH_LZMA=NO                                                       ^
@@ -46,7 +47,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
-  -D CMAKE_INSTALL_PREFIX=S:\Library\curl-7.77.0\usr                            ^
+  -D CMAKE_INSTALL_PREFIX=%InstallRoot%\curl-7.77.0\usr                         ^
   -D BUILD_CURL_EXE=NO                                                          ^
   -D CMAKE_USE_OPENSSL=NO                                                       ^
   -D CURL_CA_PATH=none                                                          ^
@@ -68,8 +69,8 @@ cmake                                                                           
   -D CURL_ZLIB=YES                                                              ^
   -D ENABLE_UNIX_SOCKETS=NO                                                     ^
   -D ENABLE_THREADED_RESOLVER=NO                                                ^
-  -D ZLIB_ROOT=S:\Library\zlib-1.2.11\usr                                       ^
-  -D ZLIB_LIBRARY=S:\Library\zlib-1.2.11\usr\lib\zlibstatic.lib                 ^
+  -D ZLIB_ROOT=%InstallRoot%\zlib-1.2.11\usr                                    ^
+  -D ZLIB_LIBRARY=%InstallRoot%\zlib-1.2.11\usr\lib\zlibstatic.lib              ^
   -G Ninja                                                                      ^
   -S %SourceCache%\curl || (exit /b)
 cmake --build S:\b\curl-7.77.0 || (exit /b)
@@ -82,7 +83,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
-  -D CMAKE_INSTALL_PREFIX=S:\Library\icu-69.1\usr                               ^
+  -D CMAKE_INSTALL_PREFIX=%InstallRoot%\icu-69.1\usr                            ^
   -D BUILD_TOOLS=YES                                                            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\icu\icu4c || (exit /b)
@@ -101,7 +102,7 @@ cmake                                                                           
   -B S:\b\sqlite-3.36.0                                                         ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_INSTALL_PREFIX=S:\Library\sqlite-3.36.0\usr                          ^
+  -D CMAKE_INSTALL_PREFIX=%InstallRoot%\sqlite-3.36.0\usr                       ^
   -D CMAKE_MT=mt                                                                ^
   -G Ninja                                                                      ^
   -S %SourceCache%\sqlite-3.36.0 || (exit /b)
@@ -246,15 +247,15 @@ cmake                                                                           
   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
   -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD"      ^
   -D CMAKE_MT=mt                                                                ^
-  -D CURL_DIR=S:\Library\curl-7.77.0\usr\lib\cmake\CURL                         ^
-  -D ICU_I18N_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\icuin69.lib           ^
-  -D ICU_ROOT=S:\Library\icu-69.1\usr                                           ^
-  -D ICU_UC_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\icuuc69.lib             ^
-  -D LIBXML2_LIBRARY=S:\Library\libxml2-2.9.12\usr\lib\libxml2s.lib             ^
-  -D LIBXML2_INCLUDE_DIR=S:\Library\libxml2-2.9.12\usr\include\libxml2          ^
+  -D CURL_DIR=%InstallRoot%\curl-7.77.0\usr\lib\cmake\CURL                      ^
+  -D ICU_I18N_LIBRARY_RELEASE=%InstallRoot%\icu-69.1\usr\lib\icuin69.lib        ^
+  -D ICU_ROOT=%InstallRoot%\icu-69.1\usr                                        ^
+  -D ICU_UC_LIBRARY_RELEASE=%InstallRoot%\icu-69.1\usr\lib\icuuc69.lib          ^
+  -D LIBXML2_LIBRARY=%InstallRoot%\libxml2-2.9.12\usr\lib\libxml2s.lib          ^
+  -D LIBXML2_INCLUDE_DIR=%InstallRoot%\libxml2-2.9.12\usr\include\libxml2       ^
   -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC"                                      ^
-  -D ZLIB_LIBRARY=S:\Library\zlib-1.2.11\usr\lib\zlibstatic.lib                 ^
-  -D ZLIB_INCLUDE_DIR=S:\Library\zlib-1.2.11\usr\include                        ^
+  -D ZLIB_LIBRARY=%InstallRoot%\zlib-1.2.11\usr\lib\zlibstatic.lib              ^
+  -D ZLIB_INCLUDE_DIR=%InstallRoot%\zlib-1.2.11\usr\include                     ^
   -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
   -D ENABLE_TESTING=NO                                                          ^
   -G Ninja                                                                      ^
@@ -329,8 +330,8 @@ cmake                                                                           
   -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
   -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
   -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
-  -D SQLite3_INCLUDE_DIR=S:\Library\sqlite-3.36.0\usr\include                   ^
-  -D SQLite3_LIBRARY=S:\Library\sqlite-3.36.0\usr\lib\SQLite3.lib               ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-tools-support-core || (exit /b)
 
@@ -350,8 +351,8 @@ cmake                                                                           
   -D LLBUILD_SUPPORT_BINDINGS=Swift                                             ^
   -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
   -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
-  -D SQLite3_INCLUDE_DIR=S:\Library\sqlite-3.36.0\usr\include                   ^
-  -D SQLite3_LIBRARY=S:\Library\sqlite-3.36.0\usr\lib\SQLite3.lib               ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\llbuild || (exit /b)
 
@@ -405,8 +406,8 @@ cmake                                                                           
   -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
   -D Yams_DIR=S:\b\8\cmake\modules                                              ^
   -D ArgumentParser_DIR=S:\b\9\cmake\modules                                    ^
-  -D SQLite3_INCLUDE_DIR=S:\Library\sqlite-3.36.0\usr\include                   ^
-  -D SQLite3_LIBRARY=S:\Library\sqlite-3.36.0\usr\lib\SQLite3.lib               ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-driver || (exit /b)
 
