@@ -18,20 +18,6 @@ cmake                                                                           
 cmake --build S:\b\zlib-1.2.11 || (exit /b)
 cmake --build S:\b\zlib-1.2.11 --target install || (exit /b)
 
-:: cmake                                                                           ^
-::   -B S:\b\zlib-1.2.11.x86                                                       ^
-::   -D BUILD_SHARED_LIBS=NO                                                       ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D CMAKE_INSTALL_PREFIX=S:\Library\zlib-1.2.11\usr                            ^
-::   -D INSTALL_BIN_DIR=S:\Library\zlib-1.2.11\usr\bin\x86                         ^
-::   -D INSTALL_LIB_DIR=S:\Library\zlib-1.2.11\usr\lib\x86                         ^
-::   -D SKIP_INSTALL_FILES=YES                                                     ^
-::   -G Ninja                                                                      ^
-::   -S %SourceCache%\zlib || (exit /b)
-:: cmake --build S:\b\zlib-1.2.11.x86 || (exit /b)
-:: cmake --build S:\b\zlib-1.2.11.x86 --target install || (exit /b)
-
 :: libxml2
 cmake                                                                           ^
   -B S:\b\libxml2-2.9.12                                                        ^
@@ -50,26 +36,6 @@ cmake                                                                           
   -S %SourceCache%\libxml2 || (exit /b)
 cmake --build S:\b\libxml2-2.9.12 || (exit /b)
 cmake --build S:\b\libxml2-2.9.12 --target install || (exit /b)
-
-:: cmake                                                                           ^
-::   -B S:\b\libxml2-2.9.12.x86                                                    ^
-::   -D BUILD_SHARED_LIBS=NO                                                       ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D CMAKE_INSTALL_PREFIX=S:\Library\libxml2-2.9.12\usr                         ^
-::   -D CMAKE_INSTALL_BINDIR=bin/x86                                               ^
-::   -D CMAKE_INSTALL_LIBDIR=lib/x86                                               ^
-::   -D LIBXML2_WITH_ICONV=NO                                                      ^
-::   -D LIBXML2_WITH_ICU=NO                                                        ^
-::   -D LIBXML2_WITH_LZMA=NO                                                       ^
-::   -D LIBXML2_WITH_PYTHON=NO                                                     ^
-::   -D LIBXML2_WITH_TESTS=NO                                                      ^
-::   -D LIBXML2_WITH_THREADS=YES                                                   ^
-::   -D LIBXML2_WITH_ZLIB=NO                                                       ^
-::   -G Ninja                                                                      ^
-::   -S %SourceDir%\libxml2 || (exit /b)
-:: cmake --build S:\b\libxml2-2.9.12.x86 || (exit /b)
-:: cmake --build S:\b\libxml2-2.9.12.x86 --target install || (exit /b)
 
 :: curl
 cmake                                                                           ^
@@ -106,42 +72,6 @@ cmake                                                                           
 cmake --build S:\b\curl-7.77.0 || (exit /b)
 cmake --build S:\b\curl-7.77.0 --target install || (exit /b)
 
-:: cmake                                                                           ^
-::   -B S:\b\curl-7.77.0.x86                                                       ^
-::   -D BUILD_SHARED_LIBS=NO                                                       ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D CMAKE_INSTALL_PREFIX=S:\Library\curl-7.77.0\usr                            ^
-::   -D CMAKE_INSTALL_BINDIR=bin/x86                                               ^
-::   -D CMAKE_INSTALL_LIBDIR=lib/x86                                               ^
-::   -D BUILD_CURL_EXE=NO                                                          ^
-::   -D CMAKE_USE_OPENSSL=NO                                                       ^
-::   -D CURL_CA_PATH=none                                                          ^
-::   -D CMAKE_USE_SCHANNEL=YES                                                     ^
-::   -D CMAKE_USE_LIBSSH2=NO                                                       ^
-::   -D HAVE_POLL_FINE=NO                                                          ^
-::   -D CURL_DISABLE_LDAP=YES                                                      ^
-::   -D CURL_DISABLE_LDAPS=YES                                                     ^
-::   -D CURL_DISABLE_TELNET=YES                                                    ^
-::   -D CURL_DISABLE_DICT=YES                                                      ^
-::   -D CURL_DISABLE_FILE=YES                                                      ^
-::   -D CURL_DISABLE_TFTP=YES                                                      ^
-::   -D CURL_DISABLE_RTSP=YES                                                      ^
-::   -D CURL_DISABLE_PROXY=YES                                                     ^
-::   -D CURL_DISABLE_POP3=YES                                                      ^
-::   -D CURL_DISABLE_IMAP=YES                                                      ^
-::   -D CURL_DISABLE_SMTP=YES                                                      ^
-::   -D CURL_DISABLE_GOPHER=YES                                                    ^
-::   -D CURL_ZLIB=YES                                                              ^
-::   -D ENABLE_UNIX_SOCKETS=NO                                                     ^
-::   -D ENABLE_THREADED_RESOLVER=NO                                                ^
-::   -D ZLIB_ROOT=S:\Library\zlib-1.2.11\usr                                       ^
-::   -D ZLIB_LIBRARY=S:\Library\zlib-1.2.11\usr\lib\x86\zlibstatic.lib             ^
-::   -G Ninja                                                                      ^
-::   -S %SourceCache%\curlW || (exit /b)
-:: cmake --build S:\b\curl-7.77.0.x86 || (exit /b)
-:: cmake --build S:\b\curl-7.77.0.x86 --target install || (exit /b)
-
 :: icu
 IF NOT EXIST %SourceCache%\icu\icu4c\CMakeLists.txt copy %SourceCache%\swift-build\cmake\ICU\CMakeLists69.txt %SourceCache%\icu\icu4c\CMakeLists.txt
 cmake                                                                           ^
@@ -155,20 +85,6 @@ cmake                                                                           
   -S %SourceCache%\icu\icu4c || (exit /b)
 cmake --build S:\b\icu-69.1 || (exit /b)
 cmake --build S:\b\icu-69.1 --target install || (exit /b)
-
-:: cmake                                                                           ^
-::   -B S:\b\icu-69.1.x86                                                          ^
-::   -D BUILD_SHARED_LIBS=NO                                                       ^
-::   -D BUILD_TOOLS=YES                                                            ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D CMAKE_INSTALL_PREFIX=S:\Library\icu-69.1\usr                               ^
-::   -D CMAKE_INSTALL_BINDIR=bin/x86                                               ^
-::   -D CMAKE_INSTALL_LIBDIR=lib/x86                                               ^
-::   -G Ninja                                                                      ^
-::   -S %SourceCache%\icu\icu4c || (exit /b)
-:: cmake --build S:\b\icu-69.1.x86 || (exit /b)
-:: cmake --build S:\b\icu-69.1.x86 --target install || (exit /b)
 
 :: sqlite
 md S:\var\cache
@@ -260,28 +176,6 @@ FOR %%M IN (_Concurrency, _Differentiation, _Distributed, CRT, Swift, SwiftOnone
 :: SDKSettings.plist
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
 
-:: Windows x86 Runtime
-:: cmake                                                                           ^
-::   -B S:\b\201                                                                   ^
-::   -C %SourceCache%\swift\cmake\caches\Runtime-Windows-i686.cmake                ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-::   -D CMAKE_C_COMPILER_TARGET=i686-unknown-windows-msvc                          ^
-::   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
-::   -D CMAKE_CXX_COMPILER_TARGET=i686-unknown-windows-msvc                        ^
-::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D LLVM_DIR=S:\b\100\lib\cmake\llvm                                           ^
-::   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
-::   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
-::   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
-::   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
-::   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
-::   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
-::   -G Ninja                                                                      ^
-::   -S %SourceCache%\swift || (exit /b)
-:: cmake --build S:\b\201 || (exit /b)
-
 :: Windows ARM64 Runtime
 :: cmake                                                                           ^
 ::   -B S:\b\104                                                                   ^
@@ -340,24 +234,6 @@ md %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule
 move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\_.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule
 move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftdoc %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc
 
-:: cmake                                                                           ^
-::   -B S:\b\202                                                                   ^
-::   -D BUILD_TESTING=NO                                                           ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-::   -D CMAKE_C_COMPILER_TARGET=i686-unknown-windows-msvc                          ^
-::   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
-::   -D CMAKE_CXX_COMPILER_TARGET=i686-unknown-windows-msvc                        ^
-::   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-::   -D CMAKE_Swift_COMPILER_TARGET=i686-unknown-windows-msvc                      ^
-::   -D CMAKE_Swift_FLAGS="-resource-dir S:\b\201\lib\swift -L S:\b\201\lib\swift\windows" ^
-::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D ENABLE_SWIFT=YES                                                           ^
-::   -G Ninja                                                                      ^
-::   -S S:\SourceCache\swift-corelibs-libdispatch || (exit /b)
-:: cmake --build S:\b\202 || (exit /b)
-
 :: swift-corelibs-foundation
 cmake                                                                           ^
   -B S:\b\3                                                                     ^
@@ -390,35 +266,6 @@ FOR %%M IN (Foundation, FoundationNetworking, FoundationXML) DO (
 )
 
 cmake --build S:\b\3 --target install || (exit /b)
-
-:: cmake                                                                           ^
-::   -B S:\b\203                                                                   ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_ASM_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
-::   -D CMAKE_ASM_FLAGS="--target=i686-unknown-windows-msvc"                       ^
-::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-::   -D CMAKE_C_COMPILER_TARGET=i686-unknown-windows-msvc                          ^
-::   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-::   -D CMAKE_Swift_COMPILER_TARGET=i686-unknown-windows-msvc                      ^
-::   -D CMAKE_Swift_FLAGS="-resource-dir S:\b\201\lib\swift -L S:\b\201\lib\swift\windows" ^
-::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
-::   -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD"      ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D CURL_DIR=S:\Library\curl-7.77.0\usr\lib\x86\cmake\CURL                     ^
-::   -D ICU_DATA_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\x86\sicudt69.lib      ^
-::   -D ICU_I18N_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\x86\sicuin69.lib      ^
-::   -D ICU_ROOT=S:\Library\icu-69.1\usr                                           ^
-::   -D ICU_UC_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\x86\sicuuc69.lib        ^
-::   -D LIBXML2_LIBRARY=S:\Library\libxml2-2.9.12\usr\lib\x86\libxml2s.lib         ^
-::   -D LIBXML2_INCLUDE_DIR=S:\Library\libxml2-2.9.12\usr\include\libxml2          ^
-::   -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC"                                      ^
-::   -D ZLIB_LIBRARY=S:\Library\zlib-1.2.11\usr\lib\x86\zlibstatic.lib             ^
-::   -D ZLIB_INCLUDE_DIR=S:\Library\zlib-1.2.11\usr\include                        ^
-::   -D dispatch_DIR=S:\b\202\cmake\modules                                        ^
-::   -D ENABLE_TESTING=NO                                                          ^
-::   -G Ninja                                                                      ^
-::   -S %SourceCache%\swift-corelibs-foundation || (exit /b)
-:: cmake --build S:\b\3 --target install || (exit /b)
 
 :: Remove CoreFoundation Headers
 FOR %%M IN (CoreFoundation, CFXMLInterface, CFURLSessionInterface) DO (
@@ -660,3 +507,157 @@ cmake                                                                           
 cmake --build S:\b\15 || (exit /b)
 cmake --build S:\b\15 --target install || (exit /b)
 
+:: Windows x86 Build
+
+:: cmake                                                                           ^
+::   -B S:\b\zlib-1.2.11.x86                                                       ^
+::   -D BUILD_SHARED_LIBS=NO                                                       ^
+::   -D CMAKE_BUILD_TYPE=Release                                                   ^
+::   -D CMAKE_MT=mt                                                                ^
+::   -D CMAKE_INSTALL_PREFIX=S:\Library\zlib-1.2.11\usr                            ^
+::   -D INSTALL_BIN_DIR=S:\Library\zlib-1.2.11\usr\bin\x86                         ^
+::   -D INSTALL_LIB_DIR=S:\Library\zlib-1.2.11\usr\lib\x86                         ^
+::   -D SKIP_INSTALL_FILES=YES                                                     ^
+::   -G Ninja                                                                      ^
+::   -S %SourceCache%\zlib || (exit /b)
+:: cmake --build S:\b\zlib-1.2.11.x86 || (exit /b)
+:: cmake --build S:\b\zlib-1.2.11.x86 --target install || (exit /b)
+
+:: cmake                                                                           ^
+::   -B S:\b\libxml2-2.9.12.x86                                                    ^
+::   -D BUILD_SHARED_LIBS=NO                                                       ^
+::   -D CMAKE_BUILD_TYPE=Release                                                   ^
+::   -D CMAKE_MT=mt                                                                ^
+::   -D CMAKE_INSTALL_PREFIX=S:\Library\libxml2-2.9.12\usr                         ^
+::   -D CMAKE_INSTALL_BINDIR=bin/x86                                               ^
+::   -D CMAKE_INSTALL_LIBDIR=lib/x86                                               ^
+::   -D LIBXML2_WITH_ICONV=NO                                                      ^
+::   -D LIBXML2_WITH_ICU=NO                                                        ^
+::   -D LIBXML2_WITH_LZMA=NO                                                       ^
+::   -D LIBXML2_WITH_PYTHON=NO                                                     ^
+::   -D LIBXML2_WITH_TESTS=NO                                                      ^
+::   -D LIBXML2_WITH_THREADS=YES                                                   ^
+::   -D LIBXML2_WITH_ZLIB=NO                                                       ^
+::   -G Ninja                                                                      ^
+::   -S %SourceDir%\libxml2 || (exit /b)
+:: cmake --build S:\b\libxml2-2.9.12.x86 || (exit /b)
+:: cmake --build S:\b\libxml2-2.9.12.x86 --target install || (exit /b)
+
+:: cmake                                                                           ^
+::   -B S:\b\curl-7.77.0.x86                                                       ^
+::   -D BUILD_SHARED_LIBS=NO                                                       ^
+::   -D CMAKE_BUILD_TYPE=Release                                                   ^
+::   -D CMAKE_MT=mt                                                                ^
+::   -D CMAKE_INSTALL_PREFIX=S:\Library\curl-7.77.0\usr                            ^
+::   -D CMAKE_INSTALL_BINDIR=bin/x86                                               ^
+::   -D CMAKE_INSTALL_LIBDIR=lib/x86                                               ^
+::   -D BUILD_CURL_EXE=NO                                                          ^
+::   -D CMAKE_USE_OPENSSL=NO                                                       ^
+::   -D CURL_CA_PATH=none                                                          ^
+::   -D CMAKE_USE_SCHANNEL=YES                                                     ^
+::   -D CMAKE_USE_LIBSSH2=NO                                                       ^
+::   -D HAVE_POLL_FINE=NO                                                          ^
+::   -D CURL_DISABLE_LDAP=YES                                                      ^
+::   -D CURL_DISABLE_LDAPS=YES                                                     ^
+::   -D CURL_DISABLE_TELNET=YES                                                    ^
+::   -D CURL_DISABLE_DICT=YES                                                      ^
+::   -D CURL_DISABLE_FILE=YES                                                      ^
+::   -D CURL_DISABLE_TFTP=YES                                                      ^
+::   -D CURL_DISABLE_RTSP=YES                                                      ^
+::   -D CURL_DISABLE_PROXY=YES                                                     ^
+::   -D CURL_DISABLE_POP3=YES                                                      ^
+::   -D CURL_DISABLE_IMAP=YES                                                      ^
+::   -D CURL_DISABLE_SMTP=YES                                                      ^
+::   -D CURL_DISABLE_GOPHER=YES                                                    ^
+::   -D CURL_ZLIB=YES                                                              ^
+::   -D ENABLE_UNIX_SOCKETS=NO                                                     ^
+::   -D ENABLE_THREADED_RESOLVER=NO                                                ^
+::   -D ZLIB_ROOT=S:\Library\zlib-1.2.11\usr                                       ^
+::   -D ZLIB_LIBRARY=S:\Library\zlib-1.2.11\usr\lib\x86\zlibstatic.lib             ^
+::   -G Ninja                                                                      ^
+::   -S %SourceCache%\curlW || (exit /b)
+:: cmake --build S:\b\curl-7.77.0.x86 || (exit /b)
+:: cmake --build S:\b\curl-7.77.0.x86 --target install || (exit /b)
+
+:: cmake                                                                           ^
+::   -B S:\b\icu-69.1.x86                                                          ^
+::   -D BUILD_SHARED_LIBS=NO                                                       ^
+::   -D BUILD_TOOLS=YES                                                            ^
+::   -D CMAKE_BUILD_TYPE=Release                                                   ^
+::   -D CMAKE_MT=mt                                                                ^
+::   -D CMAKE_INSTALL_PREFIX=S:\Library\icu-69.1\usr                               ^
+::   -D CMAKE_INSTALL_BINDIR=bin/x86                                               ^
+::   -D CMAKE_INSTALL_LIBDIR=lib/x86                                               ^
+::   -G Ninja                                                                      ^
+::   -S %SourceCache%\icu\icu4c || (exit /b)
+:: cmake --build S:\b\icu-69.1.x86 || (exit /b)
+:: cmake --build S:\b\icu-69.1.x86 --target install || (exit /b)
+
+:: Windows x86 Runtime
+:: cmake                                                                           ^
+::   -B S:\b\201                                                                   ^
+::   -C %SourceCache%\swift\cmake\caches\Runtime-Windows-i686.cmake                ^
+::   -D CMAKE_BUILD_TYPE=Release                                                   ^
+::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+::   -D CMAKE_C_COMPILER_TARGET=i686-unknown-windows-msvc                          ^
+::   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+::   -D CMAKE_CXX_COMPILER_TARGET=i686-unknown-windows-msvc                        ^
+::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
+::   -D CMAKE_MT=mt                                                                ^
+::   -D LLVM_DIR=S:\b\100\lib\cmake\llvm                                           ^
+::   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
+::   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
+::   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+::   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
+::   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+::   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
+::   -G Ninja                                                                      ^
+::   -S %SourceCache%\swift || (exit /b)
+:: cmake --build S:\b\201 || (exit /b)
+
+:: cmake                                                                           ^
+::   -B S:\b\202                                                                   ^
+::   -D BUILD_TESTING=NO                                                           ^
+::   -D CMAKE_BUILD_TYPE=Release                                                   ^
+::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+::   -D CMAKE_C_COMPILER_TARGET=i686-unknown-windows-msvc                          ^
+::   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+::   -D CMAKE_CXX_COMPILER_TARGET=i686-unknown-windows-msvc                        ^
+::   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+::   -D CMAKE_Swift_COMPILER_TARGET=i686-unknown-windows-msvc                      ^
+::   -D CMAKE_Swift_FLAGS="-resource-dir S:\b\201\lib\swift -L S:\b\201\lib\swift\windows" ^
+::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
+::   -D CMAKE_MT=mt                                                                ^
+::   -D ENABLE_SWIFT=YES                                                           ^
+::   -G Ninja                                                                      ^
+::   -S S:\SourceCache\swift-corelibs-libdispatch || (exit /b)
+:: cmake --build S:\b\202 || (exit /b)
+
+:: cmake                                                                           ^
+::   -B S:\b\203                                                                   ^
+::   -D CMAKE_BUILD_TYPE=Release                                                   ^
+::   -D CMAKE_ASM_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+::   -D CMAKE_ASM_FLAGS="--target=i686-unknown-windows-msvc"                       ^
+::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+::   -D CMAKE_C_COMPILER_TARGET=i686-unknown-windows-msvc                          ^
+::   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+::   -D CMAKE_Swift_COMPILER_TARGET=i686-unknown-windows-msvc                      ^
+::   -D CMAKE_Swift_FLAGS="-resource-dir S:\b\201\lib\swift -L S:\b\201\lib\swift\windows" ^
+::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
+::   -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD"      ^
+::   -D CMAKE_MT=mt                                                                ^
+::   -D CURL_DIR=S:\Library\curl-7.77.0\usr\lib\x86\cmake\CURL                     ^
+::   -D ICU_DATA_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\x86\sicudt69.lib      ^
+::   -D ICU_I18N_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\x86\sicuin69.lib      ^
+::   -D ICU_ROOT=S:\Library\icu-69.1\usr                                           ^
+::   -D ICU_UC_LIBRARY_RELEASE=S:\Library\icu-69.1\usr\lib\x86\sicuuc69.lib        ^
+::   -D LIBXML2_LIBRARY=S:\Library\libxml2-2.9.12\usr\lib\x86\libxml2s.lib         ^
+::   -D LIBXML2_INCLUDE_DIR=S:\Library\libxml2-2.9.12\usr\include\libxml2          ^
+::   -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC"                                      ^
+::   -D ZLIB_LIBRARY=S:\Library\zlib-1.2.11\usr\lib\x86\zlibstatic.lib             ^
+::   -D ZLIB_INCLUDE_DIR=S:\Library\zlib-1.2.11\usr\include                        ^
+::   -D dispatch_DIR=S:\b\202\cmake\modules                                        ^
+::   -D ENABLE_TESTING=NO                                                          ^
+::   -G Ninja                                                                      ^
+::   -S %SourceCache%\swift-corelibs-foundation || (exit /b)
+:: cmake --build S:\b\3 --target install || (exit /b)
