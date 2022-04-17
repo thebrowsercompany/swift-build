@@ -5,6 +5,9 @@ set ToolchainInstallRoot=S:\Library\Developer\Toolchains\unknown-Asserts-develop
 set PlatformInstallRoot=S:\Library\Developer\Platforms\Windows.platform
 set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 
+set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
+FOR /F "tokens=* usebackq" %%r IN (`"%vswhere%" -latest -all -prerelease -property installationPath`) DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
+
 :: zlib
 cmake                                                                           ^
   -B S:\b\zlib-1.2.11                                                           ^
