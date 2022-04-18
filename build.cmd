@@ -182,26 +182,6 @@ move /Y %SDKInstallRoot%\usr\bin\*.dll %InstallRoot%\swift-development\usr\bin\x
 :: SDKSettings.plist
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
 
-:: Windows ARM64 Runtime
-:: cmake                                                                           ^
-::   -B S:\b\104                                                                   ^
-::   -C %SourceCache%\swift\cmake\caches\Runtime-Windows-aarch64.cmake             ^
-::   -D CMAKE_BUILD_TYPE=Release                                                   ^
-::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-::   -D CMAKE_C_COMPILER_TARGET=aarch64-unknown-windows-msvc                       ^
-::   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
-::   -D CMAKE_CXX_COMPILER_TARGET=aarch64-unknown-windows-msvc                     ^
-::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
-::   -D CMAKE_MT=mt                                                                ^
-::   -D LLVM_DIR=S:\b\100\lib\cmake\llvm                                           ^
-::   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
-::   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
-::   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
-::   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=S:\b\1\bin                                   ^
-::   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
-::   -G Ninja                                                                      ^
-::   -S %SourceCache%\swift || (exit /b)
-
 :: swift-corelibs-libdispatch
 cmake                                                                           ^
   -B S:\b\102                                                                   ^
@@ -751,14 +731,15 @@ move /Y %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift
 
 endlocal
 
+:: Windows ARM64 Runtime
 :: cmake                                                                           ^
-::   -B S:\b\201                                                                   ^
-::   -C %SourceCache%\swift\cmake\caches\Runtime-Windows-i686.cmake                ^
+::   -B S:\b\301                                                                   ^
+::   -C %SourceCache%\swift\cmake\caches\Runtime-Windows-aarch64.cmake             ^
 ::   -D CMAKE_BUILD_TYPE=Release                                                   ^
 ::   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-::   -D CMAKE_C_COMPILER_TARGET=i686-unknown-windows-msvc                          ^
+::   -D CMAKE_C_COMPILER_TARGET=aarch64-unknown-windows-msvc                       ^
 ::   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
-::   -D CMAKE_CXX_COMPILER_TARGET=i686-unknown-windows-msvc                        ^
+::   -D CMAKE_CXX_COMPILER_TARGET=aarch64-unknown-windows-msvc                     ^
 ::   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
 ::   -D CMAKE_MT=mt                                                                ^
 ::   -D LLVM_DIR=S:\b\100\lib\cmake\llvm                                           ^
