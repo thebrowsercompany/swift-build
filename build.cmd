@@ -12,6 +12,37 @@ set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
 FOR /F "tokens=* usebackq" %%r IN (`"%vswhere%" -latest -all -prerelease -property installationPath`) DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
 
+:: toolchain
+cmake                                                                           ^
+  -B S:\b\1                                                                     ^
+  -C %SourceCache%\swift\cmake\caches\Windows-x86_64.cmake                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -D LLVM_ENABLE_PDB=YES                                                        ^
+  -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=%SourceCache%\cmark                         ^
+  -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=%SourceCache%\swift                         ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
+  -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+  -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\llvm-project\llvm || (exit /b)
+
+cmake --build S:\b\1 || (exit /b)
+cmake --build S:\b\1 --target install-distribution || (exit /b)
+
+:: Restructure Internal Modules
+FOR %%M IN (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
+  rd /s /q "%ToolchainInstallRoot%\usr\include\%%M"
+  move /Y %ToolchainInstallRoot%\usr\lib\swift\%%M %ToolchainInstallRoot%\usr\include
+  move %ToolchainInstallRoot%\usr\lib\swift\windows\%%M.lib %ToolchainInstallRoot%\usr\lib
+)
+
+:: Windows x64 Build
+
 :: zlib
 cmake                                                                           ^
   -B S:\b\zlib-1.2.11                                                           ^
@@ -101,6 +132,7 @@ IF NOT EXIST %SourceCache%\sqlite-3.36.0  (
   "%ProgramFiles%\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d %SourceCache%\sqlite-3.36.0
   copy /Y %SourceCache%\swift-build\cmake\SQLite\CMakeLists.txt %SourceCache%\sqlite-3.36.0\
 )
+
 cmake                                                                           ^
   -B S:\b\sqlite-3.36.0                                                         ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
@@ -112,37 +144,7 @@ cmake                                                                           
 cmake --build S:\b\sqlite-3.36.0 || (exit /b)
 cmake --build S:\b\sqlite-3.36.0 --target install || (exit /b)
 
-:: toolchain
-cmake                                                                           ^
-  -B S:\b\1                                                                     ^
-  -C %SourceCache%\swift\cmake\caches\Windows-x86_64.cmake                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -D LLVM_ENABLE_PDB=YES                                                        ^
-  -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=%SourceCache%\cmark                         ^
-  -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=%SourceCache%\swift                         ^
-  -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
-  -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
-  -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
-  -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
-  -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
-  -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\llvm-project\llvm || (exit /b)
-
-cmake --build S:\b\1 || (exit /b)
-cmake --build S:\b\1 --target install-distribution || (exit /b)
-
-:: Restructure Internal Modules
-FOR %%M IN (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
-  dir "%ToolchainInstallRoot%\usr\include\%%M" >NUL 2>NUL
-  IF NOT ERRORLEVEL 1 ( rd /s /q "%ToolchainInstallRoot%\usr\include\%%M" )
-  move /Y %ToolchainInstallRoot%\usr\lib\swift\%%M %ToolchainInstallRoot%\usr\include
-  move %ToolchainInstallRoot%\usr\lib\swift\windows\%%M.lib %ToolchainInstallRoot%\usr\lib
-)
-
-:: runtime
+:: LLVM
 cmake                                                                           ^
   -B S:\b\100                                                                   ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
@@ -151,6 +153,7 @@ cmake                                                                           
   -G Ninja                                                                      ^
   -S %SourceCache%\llvm-project\llvm || (exit /b)
 
+:: Swift Runtime
 cmake                                                                           ^
   -B S:\b\101                                                                   ^
   -C %SourceCache%\swift\cmake\caches\Runtime-Windows-x86_64.cmake              ^
@@ -169,16 +172,12 @@ cmake                                                                           
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
-
 cmake --build S:\b\101 || (exit /b)
 cmake --build S:\b\101 --target install || (exit /b)
 
-:: Restructure Core Modules
-FOR %%M IN (_Concurrency, _Differentiation, _Distributed, CRT, Swift, SwiftOnoneSupport, WinSDK) DO (
-  dir "%SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule\." >NUL 2>NUL
-  IF NOT ERRORLEVEL 1 ( rd /s /q %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule )
-  move /Y %SDKInstallRoot%\usr\lib\swift\windows\%%M.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\x86_64
-)
+:: Restructure Runtime
+md %InstallRoot%\swift-development\usr\bin\x64
+move /Y %SDKInstallRoot%\usr\bin\*.dll %InstallRoot%\swift-development\usr\bin\x64\
 
 :: SDKSettings.plist
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
@@ -205,7 +204,7 @@ FOR %%M IN (_Concurrency, _Differentiation, _Distributed, CRT, Swift, SwiftOnone
 
 :: swift-corelibs-libdispatch
 cmake                                                                           ^
-  -B S:\b\2                                                                     ^
+  -B S:\b\102                                                                   ^
   -D BUILD_TESTING=NO                                                           ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
@@ -216,13 +215,11 @@ cmake                                                                           
   -D ENABLE_SWIFT=YES                                                           ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-corelibs-libdispatch || (exit /b)
-cmake --build S:\b\2 || (exit /b)
+cmake --build S:\b\102 || (exit /b)
+cmake --build S:\b\102 --target install || (exit /b)
 
-:: Clean up any existing installation
-dir "%SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule\." >NUL 2>NUL
-IF NOT ERRORLEVEL 1 ( rd /s /q %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule )
-
-cmake --build S:\b\2 --target install || (exit /b)
+:: Restructure Runtime
+move /Y %SDKInstallRoot%\usr\bin\*.dll %InstallRoot%\swift-development\usr\bin\x64\
 
 :: Restructure BlocksRuntime, dispatch headers
 FOR %%M IN (Block, dispatch, os) DO (
@@ -236,14 +233,13 @@ FOR %%M IN (BlocksRuntime, dispatch, swiftDispatch) DO (
 )
 
 :: Restructure Module
-move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\x86_64\_.swiftmodule
-md %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule
-move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\_.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule
-move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftdoc %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc
+md %SDKInstallRoot%\usr\lib\swift\windows\Dispatch.swiftmodule
+move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\Dispatch.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule
+move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftdoc %SDKInstallRoot%\usr\lib\swift\windows\Dispatch.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc
 
 :: swift-corelibs-foundation
 cmake                                                                           ^
-  -B S:\b\3                                                                     ^
+  -B S:\b\103                                                                   ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
@@ -259,20 +255,16 @@ cmake                                                                           
   -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC"                                      ^
   -D ZLIB_LIBRARY=%InstallRoot%\zlib-1.2.11\usr\lib\zlibstatic.lib              ^
   -D ZLIB_INCLUDE_DIR=%InstallRoot%\zlib-1.2.11\usr\include                     ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
   -D ENABLE_TESTING=NO                                                          ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-corelibs-foundation || (exit /b)
+cmake --build S:\b\103 || (exit /b)
+cmake --build S:\b\103 --target install || (exit /b)
 
-cmake --build S:\b\3 || (exit /b)
-
-:: Clean up any existing installation
-FOR %%M IN (Foundation, FoundationNetworking, FoundationXML) DO (
-  dir "%SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule\."
-  IF NOT ERRORLEVEL 1 ( rd /s /q %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule )
-)
-
-cmake --build S:\b\3 --target install || (exit /b)
+:: Restructure Runtime
+move /Y %SDKInstallRoot%\usr\bin\*.dll %InstallRoot%\swift-development\usr\bin\x64\
+move /Y %SDKInstallRoot%\usr\bin\*.exe %InstallRoot%\swift-development\usr\bin\x64\
 
 :: Remove CoreFoundation Headers
 FOR %%M IN (CoreFoundation, CFXMLInterface, CFURLSessionInterface) DO (
@@ -283,32 +275,43 @@ FOR %%M IN (CoreFoundation, CFXMLInterface, CFURLSessionInterface) DO (
 FOR %%M IN (Foundation, FoundationNetworking, FoundationXML) DO (
   move /Y %SDKInstallRoot%\usr\lib\swift\windows\%%M.lib %SDKInstallRoot%\usr\lib\swift\windows\x86_64
 
-  move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\x86_64\_.swiftmodule
-  md %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule
-  move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\_.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule
-  move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftdoc %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc
+  md %SDKInstallRoot%\usr\lib\swift\windows\%%M.swiftmodule
+  move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\%%M.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule
+  move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\%%M.swiftdoc %SDKInstallRoot%\usr\lib\swift\windows\%%M.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc
 )
 
 :: swift-corelibs-xctest
 cmake                                                                           ^
-  -B S:\b\4                                                                     ^
+  -B S:\b\104                                                                   ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%PlatformInstallRoot%\Developer\Library\XCTest-development\usr ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-corelibs-xctest || (exit /b)
+cmake --build S:\b\104 || (exit /b)
+cmake --build S:\b\104 --target install || (exit /b)
 
-cmake --build S:\b\4 || (exit /b)
-cmake --build S:\b\4 --target install || (exit /b)
+:: Restructure Runtime
+rd /s /q %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\bin64
+move %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\bin %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\bin64
+
+:: Restructure Import Libraries
+md %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\x86_64\
+move %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.lib %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\x86_64\XCTest.lib
+
+:: Restructure Module
+md %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule
+move /Y %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\x86_64\XCTest.swiftdoc %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc
+move /Y %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\x86_64\XCTest.swiftmodule %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule
 
 :: Info.plist
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > %PlatformInstallRoot%\Info.plist
 
 :: swift-system
 cmake                                                                           ^
-  -B S:\b\5                                                                     ^
+  -B S:\b\2                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
@@ -317,33 +320,31 @@ cmake                                                                           
   -D CMAKE_MT=mt                                                                ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-system || (exit /b)
-
-cmake --build S:\b\5 || (exit /b)
-cmake --build S:\b\5 --target install || (exit /b)
+cmake --build S:\b\2 || (exit /b)
+cmake --build S:\b\2 --target install || (exit /b)
 
 :: tools-support-core
 cmake                                                                           ^
-  -B S:\b\6                                                                     ^
+  -B S:\b\3                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
-  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
+  -D SwiftSystem_DIR=S:\b\2\cmake\modules                                       ^
   -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
   -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-tools-support-core || (exit /b)
-
-cmake --build S:\b\6 || (exit /b)
-cmake --build S:\b\6 --target install || (exit /b)
+cmake --build S:\b\3 || (exit /b)
+cmake --build S:\b\3 --target install || (exit /b)
 
 :: llbuild
 cmake                                                                           ^
-  -B S:\b\7                                                                     ^
+  -B S:\b\4                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
@@ -352,70 +353,66 @@ cmake                                                                           
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
   -D LLBUILD_SUPPORT_BINDINGS=Swift                                             ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
   -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
   -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\llbuild || (exit /b)
-
-cmake --build S:\b\7 || (exit /b)
-cmake --build S:\b\7 --target install || (exit /b)
+cmake --build S:\b\4 || (exit /b)
+cmake --build S:\b\4 --target install || (exit /b)
 
 :: Yams
 cmake                                                                           ^
-  -B S:\b\8                                                                     ^
+  -B S:\b\5                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
-  -D XCTest_DIR=S:\b\4\cmake\modules                                            ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
+  -D XCTest_DIR=S:\b\104\cmake\modules                                          ^
   -G Ninja                                                                      ^
   -S %SourceCache%\Yams || (exit /b)
-
-cmake --build S:\b\8 || (exit /b)
-cmake --build S:\b\8 --target install || (exit /b)
+cmake --build S:\b\5 || (exit /b)
+cmake --build S:\b\5 --target install || (exit /b)
 
 :: swift-argument-parser
 cmake                                                                           ^
-  -B S:\b\9                                                                     ^
+  -B S:\b\6                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D BUILD_TESTING=NO                                                           ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
-  -D XCTest_DIR=S:\b\4\cmake\modules                                            ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
+  -D XCTest_DIR=S:\b\104\cmake\modules                                          ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-argument-parser || (exit /b)
-
-cmake --build S:\b\9 || (exit /b)
-cmake --build S:\b\9 --target install || (exit /b)
+cmake --build S:\b\6 || (exit /b)
+cmake --build S:\b\6 --target install || (exit /b)
 
 :: swift-driver
 cmake                                                                           ^
-  -B S:\b\10                                                                    ^
+  -B S:\b\7                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
-  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
-  -D TSC_DIR=S:\b\6\cmake\modules                                               ^
-  -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
-  -D Yams_DIR=S:\b\8\cmake\modules                                              ^
-  -D ArgumentParser_DIR=S:\b\9\cmake\modules                                    ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
+  -D SwiftSystem_DIR=S:\b\2\cmake\modules                                       ^
+  -D TSC_DIR=S:\b\3\cmake\modules                                               ^
+  -D LLBuild_DIR=S:\b\4\cmake\modules                                           ^
+  -D Yams_DIR=S:\b\5\cmake\modules                                              ^
+  -D ArgumentParser_DIR=S:\b\6\cmake\modules                                    ^
   -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
   -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-driver || (exit /b)
-
-cmake --build S:\b\10 || (exit /b)
-cmake --build S:\b\10 --target install || (exit /b)
+cmake --build S:\b\7 || (exit /b)
+cmake --build S:\b\7 --target install || (exit /b)
 
 :: Switch to swift-driver
 copy /Y S:\b\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swift.exe
@@ -423,33 +420,33 @@ copy /Y S:\b\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swiftc.exe
 
 :: swift-crypto
 cmake                                                                           ^
-  -B S:\b\11                                                                    ^
+  -B S:\b\8                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-crypto || (exit /b)
-cmake --build S:\b\11 || (exit /b)
-cmake --build S:\b\11 --target install || (exit /b)
+cmake --build S:\b\8 || (exit /b)
+cmake --build S:\b\8 --target install || (exit /b)
 
 :: swift-collections
 cmake                                                                           ^
-  -B S:\b\12                                                                    ^
+  -B S:\b\9                                                                     ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-collections || (exit /b)
-cmake --build S:\b\12 || (exit /b)
-cmake --build S:\b\12 --target install || (exit /b)
+cmake --build S:\b\9 || (exit /b)
+cmake --build S:\b\9 --target install || (exit /b)
 
 :: swift-package-manager
 cmake                                                                           ^
-  -B S:\b\13                                                                    ^
+  -B S:\b\10                                                                    ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
@@ -457,24 +454,23 @@ cmake                                                                           
   -D CMAKE_Swift_FLAGS="-DCRYPTO_v2"                                            ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
-  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
-  -D TSC_DIR=S:\b\6\cmake\modules                                               ^
-  -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
-  -D ArgumentParser_DIR=S:\b\9\cmake\modules                                    ^
-  -D SwiftDriver_DIR=S:\b\10\cmake\modules                                       ^
-  -D SwiftCrypto_DIR=S:\b\11\cmake\modules                                      ^
-  -D SwiftCollections_DIR=S:\b\12\cmake\modules                                 ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
+  -D SwiftSystem_DIR=S:\b\2\cmake\modules                                       ^
+  -D TSC_DIR=S:\b\3\cmake\modules                                               ^
+  -D LLBuild_DIR=S:\b\4\cmake\modules                                           ^
+  -D ArgumentParser_DIR=S:\b\6\cmake\modules                                    ^
+  -D SwiftDriver_DIR=S:\b\7\cmake\modules                                       ^
+  -D SwiftCrypto_DIR=S:\b\8\cmake\modules                                       ^
+  -D SwiftCollections_DIR=S:\b\9\cmake\modules                                  ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-package-manager || (exit /b)
-
-cmake --build S:\b\13 || (exit /b)
-cmake --build S:\b\13 --target install || (exit /b)
+cmake --build S:\b\10 || (exit /b)
+cmake --build S:\b\10 --target install || (exit /b)
 
 :: indexstore-db
 cmake                                                                           ^
-  -B S:\b\14                                                                    ^
+  -B S:\b\11                                                                    ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
@@ -483,36 +479,34 @@ cmake                                                                           
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
   -G Ninja                                                                      ^
   -S %SourceCache%\indexstore-db || (exit /b)
-
-cmake --build S:\b\14 || (exit /b)
-cmake --build S:\b\14 --target install || (exit /b)
+cmake --build S:\b\11 || (exit /b)
+cmake --build S:\b\11 --target install || (exit /b)
 
 :: sourcekit-lsp
 cmake                                                                           ^
-  -B S:\b\15                                                                    ^
+  -B S:\b\12                                                                    ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=S:\b\2\cmake\modules                                          ^
-  -D Foundation_DIR=S:\b\3\cmake\modules                                        ^
-  -D SwiftSystem_DIR=S:\b\5\cmake\modules                                       ^
-  -D TSC_DIR=S:\b\6\cmake\modules                                               ^
-  -D LLBuild_DIR=S:\b\7\cmake\modules                                           ^
-  -D ArgumentParser_DIR=S:\b\9\cmake\modules                                    ^
-  -D SwiftCollections_DIR=S:\b\12\cmake\modules                                 ^
-  -D SwiftPM_DIR=S:\b\13\cmake\modules                                          ^
-  -D IndexStoreDB_DIR=S:\b\14\cmake\modules                                     ^
+  -D dispatch_DIR=S:\b\102\cmake\modules                                        ^
+  -D Foundation_DIR=S:\b\103\cmake\modules                                      ^
+  -D SwiftSystem_DIR=S:\b\2\cmake\modules                                       ^
+  -D TSC_DIR=S:\b\3\cmake\modules                                               ^
+  -D LLBuild_DIR=S:\b\4\cmake\modules                                           ^
+  -D ArgumentParser_DIR=S:\b\6\cmake\modules                                    ^
+  -D SwiftCollections_DIR=S:\b\9\cmake\modules                                  ^
+  -D SwiftPM_DIR=S:\b\10\cmake\modules                                          ^
+  -D IndexStoreDB_DIR=S:\b\11\cmake\modules                                     ^
   -G Ninja                                                                      ^
   -S %SourceCache%\sourcekit-lsp || (exit /b)
-
-cmake --build S:\b\15 || (exit /b)
-cmake --build S:\b\15 --target install || (exit /b)
+cmake --build S:\b\12 || (exit /b)
+cmake --build S:\b\12 --target install || (exit /b)
 
 :: Windows x86 Build
 
