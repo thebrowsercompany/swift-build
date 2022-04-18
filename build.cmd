@@ -1,5 +1,8 @@
 :: Copyright 2020 Saleem Abdulrasool <compnerd@compnerd.org>
 
+:: Don't escape variables into the calling shell
+setlocal
+
 set SourceCache=S:\SourceCache
 set InstallRoot=S:\Library
 set ToolchainInstallRoot=%InstallRoot%\Developer\Toolchains\unknown-Asserts-development.xctoolchain
@@ -665,3 +668,4 @@ cmake --build S:\b\15 --target install || (exit /b)
 ::   -G Ninja                                                                      ^
 ::   -S %SourceCache%\swift-corelibs-foundation || (exit /b)
 :: cmake --build S:\b\3 --target install || (exit /b)
+endlocal
