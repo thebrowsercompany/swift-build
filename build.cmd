@@ -12,6 +12,10 @@ set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
 FOR /F "tokens=* usebackq" %%r IN (`"%vswhere%" -latest -all -prerelease -property installationPath`) DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
 
+setlocal
+
+call "%VsDevCmd%" -no_logo -host_arch=amd64 -arch=amd64
+
 :: toolchain
 cmake                                                                           ^
   -B S:\b\1                                                                     ^
@@ -487,6 +491,8 @@ cmake                                                                           
   -S %SourceCache%\sourcekit-lsp || (exit /b)
 cmake --build S:\b\12 || (exit /b)
 cmake --build S:\b\12 --target install || (exit /b)
+
+endlocal
 
 :: Windows x86 Build
 
