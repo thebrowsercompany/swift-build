@@ -16,7 +16,7 @@ automated fashion.
 ```cmd
 curl.exe -sOL https://aka.ms/vs/17/release/vs_community.exe
 vs_community ^
-  --add Component.CPython3.x64 ^
+  --add Component.CPython39.x64 ^
   --add Microsoft.VisualStudio.Component.Git ^
   --add Microsoft.VisualStudio.Component.VC.ATL ^
   --add Microsoft.VisualStudio.Component.VC.CMake.Project ^
@@ -77,8 +77,8 @@ S:
 md SourceCache
 cd SourceCache
 set PYTHONUTF8=1
-repo init -u https://github.com/compnerd/swift-build
-repo sync -j 8
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" repo init -u https://github.com/compnerd/swift-build
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" repo sync -j 8
 ```
 
 Subsequently, you can update all the repositories using `repo sync`.
