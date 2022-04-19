@@ -74,16 +74,18 @@ from repo to install repo.
 
 ```cmd
 S:
+md Applications
+curl -sLo S:\Applications\repo https://storage.googleapis.com/git-repo-downloads/repo
 md SourceCache
 cd SourceCache
 set PYTHONUTF8=1
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" repo init -u https://github.com/compnerd/swift-build
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" repo sync -j 8
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo init -u https://github.com/compnerd/swift-build
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -j 8
 ```
 
-Subsequently, you can update all the repositories using `repo sync`.
+Subsequently, you can update all the repositories using `"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync`.
 
-### Configure Support FIles
+### Configure Support Files
 
 In order to import the MSVC and WinSDK headers as modules into Swift code, the
 components must be modularized.  This is done by adding in module map files to
