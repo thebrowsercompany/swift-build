@@ -11,7 +11,7 @@ set PlatformInstallRoot=%InstallRoot%\Developer\Platforms\Windows.platform
 set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 
 set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
-FOR /F "tokens=* usebackq" %%r IN (`"%vswhere%" -latest -all -prerelease -property installationPath`) DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
+FOR /F "tokens=* usebackq" %%r IN (`"%vswhere%" -nologo -latest -all -prerelease -property installationPath`) DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
 
 setlocal
 
