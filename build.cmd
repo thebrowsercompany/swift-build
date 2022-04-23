@@ -49,7 +49,7 @@ FOR %%M IN (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
 
 :: zlib
 cmake                                                                           ^
-  -B %BinaryCache%\zlib-1.2.11                                                  ^
+  -B %BinaryCache%\zlib-1.2.11.x64                                              ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
@@ -57,12 +57,12 @@ cmake                                                                           
   -D SKIP_INSTALL_FILES=YES                                                     ^
   -G Ninja                                                                      ^
   -S %SourceCache%\zlib || (exit /b)
-cmake --build %BinaryCache%\zlib-1.2.11 || (exit /b)
-cmake --build %BinaryCache%\zlib-1.2.11 --target install || (exit /b)
+cmake --build %BinaryCache%\zlib-1.2.11.x64 || (exit /b)
+cmake --build %BinaryCache%\zlib-1.2.11.x64 --target install || (exit /b)
 
 :: libxml2
 cmake                                                                           ^
-  -B %BinaryCache%\libxml2-2.9.12                                               ^
+  -B %BinaryCache%\libxml2-2.9.12.x64                                           ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
@@ -76,12 +76,12 @@ cmake                                                                           
   -D LIBXML2_WITH_ZLIB=NO                                                       ^
   -G Ninja                                                                      ^
   -S %SourceCache%\libxml2 || (exit /b)
-cmake --build %BinaryCache%\libxml2-2.9.12 || (exit /b)
-cmake --build %BinaryCache%\libxml2-2.9.12 --target install || (exit /b)
+cmake --build %BinaryCache%\libxml2-2.9.12.x64 || (exit /b)
+cmake --build %BinaryCache%\libxml2-2.9.12.x64 --target install || (exit /b)
 
 :: curl
 cmake                                                                           ^
-  -B %BinaryCache%\curl-7.77.0                                                  ^
+  -B %BinaryCache%\curl-7.77.0.x64                                              ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
@@ -111,13 +111,13 @@ cmake                                                                           
   -D ZLIB_LIBRARY=%InstallRoot%\zlib-1.2.11\usr\lib\zlibstatic.lib              ^
   -G Ninja                                                                      ^
   -S %SourceCache%\curl || (exit /b)
-cmake --build %BinaryCache%\curl-7.77.0 || (exit /b)
-cmake --build %BinaryCache%\curl-7.77.0 --target install || (exit /b)
+cmake --build %BinaryCache%\curl-7.77.0.x64 || (exit /b)
+cmake --build %BinaryCache%\curl-7.77.0.x64 --target install || (exit /b)
 
 :: icu
 IF NOT EXIST %SourceCache%\icu\icu4c\CMakeLists.txt copy %SourceCache%\swift-build\cmake\ICU\CMakeLists69.txt %SourceCache%\icu\icu4c\CMakeLists.txt
 cmake                                                                           ^
-  -B %BinaryCache%\icu-69.1                                                     ^
+  -B %BinaryCache%\icu-69.1.x64                                                 ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
@@ -125,8 +125,8 @@ cmake                                                                           
   -D BUILD_TOOLS=YES                                                            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\icu\icu4c || (exit /b)
-cmake --build %BinaryCache%\icu-69.1 || (exit /b)
-cmake --build %BinaryCache%\icu-69.1 --target install || (exit /b)
+cmake --build %BinaryCache%\icu-69.1.x64 || (exit /b)
+cmake --build %BinaryCache%\icu-69.1.x64 --target install || (exit /b)
 
 :: sqlite
 md S:\var\cache
@@ -138,15 +138,15 @@ IF NOT EXIST %SourceCache%\sqlite-3.36.0  (
 )
 
 cmake                                                                           ^
-  -B %BinaryCache%\sqlite-3.36.0                                                ^
+  -B %BinaryCache%\sqlite-3.36.0.x64                                            ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_INSTALL_PREFIX=%InstallRoot%\sqlite-3.36.0\usr                       ^
   -D CMAKE_MT=mt                                                                ^
   -G Ninja                                                                      ^
   -S %SourceCache%\sqlite-3.36.0 || (exit /b)
-cmake --build %BinaryCache%\sqlite-3.36.0 || (exit /b)
-cmake --build %BinaryCache%\sqlite-3.36.0 --target install || (exit /b)
+cmake --build %BinaryCache%\sqlite-3.36.0.x64 || (exit /b)
+cmake --build %BinaryCache%\sqlite-3.36.0.x64 --target install || (exit /b)
 
 :: LLVM
 cmake                                                                           ^
