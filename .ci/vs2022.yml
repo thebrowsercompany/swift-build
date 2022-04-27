@@ -716,16 +716,15 @@ stages:
       - job: build
         strategy:
           matrix:
-            #'x86':
-            #  arch: x86
-            #  platform: i686
+            'x86':
+              arch: x86
+              platform: i686
             'x64':
               arch: amd64
               platform: x86_64
-            # TODO(compnerd) enable AArch64 SDK
-            # 'arm64':
-            #  arch: arm64
-            #  platform: aarch64
+            'arm64':
+              arch: arm64
+              platform: aarch64
         steps:
           - script: |
               git config --global --add core.autocrlf false
@@ -1513,17 +1512,23 @@ stages:
       - job: build
         strategy:
           matrix:
-            #'x86':
-            # arch: x86
-            # platform: x86
+            # 'x86':
+            #   arch: x86
+            #   platform: x86
             'x64':
               arch: amd64
               platform: x64
-            # TODO(compnerd) enable AArch64 SDK
-            # 'arm64':
-            #  arch: arm64
-            #  platform: aarch64
+            'arm64':
+              arch: arm64
+              platform: arm64
         steps:
+          - task: PowerShell@2
+            inputs:
+              targetType: 'inline'
+              script: |
+                curl.exe -o "${env:Temp}\wix314.exe" -sL https://wixtoolset.org/downloads/v3.14.0.5722/wix314.exe
+                Start-Process -Wait -PassThru -FilePath "${env:Temp}\wix314.exe" -ArgumentList ("/q")
+              condition: eq(variables['arch'], 'arm64')
           - download: current
             artifact: windows-sdk-$(arch)
           - checkout: apple/swift-installer-scripts
