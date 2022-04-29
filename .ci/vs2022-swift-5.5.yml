@@ -133,9 +133,19 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift-corelibs-libdispatch
             fetchDepth: 1
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=amd64 -host_arch=amd64
               modifyEnvironment: true
           - task: CMake@1
@@ -188,14 +198,17 @@ stages:
             inputs:
              cmakeArgs:
                --build $(Agent.BuildDirectory)/0 --target swift-serialize-diagnostics
-          - script: |
-              md $(Build.StagingDirectory)\build-tools\bin
-              copy $(Agent.BuildDirectory)\0\bin\llvm-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\llvm-tblgen.exe
-              copy $(Agent.BuildDirectory)\0\bin\clang-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\clang-tblgen.exe
-              copy $(Agent.BuildDirectory)\0\bin\lldb-tblgen.exe $(Build.StagingDirectory)\build-tools\bin\lldb-tblgen.exe
-              copy $(Agent.BuildDirectory)\0\bin\llvm-config.exe $(Build.StagingDirectory)\build-tools\bin\llvm-config.exe
-              copy $(Agent.BuildDirectory)\0\bin\swift-def-to-yaml-converter.exe $(Build.StagingDirectory)\build-tools\bin\swift-def-to-yaml-converter.exe
-              copy $(Agent.BuildDirectory)\0\bin\swift-serialize-diagnostics.exe $(Build.StagingDirectory)\build-tools\bin\swift-serialize-diagnostics.exe
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: $(Agent.BuildDirectory)/0
+              Contents: |
+                bin/llvm-tblgen.exe
+                bin/clang-tblgen.exe
+                bin/lldb-tblgen.exe
+                bin/llvm-config.exe
+                bin/swift-def-to-yaml-converter.exe
+                bin/swift-serialize-diagnostics.exe
+              TargetFolder: $(Build.StagingDirectory)/build-tools
           - publish: $(Build.StagingDirectory)/build-tools
             artifact: build-tools
 
@@ -227,10 +240,20 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift-corelibs-libdispatch
             fetchDepth: 1
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
-              arguments: -no_logo -arch=amd64 -host_arch=amd64
+              filename: $(VsDevCmd)
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: CMake@1
             inputs:
@@ -254,7 +277,6 @@ stages:
                 -D LLVM_VERSION_SUFFIX=""
                 -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES
-                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIAL_PROGRAMMING=YES
                 -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
@@ -305,11 +327,64 @@ stages:
             fetchDepth: 1
           - script: |
               copy $(Build.SourcesDirectory)\swift-build\cmake\ICU\CMakeLists69.txt $(Build.SourcesDirectory)\icu\icu4c\CMakeLists.txt
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
+              arguments: -no_logo -arch=amd64 -host_arch=amd64
+              modifyEnvironment: true
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                -B $(Agent.BuildDirectory)/icu-69.1-build
+                -D BUILD_SHARED_LIBS=NO
+                -D BUILD_TOOLS=YES
+                -D CMAKE_BUILD_TYPE=Release
+                -D CMAKE_C_COMPILER=cl
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_CXX_COMPILER=cl
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_MT=mt
+                -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/icu-69.1/usr
+                -G Ninja
+                -S $(Build.SourcesDirectory)/icu/icu4c
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/icu-69.1-build
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
+          - task: BatchScript@1
+            inputs:
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                -B $(Agent.BuildDirectory)/icu-69.1
+                -D BUILD_SHARED_LIBS=YES
+                -D ICU_TOOLS_DIR=$(Agent.BuildDirectory)/icu-69.1-build
+                -D CMAKE_BUILD_TYPE=Release
+                -D CMAKE_C_COMPILER=cl
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_CXX_COMPILER=cl
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+                -D CMAKE_MT=mt
+                -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/icu-69.1/usr
+                -G Ninja
+                -S $(Build.SourcesDirectory)/icu/icu4c
+            condition: eq(variables['BUILD_TOOLS'], 'NO')
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -325,6 +400,7 @@ stages:
                 -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/icu-69.1/usr
                 -G Ninja
                 -S $(Build.SourcesDirectory)/icu/icu4c
+            condition: eq(variables['BUILD_TOOLS'], 'YES')
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -354,9 +430,19 @@ stages:
               git config --global --add core.symlinks true
           - checkout: madler/zlib
             fetchDepth: 1
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: CMake@1
@@ -405,9 +491,19 @@ stages:
             artifact: zlib-$(arch)-1.2.11
           - checkout: curl/curl
             fetchDepth: 1
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: CMake@1
@@ -484,14 +580,25 @@ stages:
                 curl.exe -sL "https://sqlite.org/2021/sqlite-amalgamation-3360000.zip" -o $env:TEMP\sqlite-amalgamation-3360000.zip
                 New-Item -ItemType Directory -Path $(Build.SourcesDirectory)\sqlite-3.36.0
                 unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3360000.zip -d $(Build.SourcesDirectory)\sqlite-3.36.0
-          - task: PowerShell@2
+          - task: CopyFiles@2
             inputs:
-              targetType: inline
-              script: |
-                Copy-Item $(Build.SourcesDirectory)\cmake\SQLite\CMakeLists.txt -destination $(Build.SourcesDirectory)\sqlite-3.36.0\CMakeLists.txt
+              SourceFolder: $(Build.SourcesDirectory)/cmake/SQLite
+              Contents: |
+                CMakeLists.txt
+              TargetFolder: $(Build.SourcesDirectory)/sqlite-3.36.0
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: CMake@1
@@ -536,9 +643,19 @@ stages:
               git config --global --add core.symlinks true
           - checkout: gnome/libxml2
             fetchDepth: 1
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: CMake@1
@@ -579,9 +696,9 @@ stages:
       - job: build
         strategy:
           matrix:
-            'x86':
-              arch: x86
-              platform: i686
+            # 'x86':
+            #   arch: x86
+            #   platform: i686
             'x64':
               arch: amd64
               platform: x86_64
@@ -613,9 +730,19 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift-corelibs-xctest
             fetchDepth: 1
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: PowerShell@2
@@ -668,7 +795,6 @@ stages:
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(Workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES
-                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES
           - task: CMake@1
             inputs:
@@ -847,9 +973,19 @@ stages:
             fetchDepth: 1
           - checkout: jpsim/Yams
             fetchDepth: 1
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
           - task: BatchScript@1
             inputs:
-              filename: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/Common7/Tools/VsDevCmd.bat
+              filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
           - task: PowerShell@2
@@ -1139,6 +1275,7 @@ stages:
                 --build $(Agent.BuildDirectory)/sourcekit-lsp --target install
           - publish: $(Build.StagingDirectory)
             artifact: devtools-$(arch)
+
   - stage: vscode
     dependsOn: []
     jobs:
@@ -1152,6 +1289,7 @@ stages:
               call npm run dev-package
           - publish: $(Build.SourcesDirectory)/swift-lang-development.vsix
             artifact: swift-lang-vsix
+
   - stage: package_icu
     displayName: ICU MSI
     dependsOn: [icu]
@@ -1191,8 +1329,30 @@ stages:
                 -p:ProductVersionMajor=69
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
-          - publish: $(Agent.BuildDirectory)\icu.msi
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
+          - task: BatchScript@1
+            inputs:
+              filename: $(VsDevCmd)
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              modifyEnvironment: true
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/icu.msi
+          - publish: $(Agent.BuildDirectory)/icu.msi
             artifact: icu-$(arch)-msi
+
   - stage: package_toolchain
     displayName: Toolchain MSI
     dependsOn: [toolchain, devtools]
@@ -1231,8 +1391,30 @@ stages:
                 -p:TOOLCHAIN_ROOT=$(Pipeline.Workspace)/toolchain-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
+          - task: BatchScript@1
+            inputs:
+              filename: $(VsDevCmd)
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              modifyEnvironment: true
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/toolchain.msi
           - publish: $(Agent.BuildDirectory)/toolchain.msi
             artifact: toolchain-$(arch)-msi
+
   - stage: package_sdk_runtime
     displayName: SDK/Runtime MSI
     dependsOn: [sdk]
@@ -1295,10 +1477,34 @@ stages:
                 -p:SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
+          - task: BatchScript@1
+            inputs:
+              filename: $(VsDevCmd)
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              modifyEnvironment: true
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/sdk.msi
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/runtime.msi
           - publish: $(Agent.BuildDirectory)/sdk.msi
             artifact: sdk-windows-$(arch)-msi
           - publish: $(Agent.BuildDirectory)/runtime.msi
             artifact: runtime-windows-$(arch)-msi
+
   - stage: package_devtools
     displayName: Developer Tools MSI
     dependsOn: [devtools, vscode]
@@ -1332,8 +1538,30 @@ stages:
                 -p:DEVTOOLS_ROOT=$(Pipeline.Workspace)/devtools-$(arch)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
+          - task: BatchScript@1
+            inputs:
+              filename: $(VsDevCmd)
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              modifyEnvironment: true
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/devtools.msi
           - publish: $(Agent.BuildDirectory)/devtools.msi
             artifact: devtools-$(arch)-msi
+
   - stage: installer
     dependsOn: [package_icu, package_toolchain, package_sdk_runtime, package_devtools]
     jobs:
@@ -1360,15 +1588,17 @@ stages:
             artifact: devtools-$(arch)-msi
           - checkout: apple/swift-installer-scripts
             fetchDepth: 1
-          - task: PowerShell@2
+          - task: CopyFiles@2
             inputs:
-              targetType: inline
-              script: |
-                Copy-Item $(Pipeline.Workspace)\icu-$(arch)-msi\icu.msi $(Build.SourcesDirectory)\icu.msi
-                Copy-Item $(Pipeline.Workspace)\toolchain-$(arch)-msi\toolchain.msi $(Build.SourcesDirectory)\toolchain.msi
-                Copy-Item $(Pipeline.Workspace)\runtime-windows-$(arch)-msi\runtime.msi $(Build.SourcesDirectory)\runtime.msi
-                Copy-Item $(Pipeline.Workspace)\sdk-windows-$(arch)-msi\sdk.msi $(Build.SourcesDirectory)\sdk.msi
-                Copy-Item $(Pipeline.Workspace)\devtools-$(arch)-msi\devtools.msi $(Build.SourcesDirectory)\devtools.msi
+              SourceFolder: $(Pipeline.Workspace)
+              Contents: |
+                icu-$(arch)-msi/icu.msi
+                toolchain-$(arch)-msi/toolchain.msi
+                runtime-windows-$(arch)-msi/runtime.msi
+                sdk-windows-$(arch)-msi/sdk.msi
+                devtools-$(arch)-msi/devtools.msi
+              TargetFolder: $(Build.SourcesDirectory)
+              flattenFolders: true
           - task: MSBuild@1
             inputs:
               solution: $(Build.SourcesDirectory)/platforms/Windows/installer.wixproj
@@ -1380,8 +1610,33 @@ stages:
               createLogFile: true
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
+                -p:ProductVersion=5.5.3
                 -p:MSI_LOCATION=$(Build.SourcesDirectory)
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
+          - script: |
+              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
+                SET vs="%%i"
+                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
+                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
+                )
+              )
+              @echo ##vso[task.setvariable variable=vs;]%vs%
+              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
+          - task: BatchScript@1
+            inputs:
+              filename: $(VsDevCmd)
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              modifyEnvironment: true
+          - task: DownloadSecureFile@1
+            inputs:
+              secureFile: dt.compnerd.org.p12
+            name: certificate
+          - script: |
+              "%WIX%bin\insignia.exe" -ib $(Agent.BuildDirectory)/installer.exe -o $(Agent.BuildDirectory)/engine.exe
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/engine.exe
+              "%WIX%bin\insignia.exe" -ab $(Agent.BuildDirectory)/engine.exe $(Agent.BuildDirectory)/installer.exe -o $(Agent.BuildDirectory)/installer.exe
+              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/installer.exe
           - publish: $(Agent.BuildDirectory)/installer.exe
             artifact: installer-$(arch)
