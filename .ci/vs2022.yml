@@ -236,11 +236,12 @@ stages:
           matrix:
             'x64':
               arch: amd64
-              platform: x64
-            # TODO(compnerd) enable AArch64 SDK
-            # 'arm64':
-            #  arch: arm64
-            #  platform: aarch64
+              platform: x86_64
+              EXTRA_CMAKE_ARGS: 
+            'arm64':
+              arch: arm64
+              platform: arm64
+              EXTRA_CMAKE_ARGS: -D CMAKE_SYSTEM_NAME=Windows -D CMAKE_SYSTEM_PROCESSOR=ARM64 -D "SWIFT_CLANG_LOCATION=C:/Program Files/LLVM/bin" -D Python3_ROOT_DIR=$(PYTHON_ROOT) -D Python3_INCLUDE_DIR=$(PYTHON_ROOT)\include -D Python3_LIBRARY=$(PYTHON_ROOT)\libs\python310.lib
         steps:
           - download: current
             artifact: build-tools
@@ -272,11 +273,23 @@ stages:
               filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
+          - task: PowerShell@2
+            inputs:
+              targetType: 'inline'
+              script: |
+                nuget install pythonarm64 -Version 3.10.4
+                echo "##vso[task.setvariable variable=PYTHON_ROOT;]${PWD}\pythonarm64.3.10.4\tools"
+                (Get-Content $(Build.SourcesDirectory)/swift/cmake/caches/Windows-arm64.cmake).replace(' runtimes', '') | Set-Content $(Build.SourcesDirectory)/swift/cmake/caches/Windows-arm64.cmake
+                $stdatomic = 'C:\Program Files\LLVM\lib\clang\13.0.1\include\stdatomic.h'
+                if (Test-Path -Path $stdatomic) {
+                  (Get-Content $stdatomic).replace('#if __STDC_HOSTED__ && __has_include_next(<stdatomic.h>)', '#if 0') | Set-Content $stdatomic
+                }
+            condition: eq(variables['platform'], 'arm64')
           - task: CMake@1
             inputs:
               cmakeArgs:
                 -B $(Agent.BuildDirectory)/1
-                -C $(Build.SourcesDirectory)/swift/cmake/caches/Windows-x86_64.cmake
+                -C $(Build.SourcesDirectory)/swift/cmake/caches/Windows-$(platform).cmake
                 -D CMAKE_BUILD_TYPE=Release
                 -D CMAKE_C_COMPILER=cl
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
@@ -295,7 +308,7 @@ stages:
                 -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES
-                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIAL_PROGRAMMING=YES
+                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES
                 -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=$(Build.SourcesDirectory)/swift-cmark
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$(Build.SourcesDirectory)/swift
@@ -311,6 +324,7 @@ stages:
                 -D SWIFT_PARALLEL_LINK_JOBS=2
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO
+                $(EXTRA_CMAKE_ARGS)
           - task: CMake@1
             inputs:
               cmakeArgs:
