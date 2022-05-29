@@ -365,12 +365,15 @@ stages:
           - script: |
               git config --global --add core.autocrlf false
               git config --global --add core.symlinks true
-          - checkout: self
+          - checkout: apple/swift-installer-scripts
             fetchDepth: 1
           - checkout: unicode-org/icu
             fetchDepth: 1
           - script: |
-              copy $(Build.SourcesDirectory)\swift-build\cmake\ICU\CMakeLists69.txt $(Build.SourcesDirectory)\icu\icu4c\CMakeLists.txt
+              copy $(Build.SourcesDirectory)\swift-installer-scripts\shared\ICU\CMakeLists.txt $(Build.SourcesDirectory)\icu\icu4c\CMakeLists.txt
+          - powershell: |
+              $InstallerArguments = "modify --quiet --norestart --productId Microsoft.VisualStudio.Product.Enterprise --channelId VisualStudio.17.Release --add Microsoft.VisualStudio.Component.VC.14.31.17.1.x86.x64 --add Microsoft.VisualStudio.Component.VC.14.31.17.1.ARM64 --add Microsoft.VisualStudio.Component.VC.14.31.17.1.ATL --add Microsoft.VisualStudio.Component.VC.14.31.17.1.ATL.ARM64"
+              Start-Process -FilePath "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe" -Wait -ArgumentList $InstallerArguments
           - script: |
               SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
               FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
@@ -384,7 +387,7 @@ stages:
           - task: BatchScript@1
             inputs:
               filename: $(VsDevCmd)
-              arguments: -no_logo -arch=amd64 -host_arch=amd64
+              arguments: -no_logo -arch=amd64 -host_arch=amd64 -vcvars_ver=14.31
               modifyEnvironment: true
             condition: eq(variables['BUILD_TOOLS'], 'NO')
           - task: CMake@1
@@ -411,13 +414,13 @@ stages:
           - task: BatchScript@1
             inputs:
               filename: $(VsDevCmd)
-              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64 -vcvars_ver=14.31
               modifyEnvironment: true
           - task: CMake@1
             inputs:
               cmakeArgs:
                 -B $(Agent.BuildDirectory)/icu-69.1
-                -D BUILD_SHARED_LIBS=YES
+                -D BUILD_SHARED_LIBS=NO
                 -D ICU_TOOLS_DIR=$(Agent.BuildDirectory)/icu-69.1-build
                 -D CMAKE_BUILD_TYPE=Release
                 -D CMAKE_C_COMPILER=cl
@@ -433,7 +436,7 @@ stages:
             inputs:
               cmakeArgs:
                 -B $(Agent.BuildDirectory)/icu-69.1
-                -D BUILD_SHARED_LIBS=YES
+                -D BUILD_SHARED_LIBS=NO
                 -D BUILD_TOOLS=$(BUILD_TOOLS)
                 -D CMAKE_BUILD_TYPE=Release
                 -D CMAKE_C_COMPILER=cl
@@ -915,8 +918,9 @@ stages:
                 -D BUILD_TESTING=NO
                 -D dispatch_DIR=$(Agent.BuildDirectory)/libdispatch/cmake/modules
                 -D ICU_ROOT=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr
-                -D ICU_UC_LIBRARY_RELEASE=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/lib/icuuc69.lib
-                -D ICU_I18N_LIBRARY_RELEASE=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/lib/icuin69.lib
+                -D ICU_DATA_LIBRARY_RELEASE=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/lib/sicudt69.lib
+                -D ICU_UC_LIBRARY_RELEASE=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/lib/sicuuc69.lib
+                -D ICU_I18N_LIBRARY_RELEASE=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/lib/sicuin69.lib
                 -D LIBXML2_LIBRARY=$(Pipeline.Workspace)/libxml2-$(arch)-2.9.12/Library/libxml2-2.9.12/usr/lib/libxml2s.lib
                 -D LIBXML2_INCLUDE_DIR=$(Pipeline.Workspace)/libxml2-$(arch)-2.9.12/Library/libxml2-2.9.12/usr/include/libxml2
                 -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC"
@@ -1413,69 +1417,6 @@ stages:
           - publish: $(Build.SourcesDirectory)/swift-lang-development.vsix
             artifact: swift-lang-vsix
 
-  - stage: package_icu
-    displayName: ICU MSI
-    dependsOn: [icu]
-    jobs:
-      - job: build
-        strategy:
-          matrix:
-            # TODO(compnerd) enable the x86 SDK
-            # 'x86':
-            #  arch: x86
-            #  platform: i686
-            'x64':
-              arch: amd64
-              platform: x64
-            # TODO(compnerd) enable AArch64 SDK
-            # 'arm64':
-            #  arch: arm64
-            #  platform: aarch64
-        steps:
-          - download: current
-            artifact: icu-$(arch)-69.1
-          - checkout: apple/swift-installer-scripts
-            fetchDepth: 1
-          - task: MSBuild@1
-            inputs:
-              solution: $(Build.SourcesDirectory)/platforms/Windows/icu.wixproj
-              msbuildArchitecture: $(arch)
-              platform: $(platform)
-              configuration: Release
-              maximumCpuCount: true
-              restoreNugetPackages: false
-              createLogFile: true
-              msbuildArguments:
-                -p:RunWixToolsOutOfProc=true
-                -p:ICU_ROOT=$(Pipeline.Workspace)/icu-$(arch)-69.1
-                -p:ProductVersion=69.1
-                -p:ProductVersionMajor=69
-                -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
-                -p:OutputPath=$(Agent.BuildDirectory)\
-          - script: |
-              SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
-              FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
-                SET vs="%%i"
-                IF EXIST "%%i\Common7\Tools\VsDevCmd.bat" (
-                  SET VsDevCmd="%%i\Common7\Tools\VsDevCmd.bat"
-                )
-              )
-              @echo ##vso[task.setvariable variable=vs;]%vs%
-              @echo ##vso[task.setvariable variable=vsdevcmd;]%VsDevCmd%
-          - task: BatchScript@1
-            inputs:
-              filename: $(VsDevCmd)
-              arguments: -no_logo -arch=$(arch) -host_arch=amd64
-              modifyEnvironment: true
-          - task: DownloadSecureFile@1
-            inputs:
-              secureFile: dt.compnerd.org.p12
-            name: certificate
-          - script: |
-              signtool sign /f $(certificate.secureFilePath) /p "$(CERTIFICATE_PASSWORD)" /tr http://timestamp.digicert.com /fd sha256 /td sha256 $(Agent.BuildDirectory)/icu.msi
-          - publish: $(Agent.BuildDirectory)/icu.msi
-            artifact: icu-$(arch)-msi
-
   - stage: package_toolchain
     displayName: Toolchain MSI
     dependsOn: [toolchain, devtools]
@@ -1693,7 +1634,7 @@ stages:
             artifact: devtools-$(arch)-msi
 
   - stage: installer
-    dependsOn: [package_icu, package_toolchain, package_sdk_runtime, package_devtools]
+    dependsOn: [package_toolchain, package_sdk_runtime, package_devtools]
     jobs:
       - job: build
         strategy:
@@ -1706,8 +1647,6 @@ stages:
             #  arch: arm64
             #  platform: aarch64
         steps:
-          - download: current
-            artifact: icu-$(arch)-msi
           - download: current
             artifact: toolchain-$(arch)-msi
           - download: current
@@ -1722,7 +1661,6 @@ stages:
             inputs:
               SourceFolder: $(Pipeline.Workspace)
               Contents: |
-                icu-$(arch)-msi/icu.msi
                 toolchain-$(arch)-msi/toolchain.msi
                 runtime-windows-$(arch)-msi/runtime.msi
                 sdk-windows-$(arch)-msi/sdk.msi
@@ -1740,7 +1678,7 @@ stages:
               createLogFile: true
               msbuildArguments:
                 -p:RunWixToolsOutOfProc=true
-                -p:RequiredChain=icu.msi%3Bruntime.msi%3Btoolchain.msi%3Bdevtools.msi%3Bsdk.msi
+                -p:RequiredChain=runtime.msi%3Btoolchain.msi%3Bdevtools.msi%3Bsdk.msi
                 -p:MSI_LOCATION=$(Build.SourcesDirectory)
                 -p:IntermediateOutputPath=$(Agent.BuildDirectory)\
                 -p:OutputPath=$(Agent.BuildDirectory)\
