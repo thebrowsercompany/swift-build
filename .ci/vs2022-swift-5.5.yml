@@ -232,6 +232,8 @@ stages:
           - script: |
               git config --global --add core.autocrlf false
               git config --global --add core.symlinks true
+          - checkout: self
+            fetchDepth: 1
           - checkout: apple/llvm-project
             fetchDepth: 1
           - checkout: apple/swift-cmark
@@ -240,6 +242,19 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift-corelibs-libdispatch
             fetchDepth: 1
+          - script: |
+              git -C $(Build.SourcesDirectory)/swift apply $(Build.SourcesDirectory)/swift-build/patch/swift-release-5.5.patch
+            displayName: Patch Swift
+          - powershell: |
+              if ("$(arch)" -eq "amd64") {
+                $ArchComponent = ".x86.x64"
+                $AtlArchComponent = ""
+              } else {
+                $ArchComponent = ".ARM64"
+                $AtlArchComponent = ".ARM64"
+              }
+              $InstallerArguments = "modify --quiet --norestart --productId Microsoft.VisualStudio.Product.Enterprise --channelId VisualStudio.17.Release --add Microsoft.VisualStudio.Component.VC.14.31.17.1$ArchComponent --add Microsoft.VisualStudio.Component.VC.14.31.17.1.ATL$AtlArchComponent"
+              Start-Process -FilePath "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe" -Wait -ArgumentList $InstallerArguments
           - script: |
               SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
               FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
@@ -253,8 +268,41 @@ stages:
           - task: BatchScript@1
             inputs:
               filename: $(VsDevCmd)
-              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64 -vcvars_ver=14.31
               modifyEnvironment: true
+          - script: |
+              CALL :where python.exe PYTHON_EXECUTABLE
+              FOR /F "tokens=* USEBACKQ" %%i IN (`cygpath -m "%PYTHON_EXECUTABLE%"`) DO (
+                SET PYTHON_EXECUTABLE=%%i
+              )
+              ECHO PYTHON_EXECUTABLE=%PYTHON_EXECUTABLE%
+              @echo ##vso[task.setvariable variable=PythonExecutable;]%PYTHON_EXECUTABLE%
+              GOTO :eof
+              
+              :where
+              SET %2=%~$PATH:1
+              EXIT /b
+            displayName: Find Python
+          - script: |
+              CALL :where clang-cl.exe CLANG_CL_EXECUTABLE
+              ECHO CLANG_CL_EXECUTABLE=%CLANG_CL_EXECUTABLE%
+              
+              CALL :getpath "%CLANG_CL_EXECUTABLE%" CLANG_LOCATION
+              FOR /F "tokens=* USEBACKQ" %%i IN (`cygpath -m "%CLANG_LOCATION%\"`) DO (
+                SET CLANG_LOCATION=%%i
+              )
+              ECHO CLANG_LOCATION=%CLANG_LOCATION%
+              @echo ##vso[task.setvariable variable=ClangLocation;]%CLANG_LOCATION%
+              GOTO :eof
+              
+              :where
+              SET %2=%~$PATH:1
+              EXIT /b
+              
+              :getpath
+              SET %2=%~dp1
+              EXIT /b
+            displayName: Find clang-cl
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -291,6 +339,8 @@ stages:
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO
                 -D LLDB_USE_STATIC_BINDINGS=YES
+                -D SWIFT_CLANG_LOCATION="$(ClangLocation)"
+                -D PYTHON_EXECUTABLE="$(PythonExecutable)"
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -720,6 +770,8 @@ stages:
             artifact: zlib-$(arch)-1.2.11
           - download: current
             artifact: toolchain-amd64
+          - checkout: self
+            fetchDepth: 1
           - checkout: apple/llvm-project
             fetchDepth: 1
           - checkout: apple/swift
@@ -730,6 +782,18 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift-corelibs-xctest
             fetchDepth: 1
+          - script: |
+              git -C $(Build.SourcesDirectory)/swift apply $(Build.SourcesDirectory)/swift-build/patch/swift-release-5.5.patch
+          - powershell: |
+              if ("$(arch)" -eq "amd64") {
+                $ArchComponent = ".x86.x64"
+                $AtlArchComponent = ""
+              } else {
+                $ArchComponent = ".ARM64"
+                $AtlArchComponent = ".ARM64"
+              }
+              $InstallerArguments = "modify --quiet --norestart --productId Microsoft.VisualStudio.Product.Enterprise --channelId VisualStudio.17.Release --add Microsoft.VisualStudio.Component.VC.14.31.17.1$ArchComponent --add Microsoft.VisualStudio.Component.VC.14.31.17.1.ATL$AtlArchComponent"
+              Start-Process -FilePath "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe" -Wait -ArgumentList $InstallerArguments
           - script: |
               SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
               FOR /f "usebackq delims=" %%i IN (`%vswhere% -latest -property installationPath`) DO (
@@ -743,8 +807,21 @@ stages:
           - task: BatchScript@1
             inputs:
               filename: $(VsDevCmd)
-              arguments: -no_logo -arch=$(arch) -host_arch=amd64
+              arguments: -no_logo -arch=$(arch) -host_arch=amd64 -vcvars_ver=14.31
               modifyEnvironment: true
+          - script: |
+              CALL :where clang-cl.exe CLANG_CL_EXECUTABLE
+              FOR /F "tokens=* USEBACKQ" %%i IN (`cygpath -m "%CLANG_CL_EXECUTABLE%"`) DO (
+                SET CLANG_CL_EXECUTABLE=%%i
+              )
+              ECHO CLANG_CL_EXECUTABLE=%CLANG_CL_EXECUTABLE%
+              @echo ##vso[task.setvariable variable=ClangClExecutable;]%CLANG_CL_EXECUTABLE%
+              GOTO :eof
+
+              :where
+              SET %2=%~$PATH:1
+              EXIT /b
+            displayName: Find clang-cl
           - task: PowerShell@2
             inputs:
               targetType: inline
@@ -778,10 +855,10 @@ stages:
                 -B $(Agent.BuildDirectory)/swift
                 -C $(Build.SourcesDirectory)/swift/cmake/caches/Runtime-Windows-$(platform).cmake
                 -D CMAKE_BUILD_TYPE=Release
-                -D CMAKE_C_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+                -D CMAKE_C_COMPILER="$(ClangClExecutable)"
                 -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
-                -D CMAKE_CXX_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+                -D CMAKE_CXX_COMPILER="$(ClangClExecutable)"
                 -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
                 -D CMAKE_MT=mt
@@ -794,8 +871,14 @@ stages:
                 -D LLVM_DIR=$(Agent.BuildDirectory)/llvm/lib/cmake/llvm
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$(Workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$(Build.SourcesDirectory)/swift-corelibs-libdispatch
+                -D SWIFT_LIBDISPATCH_C_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+                -D SWIFT_LIBDISPATCH_CXX_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES
+                -D SWIFT_WINDOWS_$(platform)_ICU_UC_INCLUDE=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/include/unicode
+                -D SWIFT_WINDOWS_$(platform)_ICU_UC=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/lib/icuuc69.lib
+                -D SWIFT_WINDOWS_$(platform)_ICU_I18N_INCLUDE=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/include
+                -D SWIFT_WINDOWS_$(platform)_ICU_I18N=$(Pipeline.Workspace)/icu-$(arch)-69.1/Library/icu-69.1/usr/lib/icuin69.lib
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -988,6 +1071,19 @@ stages:
               filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64
               modifyEnvironment: true
+          - script: |
+              CALL :where clang-cl.exe CLANG_CL_EXECUTABLE
+              FOR /F "tokens=* USEBACKQ" %%i IN (`cygpath -m "%CLANG_CL_EXECUTABLE%"`) DO (
+                SET CLANG_CL_EXECUTABLE=%%i
+              )
+              ECHO CLANG_CL_EXECUTABLE=%CLANG_CL_EXECUTABLE%
+              @echo ##vso[task.setvariable variable=ClangClExecutable;]%CLANG_CL_EXECUTABLE%
+              GOTO :eof
+
+              :where
+              SET %2=%~$PATH:1
+              EXIT /b
+            displayName: Find clang-cl
           - task: PowerShell@2
             inputs:
               targetType: inline
@@ -1078,12 +1174,12 @@ stages:
                -D BUILD_SHARED_LIBS=YES
                -D BUILD_TESTING=NO
                -D CMAKE_BUILD_TYPE=Release
-               -D CMAKE_C_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_COMPILER="$(ClangClExecutable)"
                -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
-               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
-               -D CMAKE_CXX_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER="$(ClangClExecutable)"
                -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
-               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code"
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
                -D CMAKE_MT=mt
                -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
                -D CMAKE_Swift_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
@@ -1191,12 +1287,12 @@ stages:
                -D BUILD_SHARED_LIBS=YES
                -D BUILD_TESTING=NO
                -D CMAKE_BUILD_TYPE=Release
-               -D CMAKE_C_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_COMPILER="$(ClangClExecutable)"
                -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
-               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block"
-               -D CMAKE_CXX_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block"
+               -D CMAKE_CXX_COMPILER="$(ClangClExecutable)"
                -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
-               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block"
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -I $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block"
                -D CMAKE_MT=mt
                -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
                -D CMAKE_Swift_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
