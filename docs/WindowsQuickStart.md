@@ -101,8 +101,8 @@ del /Q "%VCToolsInstallDir%\include\module.modulemap"
 del /Q "%VCToolsInstallDir%\include\visualc.apinotes"
 mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" S:\SourceCache\swift\stdlib\public\Platform\ucrt.modulemap
 mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" S:\SourceCache\swift\stdlib\public\Platform\winsdk.modulemap
-mklink "%VCToolsInstallDir%\include\module.modulemap" S:\SourceCache\swift\stdlib\public\Platform\visualc.modulemap
-mklink "%VCToolsInstallDir%\include\visualc.apinotes" S:\SourceCache\swift\stdlib\public\Platform\visualc.apinotes
+mklink "%VCToolsInstallDir%\include\module.modulemap" S:\SourceCache\swift\stdlib\public\Platform\vcruntime.modulemap
+mklink "%VCToolsInstallDir%\include\vcruntime.apinotes" S:\SourceCache\swift\stdlib\public\Platform\vcruntime.apinotes
 ```
 
 ## Building
