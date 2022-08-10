@@ -123,7 +123,7 @@ will run a complete build of the toolchain, but will not package the toolchain.
 S:\SourceCache\swift-build\build.cmd
 ```
 
-## Using the Toolchaain
+## Using the Toolchain
 
 ### Environment Setup
 
