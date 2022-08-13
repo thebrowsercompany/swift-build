@@ -237,7 +237,7 @@ stages:
             'x64':
               arch: amd64
               platform: x86_64
-              EXTRA_CMAKE_ARGS: 
+              EXTRA_CMAKE_ARGS: -D Python3_ROOT_DIR=$(PYTHON_ROOT) -D Python3_INCLUDE_DIR=$(PYTHON_ROOT)/include -D Python3_LIBRARY=$(PYTHON_ROOT)/libs/python310.lib
             'arm64':
               arch: arm64
               platform: arm64
@@ -283,6 +283,11 @@ stages:
               filename: $(VsDevCmd)
               arguments: -no_logo -arch=$(arch) -host_arch=amd64 -vcvars_ver=14.31
               modifyEnvironment: true
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.10' 
+              addToPath: true 
+              architecture: 'x64'
           - task: PowerShell@2
             inputs:
               targetType: 'inline'
@@ -295,6 +300,31 @@ stages:
                   (Get-Content $stdatomic).replace('#if __STDC_HOSTED__ && __has_include_next(<stdatomic.h>)', '#if 0') | Set-Content $stdatomic
                 }
             condition: eq(variables['platform'], 'arm64')
+          - script: |
+              CALL :where python.exe PYTHON_EXECUTABLE
+              FOR /F "tokens=* USEBACKQ" %%i IN (`cygpath -m "%PYTHON_EXECUTABLE%"`) DO (
+                SET PYTHON_EXECUTABLE=%%i
+              )
+              ECHO PYTHON_EXECUTABLE=%PYTHON_EXECUTABLE%
+
+              CALL :getpath "%PYTHON_EXECUTABLE%" PYTHON_ROOT
+              FOR /F "tokens=* USEBACKQ" %%i IN (`cygpath -m "%PYTHON_ROOT%\"`) DO (
+                SET PYTHON_ROOT=%%i
+              )
+              ECHO PYTHON_ROOT=%PYTHON_ROOT%
+
+              @echo ##vso[task.setvariable variable=PYTHON_ROOT;]%PYTHON_ROOT%
+              GOTO :eof
+
+              :where
+              SET %2=%~$PATH:1
+              EXIT /b
+
+              :getpath
+              SET %2=%~dp1
+              EXIT /b
+            displayName: Find Python
+            condition: eq(variables['platform'], 'x86_64')
           - task: CMake@1
             inputs:
               cmakeArgs:
