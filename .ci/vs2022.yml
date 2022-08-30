@@ -129,7 +129,11 @@ resources:
       name: unicode-org/icu
       ref: refs/heads/maint/maint-69
       type: github
-
+    - repository: apple/swift-syntax
+      endpoint: GitHub
+      name: apple/swift-syntax
+      ref: refs/heads/main
+      type: github
 
 stages:
   - stage: tools
@@ -147,6 +151,8 @@ stages:
           - checkout: apple/swift
             fetchDepth: 1
           - checkout: apple/swift-corelibs-libdispatch
+            fetchDepth: 1
+          - checkout: apple/swift-syntax
             fetchDepth: 1
           - script: |
               SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -189,6 +195,7 @@ stages:
                 -D SWIFT_BUILD_STATIC_STDLIB=NO
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO
                 -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=$(Build.SourcesDirectory)/swift-syntax
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -257,6 +264,8 @@ stages:
           - checkout: apple/swift-corelibs-libdispatch
             fetchDepth: 1
           - checkout: apple/swift-experimental-string-processing
+            fetchDepth: 1
+          - checkout: apple/swift-syntax
             fetchDepth: 1
           - powershell: |
               if ("$(arch)" -eq "amd64") {
@@ -364,6 +373,7 @@ stages:
                 -D SWIFT_PARALLEL_LINK_JOBS=2
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=$(Build.SourcesDirectory)/swift-syntax
                 $(EXTRA_CMAKE_ARGS)
           - task: CMake@1
             inputs:
@@ -808,6 +818,8 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift-experimental-string-processing
             fetchDepth: 1
+          - checkout: apple/swift-syntax
+            fetchDepth: 1
           - powershell: |
               if ("$(arch)" -eq "amd64" -Or "$(arch)" -eq "x86") {
                 $ArchComponent = ".x86.x64"
@@ -887,6 +899,7 @@ stages:
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES
                 -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=$(Build.SourcesDirectory)/swift-experimental-string-processing
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=$(Build.SourcesDirectory)/swift-syntax
           - task: CMake@1
             inputs:
               cmakeArgs:
@@ -1067,6 +1080,8 @@ stages:
           - checkout: apple/swift
             fetchDepth: 1
           - checkout: jpsim/Yams
+            fetchDepth: 1
+          - checkout: apple/swift-syntax
             fetchDepth: 1
           - script: |
               SET vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -1470,6 +1485,8 @@ stages:
             fetchDepth: 1
           - checkout: apple/swift
             fetchDepth:  1
+          - checkout: apple/swift-syntax
+            fetchDepth: 1
           - task: MSBuild@1
             inputs:
               solution: $(Build.SourcesDirectory)/swift-installer-scripts/platforms/Windows/toolchain.wixproj
@@ -1538,6 +1555,8 @@ stages:
           - checkout: apple/swift-installer-scripts
             fetchDepth: 1
           - checkout: apple/swift
+            fetchDepth: 1
+          - checkout: apple/swift-syntax
             fetchDepth: 1
           - task: MSBuild@1
             inputs:
