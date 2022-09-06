@@ -32,6 +32,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+  -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -G Ninja                                                                      ^
   -S %SourceCache%\llvm-project\llvm || (exit /b)
