@@ -449,6 +449,8 @@ cmake                                                                           
   -D SwiftDriver_DIR=%BinaryCache%\7\cmake\modules                              ^
   -D SwiftCrypto_DIR=%BinaryCache%\8\cmake\modules                              ^
   -D SwiftCollections_DIR=%BinaryCache%\9\cmake\modules                         ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-package-manager || (exit /b)
 cmake --build %BinaryCache%\10 || (exit /b)
