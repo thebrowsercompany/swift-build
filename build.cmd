@@ -175,6 +175,7 @@ cmake                                                                           
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
+  -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
 cmake --build %BinaryCache%\101 || (exit /b)
@@ -607,6 +608,7 @@ cmake                                                                           
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
+  -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
 cmake --build %BinaryCache%\201 || (exit /b)
@@ -851,6 +853,7 @@ cmake                                                                           
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
+  -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
 cmake --build %BinaryCache%\301 || (exit /b)
