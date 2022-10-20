@@ -1352,6 +1352,30 @@ stages:
           - task: CMake@1
             inputs:
              cmakeArgs:
+               -B $(Agent.BuildDirectory)/swift-syntax
+               -D BUILD_SHARED_LIBS=YES
+               -D BUILD_TESTING=NO
+               -D CMAKE_BUILD_TYPE=Release
+               -D CMAKE_C_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_C_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_CXX_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+               -D CMAKE_CXX_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy"
+               -D CMAKE_MT=mt
+               -D CMAKE_INSTALL_PREFIX=$(Build.StagingDirectory)/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
+               -D CMAKE_Swift_COMPILER=$(workspace.root)/toolchain-amd64/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+               -D CMAKE_Swift_COMPILER_TARGET=$(platform)-unknown-windows-msvc
+               -D CMAKE_Swift_FLAGS="-resource-dir $(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L$(Pipeline.Workspace)/windows-sdk-$(arch)/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows"
+               -G Ninja
+               -S $(Build.SourcesDirectory)/swift-syntax
+          - task: CMake@1
+            inputs:
+              cmakeArgs:
+                --build $(Agent.BuildDirectory)/swift-syntax
+          - task: CMake@1
+            inputs:
+             cmakeArgs:
                -B $(Agent.BuildDirectory)/sourcekit-lsp
                -D BUILD_SHARED_LIBS=YES
                -D BUILD_TESTING=NO
@@ -1376,6 +1400,7 @@ stages:
                -D SwiftPM_DIR=$(Agent.BuildDirectory)/swift-package-manager/cmake/modules
                -D SwiftSystem_DIR=$(Agent.BuildDirectory)/swift-system/cmake/modules
                -D TSC_DIR=$(Agent.BuildDirectory)/swift-tools-support-core/cmake/modules
+               -D SwiftSyntax_DIR=$(Agent.BuildDirectory)/swift-syntax/cmake/modules
           - task: CMake@1
             inputs:
               cmakeArgs:
