@@ -474,6 +474,29 @@ jobs:
           cmakeArgs: --build $(Build.BinariesDirectory)/indexstore-db --target install
 
       - task: CMake@1
+        displayName: Configure SwiftSyntax
+        inputs:
+          cmakeArgs:
+            -B $(Build.BinariesDirectory)/swift-syntax
+            -D CMAKE_Swift_SDK=$(sdk.directory)
+            -C $(Build.SourcesDirectory)/swift-build/cmake/caches/${{ parameters.platform }}-${{ parameters.arch }}-swift-flags.cmake
+            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_INSTALL_PREFIX=$(devtools.toolchain.directory)/usr
+            -D CMAKE_MT=mt
+            -G Ninja
+            -S $(Build.SourcesDirectory)/swift-syntax
+
+      - task: CMake@1
+        displayName: Build SwiftSyntax
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-syntax
+
+      - task: CMake@1
+        displayName: Install SwiftSyntax
+        inputs:
+          cmakeArgs: --build $(Build.BinariesDirectory)/swift-syntax --target install
+
+      - task: CMake@1
         displayName: Configure SourceKit-LSP
         inputs:
           cmakeArgs:
@@ -492,6 +515,7 @@ jobs:
             -D IndexStoreDB_DIR=$(Build.BinariesDirectory)/indexstore-db/cmake/modules
             -D SwiftCollections_DIR=$(Build.BinariesDirectory)/swift-collections/cmake/modules
             -D SwiftSystem_DIR=$(Build.BinariesDirectory)/swift-system/cmake/modules
+            -D SwiftSyntax_DIR=$(Build.BinariesDirectory)/swift-syntax/cmake/modules
             -G Ninja
             -S $(Build.SourcesDirectory)/sourcekit-lsp
 
