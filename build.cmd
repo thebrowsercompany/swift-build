@@ -174,6 +174,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+  -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
@@ -474,9 +475,21 @@ cmake                                                                           
 cmake --build %BinaryCache%\11 || (exit /b)
 cmake --build %BinaryCache%\11 --target install || (exit /b)
 
-:: sourcekit-lsp
+:: swift-syntax
 cmake                                                                           ^
   -B %BinaryCache%\12                                                           ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-syntax || (exit /b)
+cmake --build %BinaryCache%\12 || (exit /b)
+cmake --build %BinaryCache%\12 --target install || (exit /b)
+
+:: sourcekit-lsp
+cmake                                                                           ^
+  -B %BinaryCache%\13                                                           ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
@@ -491,10 +504,11 @@ cmake                                                                           
   -D SwiftCollections_DIR=%BinaryCache%\9\cmake\modules                         ^
   -D SwiftPM_DIR=%BinaryCache%\10\cmake\modules                                 ^
   -D IndexStoreDB_DIR=%BinaryCache%\11\cmake\modules                            ^
+  -D SwiftSyntax_DIR=%BinaryCache%\12\cmake\modules                             ^
   -G Ninja                                                                      ^
   -S %SourceCache%\sourcekit-lsp || (exit /b)
-cmake --build %BinaryCache%\12 || (exit /b)
-cmake --build %BinaryCache%\12 --target install || (exit /b)
+cmake --build %BinaryCache%\13 || (exit /b)
+cmake --build %BinaryCache%\13 --target install || (exit /b)
 
 endlocal
 
@@ -609,6 +623,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+  -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
@@ -854,6 +869,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
+  -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
