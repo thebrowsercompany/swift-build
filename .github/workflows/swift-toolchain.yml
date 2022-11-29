@@ -1499,48 +1499,6 @@ jobs:
           name: swift-lang-vsix
           path: ${{ github.workspace }}/SourceCache/vscode-swift/swift-lang-development.vsix
 
-  package_icu:
-    runs-on: windows-latest
-    needs: [icu]
-
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: ['amd64'] # , 'arm64', 'x86']
-
-    steps:
-      - uses: actions/download-artifact@v2
-        with:
-          name: icu-${{ matrix.arch }}-69.1
-          path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
-
-      # TODO(compnerd) hoist the revision to an input
-      - uses: actions/checkout@v2
-        with:
-          repository: apple/swift-installer-scripts
-          ref: refs/heads/main
-          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
-
-      - uses: microsoft/setup-msbuild@v1.0.3
-
-      - name: Package
-        run: |
-          msbuild -nologo `
-              -p:Configuration=Release `
-              -p:RunWixToolsOutOfProc=true `
-              -p:OutputPath=${{ github.workspace }}\BinaryCache\icu\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\icu\ `
-              -p:ICU_ROOT=${{ github.workspace }}/BuildRoot `
-              -p:ProductVersion=69.1 `
-              -p:ProductVersionMajor=69 `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/icu.wixproj
-          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/icu/icu.msi
-
-      - uses: actions/upload-artifact@v2
-        with:
-          name: icu-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/icu/icu.msi
-
   package_toolchain:
     runs-on: windows-latest
     needs: [toolchain,devtools]
@@ -1703,7 +1661,7 @@ jobs:
 
   installer:
     runs-on: windows-latest
-    needs: [package_icu, package_toolchain, package_sdk_runtime, package_devtools]
+    needs: [package_toolchain, package_sdk_runtime, package_devtools]
 
     strategy:
       fail-fast: false
@@ -1711,10 +1669,6 @@ jobs:
         arch: ['amd64'] # , 'arm64']
 
     steps:
-      - uses: actions/download-artifact@v2
-        with:
-          name: icu-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
       - uses: actions/download-artifact@v2
         with:
           name: toolchain-${{ matrix.arch }}-msi
