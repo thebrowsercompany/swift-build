@@ -97,18 +97,16 @@ jobs:
           name: sqlite-${{ matrix.arch }}-3.36.0
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
 
-  icu:
+  icu_tools:
     runs-on: windows-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: ['amd64', 'arm64', 'x86']
-
     steps:
+      # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v2
         with:
-          path: ${{ github.workspace }}/SourceCache/swift-build
+          repository: apple/swift-installer-scripts
+          ref: refs/heads/main
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
       - uses: actions/checkout@v2
         with:
@@ -117,7 +115,76 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/icu
 
       - name: Copy CMakeLists.txt
-        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\ICU\CMakeLists69.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
+        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
+
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: amd64
+
+      - name: Configure ICU Build Tools
+        run:
+          cmake -B ${{ github.workspace }}/BinaryCache/icu-tools-69.1 `
+                -D BUILD_SHARED_LIBS=NO `
+                -D BUILD_TOOLS=YES `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/icu/icu4c
+
+      - name: Build ICU Tools
+        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-tools-69.1
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: icu-tools-69.1
+          path: |
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genbrk.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencfu.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gendict.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genrb.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gensprep.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/icupkg.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/makeconv.exe
+            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/pkgdata.exe
+
+  icu:
+    runs-on: windows-latest
+    needs: [icu_tools]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64', 'x86']
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: icu-tools-69.1
+          path: ${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin
+
+      # TODO(compnerd) hoist the revision to an input
+      - uses: actions/checkout@v2
+        with:
+          repository: apple/swift-installer-scripts
+          ref: refs/heads/main
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - uses: actions/checkout@v2
+        with:
+          repository: unicode-org/icu
+          ref: 'refs/heads/maint/maint-69'
+          path: ${{ github.workspace }}/SourceCache/icu
+
+      - name: Copy CMakeLists.txt
+        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
 
       - uses: seanmiddleditch/gha-setup-vsdevenv@v4
         with:
@@ -128,8 +195,8 @@ jobs:
       - name: Configure ICU
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
-                -D BUILD_SHARED_LIBS=YES `
-                -D BUILD_TOOLS=$env:BUILD_TOOLS `
+                -D BUILD_SHARED_LIBS=NO `
+                -D BUILD_TOOLS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
@@ -137,10 +204,9 @@ jobs:
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
+                -D ICU_TOOLS_DIR=${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/icu/icu4c
-        env:
-          BUILD_TOOLS: ${{ matrix.arch == 'amd64' }}
       - name: Build ICU
         run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1
       - name: Install ICU
