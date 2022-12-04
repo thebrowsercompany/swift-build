@@ -379,8 +379,13 @@ jobs:
             Write-Host "non-zero exit code returned by the installation process: $ExitCode"
             exit $ExitCode
           }
-          
+
           Remove-Item $env:TEMP\llvm-installer.exe
+
+          $stdatomic = "${{ github.workspace }}\llvm\lib\clang\15.0.5\include\stdatomic.h"
+          if (Test-Path -Path $stdatomic) {
+            (Get-Content $stdatomic).replace('__has_include_next(<stdatomic.h>) && !(defined(_MSC_VER) && !defined(__cplusplus))', '0') | Set-Content $stdatomic
+          }
 
       - uses: seanmiddleditch/gha-setup-vsdevenv@v4
         with:
