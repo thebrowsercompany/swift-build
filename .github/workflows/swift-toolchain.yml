@@ -368,6 +368,10 @@ jobs:
       - name: Install llvm
         if: matrix.arch == 'arm64'
         run: |
+          Write-Host "Uninstalling Visual Studio Components"
+          $InstallerArguments = "modify --quiet --norestart --productId Microsoft.VisualStudio.Product.Enterprise --channelId VisualStudio.17.Release --remove Microsoft.VisualStudio.Component.VC.Llvm.Clang --remove Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --remove Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Llvm.Clang"
+          Start-Process -FilePath "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe" -Wait -ArgumentList $InstallerArguments
+
           curl.exe -sL "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.5/LLVM-15.0.5-win64.exe" -o $env:TEMP\llvm-installer.exe
 
           Write-Host "Starting $env:TEMP\\llvm-installer.exe"
@@ -461,19 +465,6 @@ jobs:
 
       - name: Build Toolchain Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
-
-      # As cloud agents have pretty low disk quota, it is important to uninstall llvm as soon as it is not needed
-      - name: Uninstall llvm
-        if: matrix.arch == 'arm64'
-        run: |
-          Write-Host "Starting ${{ github.workspace }}\llvm\Uninstall.exe"
-          $Process = Start-Process -FilePath "${{ github.workspace }}\llvm\Uninstall.exe" -ArgumentList ("/S") -Wait -PassThru
-          $ExitCode = $Process.ExitCode
-          if ($ExitCode -eq 0) {
-            Write-Host "Uninstallation successful"
-          } else {
-            Write-Host "non-zero exit code returned by the uninstallation process: $ExitCode"
-          }
 
       - name: Install Toolchain Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
