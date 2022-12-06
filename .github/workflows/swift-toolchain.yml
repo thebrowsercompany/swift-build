@@ -466,6 +466,22 @@ jobs:
       - name: Build Toolchain Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
 
+      # As cloud agents have pretty low disk quota, it is important to uninstall
+      # llvm as soon as it is not needed
+      - name: Uninstall LLVM
+        if: matrix.arch == 'arm64'
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target libdispatch-windows-aarch64
+
+          Write-Host "Starting ${{ github.workspace }}\llvm\Uninstall.exe"
+          $Process = Start-Process -FilePath "${{ github.workspace }}\llvm\Uninstall.exe" -ArgumentList ("/S") -Wait -PassThru
+          $ExitCode = $Process.ExitCode
+          if ($ExitCode -eq 0) {
+            Write-Host "Uninstallation successful"
+          } else {
+            Write-Host "non-zero exit code returned by the uninstallation process: $ExitCode"
+          }
+
       - name: Install Toolchain Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
 
