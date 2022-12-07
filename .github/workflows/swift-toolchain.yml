@@ -690,6 +690,11 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
       - uses: actions/checkout@v3
         with:
+          repository: apple/swift-syntax
+          ref: ${{ github.event.inputs.swift_tag }}
+          path: ${{ github.workspace }}/SourceCache/swift-syntax
+      - uses: actions/checkout@v3
+        with:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ github.event.inputs.swift_tag }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
@@ -767,6 +772,7 @@ jobs:
                 -D LLVM_DIR=${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm `
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
@@ -776,7 +782,6 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift
       - name: Install Swift Standard Library
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift --target install
-
 
       - name: Configure libdispstch
         run: |
