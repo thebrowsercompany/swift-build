@@ -650,7 +650,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64', 'x86']
+        arch: ['arm64', 'amd64', 'x86']
 
     steps:
       - uses: actions/download-artifact@v3
@@ -744,7 +744,12 @@ jobs:
 
       - name: Configure Swift Standard Library
         run: |
-          if ( "${{ matrix.arch }}" -eq "x86" ) {
+          if ( "${{ matrix.arch }}" -eq "arm64" ) {
+            $CACHE="Runtime-Windows-aarch64.cmake"
+            $CMAKE_Swift_COMPILER_TARGET="aarch64-unknown-windows-msvc"
+            $MSVC_C_ARCHITECTURE_ID="-D MSVC_C_ARCHITECTURE_ID=arm64"
+            $MSVC_CXX_ARCHITECTURE_ID="-D MSVC_CXX_ARCHITECTURE_ID=arm64"
+          } elseif ( "${{ matrix.arch }}" -eq "x86" ) {
             $CACHE="Runtime-Windows-i686.cmake"
             $CMAKE_Swift_COMPILER_TARGET="i686-unknown-windows-msvc"
             $MSVC_C_ARCHITECTURE_ID="-D MSVC_C_ARCHITECTURE_ID=x86"
