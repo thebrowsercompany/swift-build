@@ -274,13 +274,13 @@ jobs:
                 -D LLDB_ENABLE_PYTHON=NO `
                 -D LLDB_INCLUDE_TESTS=NO `
                 -D LLDB_ENABLE_SWIFT_SUPPORT=NO `
+                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
+                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO `
+                -D SWIFT_BUILD_STATIC_STDLIB=NO `
                 -D SWIFT_INCLUDE_DOCS=NO `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
-                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
-                -D SWIFT_BUILD_STATIC_STDLIB=NO `
-                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
-                -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
       - name: Build clang-tblgen
@@ -431,35 +431,35 @@ jobs:
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
-                -D PACKAGE_VENDOR=compnerd.org `
+                -D CLANG_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe `
                 -D CLANG_VENDOR=compnerd.org `
                 -D CLANG_VENDOR_UTI=org.compnerd.dt `
-                -D SWIFT_VENDOR=compnerd.org `
-                -D LLVM_APPEND_VC_REV=NO `
-                -D LLVM_VERSION_SUFFIX="" `
-                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
-                -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
-                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
-                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
-                -D LLVM_USE_HOST_TOOLS=NO `
-                -D LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe `
-                -D CLANG_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe `
                 -D LLDB_PYTHON_EXE_RELATIVE_PATH=python.exe `
                 -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
                 -D LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe `
+                -D LLVM_APPEND_VC_REV=NO `
                 -D LLVM_CONFIG_PATH=${{ github.workspace }}/BinaryCache/0/bin/llvm-config.exe `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
+                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
+                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
                 -D LLVM_PARALLEL_LINK_JOBS=2 `
-                -D SWIFT_PARALLEL_LINK_JOBS=2 `
-                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
-                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
+                -D LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe `
+                -D LLVM_USE_HOST_TOOLS=NO `
+                -D LLVM_VERSION_SUFFIX="" `
+                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
+                -D PACKAGE_VENDOR=compnerd.org `
                 -D Python3_ROOT_DIR=$env:pythonLocation `
                 -D Python3_INCLUDE_DIR=$env:PYTHON_LOCATION_${{ matrix.arch }}\include `
                 -D Python3_LIBRARY=$env:PYTHON_LOCATION_${{ matrix.arch }}\libs\python39.lib `
+                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
+                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
+                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
+                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
+                -D SWIFT_PARALLEL_LINK_JOBS=2 `
+                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
+                -D SWIFT_VENDOR=compnerd.org `
                 ${SWIFT_CLANG_LOCATION}
 
       - name: Build Toolchain Distribution
@@ -785,20 +785,20 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_Swift_COMPILER_TARGET=${CMAKE_Swift_COMPILER_TARGET} `
                 ${MSVC_C_ARCHITECTURE_ID} `
                 ${MSVC_CXX_ARCHITECTURE_ID} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift `
-                -D CMAKE_Swift_COMPILER_TARGET=${CMAKE_Swift_COMPILER_TARGET} `
                 -D LLVM_DIR=${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
-                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES
+                -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
+                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
+                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing
       - name: Build Swift Standard Library
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift
       - name: Install Swift Standard Library
@@ -822,21 +822,21 @@ jobs:
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_SWIFT_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 ${MSVC_C_ARCHITECTURE_ID} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D BUILD_TESTING=NO `
                 -D ENABLE_SWIFT=YES
       - name: Build libdispatch
@@ -860,32 +860,32 @@ jobs:
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 ${MSVC_C_ARCHITECTURE_ID} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-foundation `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D ENABLE_TESTING=NO `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
-                -D ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
-                -D ICU_DATA_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicudt69.lib `
-                -D ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicuuc69.lib `
-                -D ICU_I18N_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicuin69.lib `
-                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/lib/libxml2s.lib `
-                -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/include/libxml2 `
-                -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC" `
                 -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr/lib/cmake/CURL `
+                -D ENABLE_TESTING=NO `
+                -D ICU_DATA_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicudt69.lib `
+                -D ICU_I18N_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicuin69.lib `
+                -D ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
+                -D ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicuuc69.lib `
+                -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC" `
+                -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/include/libxml2 `
+                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/lib/libxml2s.lib `
                 -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr `
                 -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr/lib/zlibstatic.lib
       - name: Build foundation
@@ -909,23 +909,23 @@ jobs:
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/Library/XCTest-development/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-xctest `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D ENABLE_TESTING=NO `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
-                -D Foundation_DIR=${{ github.workspace }}/BinaryCache/foundation/cmake/modules
+                -D Foundation_DIR=${{ github.workspace }}/BinaryCache/foundation/cmake/modules `
+                -D ENABLE_TESTING=NO
       - name: Build xctest
         run: cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
@@ -1077,20 +1077,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-argument-parser `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET}
+                -S ${{ github.workspace }}/SourceCache/swift-argument-parser
       - name: Build swift-argument-parser
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
@@ -1112,20 +1112,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-collections `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET}
+                -S ${{ github.workspace }}/SourceCache/swift-collections
       - name: Build swift-collections
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections
 
@@ -1146,20 +1146,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-crypto `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET}
+                -S ${{ github.workspace }}/SourceCache/swift-crypto
       - name: Build swift-crypto
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-crypto
 
@@ -1180,20 +1180,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/Yams `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET}
+                -S ${{ github.workspace }}/SourceCache/Yams
       - name: Build Yams
         run: cmake --build ${{ github.workspace }}/BinaryCache/yams
 
@@ -1214,20 +1214,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-llbuild `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D LLBUILD_SUPPORT_BINDINGS=Swift `
                 -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
                 -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include
@@ -1252,20 +1252,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-system `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET}
+                -S ${{ github.workspace }}/SourceCache/swift-system
       - name: Build swift-system
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-system
 
@@ -1287,20 +1287,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-tools-support-core `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
                 -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
                 -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include
@@ -1325,27 +1325,27 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-driver `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
-                -D Yams_DIR=${{ github.workspace }}/BinaryCache/yams/cmake/modules `
                 -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include `
+                -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
+                -D Yams_DIR=${{ github.workspace }}/BinaryCache/yams/cmake/modules
       - name: Build swift-driver
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver
 
@@ -1367,26 +1367,26 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-package-manager `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
-                -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `
-                -D SwiftDriver_DIR=${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules `
-                -D SwiftCrypto_DIR=${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules `
-                -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
+                -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `
+                -D SwiftCrypto_DIR=${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules `
+                -D SwiftDriver_DIR=${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules `
+                -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
                 -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
                 -D Yams_DIR=${{ github.workspace }}/BinaryCache/yams/cmake/modules
       - name: Build swift-package-manager
@@ -1410,20 +1410,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/indexstore-db `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET}
+                -S ${{ github.workspace }}/SourceCache/indexstore-db
       - name: Build indexstore-db
         run: cmake --build ${{ github.workspace }}/BinaryCache/indexstore-db
 
@@ -1445,20 +1445,20 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/sourcekit-lsp `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D IndexStoreDB_DIR=${{ github.workspace }}/BinaryCache/indexstore-db/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
