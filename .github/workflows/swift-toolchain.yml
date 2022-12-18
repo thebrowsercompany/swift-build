@@ -649,11 +649,21 @@ jobs:
     runs-on: windows-latest
     needs: [icu, libxml2, curl, zlib, toolchain]
 
-    # TODO(compnerd) use dictionaries to track triples for architecture and wire that in rather than powershell scripting
     strategy:
       fail-fast: false
       matrix:
-        arch: ['arm64', 'amd64', 'x86']
+        include:
+          - arch: 'amd64'
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-windows-msvc'
+
+          - arch: 'arm64'
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-windows-msvc'
+
+          - arch: 'x86'
+            cpu: 'i686'
+            triple: 'i686-unknown-windows-msvc'
 
     steps:
       - uses: actions/download-artifact@v3
@@ -747,47 +757,25 @@ jobs:
 
       - name: Configure Swift Standard Library
         run: |
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $CACHE="Runtime-Windows-aarch64.cmake"
-            $CMAKE_C_COMPILER_TARGET="aarch64-unknown-windows-msvc"
-            $CMAKE_CXX_COMPILER_TARGET="aarch64-unknown-windows-msvc"
-            $CMAKE_Swift_COMPILER_TARGET="aarch64-unknown-windows-msvc"
-            $CMAKE_SYSTEM_PROCESSOR="aarch64"
-            $MSVC_C_ARCHITECTURE_ID="-D MSVC_C_ARCHITECTURE_ID=arm64"
-            $MSVC_CXX_ARCHITECTURE_ID="-D MSVC_CXX_ARCHITECTURE_ID=arm64"
-          } elseif ( "${{ matrix.arch }}" -eq "x86" ) {
-            $CACHE="Runtime-Windows-i686.cmake"
-            $CMAKE_C_COMPILER_TARGET="i686-unknown-windows-msvc"
-            $CMAKE_CXX_COMPILER_TARGET="i686-unknown-windows-msvc"
-            $CMAKE_Swift_COMPILER_TARGET="i686-unknown-windows-msvc"
-            $CMAKE_SYSTEM_PROCESSOR="i686"
-            $MSVC_C_ARCHITECTURE_ID="-D MSVC_C_ARCHITECTURE_ID=x86"
-            $MSVC_CXX_ARCHITECTURE_ID="-D MSVC_CXX_ARCHITECTURE_ID=x86"
-          } else {
-            $CACHE="Runtime-Windows-x86_64.cmake"
-            $CMAKE_C_COMPILER_TARGET="x86_64-unknown-windows-msvc"
-            $CMAKE_CXX_COMPILER_TARGET="x86_64-unknown-windows-msvc"
-            $CMAKE_Swift_COMPILER_TARGET="x86_64-unknown-windows-msvc"
-            $CMAKE_SYSTEM_PROCESSOR="x86_64"
-          }
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+
           cmake -B ${{ github.workspace }}/BinaryCache/swift `
-                -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/${CACHE} `
+                -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-Windows-${{ matrix.cpu }}.cmake `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
-                -D CMAKE_C_COMPILER_TARGET=${CMAKE_C_COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
-                -D CMAKE_CXX_COMPILER_TARGET=${CMAKE_CXX_COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR} `
-                -D CMAKE_Swift_COMPILER_TARGET=${CMAKE_Swift_COMPILER_TARGET} `
-                ${MSVC_C_ARCHITECTURE_ID} `
-                ${MSVC_CXX_ARCHITECTURE_ID} `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
+                -D MSVC_CXX_ARCHITECTURE_ID=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift `
                 -D LLVM_DIR=${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm `
@@ -809,32 +797,25 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "x86" ) {
-            $COMPILER_TARGET="i686-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=x86"
-            $MSVC_C_ARCHITECTURE_ID="-D MSVC_C_ARCHITECTURE_ID=x86"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/libdispatch `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_SWIFT_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
-                ${MSVC_C_ARCHITECTURE_ID} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
+                -D MSVC_CXX_ARCHITECTURE_ID=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D BUILD_TESTING=NO `
@@ -847,33 +828,26 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "x86" ) {
-            $COMPILER_TARGET="i686-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=x86"
-            $MSVC_C_ARCHITECTURE_ID="-D MSVC_C_ARCHITECTURE_ID=x86"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/foundation `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
-                ${MSVC_C_ARCHITECTURE_ID} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
+                -D MSVC_CXX_ARCHITECTURE_ID=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-foundation `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
@@ -897,30 +871,23 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "x86" ) {
-            $COMPILER_TARGET="i686-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=x86"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/xctest `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/Library/XCTest-development/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-xctest `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
@@ -963,11 +930,15 @@ jobs:
     runs-on: windows-latest
     needs: [sqlite, toolchain, sdk]
 
-    # TODO(compnerd) use dictionaries to track triples for architecture and wire that in rather than powershell scripting
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64'] # , 'arm64']
+        include:
+          - arch: 'amd64'
+            triple: 'x86_64-unknown-windows-msvc'
+
+          - arch: 'arm64'
+            triple: 'aarch64-unknown-windows-msvc'
 
     steps:
       - uses: actions/download-artifact@v3
@@ -1064,31 +1035,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-argument-parser `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-argument-parser
       - name: Build swift-argument-parser
@@ -1099,31 +1063,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-collections `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-collections
       - name: Build swift-collections
@@ -1133,31 +1090,24 @@ jobs:
         run: |
           # Workaround CMake 3.20 issue
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-crypto `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-crypto
       - name: Build swift-crypto
@@ -1167,31 +1117,24 @@ jobs:
         run: |
           # Workaround CMake 3.20 issue
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/yams `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.target }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.target }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/Yams
       - name: Build Yams
@@ -1201,31 +1144,24 @@ jobs:
         run: |
           # Workaround CMake 3.20 issue
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-llbuild `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.target }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.target }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-llbuild `
                 -D LLBUILD_SUPPORT_BINDINGS=Swift `
@@ -1239,31 +1175,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-system `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-system
       - name: Build swift-system
@@ -1274,31 +1203,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-tools-support-core `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-tools-support-core `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
@@ -1312,31 +1234,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-driver `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-driver `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
@@ -1354,31 +1269,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/swift-package-manager `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-package-manager `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
@@ -1397,31 +1305,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/indexstore-db `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/Block" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/indexstore-db
       - name: Build indexstore-db
@@ -1432,31 +1333,24 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          if ( "${{ matrix.arch }}" -eq "arm64" ) {
-            $COMPILER_TARGET="aarch64-unknown-windows-msvc"
 
-            $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
-            $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
-          } else {
-            $COMPILER_TARGET="x86_64-unknown-windows-msvc"
-          }
           cmake -B ${{ github.workspace }}/BinaryCache/sourcekit-lsp `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${COMPILER_TARGET} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows" `
-                ${CMAKE_SYSTEM_NAME} `
-                ${CMAKE_SYSTEM_PROCESSOR} `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/sourcekit-lsp `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
