@@ -166,7 +166,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64', 'arm64', 'x86']
+        include:
+          - arch: 'amd64'
+            BUILD_TOOLS: NO
+          - arch: 'arm64'
+            BUILD_TOOLS: NO
+          - arch: 'x86'
+            BUILD_TOOLS: YES
 
     steps:
       - uses: actions/download-artifact@v3
@@ -200,7 +206,7 @@ jobs:
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
                 -D BUILD_SHARED_LIBS=NO `
-                -D BUILD_TOOLS=NO `
+                -D BUILD_TOOLS=${{ matrix.BUILD_TOOLS }} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
