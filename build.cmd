@@ -679,6 +679,7 @@ FOR %%M IN (BlocksRuntime, dispatch, swiftDispatch) DO (
 move /Y %SDKInstallRoot%\usr\lib\swift\windows\i686\Dispatch.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\Dispatch.swiftmodule\i686-unknown-windows-msvc.swiftmodule
 move /Y %SDKInstallRoot%\usr\lib\swift\windows\i686\Dispatch.swiftdoc %SDKInstallRoot%\usr\lib\swift\windows\Dispatch.swiftmodule\i686-unknown-windows-msvc.swiftdoc
 
+:: swift-corelibs-foundaation
 cmake                                                                           ^
   -B %BinaryCache%\203                                                          ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
@@ -926,6 +927,7 @@ FOR %%M IN (BlocksRuntime, dispatch, swiftDispatch) DO (
 move /Y %SDKInstallRoot%\usr\lib\swift\windows\aarch64\Dispatch.swiftmodule %SDKInstallRoot%\usr\lib\swift\windows\Dispatch.swiftmodule\aarch64-unknown-windows-msvc.swiftmodule
 move /Y %SDKInstallRoot%\usr\lib\swift\windows\aarch64\Dispatch.swiftdoc %SDKInstallRoot%\usr\lib\swift\windows\Dispatch.swiftmodule\aarch64-unknown-windows-msvc.swiftdoc
 
+:: swift-corelibs-foundation
 cmake                                                                           ^
   -B %BinaryCache%\303                                                          ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
