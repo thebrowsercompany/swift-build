@@ -129,10 +129,12 @@ cmake --build %BinaryCache%\curl-7.77.0.x64 --target install || (exit /b)
 IF NOT EXIST %SourceCache%\icu\icu4c\CMakeLists.txt copy %SourceCache%\swift-build\cmake\ICU\CMakeLists69.txt %SourceCache%\icu\icu4c\CMakeLists.txt
 cmake                                                                           ^
   -B %BinaryCache%\icu-69.1.x64                                                 ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_MT=mt                                                                ^
   -D CMAKE_INSTALL_PREFIX=%InstallRoot%\icu-69.1\usr                            ^
+  -D CMAKE_INSTALL_BINDIR=bin/x64                                               ^
+  -D CMAKE_INSTALL_LIBDIR=lib/x64                                               ^
   -D BUILD_TOOLS=YES                                                            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\icu\icu4c || (exit /b)
@@ -213,9 +215,10 @@ cmake                                                                           
   -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD"      ^
   -D CMAKE_MT=mt                                                                ^
   -D CURL_DIR=%InstallRoot%\curl-7.77.0\usr\lib\cmake\CURL                      ^
-  -D ICU_I18N_LIBRARY_RELEASE=%InstallRoot%\icu-69.1\usr\lib\icuin69.lib        ^
+  -D ICU_DATA_LIBRARY_RELEASE=%InstallRoot%\icu-69.1\usr\lib\x64\sicudt69.lib   ^
+  -D ICU_I18N_LIBRARY_RELEASE=%InstallRoot%\icu-69.1\usr\lib\x64\sicuin69.lib   ^
   -D ICU_ROOT=%InstallRoot%\icu-69.1\usr                                        ^
-  -D ICU_UC_LIBRARY_RELEASE=%InstallRoot%\icu-69.1\usr\lib\icuuc69.lib          ^
+  -D ICU_UC_LIBRARY_RELEASE=%InstallRoot%\icu-69.1\usr\lib\x64\sicuuc69.lib     ^
   -D LIBXML2_LIBRARY=%InstallRoot%\libxml2-2.9.12\usr\lib\libxml2s.lib          ^
   -D LIBXML2_INCLUDE_DIR=%InstallRoot%\libxml2-2.9.12\usr\include\libxml2       ^
   -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC"                                      ^
