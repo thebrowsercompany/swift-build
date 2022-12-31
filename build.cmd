@@ -47,6 +47,15 @@ FOR %%M IN (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
   move %ToolchainInstallRoot%\usr\lib\swift\windows\%%M.lib %ToolchainInstallRoot%\usr\lib
 )
 
+:: LLVM
+cmake                                                                           ^
+  -B %BinaryCache%\100                                                          ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_MT=mt                                                                ^
+  -D LLVM_HOST_TRIPLE=x86_64-unknown-windows-msvc                               ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\llvm-project\llvm || (exit /b)
+
 :: Windows x64 Build
 
 :: zlib
@@ -130,35 +139,6 @@ cmake                                                                           
 cmake --build %BinaryCache%\icu-69.1.x64 || (exit /b)
 cmake --build %BinaryCache%\icu-69.1.x64 --target install || (exit /b)
 
-:: sqlite
-md S:\var\cache
-IF NOT EXIST S:\var\cache\sqlite-amalgamation-3360000.zip curl -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
-IF NOT EXIST %SourceCache%\sqlite-3.36.0  (
-  md %SourceCache%\sqlite-3.36.0
-  "%ProgramFiles%\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d %SourceCache%\sqlite-3.36.0
-  copy /Y %SourceCache%\swift-build\cmake\SQLite\CMakeLists.txt %SourceCache%\sqlite-3.36.0\
-)
-
-cmake                                                                           ^
-  -B %BinaryCache%\sqlite-3.36.0.x64                                            ^
-  -D BUILD_SHARED_LIBS=NO                                                       ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_INSTALL_PREFIX=%InstallRoot%\sqlite-3.36.0\usr                       ^
-  -D CMAKE_MT=mt                                                                ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\sqlite-3.36.0 || (exit /b)
-cmake --build %BinaryCache%\sqlite-3.36.0.x64 || (exit /b)
-cmake --build %BinaryCache%\sqlite-3.36.0.x64 --target install || (exit /b)
-
-:: LLVM
-cmake                                                                           ^
-  -B %BinaryCache%\100                                                          ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_MT=mt                                                                ^
-  -D LLVM_HOST_TRIPLE=x86_64-unknown-windows-msvc                               ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\llvm-project\llvm || (exit /b)
-
 :: Swift Runtime
 cmake                                                                           ^
   -B %BinaryCache%\101                                                          ^
@@ -187,9 +167,6 @@ cmake --build %BinaryCache%\101 --target install || (exit /b)
 :: Restructure Runtime
 md %InstallRoot%\swift-development\usr\bin\x64
 move /Y %SDKInstallRoot%\usr\bin\*.dll %InstallRoot%\swift-development\usr\bin\x64\
-
-:: SDKSettings.plist
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
 
 :: swift-corelibs-libdispatch
 cmake                                                                           ^
@@ -294,223 +271,6 @@ move %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\wi
 md %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule
 move /Y %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\x86_64\XCTest.swiftdoc %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule\x86_64-unknown-windows-msvc.swiftdoc
 move /Y %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\x86_64\XCTest.swiftmodule %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule\x86_64-unknown-windows-msvc.swiftmodule
-
-:: Info.plist
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > %PlatformInstallRoot%\Info.plist
-
-:: swift-system
-cmake                                                                           ^
-  -B %BinaryCache%\2                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-system || (exit /b)
-cmake --build %BinaryCache%\2 || (exit /b)
-cmake --build %BinaryCache%\2 --target install || (exit /b)
-
-:: tools-support-core
-cmake                                                                           ^
-  -B %BinaryCache%\3                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
-  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
-  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-tools-support-core || (exit /b)
-cmake --build %BinaryCache%\3 || (exit /b)
-cmake --build %BinaryCache%\3 --target install || (exit /b)
-
-:: llbuild
-cmake                                                                           ^
-  -B %BinaryCache%\4                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -D LLBUILD_SUPPORT_BINDINGS=Swift                                             ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
-  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\llbuild || (exit /b)
-cmake --build %BinaryCache%\4 || (exit /b)
-cmake --build %BinaryCache%\4 --target install || (exit /b)
-
-:: Yams
-cmake                                                                           ^
-  -B %BinaryCache%\5                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -D XCTest_DIR=%BinaryCache%\104\cmake\modules                                 ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\Yams || (exit /b)
-cmake --build %BinaryCache%\5 || (exit /b)
-cmake --build %BinaryCache%\5 --target install || (exit /b)
-
-:: swift-argument-parser
-cmake                                                                           ^
-  -B %BinaryCache%\6                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D BUILD_TESTING=NO                                                           ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -D XCTest_DIR=%BinaryCache%\104\cmake\modules                                 ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-argument-parser || (exit /b)
-cmake --build %BinaryCache%\6 || (exit /b)
-cmake --build %BinaryCache%\6 --target install || (exit /b)
-
-:: swift-driver
-cmake                                                                           ^
-  -B %BinaryCache%\7                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
-  -D TSC_DIR=%BinaryCache%\3\cmake\modules                                      ^
-  -D LLBuild_DIR=%BinaryCache%\4\cmake\modules                                  ^
-  -D Yams_DIR=%BinaryCache%\5\cmake\modules                                     ^
-  -D ArgumentParser_DIR=%BinaryCache%\6\cmake\modules                           ^
-  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
-  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-driver || (exit /b)
-cmake --build %BinaryCache%\7 || (exit /b)
-cmake --build %BinaryCache%\7 --target install || (exit /b)
-
-:: Switch to swift-driver
-copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swift.exe
-copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swiftc.exe
-
-:: swift-crypto
-cmake                                                                           ^
-  -B %BinaryCache%\8                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-crypto || (exit /b)
-cmake --build %BinaryCache%\8 || (exit /b)
-cmake --build %BinaryCache%\8 --target install || (exit /b)
-
-:: swift-collections
-cmake                                                                           ^
-  -B %BinaryCache%\9                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-collections || (exit /b)
-cmake --build %BinaryCache%\9 || (exit /b)
-cmake --build %BinaryCache%\9 --target install || (exit /b)
-
-:: swift-package-manager
-cmake                                                                           ^
-  -B %BinaryCache%\10                                                           ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_Swift_FLAGS="-DCRYPTO_v2"                                            ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
-  -D TSC_DIR=%BinaryCache%\3\cmake\modules                                      ^
-  -D LLBuild_DIR=%BinaryCache%\4\cmake\modules                                  ^
-  -D ArgumentParser_DIR=%BinaryCache%\6\cmake\modules                           ^
-  -D SwiftDriver_DIR=%BinaryCache%\7\cmake\modules                              ^
-  -D SwiftCrypto_DIR=%BinaryCache%\8\cmake\modules                              ^
-  -D SwiftCollections_DIR=%BinaryCache%\9\cmake\modules                         ^
-  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
-  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-package-manager || (exit /b)
-cmake --build %BinaryCache%\10 || (exit /b)
-cmake --build %BinaryCache%\10 --target install || (exit /b)
-
-:: indexstore-db
-cmake                                                                           ^
-  -B %BinaryCache%\11                                                           ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
-  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-  -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\indexstore-db || (exit /b)
-cmake --build %BinaryCache%\11 || (exit /b)
-cmake --build %BinaryCache%\11 --target install || (exit /b)
-
-:: swift-syntax
-cmake                                                                           ^
-  -B %BinaryCache%\12                                                           ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\swift-syntax || (exit /b)
-cmake --build %BinaryCache%\12 || (exit /b)
-cmake --build %BinaryCache%\12 --target install || (exit /b)
-
-:: sourcekit-lsp
-cmake                                                                           ^
-  -B %BinaryCache%\13                                                           ^
-  -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
-  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
-  -D CMAKE_MT=mt                                                                ^
-  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
-  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
-  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
-  -D TSC_DIR=%BinaryCache%\3\cmake\modules                                      ^
-  -D LLBuild_DIR=%BinaryCache%\4\cmake\modules                                  ^
-  -D ArgumentParser_DIR=%BinaryCache%\6\cmake\modules                           ^
-  -D SwiftCollections_DIR=%BinaryCache%\9\cmake\modules                         ^
-  -D SwiftPM_DIR=%BinaryCache%\10\cmake\modules                                 ^
-  -D IndexStoreDB_DIR=%BinaryCache%\11\cmake\modules                            ^
-  -D SwiftSyntax_DIR=%BinaryCache%\12\cmake\modules                             ^
-  -G Ninja                                                                      ^
-  -S %SourceCache%\sourcekit-lsp || (exit /b)
-cmake --build %BinaryCache%\13 || (exit /b)
-cmake --build %BinaryCache%\13 --target install || (exit /b)
 
 endlocal
 
@@ -1008,5 +768,251 @@ move /Y %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift
 move /Y %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\aarch64\XCTest.swiftdoc %PlatformInstallRoot%\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule\aarch64-unknown-windows-msvc.swiftdoc
 
 endlocal
+
+setlocal
+
+call "%VsDevCmd%" -no_logo -host_arch=amd64 -arch=amd64
+
+:: sqlite
+md S:\var\cache
+IF NOT EXIST S:\var\cache\sqlite-amalgamation-3360000.zip curl -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
+IF NOT EXIST %SourceCache%\sqlite-3.36.0  (
+  md %SourceCache%\sqlite-3.36.0
+  "%ProgramFiles%\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d %SourceCache%\sqlite-3.36.0
+  copy /Y %SourceCache%\swift-build\cmake\SQLite\CMakeLists.txt %SourceCache%\sqlite-3.36.0\
+)
+
+cmake                                                                           ^
+  -B %BinaryCache%\sqlite-3.36.0.x64                                            ^
+  -D BUILD_SHARED_LIBS=NO                                                       ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_INSTALL_PREFIX=%InstallRoot%\sqlite-3.36.0\usr                       ^
+  -D CMAKE_MT=mt                                                                ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\sqlite-3.36.0 || (exit /b)
+cmake --build %BinaryCache%\sqlite-3.36.0.x64 || (exit /b)
+cmake --build %BinaryCache%\sqlite-3.36.0.x64 --target install || (exit /b)
+
+:: swift-system
+cmake                                                                           ^
+  -B %BinaryCache%\2                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-system || (exit /b)
+cmake --build %BinaryCache%\2 || (exit /b)
+cmake --build %BinaryCache%\2 --target install || (exit /b)
+
+:: tools-support-core
+cmake                                                                           ^
+  -B %BinaryCache%\3                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-tools-support-core || (exit /b)
+cmake --build %BinaryCache%\3 || (exit /b)
+cmake --build %BinaryCache%\3 --target install || (exit /b)
+
+:: llbuild
+cmake                                                                           ^
+  -B %BinaryCache%\4                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -D LLBUILD_SUPPORT_BINDINGS=Swift                                             ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\llbuild || (exit /b)
+cmake --build %BinaryCache%\4 || (exit /b)
+cmake --build %BinaryCache%\4 --target install || (exit /b)
+
+:: Yams
+cmake                                                                           ^
+  -B %BinaryCache%\5                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -D XCTest_DIR=%BinaryCache%\104\cmake\modules                                 ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\Yams || (exit /b)
+cmake --build %BinaryCache%\5 || (exit /b)
+cmake --build %BinaryCache%\5 --target install || (exit /b)
+
+:: swift-argument-parser
+cmake                                                                           ^
+  -B %BinaryCache%\6                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D BUILD_TESTING=NO                                                           ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -D XCTest_DIR=%BinaryCache%\104\cmake\modules                                 ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-argument-parser || (exit /b)
+cmake --build %BinaryCache%\6 || (exit /b)
+cmake --build %BinaryCache%\6 --target install || (exit /b)
+
+:: swift-driver
+cmake                                                                           ^
+  -B %BinaryCache%\7                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
+  -D TSC_DIR=%BinaryCache%\3\cmake\modules                                      ^
+  -D LLBuild_DIR=%BinaryCache%\4\cmake\modules                                  ^
+  -D Yams_DIR=%BinaryCache%\5\cmake\modules                                     ^
+  -D ArgumentParser_DIR=%BinaryCache%\6\cmake\modules                           ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-driver || (exit /b)
+cmake --build %BinaryCache%\7 || (exit /b)
+cmake --build %BinaryCache%\7 --target install || (exit /b)
+
+:: swift-crypto
+cmake                                                                           ^
+  -B %BinaryCache%\8                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-crypto || (exit /b)
+cmake --build %BinaryCache%\8 || (exit /b)
+cmake --build %BinaryCache%\8 --target install || (exit /b)
+
+:: swift-collections
+cmake                                                                           ^
+  -B %BinaryCache%\9                                                            ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-collections || (exit /b)
+cmake --build %BinaryCache%\9 || (exit /b)
+cmake --build %BinaryCache%\9 --target install || (exit /b)
+
+:: swift-package-manager
+cmake                                                                           ^
+  -B %BinaryCache%\10                                                           ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-DCRYPTO_v2"                                            ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
+  -D TSC_DIR=%BinaryCache%\3\cmake\modules                                      ^
+  -D LLBuild_DIR=%BinaryCache%\4\cmake\modules                                  ^
+  -D ArgumentParser_DIR=%BinaryCache%\6\cmake\modules                           ^
+  -D SwiftDriver_DIR=%BinaryCache%\7\cmake\modules                              ^
+  -D SwiftCrypto_DIR=%BinaryCache%\8\cmake\modules                              ^
+  -D SwiftCollections_DIR=%BinaryCache%\9\cmake\modules                         ^
+  -D SQLite3_INCLUDE_DIR=%InstallRoot%\sqlite-3.36.0\usr\include                ^
+  -D SQLite3_LIBRARY=%InstallRoot%\sqlite-3.36.0\usr\lib\SQLite3.lib            ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-package-manager || (exit /b)
+cmake --build %BinaryCache%\10 || (exit /b)
+cmake --build %BinaryCache%\10 --target install || (exit /b)
+
+:: indexstore-db
+cmake                                                                           ^
+  -B %BinaryCache%\11                                                           ^
+  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
+  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\indexstore-db || (exit /b)
+cmake --build %BinaryCache%\11 || (exit /b)
+cmake --build %BinaryCache%\11 --target install || (exit /b)
+
+:: swift-syntax
+cmake                                                                           ^
+  -B %BinaryCache%\12                                                           ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\swift-syntax || (exit /b)
+cmake --build %BinaryCache%\12 || (exit /b)
+cmake --build %BinaryCache%\12 --target install || (exit /b)
+
+:: sourcekit-lsp
+cmake                                                                           ^
+  -B %BinaryCache%\13                                                           ^
+  -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
+  -D CMAKE_MT=mt                                                                ^
+  -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
+  -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
+  -D SwiftSystem_DIR=%BinaryCache%\2\cmake\modules                              ^
+  -D TSC_DIR=%BinaryCache%\3\cmake\modules                                      ^
+  -D LLBuild_DIR=%BinaryCache%\4\cmake\modules                                  ^
+  -D ArgumentParser_DIR=%BinaryCache%\6\cmake\modules                           ^
+  -D SwiftCollections_DIR=%BinaryCache%\9\cmake\modules                         ^
+  -D SwiftPM_DIR=%BinaryCache%\10\cmake\modules                                 ^
+  -D IndexStoreDB_DIR=%BinaryCache%\11\cmake\modules                            ^
+  -D SwiftSyntax_DIR=%BinaryCache%\12\cmake\modules                             ^
+  -G Ninja                                                                      ^
+  -S %SourceCache%\sourcekit-lsp || (exit /b)
+cmake --build %BinaryCache%\13 || (exit /b)
+cmake --build %BinaryCache%\13 --target install || (exit /b)
+
+endlocal
+
+:: Switch to swift-driver
+copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swift.exe
+copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swiftc.exe
+
+:: SDKSettings.plist
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
+
+:: Info.plist
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > %PlatformInstallRoot%\Info.plist
 
 endlocal
