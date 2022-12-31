@@ -169,7 +169,9 @@ cmake                                                                           
   -C %SourceCache%\swift\cmake\caches\Runtime-Windows-x86_64.cmake              ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_C_COMPILER_TARGET=x86_64-unknown-windows-msvc                        ^
   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+  -D CMAKE_CXX_COMPILER_TARGET=x86_64-unknown-windows-msvc                      ^
   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
   -D CMAKE_MT=mt                                                                ^
   -D LLVM_DIR=%BinaryCache%\100\lib\cmake\llvm                                  ^
@@ -197,8 +199,14 @@ cmake                                                                           
   -D BUILD_TESTING=NO                                                           ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_C_COMPILER_TARGET=x86_64-unknown-windows-msvc                        ^
   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+  -D CMAKE_CXX_COMPILER_TARGET=x86_64-unknown-windows-msvc                      ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_COMPILER_TARGET=x86_64-unknown-windows-msvc                    ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
+  -D CMAKE_SYSTEM_NAME=Windows                                                  ^
+  -D CMAKE_SYSTEM_PROCESSOR=AMD64                                               ^
   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
   -D CMAKE_MT=mt                                                                ^
   -D ENABLE_SWIFT=YES                                                           ^
@@ -230,8 +238,15 @@ move /Y %SDKInstallRoot%\usr\lib\swift\windows\x86_64\Dispatch.swiftdoc %SDKInst
 cmake                                                                           ^
   -B %BinaryCache%\103                                                          ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
+  -D CMAKE_ASM_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+  -D CMAKE_ASM_FLAGS="--target=x86_64-unknown-windows-msvc"                     ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
+  -D CMAKE_C_COMPILER_TARGET=x86_64-unknown-windows-msvc                        ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_COMPILER_TARGET=x86_64-unknown-windows-msvc                    ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
+  -D CMAKE_SYSTEM_NAME=Windows                                                  ^
+  -D CMAKE_SYSTEM_PROCESSOR=AMD64                                               ^
   -D CMAKE_INSTALL_PREFIX=%SDKInstallRoot%\usr                                  ^
   -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD"      ^
   -D CMAKE_MT=mt                                                                ^
@@ -275,6 +290,10 @@ cmake                                                                           
   -B %BinaryCache%\104                                                          ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_COMPILER_TARGET=x86_64-unknown-windows-msvc                    ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
+  -D CMAKE_SYSTEM_NAME=Windows                                                  ^
+  -D CMAKE_SYSTEM_PROCESSOR=AMD64                                               ^
   -D CMAKE_INSTALL_PREFIX=%PlatformInstallRoot%\Developer\Library\XCTest-development\usr ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
   -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
