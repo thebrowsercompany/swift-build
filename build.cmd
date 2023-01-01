@@ -14,7 +14,10 @@ set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
 FOR /F "delims=" %%r IN ('^""%vswhere%" -nologo -latest -products "*" -all -prerelease -property installationPath^"') DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
 
 :: preflight
-IF NOT EXIST %SourceCache%\icu\icu4c\CMakeLists.txt COPY %SourceCache%\swift-build\cmake\ICU\CMakeLists69.txt %SourceCache%\icu\icu4c\CMakeLists.txt
+IF NOT EXIST %SourceCache%\icu\icu4c\CMakeLists.txt (
+  COPY %SourceCache%\swift-installer-scripts\shared\ICU\CMakeLists.txt %SourceCache%\icu\icu4c\
+  COPY %SourceCache%\swift-installer-scripts\shared\ICU\icupkg.inc.cmake %SourceCache%\icu\icu4c\
+)
 
 MD S:\var\cache
 IF NOT EXIST S:\var\cache\sqlite-amalgamation-3360000.zip curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
