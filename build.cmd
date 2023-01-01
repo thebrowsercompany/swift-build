@@ -13,6 +13,17 @@ set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
 FOR /F "delims=" %%r IN ('^""%vswhere%" -nologo -latest -products "*" -all -prerelease -property installationPath^"') DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
 
+:: preflight
+IF NOT EXIST %SourceCache%\icu\icu4c\CMakeLists.txt COPY %SourceCache%\swift-build\cmake\ICU\CMakeLists69.txt %SourceCache%\icu\icu4c\CMakeLists.txt
+
+MD S:\var\cache
+IF NOT EXIST S:\var\cache\sqlite-amalgamation-3360000.zip curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
+IF NOT EXIST %SourceCache%\sqlite-3.36.0 (
+  md %SourceCache%\sqlite-3.36.0
+  "%ProgramFiles%\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d %SourceCache%\sqlite-3.36.0
+  copy /Y %SourceCache%\swift-build\cmake\SQLite\CMakeLists.txt %SourceCache%\sqlite-3.36.0\
+)
+
 setlocal
 
 call "%VsDevCmd%" -no_logo -host_arch=amd64 -arch=amd64
@@ -126,7 +137,6 @@ cmake --build %BinaryCache%\curl-7.77.0.x64 || (exit /b)
 cmake --build %BinaryCache%\curl-7.77.0.x64 --target install || (exit /b)
 
 :: icu
-IF NOT EXIST %SourceCache%\icu\icu4c\CMakeLists.txt copy %SourceCache%\swift-build\cmake\ICU\CMakeLists69.txt %SourceCache%\icu\icu4c\CMakeLists.txt
 cmake                                                                           ^
   -B %BinaryCache%\icu-69.1.x64                                                 ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
@@ -777,14 +787,6 @@ setlocal
 call "%VsDevCmd%" -no_logo -host_arch=amd64 -arch=amd64
 
 :: sqlite
-md S:\var\cache
-IF NOT EXIST S:\var\cache\sqlite-amalgamation-3360000.zip curl -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
-IF NOT EXIST %SourceCache%\sqlite-3.36.0  (
-  md %SourceCache%\sqlite-3.36.0
-  "%ProgramFiles%\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d %SourceCache%\sqlite-3.36.0
-  copy /Y %SourceCache%\swift-build\cmake\SQLite\CMakeLists.txt %SourceCache%\sqlite-3.36.0\
-)
-
 cmake                                                                           ^
   -B %BinaryCache%\sqlite-3.36.0.x64                                            ^
   -D BUILD_SHARED_LIBS=NO                                                       ^
