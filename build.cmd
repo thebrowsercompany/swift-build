@@ -67,7 +67,13 @@ cmake                                                                           
   -G Ninja                                                                      ^
   -S %SourceCache%\llvm-project\llvm || (exit /b)
 
+endlocal
+
 :: Windows x64 Build
+
+setlocal
+
+call "%VsDevCmd%" -no_logo -host_arch=amd64 -arch=amd64
 
 :: zlib
 cmake                                                                           ^
