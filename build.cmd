@@ -48,7 +48,6 @@ cmake                                                                           
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=%SourceCache%\swift-experimental-string-processing ^
-  -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -G Ninja                                                                      ^
   -S %SourceCache%\llvm-project\llvm || (exit /b)
 cmake --build %BinaryCache%\1 || (exit /b)
@@ -172,7 +171,6 @@ cmake                                                                           
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=%SourceCache%\swift-experimental-string-processing ^
-  -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
@@ -404,7 +402,6 @@ cmake                                                                           
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=%SourceCache%\swift-experimental-string-processing ^
-  -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
@@ -653,7 +650,6 @@ cmake                                                                           
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=%SourceCache%\swift-experimental-string-processing ^
-  -D EXPERIMENTAL_STRING_PROCESSING_SOURCE_DIR=%SourceCache%\swift-experimental-string-processing ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift || (exit /b)
