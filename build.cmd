@@ -54,11 +54,9 @@ cmake --build %BinaryCache%\1 || (exit /b)
 cmake --build %BinaryCache%\1 --target install-distribution || (exit /b)
 
 :: Restructure Internal Modules
-FOR %%M IN (_InternalSwiftScan, _InternalSwiftSyntaxParser) DO (
-  rd /s /q "%ToolchainInstallRoot%\usr\include\%%M"
-  move /Y %ToolchainInstallRoot%\usr\lib\swift\%%M %ToolchainInstallRoot%\usr\include
-  move %ToolchainInstallRoot%\usr\lib\swift\windows\%%M.lib %ToolchainInstallRoot%\usr\lib
-)
+RD /s /q "%ToolchainInstallRoot%\usr\include\_InternalSwiftScan"
+MOVE /Y %ToolchainInstallRoot%\usr\lib\swift\_InternalSwiftScan %ToolchainInstallRoot%\usr\include
+MOVE %ToolchainInstallRoot%\usr\lib\swift\windows\_InternalSwiftScan.lib %ToolchainInstallRoot%\usr\lib
 
 :: LLVM
 cmake                                                                           ^
