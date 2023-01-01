@@ -50,7 +50,7 @@ cmake                                                                           
   -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=%SourceCache%\swift-experimental-string-processing ^
   -G Ninja                                                                      ^
   -S %SourceCache%\llvm-project\llvm || (exit /b)
-cmake --build %BinaryCache%\1 || (exit /b)
+cmake --build %BinaryCache%\1 --target distribution || (exit /b)
 cmake --build %BinaryCache%\1 --target install-distribution || (exit /b)
 
 :: Restructure Internal Modules
