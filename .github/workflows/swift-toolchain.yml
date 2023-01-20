@@ -1485,7 +1485,18 @@ jobs:
           ref: refs/heads/main
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
-      - uses: microsoft/setup-msbuild@v1.1.3
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil -decode $CertificatePath $PFXPath
+          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - name: Package
         run: |
@@ -1493,11 +1504,13 @@ jobs:
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\toolchain\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\toolchain\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\toolchain\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/toolchain.wixproj
-          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/toolchain/toolchain.msi
 
       - uses: actions/upload-artifact@v3
         with:
@@ -1541,6 +1554,13 @@ jobs:
         run: msbuild -nologo -restore -p:PlatformToolset=v142 -p:Configuration=Release
         working-directory: ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/CustomActions/SwiftInstaller
 
+      - run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil -decode $CertificatePath $PFXPath
+          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
       - name: Package SDK
         run: |
           # TODO(compnerd) determine why PlatformToolset is set to v100 on GHA
@@ -1548,13 +1568,15 @@ jobs:
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\sdk\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\sdk\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\sdk\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
               -p:PlatformToolset=v142 `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj
-          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/sdk/sdk.msi
 
       - name: Package Runtime
         run: |
@@ -1562,12 +1584,14 @@ jobs:
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\runtime\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\runtime\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\runtime\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/runtime.wixproj
-          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/runtime/runtime.msi
 
       - uses: actions/upload-artifact@v3
         with:
@@ -1600,7 +1624,18 @@ jobs:
           ref: refs/heads/main
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
-      - uses: microsoft/setup-msbuild@v1.1.3
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil -decode $CertificatePath $PFXPath
+          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - name: Package
         run: |
@@ -1608,10 +1643,12 @@ jobs:
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\devtools\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\devtools\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\devtools\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/devtools.wixproj
-          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/devtools/devtools.msi
 
       - uses: actions/upload-artifact@v3
         with:
@@ -1652,7 +1689,18 @@ jobs:
           ref: refs/heads/main
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
-      - uses: microsoft/setup-msbuild@v1.1.3
+      - uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil -decode $CertificatePath $PFXPath
+          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - name: Package
         run: |
@@ -1660,10 +1708,12 @@ jobs:
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\installer\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\installer\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:MSI_LOCATION=${{ github.workspace }}/BuildRoot `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/installer.wixproj
-          # codesign /f $(CERTIFICATE) /p $(PASSPHRASE) /tr http://timestamp.digicert.com /fd sha256 /td sha256 ${{ github.workspace }}/BinaryCache/installer/installer.exe
 
       - uses: actions/upload-artifact@v3
         with:
