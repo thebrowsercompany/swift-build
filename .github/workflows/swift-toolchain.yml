@@ -30,10 +30,6 @@ on:
         description: 'Yams revision'
         required: true
         default: 'refs/tags/5.0.1'
-      vscode_swift_revision:
-        description: 'vscode-swift revision'
-        required: true
-        default: 'refs/heads/main'
 
 jobs:
   # TODO(compnerd) use environment variables for package version information and wire that throughout
@@ -1422,30 +1418,6 @@ jobs:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot-DevTools/Library
 
-  vscode_plugin:
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: swift-server/vscode-swift
-          ref: ${{ github.event.inputs.vscode_swift_revision }}
-          path: ${{ github.workspace }}/SourceCache/vscode-swift
-
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '16'
-
-      - name: Build swift-lang-development.vsix
-        run: |
-          cd ${{ github.workspace }}/SourceCache/vscode-swift
-          npm install
-          npm run dev-package
-      - uses: actions/upload-artifact@v3
-        with:
-          name: swift-lang-vsix
-          path: ${{ github.workspace }}/SourceCache/vscode-swift/swift-lang-development.vsix
-
   package_toolchain:
     runs-on: windows-latest
     needs: [toolchain,devtools]
@@ -1592,7 +1564,7 @@ jobs:
 
   package_devtools:
     runs-on: windows-latest
-    needs: [devtools, vscode_plugin]
+    needs: [devtools]
 
     strategy:
       fail-fast: false
