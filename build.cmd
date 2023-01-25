@@ -969,7 +969,7 @@ cmake --build %BinaryCache%\10 --target install || (exit /b)
 :: indexstore-db
 cmake                                                                           ^
   -B %BinaryCache%\11                                                           ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
