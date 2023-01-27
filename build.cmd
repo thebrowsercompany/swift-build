@@ -835,6 +835,7 @@ cmake                                                                           
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
   -G Ninja                                                                      ^
@@ -849,6 +850,7 @@ cmake                                                                           
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
@@ -868,6 +870,7 @@ cmake                                                                           
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
@@ -887,6 +890,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
   -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
@@ -903,6 +907,7 @@ cmake                                                                           
   -D BUILD_TESTING=NO                                                           ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
   -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
@@ -918,6 +923,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
   -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
@@ -939,6 +945,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
   -D Foundation_DIR=%BinaryCache%\103\cmake\modules                             ^
@@ -953,6 +960,7 @@ cmake                                                                           
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-collections || (exit /b)
@@ -966,7 +974,7 @@ cmake                                                                           
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
-  -D CMAKE_Swift_FLAGS="-DCRYPTO_v2"                                            ^
+  -D CMAKE_Swift_FLAGS="-DCRYPTO_v2 -resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
@@ -994,6 +1002,7 @@ cmake                                                                           
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
@@ -1008,6 +1017,7 @@ cmake                                                                           
   -B %BinaryCache%\12                                                           ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
   -G Ninja                                                                      ^
@@ -1021,6 +1031,7 @@ cmake                                                                           
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_C_COMPILER=S:/b/1/bin/clang-cl.exe                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
+  -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_INSTALL_PREFIX=%ToolchainInstallRoot%\usr                            ^
   -D CMAKE_MT=mt                                                                ^
   -D dispatch_DIR=%BinaryCache%\102\cmake\modules                               ^
