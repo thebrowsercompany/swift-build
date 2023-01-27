@@ -119,11 +119,6 @@ resources:
       name: madler/zlib
       ref: refs/heads/master
       type: github
-    - repository: swift-server/vscode-swift
-      endpoint: GitHub
-      name: swift-server/vscode-swift
-      ref: refs/heads/main
-      type: github
     - repository: unicode-org/icu
       endpoint: GitHub
       name: unicode-org/icu
@@ -1455,20 +1450,6 @@ stages:
                 --build $(Agent.BuildDirectory)/sourcekit-lsp --target install
           - publish: $(Build.StagingDirectory)
             artifact: devtools-$(arch)
-
-  - stage: vscode
-    dependsOn: []
-    jobs:
-      - job: build
-        steps:
-          - checkout: swift-server/vscode-swift
-            fetchDepth: 1
-          - script: |
-              cd $(Build.SourcesDirectory)
-              call npm install
-              call npm run dev-package
-          - publish: $(Build.SourcesDirectory)/swift-lang-development.vsix
-            artifact: swift-lang-vsix
 
   - stage: package_toolchain
     displayName: Toolchain MSI
