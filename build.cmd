@@ -1053,8 +1053,8 @@ cmake --build %BinaryCache%\13 --target install || (exit /b)
 endlocal
 
 :: Switch to swift-driver
-copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swift.exe
-copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swiftc.exe
+copy /Y %BinaryCache%\7\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swift.exe
+copy /Y %BinaryCache%\7\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swiftc.exe
 
 :: SDKSettings.plist
 "%python%" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
