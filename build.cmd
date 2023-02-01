@@ -10,6 +10,7 @@ set ToolchainInstallRoot=%InstallRoot%\Developer\Toolchains\unknown-Asserts-deve
 set PlatformInstallRoot=%InstallRoot%\Developer\Platforms\Windows.platform
 set SDKInstallRoot=%PlatformInstallRoot%\Developer\SDKs\Windows.sdk
 
+set python=%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe
 set vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
 FOR /F "delims=" %%r IN ('^""%vswhere%" -nologo -latest -products "*" -all -prerelease -property installationPath^"') DO set VsDevCmd=%%r\Common7\Tools\VsDevCmd.bat
 
@@ -1056,9 +1057,9 @@ copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swi
 copy /Y %BinaryCache%\10\bin\swift-driver.exe %ToolchainInstallRoot%\usr\bin\swiftc.exe
 
 :: SDKSettings.plist
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
+"%python%" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > %SDKInstallRoot%\SDKSettings.plist
 
 :: Info.plist
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > %PlatformInstallRoot%\Info.plist
+"%python%" -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > %PlatformInstallRoot%\Info.plist
 
 endlocal
