@@ -5,38 +5,15 @@ on:
     - cron: "0 */4 * * *"
   workflow_dispatch:
     inputs:
-      # toolchain
-      llvm_project_tag:
-        description: 'apple/llvm-project tag'
-        default: 'refs/heads/stable/20220421'
-      swift_cmark_tag:
-        description: 'apple/swift-cmark tag'
-        default: 'refs/heads/gfm'
-      swift_experimental_string_processing_tag:
-        description: 'apple/swift-experimental-string-processing tag'
-        default: 'refs/heads/swift/main'
+      build_tag:
+        description: 'Build Swift at snapshot'
+        default: false
+        type: boolean
+
       swift_tag:
-        description: 'swift tag'
-        default: 'refs/heads/main'
+        description: 'Swift snapshot'
+        required: false
 
-      # devtools
-      swift_argument_parser_revision:
-        description: 'swift-argument-parser revision'
-        default: 'refs/tags/1.1.4'
-      swift_crypto_revision:
-        description: 'swift-crypto revision'
-        default: 'refs/tags/1.1.6'
-      swift_collections_revision:
-        description: 'swift-collections revision'
-        default: 'refs/tags/1.0.1'
-      swift_system_revision:
-        description: 'swift-system revision'
-        default: 'refs/tags/1.1.1'
-      yams_revision:
-        description: 'Yams revision'
-        default: 'refs/tags/5.0.1'
-
-      # Options
       debug_info:
         description: 'Emit PDBs (Debug Info)'
         default: true
@@ -44,6 +21,103 @@ on:
 
 jobs:
   # TODO(compnerd) use environment variables for package version information and wire that throughout
+
+  context:
+    runs-on: ubuntu-latest
+    outputs:
+      curl_revsion: ${{ steps.context.outputs.curl_revsion }}
+      icu_revision: ${{ steps.context.outputs.icu_revision }}
+      libxml2_revsion: ${{ steps.context.outputs.libxml2_revsion }}
+      llvm_project_revision: ${{ steps.context.outputs.llvm_project_revision }}
+      sourcekit_lsp_revision: ${{ steps.context.outputs.sourcekit_lsp_revision }}
+      swift_argument_parser_revision: ${{ steps.context.outputs.swift_argument_parser_revision }}
+      swift_cmark_revision: ${{ steps.context.outputs.swift_cmark_revision }}
+      swift_collections_revision: ${{ steps.context.outputs.swift_collections_revision }}
+      swift_corelibs_foundation_revision: ${{ steps.context.outputs.swift_corelibs_foundation_revision }}
+      swift_corelibs_libdispatch_revision: ${{ steps.context.outputs.swift_corelibs_libdispatch_revision }}
+      swift_corelibs_xctest_revision: ${{ steps.context.outputs.swift_corelibs_xctest_revision }}
+      swift_crypto_revision: ${{ steps.context.outputs.swift_crypto_revision }}
+      swift_driver_revision: ${{ steps.context.outputs.swift_driver_revision }}
+      swift_experimental_string_processing_revision: ${{ steps.context.outputs.swift_experimental_string_processing_revision }}
+      swift_installer_scripts_revision: ${{ steps.context.outputs.swift_installer_scripts_revision }}
+      swift_llbuild_revision: ${{ steps.context.outputs.swift_llbuild_revision }}
+      swift_package_manager_revision: ${{ steps.context.outputs.swift_package_manager_revision }}
+      swift_revision: ${{ steps.context.outputs.swift_revision }}
+      swift_syntax_revision: ${{ steps.context.outputs.swift_syntax_revision }}
+      swift_system_revision: ${{ steps.context.outputs.swift_system_revision }}
+      swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
+      yams_revsion: ${{ steps.context.outputs.yams_revsion }}
+      zlib_revsion: ${{ steps.context.outputs.zlib_revsion }}
+      CMAKE_BUILD_TYPE: ${{ steps.context.outputs.CMAKE_BUILD_TYPE }}
+      LLVM_ENABLE_PDB: ${{ steps.context.outputs.LLVM_ENABLE_PDB }}
+      debug_info: ${{ steps.context.outputs.debug_info }}
+    steps:
+      - id: context
+        name: Generate Build Context
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
+
+          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build
+          repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
+
+          if [[ "${{ github.event.inputs.build_tag }}" == "true" ]] ; then
+            cat >> "${GITHUB_OUTPUT}" <<-EOF
+              curl_revision=refs/tags/curl-7_77_0
+              icu_revision=refs/heads/maint/maint-69
+              libxml2_revision=refs/tags/v2.9.12
+              llvm_project_revision=${{ github.event.inputs.swift_tag }}
+              sourcekit_lsp_revision=${{ github.event.inputs.swift_tag }}
+              swift_argument_parser_revision=refs/tags/1.1.4
+              swift_cmark_revision=${{ github.event.inputs.swift_tag }}
+              swift_collections_revision=refs/tags/1.0.1
+              swift_corelibs_foundation_revision=${{ github.event.inputs.swift_tag }}
+              swift_corelibs_libdispatch_revision=${{ github.event.inputs.swift_tag }}
+              swift_corelibs_xctest_revision=${{ github.event.inputs.swift_tag }}
+              swift_crypto_revision=refs/tags/1.1.6
+              swift_driver_revision=${{ github.event.inputs.swift_tag }}
+              swift_experimental_string_processing_revision=${{ github.event.inputs.swift_tag }}
+              swift_installer_scripts_revision=refs/heads/main
+              swift_llbuild_revision=${{ github.event.inputs.swift_tag }}
+              swift_package_manager_revision=${{ github.event.inputs.swift_tag }}
+              swift_revision=${{ github.event.inputs.swift_tag }}
+              swift_syntax_revision=${{ github.event.inputs.swift_tag }}
+              swift_system_revision=refs/tags/1.1.1
+              swift_tools_support_core_revision=${{ github.event.inputs.swift_tag }}
+              yams_revsion=refs/tags/5.0.1
+              zlib_revsion=refs/tags/1.2.11
+          EOF
+          else
+            repo manifest -r --suppress-upstream-revision --suppress-dest-branch | \
+                  xmllint --xpath "//project/@name | //project/@revision" - | \
+                  xargs -n2 | \
+                  awk -F'[= ]' '{
+                    split($2, repo, "/");
+                    gsub(/-/, "_", repo[2]);
+                    print tolower(repo[2]) "_revision=" $4
+                  }' | tee -a "${GITHUB_OUTPUT}"
+            repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o stable.xml
+          fi
+
+          if [[ "${{ github.event }}" == "schedule" ]] ; then
+            echo debug_info=true >> ${GITHUB_OUTPUT}
+            echo CMAKE_BUILD_TYPE=Release >> ${GITHUB_OUTPUT}
+            echo LLVM_ENABLE_PDB=YES >> ${GITHUB_OUTPUT}
+          else
+            if [[ "${{ github.event.inputs.debug_info }}" == "true" ]] ; then
+              echo debug_info=true >> ${GITHUB_OUTPUT}
+              echo CMAKE_BUILD_TYPE=Release >> ${GITHUB_OUTPUT}
+              echo LLVM_ENABLE_PDB=YES >> ${GITHUB_OUTPUT}
+            else
+              echo debug_info=false >> ${GITHUB_OUTPUT}
+              echo CMAKE_BUILD_TYPE=Release >> ${GITHUB_OUTPUT}
+              echo LLVM_ENABLE_PDB=NO >> ${GITHUB_OUTPUT}
+            fi
+          fi
+      - uses: actions/upload-artifact@v3
+        with:
+          name: stable.xml
+          path: stable.xml
+          if-no-files-found: ignore
 
   sqlite:
     runs-on: windows-latest
@@ -98,19 +172,20 @@ jobs:
 
   icu_tools:
     runs-on: windows-latest
+    needs: [context]
 
     steps:
       # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
-          ref: refs/heads/main
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
       - uses: actions/checkout@v3
         with:
           repository: unicode-org/icu
-          ref: 'refs/heads/maint/maint-69'
+          ref: ${{ needs.context.outputs.icu_revision }}
           path: ${{ github.workspace }}/SourceCache/icu
 
       - name: Copy CMakeLists.txt
@@ -156,7 +231,7 @@ jobs:
 
   icu:
     runs-on: windows-latest
-    needs: [icu_tools]
+    needs: [context, icu_tools]
 
     strategy:
       fail-fast: false
@@ -179,13 +254,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
-          ref: refs/heads/main
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
       - uses: actions/checkout@v3
         with:
           repository: unicode-org/icu
-          ref: 'refs/heads/maint/maint-69'
+          ref: ${{ needs.context.outputs.icu_revision }}
           path: ${{ github.workspace }}/SourceCache/icu
 
       - name: Copy CMakeLists.txt
@@ -225,32 +300,33 @@ jobs:
 
   build_tools:
     runs-on: windows-latest
+    needs: [context]
 
     steps:
       - uses: actions/checkout@v3
         with:
           repository: apple/llvm-project
-          ref: ${{ github.event.inputs.llvm_project_tag }}
+          ref: ${{ needs.context.outputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-cmark
-          ref: ${{ github.event.inputs.swift_cmark_tag }}
+          ref: ${{ needs.context.outputs.swift_cmark_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-cmark
       - uses: actions/checkout@v3
         with:
           repository: apple/swift
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-syntax
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_syntax_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-syntax
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-corelibs-libdispatch
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -313,7 +389,7 @@ jobs:
   toolchain:
     runs-on:
       labels: windows-latest-8-cores
-    needs: [build_tools]
+    needs: [context, build_tools]
 
     env:
       PYTHON_VERSION: 3.9.7
@@ -332,27 +408,27 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/llvm-project
-          ref: ${{ github.event.inputs.llvm_project_tag }}
+          ref: ${{ needs.context.outputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-cmark
-          ref: ${{ github.event.inputs.swift_cmark_tag }}
+          ref: ${{ needs.context.outputs.swift_cmark_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-cmark
       - uses: actions/checkout@v3
         with:
           repository: apple/swift
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-syntax
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_syntax_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-syntax
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-corelibs-libdispatch
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
 
       - name: Install Python ${{ env.PYTHON_VERSION }} (Host)
@@ -442,7 +518,7 @@ jobs:
                 -D LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe `
                 -D LLVM_APPEND_VC_REV=NO `
                 -D LLVM_CONFIG_PATH=${{ github.workspace }}/BinaryCache/0/bin/llvm-config.exe `
-                -D LLVM_ENABLE_PDB=${{ github.event.inputs.debug_info && 'YES' || 'NO' }} `
+                -D LLVM_ENABLE_PDB=${{ needs.context.outputs.LLVM_ENABLE_PDB }} `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
                 -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
                 -D LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe `
@@ -479,14 +555,14 @@ jobs:
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
       - uses: actions/upload-artifact@v3
-        if: false # ${{ github.event.inputs.debug_info }}
+        if: false # ${{ needs.context.outputs.debug_info }}
         with:
           name: toolchain-${{ matrix.arch }}-debug-info
           path: |
             ${{ github.workspace }}/BinaryCache/1/**/*.pdb
 
       - uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ github.event.inputs.debug_info }}
+        if: ${{ needs.context.outputs.debug_info }}
         with:
           accountName: thebrowsercompany
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -494,6 +570,7 @@ jobs:
 
   zlib:
     runs-on: windows-latest
+    needs: [context]
 
     strategy:
       fail-fast: false
@@ -504,7 +581,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: madler/zlib
-          ref: 'refs/heads/master'
+          ref: ${{ github.event.inputs.zlib_revision }}
           path: ${{ github.workspace }}/SourceCache/zlib
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -539,7 +616,7 @@ jobs:
 
   curl:
     runs-on: windows-latest
-    needs: zlib
+    needs: [context, zlib]
 
     strategy:
       fail-fast: false
@@ -550,7 +627,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: curl/curl
-          ref: 'refs/tags/curl-7_77_0'
+          ref: ${{ needs.context.outputs.curl_revision }}
           path: ${{ github.workspace }}/SourceCache/curl
 
       - uses: actions/download-artifact@v3
@@ -613,6 +690,7 @@ jobs:
 
   libxml2:
     runs-on: windows-latest
+    needs: [context]
 
     strategy:
       fail-fast: false
@@ -623,7 +701,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: gnome/libxml2
-          ref: 'refs/tags/v2.9.12'
+          ref: ${{ needs.context.outputs.libxml2_revision }}
           path: ${{ github.workspace }}/SourceCache/libxml2
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -665,7 +743,7 @@ jobs:
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
     runs-on: windows-latest
-    needs: [icu, libxml2, curl, zlib, toolchain]
+    needs: [context, icu, libxml2, curl, zlib, toolchain]
 
     strategy:
       fail-fast: false
@@ -712,38 +790,37 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/llvm-project
-          ref: ${{ github.event.inputs.llvm_project_tag }}
+          ref: ${{ needs.context.outputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
       - uses: actions/checkout@v3
         with:
           repository: apple/swift
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-syntax
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_syntax_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-syntax
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-corelibs-libdispatch
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-corelibs-foundation
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_corelibs_foundation_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-corelibs-xctest
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_corelibs_xctest_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
-
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-experimental-string-processing
-          ref: ${{ github.event.inputs.swift_experimental_string_processing_tag }}
+          ref: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -947,7 +1024,7 @@ jobs:
 
   devtools:
     runs-on: windows-latest
-    needs: [sqlite, toolchain, sdk]
+    needs: [context, sqlite, toolchain, sdk]
 
     strategy:
       fail-fast: false
@@ -980,67 +1057,67 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/indexstore-db
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.indexstore_db_revision }}
           path: ${{ github.workspace }}/SourceCache/indexstore-db
       - uses: actions/checkout@v3
         with:
           repository: apple/sourcekit-lsp
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.sourcekit_lsp_revision }}
           path: ${{ github.workspace }}/SourceCache/sourcekit-lsp
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-argument-parser
-          ref: ${{ github.event.inputs.swift_argument_parser_revision }}
+          ref: ${{ needs.context.outputs.swift_argument_parser_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-argument-parser
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-collections
-          ref: ${{ github.event.inputs.swift_collections_revision }}
+          ref: ${{ needs.context.outputs.swift_collections_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-collections
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-crypto
-          ref: ${{ github.event.inputs.swift_crypto_revision }}
+          ref: ${{ needs.context.outputs.swift_crypto_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-crypto
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-driver
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_driver_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-driver
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-llbuild
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_llbuild_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-llbuild
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-package-manager
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_package_manager_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-package-manager
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-system
-          ref: ${{ github.event.inputs.swift_system_revision }}
+          ref: ${{ needs.context.outputs.swift_system_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-system
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-tools-support-core
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_tools_support_core_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-tools-support-core
       - uses: actions/checkout@v3
         with:
           repository: jpsim/Yams
-          ref: ${{ github.event.inputs.yams_revision }}
+          ref: ${{ needs.context.outputs.yams_revision }}
           path: ${{ github.workspace }}/SourceCache/Yams
       - uses: actions/checkout@v3
         with:
           repository: apple/swift
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-syntax
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_syntax_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-syntax
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -1447,7 +1524,7 @@ jobs:
 
   package_toolchain:
     runs-on: windows-latest
-    needs: [toolchain,devtools]
+    needs: [context, toolchain, devtools]
 
     strategy:
       fail-fast: false
@@ -1469,7 +1546,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
-          ref: refs/heads/main
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -1506,7 +1583,7 @@ jobs:
 
   package_sdk_runtime:
     runs-on: windows-latest
-    needs: [sdk]
+    needs: [context,sdk]
 
     strategy:
       fail-fast: false
@@ -1523,12 +1600,12 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
-          ref: refs/heads/main
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
       - uses: actions/checkout@v3
         with:
           repository: apple/swift
-          ref: ${{ github.event.inputs.swift_tag }}
+          ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -1591,7 +1668,7 @@ jobs:
 
   package_devtools:
     runs-on: windows-latest
-    needs: [devtools]
+    needs: [context,devtools]
 
     strategy:
       fail-fast: false
@@ -1608,7 +1685,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
-          ref: refs/heads/main
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -1644,7 +1721,7 @@ jobs:
 
   installer:
     runs-on: windows-latest
-    needs: [package_toolchain, package_sdk_runtime, package_devtools]
+    needs: [context, package_toolchain, package_sdk_runtime, package_devtools]
 
     strategy:
       fail-fast: false
@@ -1673,7 +1750,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
-          ref: refs/heads/main
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -1761,3 +1838,21 @@ jobs:
 
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
+
+  snapshot:
+    runs-on: ubuntu-latest
+    needs: [context, smoke_test]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: stable.xml
+
+      - run: |
+          git config --global user.name 'github-action[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add stable.xml
+          git commit -m "repo: update stable revision snapshot $(date +%Y%m%d.$(date +%-H/4 | bc))"
+          git push origin HEAD:main
