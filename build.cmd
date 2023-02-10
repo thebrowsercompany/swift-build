@@ -869,7 +869,7 @@ cmake                                                                           
   -B %BinaryCache%\4                                                            ^
   -D BUILD_SHARED_LIBS=YES                                                      ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
-  -D CMAKE_CXX_COMPILER=S:/b/1/bin/clang-cl.exe                                 ^
+  -D CMAKE_CXX_COMPILER=cl                                                      ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
   -D CMAKE_CXX_FLAGS="-Xclang -fno-split-cold-code"                             ^
