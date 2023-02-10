@@ -1,19 +1,8 @@
 # **//swift/build**
 
-The `//swift/build` project provides a CI configuration for [Azure 
-Pipelines](https://azure.microsoft.com/en-us/services/devops/pipelines/) that allows 
-building Swift for multiple platforms. The configuration is not specific to Azure, 
-and can be reused for developer builds as well. Thanks to modular packaging, with 
-`//swift/build` you can easily cross-compile your Swift code for Android and Windows 
-targets, or build on Windows natively without cross-compilation.
-
-## Table of Contents
-
-- [**//swift/build**](#--swift-build---)
-  * [Getting Started (Docker)](docs/GettingStartedDocker.md)
-  * [Getting Started (Native)](docs/GettingStartedWindows.md)
-  * [Status](#status)
-  * [Getting the latest build](#Getting-the-latest-build)
+`//swift/build` homes the CI configuration for Azure and GitHub Actions based
+builds as well as a repo manifest to provide the ability to sync the full
+repository set.
 
 ## Status
 
@@ -43,13 +32,3 @@ targets, or build on Windows natively without cross-compilation.
 ### Stable builds
 The latest stable build can be acuqired from the Swift [downloads](https://download.swift.org).
 
-### Development builds
-The `utilities/swift-build.py` script allows downloading of the latest build artifacts. The script requires the `azure-devops` and `tabulate` python packages. These can be installed with `pip`:
-```
-python3 -m pip install tabulate azure-devops
-```
-
-For example, to download the latest VS2019 build:
-```
-swift-build.py --download --build-id VS2019 --latest-artifacts --filter installer.exe
-```

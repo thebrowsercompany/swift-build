@@ -5,13 +5,12 @@ on:
     - cron: "0 */4 * * *"
   workflow_dispatch:
     inputs:
-      build_tag:
-        description: 'Build Swift at snapshot'
+      snapshot:
+        description: 'Build Swift at a tagged snapshot'
         default: false
         type: boolean
-
       swift_tag:
-        description: 'Swift snapshot'
+        description: 'swift tag'
         required: false
 
       debug_info:
@@ -20,14 +19,13 @@ on:
         type: boolean
 
 jobs:
-  # TODO(compnerd) use environment variables for package version information and wire that throughout
-
   context:
     runs-on: ubuntu-latest
     outputs:
-      curl_revsion: ${{ steps.context.outputs.curl_revsion }}
+      curl_revision: ${{ steps.context.outputs.curl_revision }}
       icu_revision: ${{ steps.context.outputs.icu_revision }}
-      libxml2_revsion: ${{ steps.context.outputs.libxml2_revsion }}
+      indexstore_db_revision: ${{ steps.context.outputs.indexstore_db_revision }}
+      libxml2_revision: ${{ steps.context.outputs.libxml2_revision }}
       llvm_project_revision: ${{ steps.context.outputs.llvm_project_revision }}
       sourcekit_lsp_revision: ${{ steps.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ steps.context.outputs.swift_argument_parser_revision }}
@@ -46,8 +44,8 @@ jobs:
       swift_syntax_revision: ${{ steps.context.outputs.swift_syntax_revision }}
       swift_system_revision: ${{ steps.context.outputs.swift_system_revision }}
       swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
-      yams_revsion: ${{ steps.context.outputs.yams_revsion }}
-      zlib_revsion: ${{ steps.context.outputs.zlib_revsion }}
+      yams_revision: ${{ steps.context.outputs.yams_revision }}
+      zlib_revision: ${{ steps.context.outputs.zlib_revision }}
       CMAKE_BUILD_TYPE: ${{ steps.context.outputs.CMAKE_BUILD_TYPE }}
       LLVM_ENABLE_PDB: ${{ steps.context.outputs.LLVM_ENABLE_PDB }}
       debug_info: ${{ steps.context.outputs.debug_info }}
@@ -55,12 +53,13 @@ jobs:
       - id: context
         name: Generate Build Context
         run: |
+          # TODO(compnerd) can we make this more silent?
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
 
           repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
-          if [[ "${{ github.event.inputs.build_tag }}" == "true" ]] ; then
+          if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
             cat >> "${GITHUB_OUTPUT}" <<-EOF
               curl_revision=refs/tags/curl-7_77_0
               icu_revision=refs/heads/maint/maint-69
@@ -83,8 +82,8 @@ jobs:
               swift_syntax_revision=${{ github.event.inputs.swift_tag }}
               swift_system_revision=refs/tags/1.1.1
               swift_tools_support_core_revision=${{ github.event.inputs.swift_tag }}
-              yams_revsion=refs/tags/5.0.1
-              zlib_revsion=refs/tags/1.2.11
+              yams_revision=refs/tags/5.0.1
+              zlib_revision=refs/tags/1.2.11
           EOF
           else
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch | \
@@ -95,6 +94,7 @@ jobs:
                     gsub(/-/, "_", repo[2]);
                     print tolower(repo[2]) "_revision=" $4
                   }' | tee -a "${GITHUB_OUTPUT}"
+            # TODO(compnerd) trim trailing whitespace
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o stable.xml
           fi
 
@@ -113,6 +113,7 @@ jobs:
               echo LLVM_ENABLE_PDB=NO >> ${GITHUB_OUTPUT}
             fi
           fi
+
       - uses: actions/upload-artifact@v3
         with:
           name: stable.xml
@@ -175,7 +176,6 @@ jobs:
     needs: [context]
 
     steps:
-      # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
@@ -250,7 +250,6 @@ jobs:
           name: icu-tools-69.1
           path: ${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin
 
-      # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
@@ -581,7 +580,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: madler/zlib
-          ref: ${{ github.event.inputs.zlib_revision }}
+          ref: ${{ needs.context.outputs.zlib_revision }}
           path: ${{ github.workspace }}/SourceCache/zlib
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -766,22 +765,18 @@ jobs:
         with:
           name: icu-${{ matrix.arch }}-69.1
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
-
       - uses: actions/download-artifact@v3
         with:
           name: libxml2-${{ matrix.arch }}-2.9.12
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr
-
       - uses: actions/download-artifact@v3
         with:
           name: curl-${{ matrix.arch }}-7.77.0
           path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
-
       - uses: actions/download-artifact@v3
         with:
           name: zlib-${{ matrix.arch }}-1.2.11
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
-
       - uses: actions/download-artifact@v3
         with:
           name: toolchain-amd64
@@ -1043,12 +1038,10 @@ jobs:
         with:
           name: sqlite-${{ matrix.arch }}-3.36.0
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
-
       - uses: actions/download-artifact@v3
         with:
           name: toolchain-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-
       - uses: actions/download-artifact@v3
         with:
           name: windows-sdk-${{ matrix.arch }}
@@ -1536,13 +1529,11 @@ jobs:
         with:
           name: toolchain-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
-
       - uses: actions/download-artifact@v3
         with:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
@@ -1583,7 +1574,7 @@ jobs:
 
   package_sdk_runtime:
     runs-on: windows-latest
-    needs: [context,sdk]
+    needs: [context, sdk]
 
     strategy:
       fail-fast: false
@@ -1596,7 +1587,6 @@ jobs:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
 
-      # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
@@ -1668,7 +1658,7 @@ jobs:
 
   package_devtools:
     runs-on: windows-latest
-    needs: [context,devtools]
+    needs: [context, devtools]
 
     strategy:
       fail-fast: false
@@ -1681,7 +1671,6 @@ jobs:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
@@ -1746,7 +1735,6 @@ jobs:
           name: devtools-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BuildRoot
 
-      # TODO(compnerd) hoist the revision to an input
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-installer-scripts
@@ -1856,3 +1844,4 @@ jobs:
           git add stable.xml
           git commit -m "repo: update stable revision snapshot $(date +%Y%m%d.$(date +%-H/4 | bc))"
           git push origin HEAD:main
+
