@@ -45,6 +45,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_REFLECTION=YES                                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
   -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=%SourceCache%\swift-syntax               ^
@@ -179,6 +180,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_REFLECTION=YES                                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
@@ -427,6 +429,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_REFLECTION=YES                                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
@@ -675,6 +678,7 @@ cmake                                                                           
   -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES                                  ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES                                  ^
+  -D SWIFT_ENABLE_EXPERIMENTAL_REFLECTION=YES                                   ^
   -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES                            ^
   -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=%BinaryCache%\1\bin                          ^
   -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=%SourceCache%\swift-corelibs-libdispatch  ^
