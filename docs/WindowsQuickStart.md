@@ -85,6 +85,14 @@ set PYTHONUTF8=1
 
 Subsequently, you can update all the repositories using `"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync`.
 
+If you wish to sync to a point that is known to build successfull, you can use the smart sync option:
+
+```
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -s
+```
+
+> **NOTE:** the first clone will fail if you do not have git-lfs.  The failure is due to the inability to checkout the ICU data which is stored using LFS, but is not fatal in practice.
+
 ### Configure Support Files
 
 In order to import the MSVC and WinSDK headers as modules into Swift code, the
