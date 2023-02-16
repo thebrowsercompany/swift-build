@@ -55,33 +55,34 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
 
           repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build
-          repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
+          repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all) >/dev/null
 
           if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
-            cat >> "${GITHUB_OUTPUT}" <<-EOF
-              curl_revision=refs/tags/curl-7_77_0
-              icu_revision=refs/heads/maint/maint-69
-              libxml2_revision=refs/tags/v2.9.12
-              llvm_project_revision=${{ github.event.inputs.swift_tag }}
-              sourcekit_lsp_revision=${{ github.event.inputs.swift_tag }}
+            tee -a "${GITHUB_OUTPUT}" <<-EOF
+              indexstore_db_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              llvm_project_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              sourcekit_lsp_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              swift_revision=refs/tags/${{ github.event.inputs.swift_tag }}
               swift_argument_parser_revision=refs/tags/1.1.4
-              swift_cmark_revision=${{ github.event.inputs.swift_tag }}
+              swift_cmark_revision=refs/tags/${{ github.event.inputs.swift_tag }}
               swift_collections_revision=refs/tags/1.0.1
-              swift_corelibs_foundation_revision=${{ github.event.inputs.swift_tag }}
-              swift_corelibs_libdispatch_revision=${{ github.event.inputs.swift_tag }}
-              swift_corelibs_xctest_revision=${{ github.event.inputs.swift_tag }}
-              swift_crypto_revision=refs/tags/1.1.6
-              swift_driver_revision=${{ github.event.inputs.swift_tag }}
-              swift_experimental_string_processing_revision=${{ github.event.inputs.swift_tag }}
+              swift_corelibs_foundation_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              swift_corelibs_libdispatch_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              swift_corelibs_xctest_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              swift_crypto_revision=refs/tags/2.2.3
+              swift_driver_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              swift_experimental_string_processing_revision=refs/tags/${{ github.event.inputs.swift_tag }}
               swift_installer_scripts_revision=refs/heads/main
-              swift_llbuild_revision=${{ github.event.inputs.swift_tag }}
-              swift_package_manager_revision=${{ github.event.inputs.swift_tag }}
-              swift_revision=${{ github.event.inputs.swift_tag }}
-              swift_syntax_revision=${{ github.event.inputs.swift_tag }}
+              swift_llbuild_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              swift_package_manager_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              swift_syntax_revision=refs/tags/${{ github.event.inputs.swift_tag }}
               swift_system_revision=refs/tags/1.1.1
-              swift_tools_support_core_revision=${{ github.event.inputs.swift_tag }}
-              yams_revision=refs/tags/5.0.1
+              swift_tools_support_core_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+              curl_revision=refs/tags/curl-7_77_0
+              libxml2_revision=refs/tags/v2.9.12
+              yams_revision=refs/tags/5.0.4
               zlib_revision=refs/tags/1.2.11
+              icu_revision=refs/heads/maint/maint-69
           EOF
           else
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch | \
