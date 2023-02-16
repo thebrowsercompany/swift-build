@@ -53,7 +53,10 @@ jobs:
       swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
       yams_revision: ${{ steps.context.outputs.yams_revision }}
       zlib_revision: ${{ steps.context.outputs.zlib_revision }}
-      CMAKE_BUILD_TYPE: ${{ steps.context.outputs.CMAKE_BUILD_TYPE }}
+      CMAKE_C_FLAGS: ${{ steps.context.outputs.CMAKE_C_FLAGS }}
+      CMAKE_CXX_FLAGS: ${{ steps.context.outputs.CMAKE_CXX_FLAGS }}
+      CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}
+      CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
       LLVM_ENABLE_PDB: ${{ steps.context.outputs.LLVM_ENABLE_PDB }}
       debug_info: ${{ steps.context.outputs.debug_info }}
       swift_version: ${{ steps.context.outputs.swift_version }}
@@ -112,20 +115,20 @@ jobs:
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o stable.xml
           fi
 
-          if [[ "${{ github.event_name }}" == "schedule" ]] ; then
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.debug_info }}" == "true" ]]; then
             echo debug_info=true >> ${GITHUB_OUTPUT}
-            echo CMAKE_BUILD_TYPE=Release >> ${GITHUB_OUTPUT}
+            echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
+            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
+            echo CMAKE_SHARED_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
+            echo CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
             echo LLVM_ENABLE_PDB=YES >> ${GITHUB_OUTPUT}
           else
-            if [[ "${{ github.event.inputs.debug_info }}" == "true" ]] ; then
-              echo debug_info=true >> ${GITHUB_OUTPUT}
-              echo CMAKE_BUILD_TYPE=Release >> ${GITHUB_OUTPUT}
-              echo LLVM_ENABLE_PDB=YES >> ${GITHUB_OUTPUT}
-            else
-              echo debug_info=false >> ${GITHUB_OUTPUT}
-              echo CMAKE_BUILD_TYPE=Release >> ${GITHUB_OUTPUT}
-              echo LLVM_ENABLE_PDB=NO >> ${GITHUB_OUTPUT}
-            fi
+            echo debug_info=false >> ${GITHUB_OUTPUT}
+            echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
+            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
+            echo CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
+            echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+            echo LLVM_ENABLE_PDB=NO >> ${GITHUB_OUTPUT}
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
@@ -143,6 +146,7 @@ jobs:
 
   sqlite:
     runs-on: windows-latest
+    needs: [context]
 
     strategy:
       fail-fast: false
@@ -175,9 +179,9 @@ jobs:
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr `
                 -G Ninja `
@@ -225,9 +229,9 @@ jobs:
                 -D BUILD_TOOLS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
                 -G Ninja `
@@ -299,9 +303,9 @@ jobs:
                 -D BUILD_TOOLS=${{ matrix.BUILD_TOOLS }} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
                 -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
@@ -356,9 +360,9 @@ jobs:
           cmake -B ${{ github.workspace }}/BinaryCache/0 `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
@@ -525,9 +529,9 @@ jobs:
                 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/${CACHE} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 ${CMAKE_SYSTEM_NAME} `
@@ -628,9 +632,9 @@ jobs:
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr `
                 -G Ninja `
@@ -679,9 +683,9 @@ jobs:
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr `
                 -G Ninja `
@@ -748,9 +752,9 @@ jobs:
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr `
                 -G Ninja `
@@ -863,9 +867,9 @@ jobs:
           cmake -B ${{ github.workspace }}/BinaryCache/llvm `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -G Ninja `
@@ -881,16 +885,17 @@ jobs:
                 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-Windows-${{ matrix.cpu }}.cmake `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_FLAGS="${{needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
                 -D MSVC_CXX_ARCHITECTURE_ID=${{ matrix.arch }} `
                 -G Ninja `
@@ -922,15 +927,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
+                -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}" `
                 -D CMAKE_SWIFT_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml" `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -956,15 +962,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml" `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -999,15 +1005,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/Library/XCTest-development/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml" `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1048,6 +1054,13 @@ jobs:
         with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+
+      - uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ needs.context.outputs.debug_info }}
+        with:
+          accountName: ${{ env.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
 
   devtools:
     runs-on: windows-latest
@@ -1186,15 +1199,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1215,15 +1228,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1243,15 +1256,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1271,15 +1284,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.target }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.target }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1299,15 +1312,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.target }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.target }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1331,15 +1344,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1360,15 +1373,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1392,15 +1405,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1470,15 +1483,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1511,15 +1524,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }} -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/include -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/include/Block" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }} -Xclang -fno-split-cold-code -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/include -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/include/Block" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1539,15 +1552,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1568,15 +1581,15 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
+                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }} -Xclang -fno-split-cold-code" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="/GS- /Oy /Gw /Gy -Xclang -fno-split-cold-code" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }} -Xclang -fno-split-cold-code" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -1614,6 +1627,13 @@ jobs:
         with:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot-DevTools/Library
+
+      - uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ needs.context.outputs.debug_info }}
+        with:
+          accountName: ${{ env.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
 
   package_toolchain:
     runs-on: windows-latest
