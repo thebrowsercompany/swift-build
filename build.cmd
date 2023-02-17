@@ -892,7 +892,7 @@ cmake --build %BinaryCache%\4 --target install || (exit /b)
 :: Yams
 cmake                                                                           ^
   -B %BinaryCache%\5                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
@@ -903,7 +903,6 @@ cmake                                                                           
   -G Ninja                                                                      ^
   -S %SourceCache%\Yams || (exit /b)
 cmake --build %BinaryCache%\5 || (exit /b)
-cmake --build %BinaryCache%\5 --target install || (exit /b)
 
 :: swift-argument-parser
 cmake                                                                           ^
@@ -947,7 +946,7 @@ cmake --build %BinaryCache%\7 --target install || (exit /b)
 :: swift-crypto
 cmake                                                                           ^
   -B %BinaryCache%\8                                                            ^
-  -D BUILD_SHARED_LIBS=YES                                                      ^
+  -D BUILD_SHARED_LIBS=NO                                                       ^
   -D CMAKE_BUILD_TYPE=Release                                                   ^
   -D CMAKE_Swift_COMPILER=S:/b/1/bin/swiftc.exe                                 ^
   -D CMAKE_Swift_FLAGS="-resource-dir %BinaryCache%\101\lib\swift -L %BinaryCache%\101\lib\swift\windows" ^
@@ -957,7 +956,6 @@ cmake                                                                           
   -G Ninja                                                                      ^
   -S %SourceCache%\swift-crypto || (exit /b)
 cmake --build %BinaryCache%\8 || (exit /b)
-cmake --build %BinaryCache%\8 --target install || (exit /b)
 
 :: swift-collections
 cmake                                                                           ^
@@ -1015,7 +1013,6 @@ cmake                                                                           
   -G Ninja                                                                      ^
   -S %SourceCache%\indexstore-db || (exit /b)
 cmake --build %BinaryCache%\11 || (exit /b)
-cmake --build %BinaryCache%\11 --target install || (exit /b)
 
 :: swift-syntax
 cmake                                                                           ^

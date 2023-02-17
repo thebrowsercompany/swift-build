@@ -1192,7 +1192,7 @@ jobs:
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-crypto `
-                -D BUILD_SHARED_LIBS=YES `
+                -D BUILD_SHARED_LIBS=NO `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
@@ -1497,8 +1497,6 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser --target install
       - name: Install swift-collections
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections --target install
-      - name: Install swift-crypto
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-crypto --target install
       - name: Install swift-llbuild
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild --target install
       - name: Install swift-system
@@ -1509,8 +1507,6 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver --target install
       - name: Install swift-package-manager
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager --target install
-      - name: Install IndexStoreDB
-        run: cmake --build ${{ github.workspace }}/BinaryCache/indexstore-db --target install
       - name: Install SourceKit-LSP
         run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp --target install
 
@@ -1847,7 +1843,7 @@ jobs:
       - run: |
           git config --global user.name 'github-action[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          if git diff --exit-code ; then
+          if ! git diff --exit-code ; then
             git add stable.xml
             git commit -m "repo: update stable revision snapshot $(date +%Y%m%d.$(date +%-H/4 | bc))"
             git push origin HEAD:main
