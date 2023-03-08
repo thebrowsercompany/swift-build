@@ -123,10 +123,11 @@ function Build-CMakeProject
     Invoke-VsDevShell $Arch
     $CurrentVSDevShellTargetArch = $Arch
   }
-  
+
   # Add additional defines (unless already present)
   $Defines = $Defines.Clone()
   TryAddKeyValue $Defines CMAKE_BUILD_TYPE $BuildType
+  TryAddKeyValue $Defines CMAKE_MT "mt"
 
   $CFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline"
   $CXXFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:__cplusplus"
@@ -158,17 +159,19 @@ function Build-CMakeProject
   if ($UseBuiltCompilers.Contains("Swift")) {
     TryAddKeyValue $Defines CMAKE_Swift_COMPILER S:/b/1/bin/swiftc.exe
     TryAddKeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
-    
+
     $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
     $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
-    $SwiftcFlags = @("-resource-dir $SwiftResourceDir",
+    $SwiftcFlags = @(
+      "-resource-dir $SwiftResourceDir",
       " -L $SwiftResourceDir\windows",
       " -vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml",
       " -g -debug-info-format=codeview",
       " -Xlinker /INCREMENTAL:NO",
       " -Xlinker /DEBUG",
       " -Xlinker /OPT:REF",
-      " -Xlinker /OPT:ICF") -Join " "
+      " -Xlinker /OPT:ICF"
+    ) -Join " "
 
     TryAddKeyValue $Defines CMAKE_Swift_FLAGS  $SwiftcFlags
   }
@@ -200,7 +203,7 @@ function Build-CMakeProject
     cmake --build $Bin --target $Target
     Check-LastExitCode
   }
-  
+
   if ("" -ne $InstallTo)
   {
     cmake --build $Bin --target install
@@ -221,7 +224,6 @@ function Build-Compilers($Arch)
     -CacheScript $SourceCache\swift\cmake\caches\Windows-$($Arch.LLVMName).cmake `
     -Defines @{
       CMAKE_INSTALL_PREFIX = "$ToolchainInstallRoot\usr";
-      CMAKE_MT = "mt";
       LLVM_ENABLE_PDB = "YES";
       LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
       LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
@@ -253,7 +255,6 @@ function Build-LLVM($Arch)
     -Bin (Get-ProjectBuildDir $Arch 0) `
     -Arch $Arch `
     -Defines @{
-      CMAKE_MT = "mt";
       LLVM_HOST_TRIPLE = $Arch.LLVMTarget;
     }
 }
@@ -261,7 +262,7 @@ function Build-LLVM($Arch)
 function Build-ZLib($Arch)
 {
   $ArchName = $Arch.ShortName
-  
+
   Build-CMakeProject `
     -Src $SourceCache\zlib `
     -Bin $BinaryCache\zlib-1.2.11.$ArchName `
@@ -270,7 +271,6 @@ function Build-ZLib($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_MT = "mt";
       INSTALL_BIN_DIR = "$InstallRoot\zlib-1.2.11\usr\bin\$ArchName";
       INSTALL_LIB_DIR = "$InstallRoot\zlib-1.2.11\usr\lib\$ArchName";
     }
@@ -288,7 +288,6 @@ function Build-XML2($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_MT = "mt";
       CMAKE_INSTALL_BINDIR = "bin/$ArchName";
       CMAKE_INSTALL_LIBDIR = "lib/$ArchName";
       LIBXML2_WITH_ICONV = "NO";
@@ -313,7 +312,6 @@ function Build-CURL($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_MT = "mt";
       CMAKE_INSTALL_BINDIR = "bin/$ArchName";
       CMAKE_INSTALL_LIBDIR = "lib/$ArchName";
       BUILD_CURL_EXE = "NO";
@@ -371,12 +369,11 @@ function Build-ICU($Arch)
     -InstallTo "$InstallRoot\icu-69.1\usr" `
     -Arch $Arch `
     -BuildDefaultTarget `
-    -Defines (@{
+    -Defines ($BuildToolsDefines + @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_MT = "mt";
       CMAKE_INSTALL_BINDIR = "bin/$ArchName";
       CMAKE_INSTALL_LIBDIR = "lib/$ArchName";
-    } + $BuildToolsDefines)
+    })
 }
 
 function Build-Runtime($Arch)
@@ -392,7 +389,6 @@ function Build-Runtime($Arch)
     -UseBuiltCompilers C,CXX `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_MT = "mt";
       LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
       SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
@@ -423,7 +419,6 @@ function Build-Dispatch($Arch)
     -UseBuiltCompilers C,CXX,Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_MT = "mt";
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       ENABLE_SWIFT = "YES";
@@ -479,7 +474,6 @@ function Build-Foundation($Arch)
     -UseBuiltCompilers ASM,C,Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_MT = "mt";
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       CURL_DIR = "$InstallRoot\curl-7.77.0\usr\lib\$ShortArch\cmake\CURL";
@@ -592,7 +586,7 @@ function Build-SQLite($Arch)
     ."$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
     Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
   }
-  
+
   Build-CMakeProject `
     -Src $SourceCache\sqlite-3.36.0 `
     -Bin $BinaryCache\sqlite-3.36.0.$ArchName `
@@ -601,7 +595,6 @@ function Build-SQLite($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_MT = "mt"
     }
 }
 
@@ -615,9 +608,7 @@ function Build-System($Arch)
     -UseBuiltCompilers C,Swift `
     -BuildDefaultTarget `
     -Defines @{
-      BUILD_SHARED_LIBS = "NO";
-      CMAKE_INSTALL_LIBDIR = "lib/$($Arch.ShortName)";
-      CMAKE_MT = "mt"
+      BUILD_SHARED_LIBS = "YES";
     }
 }
 
@@ -625,7 +616,7 @@ function Build-ToolsSupportCore($Arch)
 {
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  
+
   Build-CMakeProject `
     -Src $SourceCache\swift-tools-support-core `
     -Bin $BinaryCache\3 `
@@ -635,7 +626,6 @@ function Build-ToolsSupportCore($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
-      CMAKE_MT = "mt";
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
@@ -648,7 +638,7 @@ function Build-LLBuild($Arch)
 {
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  
+
   Build-CMakeProject `
     -Src $SourceCache\llbuild `
     -Bin $BinaryCache\4 `
@@ -659,8 +649,6 @@ function Build-LLBuild($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
-      CMAKE_INSTALL_LIBDIR = "lib/$($Arch.ShortName)";
-      CMAKE_MT = "mt";
       LLBUILD_SUPPORT_BINDINGS = "Swift";
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
@@ -674,11 +662,10 @@ function Build-Yams($Arch)
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
   $XCTestBuildDir = Get-ProjectBuildDir $Arch 4
-  
+
   Build-CMakeProject `
     -Src $SourceCache\Yams `
     -Bin $BinaryCache\5 `
-    -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
@@ -695,7 +682,7 @@ function Build-ArgumentParser($Arch)
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
   $XCTestBuildDir = Get-ProjectBuildDir $Arch 4
-  
+
   Build-CMakeProject `
     -Src $SourceCache\swift-argument-parser `
     -Bin $BinaryCache\6 `
@@ -746,7 +733,6 @@ function Build-Crypto($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-crypto `
     -Bin $BinaryCache\8 `
-    -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
@@ -779,7 +765,6 @@ function Build-ASN1($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-asn1 `
     -Bin $BinaryCache\10 `
-    -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
@@ -794,7 +779,7 @@ function Build-Certificates($Arch)
 {
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  
+
   Build-CMakeProject `
     -Src $SourceCache\swift-certificates `
     -Bin $BinaryCache\11 `
@@ -803,7 +788,6 @@ function Build-Certificates($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_INSTALL_PREFIX = "$ToolchainInstallRoot\usr"; # Don't use -InstallTo, we don't build install
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftASN1_DIR = "$BinaryCache\10\cmake\modules";
@@ -817,7 +801,7 @@ function Build-PackageManager($Arch)
   $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  
+
   Build-CMakeProject `
     -Src $SourceCache\swift-package-manager `
     -Bin $BinaryCache\12 `
@@ -827,7 +811,6 @@ function Build-PackageManager($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
-      CMAKE_MT = "mt";
       CMAKE_Swift_FLAGS = "-DCRYPTO_v2 -resource-dir $SwiftResourceDir -L $SwiftResourceDir\windows -vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml";
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
@@ -849,7 +832,7 @@ function Build-IndexStoreDB($Arch)
 {
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  
+
   Build-CMakeProject `
     -Src $SourceCache\indexstore-db `
     -Bin $BinaryCache\13 `
@@ -858,9 +841,7 @@ function Build-IndexStoreDB($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_MT = "mt";
       CMAKE_CXX_FLAGS = "-Xclang -fno-split-cold-code";
-      CMAKE_INSTALL_PREFIX = "$ToolchainInstallRoot\usr"; # Specify here to not build the install target
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
     }
@@ -876,7 +857,7 @@ function Build-Syntax($Arch)
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_MT = "mt";
+      BUILD_SHARED_LIBS = "YES";
     }
 }
 
@@ -884,7 +865,7 @@ function Build-SourceKitLSP($Arch)
 {
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  
+
   Build-CMakeProject `
     -Src $SourceCache\sourcekit-lsp `
     -Bin $BinaryCache\15 `
@@ -893,7 +874,6 @@ function Build-SourceKitLSP($Arch)
     -UseBuiltCompilers C,Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_MT = "mt";
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
@@ -947,7 +927,7 @@ Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\b
 $python = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
 if (-not (Test-Path $python))
 {
-  $python = ((where.exe python) | Out-String).Trim()
+  $python = (where.exe python) | Select -First 1
   if (-not (Test-Path $python))
   {
     throw "Python.exe not found"
