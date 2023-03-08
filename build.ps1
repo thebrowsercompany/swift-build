@@ -88,11 +88,23 @@ function Invoke-VsDevShell($Arch)
   Check-LastExitCode
 }
 
-function TryAddKeyValue([hashtable]$Hashtable, [string]$Key, [string]$Value)
+function TryAdd-Define([hashtable]$Defines, [string]$Name, [string]$Value)
 {
-  if (-not $Hashtable.Contains($Key))
+  if (-not $Defines.Contains($Name))
   {
-    $Hashtable.Add($Key, $Value)
+    $Defines.Add($Name, $Value)
+  }
+}
+
+function Append-FlagsDefine([hashtable]$Defines, [string]$Name, [string]$Value)
+{
+  if ($Defines.Contains($Name))
+  {
+    $Defines[$name] += " $Value" 
+  }
+  else
+  {
+    $Defines.Add($Name, $Value)
   }
 }
 
@@ -126,57 +138,57 @@ function Build-CMakeProject
 
   # Add additional defines (unless already present)
   $Defines = $Defines.Clone()
-  TryAddKeyValue $Defines CMAKE_BUILD_TYPE $BuildType
-  TryAddKeyValue $Defines CMAKE_MT "mt"
+  TryAdd-Define $Defines CMAKE_BUILD_TYPE $BuildType
+  TryAdd-Define $Defines CMAKE_MT "mt"
 
   $CFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline"
   $CXXFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:__cplusplus"
   if ($UseMSVCCompilers.Contains("C"))
   {
-    TryAddKeyValue $Defines CMAKE_C_COMPILER cl
-    TryAddKeyValue $Defines CMAKE_C_FLAGS $CFlags
+    TryAdd-Define $Defines CMAKE_C_COMPILER cl
+    Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
   }
   if ($UseMSVCCompilers.Contains("CXX"))
   {
-    TryAddKeyValue $Defines CMAKE_CXX_COMPILER cl
-    TryAddKeyValue $Defines CMAKE_CXX_FLAGS $CXXFlags
+    TryAdd-Define $Defines CMAKE_CXX_COMPILER cl
+    Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("ASM")) {
-    TryAddKeyValue $Defines CMAKE_ASM_COMPILER S:/b/1/bin/clang-cl.exe
-    TryAddKeyValue $Defines CMAKE_ASM_FLAGS "--target=$($Arch.LLVMTarget)"
-    TryAddKeyValue $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
+    TryAdd-Define $Defines CMAKE_ASM_COMPILER S:/b/1/bin/clang-cl.exe
+    Append-FlagsDefine $Defines CMAKE_ASM_FLAGS "--target=$($Arch.LLVMTarget)"
+    TryAdd-Define $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
   }
   if ($UseBuiltCompilers.Contains("C")) {
-    TryAddKeyValue $Defines CMAKE_C_COMPILER S:/b/1/bin/clang-cl.exe
-    TryAddKeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
-    TryAddKeyValue $Defines CMAKE_C_FLAGS $CFlags
+    TryAdd-Define $Defines CMAKE_C_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-Define $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
+    Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
   }
   if ($UseBuiltCompilers.Contains("CXX")) {
-    TryAddKeyValue $Defines CMAKE_CXX_COMPILER S:/b/1/bin/clang-cl.exe
-    TryAddKeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
-    TryAddKeyValue $Defines CMAKE_CXX_FLAGS $CXXFlags
+    TryAdd-Define $Defines CMAKE_CXX_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-Define $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
+    Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("Swift")) {
-    TryAddKeyValue $Defines CMAKE_Swift_COMPILER S:/b/1/bin/swiftc.exe
-    TryAddKeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
+    TryAdd-Define $Defines CMAKE_Swift_COMPILER S:/b/1/bin/swiftc.exe
+    TryAdd-Define $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
 
     $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
     $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
     $SwiftcFlags = @(
       "-resource-dir $SwiftResourceDir",
-      " -L $SwiftResourceDir\windows",
-      " -vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml",
-      " -g -debug-info-format=codeview",
-      " -Xlinker /INCREMENTAL:NO",
-      " -Xlinker /DEBUG",
-      " -Xlinker /OPT:REF",
-      " -Xlinker /OPT:ICF"
+      "-L $SwiftResourceDir\windows",
+      "-vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml",
+      "-g -debug-info-format=codeview",
+      "-Xlinker /INCREMENTAL:NO",
+      "-Xlinker /DEBUG",
+      "-Xlinker /OPT:REF",
+      "-Xlinker /OPT:ICF"
     ) -Join " "
 
-    TryAddKeyValue $Defines CMAKE_Swift_FLAGS  $SwiftcFlags
+    Append-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftcFlags
   }
   if ("" -ne $InstallTo) {
-    TryAddKeyValue $Defines CMAKE_INSTALL_PREFIX $InstallTo
+    TryAdd-Define $Defines CMAKE_INSTALL_PREFIX $InstallTo
   }
 
   # Generate the project
@@ -797,8 +809,6 @@ function Build-Certificates($Arch)
 
 function Build-PackageManager($Arch)
 {
-  $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
-  $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
   $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
   $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
 
@@ -811,7 +821,7 @@ function Build-PackageManager($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
-      CMAKE_Swift_FLAGS = "-DCRYPTO_v2 -resource-dir $SwiftResourceDir -L $SwiftResourceDir\windows -vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml";
+      CMAKE_Swift_FLAGS = "-DCRYPTO_v2";
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
@@ -841,6 +851,7 @@ function Build-IndexStoreDB($Arch)
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
+      CMAKE_C_FLAGS = "-Xclang -fno-split-cold-code";
       CMAKE_CXX_FLAGS = "-Xclang -fno-split-cold-code";
       dispatch_DIR = "$DispatchBuildDir\cmake\modules";
       Foundation_DIR = "$FoundationBuildDir\cmake\modules";
@@ -927,7 +938,7 @@ Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\b
 $python = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
 if (-not (Test-Path $python))
 {
-  $python = (where.exe python) | Select -First 1
+  $python = (where.exe python) | Select-Object -First 1
   if (-not (Test-Path $python))
   {
     throw "Python.exe not found"
