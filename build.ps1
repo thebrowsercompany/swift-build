@@ -1,6 +1,10 @@
 # Copyright 2020 Saleem Abdulrasool <compnerd@compnerd.org>
 # Copyright 2023 Tristan Labelle <tristan@thebrowser.company>
 
+param(
+  [string[]] $SDKs = @("X64","X86","Arm64")
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
@@ -48,6 +52,16 @@ $ArchARM64 = @{
 $HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
   'ARM64' { $ArchARM64 }
   default { $ArchX64 }
+}
+
+# Resolve the architectures received as argument
+$SDKArchs = $SDKs | ForEach-Object {
+  switch ($_) {
+    "X64" { $ArchX64 }
+    "X86" { $ArchX86 }
+    "Arm64" { $ArchArm64 }
+    default { throw "Unknown architecture $_" }
+  }
 }
 
 $CurrentVSDevShellTargetArch = $null
@@ -902,7 +916,7 @@ function Build-SourceKitLSP($Arch)
 
 Build-Compilers $HostArch
 
-foreach ($Arch in $ArchX64,$ArchX86,$ArchARM64)
+foreach ($Arch in $SDKArchs)
 {
   Build-ZLib $Arch
   Build-XML2 $Arch
