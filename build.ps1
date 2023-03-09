@@ -2,13 +2,13 @@
 # Copyright 2023 Tristan Labelle <tristan@thebrowser.company>
 
 param(
-  [string[]] $SDKs = @("X64","X86","Arm64")
+  [string[]] $SDKs = @("X64","X86","Arm64"),
+  [string] $SourceCache = "S:\SourceCache"
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
-$SourceCache = "S:\SourceCache"
 $BinaryCache = "S:\b"
 $InstallRoot = "S:\Library"
 $ToolchainInstallRoot = "$InstallRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
