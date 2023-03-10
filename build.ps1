@@ -570,11 +570,12 @@ function Build-XCTest($Arch)
 {
   $DispatchBinDir = Get-ProjectBuildDir $Arch 2
   $FoundationBinDir = Get-ProjectBuildDir $Arch 3
+  $InstallDir = "$PlatformInstallRoot\Developer\Library\XCTest-development\usr"
 
   Build-CMakeProject `
     -Src $SourceCache\swift-corelibs-xctest `
     -Bin (Get-ProjectBuildDir $Arch 4) `
-    -InstallTo $PlatformInstallRoot\Developer\Library\XCTest-development\usr `
+    -InstallTo $InstallDir `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
@@ -587,27 +588,27 @@ function Build-XCTest($Arch)
 
   # Restructure Runtime
   Remove-Item -Recurse -Force -ErrorAction Ignore `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\$($Arch.BinaryDir)
+    $InstallDir\$($Arch.BinaryDir)
   Move-Item -Force `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\bin `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\$($Arch.BinaryDir)
+    $InstallDir\bin `
+    $InstallDir\$($Arch.BinaryDir)
 
   # Restructure Import Libraries
   New-Item -ErrorAction Ignore -Type Directory `
-    -Path $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\$($Arch.LLVMName)
+    -Path $InstallDir\lib\swift\windows\$($Arch.LLVMName)
   Move-Item -Force `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.lib `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.lib
+    $InstallDir\lib\swift\windows\XCTest.lib `
+    $InstallDir\lib\swift\windows\$($Arch.LLVMName)\XCTest.lib
 
   # Restructure Module
   New-Item -ErrorAction Ignore -Type Directory `
-    -Path $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule
+    -Path $InstallDir\lib\swift\windows\XCTest.swiftmodule
   Move-Item -Force `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftdoc `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftdoc
+    $InstallDir\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftdoc `
+    $InstallDir\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftdoc
   Move-Item -Force `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftmodule `
-    $PlatformInstallRoot\Developer\Library\XCTest-development\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftmodule
+    $InstallDir\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftmodule `
+    $InstallDir\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftmodule
 }
 
 function Build-SQLite($Arch)
