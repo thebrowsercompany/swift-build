@@ -276,6 +276,35 @@ function Build-WiXProject()
   Check-LastExitCode
 }
 
+function Build-BuildTools($Arch)
+{
+  Build-CMakeProject `
+    -Src $SourceCache\llvm-project\llvm `
+    -Bin $BinaryCache\0 `
+    -Arch $Arch `
+    -BuildTargets llvm-tblgen,clang-tblgen,lldb-tblgen,llvm-config,swift-def-to-strings-converter,swift-serialize-diagnostics,swift-compatibility-symbols `
+    -Defines @{
+      LLDB_ENABLE_PYTHON = "NO";
+      LLDB_INCLUDE_TESTS = "NO";
+      LLDB_ENABLE_SWIFT_SUPPORT = "NO";
+      LLVM_ENABLE_ASSERTIONS = "NO";
+      LLVM_ENABLE_LIBEDIT = "NO";
+      LLVM_ENABLE_LIBXML2 = "NO";
+      LLVM_ENABLE_PROJECTS = "clang;lldb";
+      LLVM_EXTERNAL_PROJECTS = "cmark;swift";
+      LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
+      LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
+      SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "NO";
+      SWIFT_BUILD_DYNAMIC_STDLIB = "NO";
+      SWIFT_BUILD_REMOTE_MIRROR = "NO";
+      SWIFT_BUILD_STATIC_SDK_OVERLAY = "NO";
+      SWIFT_BUILD_STATIC_STDLIB = "NO";
+      SWIFT_INCLUDE_DOCS = "NO";
+      SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
+      SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
+    }
+}
+
 function Build-Compilers($Arch)
 {
   Build-CMakeProject `
@@ -285,15 +314,24 @@ function Build-Compilers($Arch)
     -BuildTargets distribution,install-distribution `
     -CacheScript $SourceCache\swift\cmake\caches\Windows-$($Arch.LLVMName).cmake `
     -Defines @{
+      CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
       CMAKE_INSTALL_PREFIX = "$ToolchainInstallRoot\usr";
+      LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
+      LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
       LLVM_ENABLE_PDB = "YES";
       LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
       LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
+      LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
+      LLVM_USE_HOST_TOOLS = "NO";
+      SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "NO";
+      SWIFT_BUILD_DYNAMIC_STDLIB = "NO";
+      SWIFT_BUILD_REMOTE_MIRROR = "NO";
       SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_REFLECTION = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
+      SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\0\bin";
       SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
       SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
       SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
@@ -962,6 +1000,7 @@ function Build-Installer()
 
 #-------------------------------------------------------------------
 
+Build-BuildTools $HostArch
 Build-Compilers $HostArch
 
 foreach ($Arch in $SDKArchs)
