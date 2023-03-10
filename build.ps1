@@ -16,7 +16,8 @@ $PlatformInstallRoot = "$InstallRoot\Developer\Platforms\Windows.platform"
 $SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
 
 $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-$VSInstallRoot = .$vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
+$VSInstallRoot = & $vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
+$msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$env:PROCESSOR_ARCHITECTURE\MSBuild.exe"
 
 # Architecture definitions
 $ArchX64 = @{
@@ -81,6 +82,15 @@ function Get-ProjectBuildDir($Arch, $ID)
   return "$BinaryCache\" + ($Arch.BuildID + $ID)
 }
 
+function Get-RuntimeInstallDir($Arch, $SubDir = "")
+{
+  $Path = "$InstallRoot\swift-development\$($Arch.ShortName)"
+  if ("" -ne $SubDir) {
+    $Path += "\$SubDir"
+  }
+  return $Path
+}
+
 function Check-LastExitCode
 {
   if ($LastExitCode -ne 0)
@@ -102,11 +112,11 @@ function Invoke-VsDevShell($Arch)
   Check-LastExitCode
 }
 
-function TryAdd-Define([hashtable]$Defines, [string]$Name, [string]$Value)
+function TryAdd-KeyValue([hashtable]$Hashtable, [string]$Key, [string]$Value)
 {
-  if (-not $Defines.Contains($Name))
+  if (-not $Hashtable.Contains($Key))
   {
-    $Defines.Add($Name, $Value)
+    $Hashtable.Add($Key, $Value)
   }
 }
 
@@ -152,39 +162,39 @@ function Build-CMakeProject
 
   # Add additional defines (unless already present)
   $Defines = $Defines.Clone()
-  TryAdd-Define $Defines CMAKE_BUILD_TYPE $BuildType
-  TryAdd-Define $Defines CMAKE_MT "mt"
+  TryAdd-KeyValue $Defines CMAKE_BUILD_TYPE $BuildType
+  TryAdd-KeyValue $Defines CMAKE_MT "mt"
 
   $CFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline"
   $CXXFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:__cplusplus"
   if ($UseMSVCCompilers.Contains("C"))
   {
-    TryAdd-Define $Defines CMAKE_C_COMPILER cl
+    TryAdd-KeyValue $Defines CMAKE_C_COMPILER cl
     Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
   }
   if ($UseMSVCCompilers.Contains("CXX"))
   {
-    TryAdd-Define $Defines CMAKE_CXX_COMPILER cl
+    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER cl
     Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("ASM")) {
-    TryAdd-Define $Defines CMAKE_ASM_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER S:/b/1/bin/clang-cl.exe
     Append-FlagsDefine $Defines CMAKE_ASM_FLAGS "--target=$($Arch.LLVMTarget)"
-    TryAdd-Define $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
+    TryAdd-KeyValue $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
   }
   if ($UseBuiltCompilers.Contains("C")) {
-    TryAdd-Define $Defines CMAKE_C_COMPILER S:/b/1/bin/clang-cl.exe
-    TryAdd-Define $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
+    TryAdd-KeyValue $Defines CMAKE_C_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
     Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
   }
   if ($UseBuiltCompilers.Contains("CXX")) {
-    TryAdd-Define $Defines CMAKE_CXX_COMPILER S:/b/1/bin/clang-cl.exe
-    TryAdd-Define $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
+    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
     Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("Swift")) {
-    TryAdd-Define $Defines CMAKE_Swift_COMPILER S:/b/1/bin/swiftc.exe
-    TryAdd-Define $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
+    TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER S:/b/1/bin/swiftc.exe
+    TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
 
     $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
     $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
@@ -202,7 +212,7 @@ function Build-CMakeProject
     Append-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftcFlags
   }
   if ("" -ne $InstallTo) {
-    TryAdd-Define $Defines CMAKE_INSTALL_PREFIX $InstallTo
+    TryAdd-KeyValue $Defines CMAKE_INSTALL_PREFIX $InstallTo
   }
 
   # Generate the project
@@ -238,6 +248,32 @@ function Build-CMakeProject
 
   Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Finished building '$Src' to '$Bin' for arch '$($Arch.ShortName)' in $($Stopwatch.Elapsed)"
   Write-Host ""
+}
+
+function Build-WiXProject()
+{
+  [CmdletBinding(PositionalBinding = $false)]
+  param(
+    [Parameter(Position = 0)]
+    [string]$FileName,
+    [hashtable]$Properties = @{}
+  )
+
+  $Name = $FileName.Split('.')[0]
+
+  $Properties = $Properties.Clone()
+  TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
+  TryAdd-KeyValue $Properties OutputPath $BinaryCache\msi\
+  TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\
+
+  $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
+  $MSBuildArgs += "-noLogo"
+  foreach ($Property in $Properties.GetEnumerator()) {
+    $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
+  }
+
+  & $msbuild @MSBuildArgs
+  Check-LastExitCode
 }
 
 function Build-Compilers($Arch)
@@ -415,6 +451,7 @@ function Build-Runtime($Arch)
     -UseBuiltCompilers C,CXX `
     -BuildDefaultTarget `
     -Defines @{
+      CMAKE_INSTALL_BINDIR = Get-RuntimeInstallDir $Arch "usr\bin";
       LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
       SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
@@ -426,13 +463,6 @@ function Build-Runtime($Arch)
       SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
       SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
     }
-
-  # Restructure runtime
-  New-Item -ErrorAction Ignore -Type Directory `
-    -Path $InstallRoot\swift-development\usr\bin\$($Arch.ShortName)
-  Move-Item -Force `
-    $SDKInstallRoot\usr\bin\*.dll `
-    $InstallRoot\swift-development\usr\bin\$($Arch.ShortName)\
 }
 
 function Build-Dispatch($Arch)
@@ -445,18 +475,12 @@ function Build-Dispatch($Arch)
     -UseBuiltCompilers C,CXX,Swift `
     -BuildDefaultTarget `
     -Defines @{
+      CMAKE_INSTALL_BINDIR = Get-RuntimeInstallDir $Arch "usr\bin";
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       ENABLE_SWIFT = "YES";
       BUILD_TESTING = "NO";
     }
-
-  # Restructure Runtime
-  New-Item -ErrorAction Ignore -Type Directory `
-    -Path $InstallRoot\swift-development\usr\bin\$($Arch.ShortName)
-  Move-Item -Force `
-    $SDKInstallRoot\usr\bin\*.dll `
-    $InstallRoot\swift-development\usr\bin\$($Arch.ShortName)\
 
   # Restructure BlocksRuntime, dispatch headers
   foreach ($module in ("Block", "dispatch", "os"))
@@ -500,6 +524,7 @@ function Build-Foundation($Arch)
     -UseBuiltCompilers ASM,C,Swift `
     -BuildDefaultTarget `
     -Defines @{
+      CMAKE_INSTALL_BINDIR = Get-RuntimeInstallDir $Arch "usr\bin";
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       CURL_DIR = "$InstallRoot\curl-7.77.0\usr\lib\$ShortArch\cmake\CURL";
@@ -515,14 +540,6 @@ function Build-Foundation($Arch)
       dispatch_DIR = "$DispatchBinDir\cmake\modules";
       ENABLE_TESTING = "NO";
     }
-
-  # Restructure Runtime
-  Move-Item -Force `
-    $SDKInstallRoot\usr\bin\*.dll `
-    $InstallRoot\swift-development\usr\bin\$ShortArch\
-  Move-Item -Force `
-    $SDKInstallRoot\usr\bin\*.exe `
-    $InstallRoot\swift-development\usr\bin\$ShortArch\
 
   # Remove CoreFoundation Headers
   foreach ($module in ("CoreFoundation", "CFXMLInterface", "CFURLSessionInterface"))
@@ -910,6 +927,36 @@ function Build-SourceKitLSP($Arch)
       IndexStoreDB_DIR = "$BinaryCache\13\cmake\modules";
       SwiftSyntax_DIR = "$BinaryCache\14\cmake\modules";
     }
+}
+
+function Build-Installer()
+{
+  # Currently fails due to _InternalSwiftScan paths
+  # Build-WiXProject toolchain.wixproj -Properties @{
+  #   DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
+  #   TOOLCHAIN_ROOT = "$ToolchainInstallRoot\";
+  # }
+
+  # TODO: The XCTest depends on the architecture
+  # Build-WiXProject sdk.wixproj -Properties @{
+  #   PLATFORM_ROOT = "$PlatformInstallRoot\";
+  #   SDK_ROOT = "$SDKInstallRoot\";
+  #   SWIFT_SOURCE_DIR = "$SourceCache\swift\";
+  # }
+
+  Build-WiXProject runtime.wixproj -Properties @{
+    SDK_ROOT = (Get-RuntimeInstallDir $ArchX64) + "\";
+  }
+
+  Build-WiXProject devtools.wixproj -Properties @{
+    DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
+  }
+
+  # TODO: The above wixprojs need to build
+  # Build-WiXProject installer.wixproj -Properties @{
+  #   OutputPath = "$BinaryCache\";
+  #   MSI_LOCATION = "$BinaryCache\msi\";
+  # }
 }
 
 #-------------------------------------------------------------------
