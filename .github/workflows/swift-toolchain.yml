@@ -483,6 +483,15 @@ jobs:
           Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\vcruntime.apinotes" -destination "$env:VCToolsInstallDir\include\vcruntime.apinotes"
           Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
 
+      - name: 'Debug via SSH'
+        if: ${{ matrix.arch == 'arm64' }}
+        uses: luchihoratiu/debug-via-ssh@main
+        with:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          SSH_PASS: ${{ secrets.SSH_PASS }}
+        env:
+          UserName: runneradmin
+
       # TODO(compnerd) switch this to Python 3.6.8
       - name: Configure Toolchain
         run: |
