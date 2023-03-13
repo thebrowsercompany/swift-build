@@ -146,6 +146,7 @@ function Build-CMakeProject
     [string] $CacheScript = "",
     [string[]] $UseMSVCCompilers = @(), # C,CXX
     [string[]] $UseBuiltCompilers = @(), # ASM,C,CXX,Swift
+    [string] $SwiftSDK = "",
     [hashtable] $Defines = @{},
     [switch] $BuildDefaultTarget = $false,
     [string[]] $BuildTargets = @()
@@ -198,17 +199,27 @@ function Build-CMakeProject
 
     $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
     $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
-    $SwiftcFlags = @(
-      "-resource-dir $SwiftResourceDir",
-      "-L $SwiftResourceDir\windows",
-      "-vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml",
-      "-g -debug-info-format=codeview",
-      "-Xlinker /INCREMENTAL:NO",
-      "-Xlinker /DEBUG",
-      "-Xlinker /OPT:REF",
-      "-Xlinker /OPT:ICF"
-    ) -Join " "
 
+    $SwiftArgs = [System.Collections.ArrayList]@()
+
+    if ($SwiftSDK -ne "") {
+      $SwiftArgs.Add("-sdk $SwiftSDK") | Out-Null
+    } else {
+      $SwiftArgs.Add("-resource-dir $SwiftResourceDir") | Out-Null
+      $SwiftArgs.Add("-L $SwiftResourceDir\windows") | Out-Null
+      $SwiftArgs.Add("-vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml") | Out-Null
+    }
+
+    # Debug Information
+    $SwiftArgs.Add("-g -debug-info-format=codeview") | Out-Null
+    $SwiftArgs.Add("-Xlinker /INCREMENTAL:NO") | Out-Null
+    $SwiftArgs.Add("-Xlinker /DEBUG") | Out-Null
+
+    # Swift Requries COMDAT folding and de-duplication
+    $SwiftArgs.Add("-Xlinker /OPT:REF") | Out-Null
+    $SwiftArgs.Add("-Xlinker /OPT:ICF") | Out-Null
+
+    $SwiftcFlags = $SwiftArgs.ToArray() -Join " "
     Append-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftcFlags
   }
   if ("" -ne $InstallTo) {
@@ -688,6 +699,7 @@ function Build-System($Arch)
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
@@ -696,20 +708,16 @@ function Build-System($Arch)
 
 function Build-ToolsSupportCore($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\swift-tools-support-core `
     -Bin $BinaryCache\3 `
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
       SQLite3_INCLUDE_DIR = "$InstallRoot\sqlite-3.36.0\usr\include";
       SQLite3_LIBRARY = "$InstallRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
@@ -718,9 +726,6 @@ function Build-ToolsSupportCore($Arch)
 
 function Build-LLBuild($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\llbuild `
     -Bin $BinaryCache\4 `
@@ -728,12 +733,11 @@ function Build-LLBuild($Arch)
     -Arch $Arch `
     -UseMSVCCompilers CXX `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       LLBUILD_SUPPORT_BINDINGS = "Swift";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SQLite3_INCLUDE_DIR = "$InstallRoot\sqlite-3.36.0\usr\include";
       SQLite3_LIBRARY = "$InstallRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
     }
@@ -741,62 +745,47 @@ function Build-LLBuild($Arch)
 
 function Build-Yams($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  $XCTestBuildDir = Get-ProjectBuildDir $Arch 4
-
   Build-CMakeProject `
     -Src $SourceCache\Yams `
     -Bin $BinaryCache\5 `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
-      XCTest_DIR = "$XCTestBuildDir\cmake\modules";
+      BUILD_TESTING = "NO";
     }
 }
 
 function Build-ArgumentParser($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-  $XCTestBuildDir = Get-ProjectBuildDir $Arch 4
-
   Build-CMakeProject `
     -Src $SourceCache\swift-argument-parser `
     -Bin $BinaryCache\6 `
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       BUILD_TESTING = "NO";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
-      XCTest_DIR = "$XCTestBuildDir\cmake\modules";
     }
 }
 
 function Build-Driver($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\swift-driver `
     -Bin $BinaryCache\7 `
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
       TSC_DIR = "$BinaryCache\3\cmake\modules";
       LLBuild_DIR = "$BinaryCache\4\cmake\modules";
@@ -809,19 +798,15 @@ function Build-Driver($Arch)
 
 function Build-Crypto($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\swift-crypto `
     -Bin $BinaryCache\8 `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
     }
 }
 
@@ -833,6 +818,7 @@ function Build-Collections($Arch)
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
@@ -841,37 +827,29 @@ function Build-Collections($Arch)
 
 function Build-ASN1($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\swift-asn1 `
     -Bin $BinaryCache\10 `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
     }
 }
 
 function Build-Certificates($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\swift-certificates `
     -Bin $BinaryCache\11 `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftASN1_DIR = "$BinaryCache\10\cmake\modules";
       SwiftCrypto_DIR = "$BinaryCache\8\cmake\modules";
     }
@@ -879,21 +857,17 @@ function Build-Certificates($Arch)
 
 function Build-PackageManager($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\swift-package-manager `
     -Bin $BinaryCache\12 `
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       CMAKE_Swift_FLAGS = "-DCRYPTO_v2";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
       TSC_DIR = "$BinaryCache\3\cmake\modules";
       LLBuild_DIR = "$BinaryCache\4\cmake\modules";
@@ -910,21 +884,17 @@ function Build-PackageManager($Arch)
 
 function Build-IndexStoreDB($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\indexstore-db `
     -Bin $BinaryCache\13 `
     -Arch $Arch `
     -UseBuiltCompilers C,CXX,Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      CMAKE_C_FLAGS = "-Xclang -fno-split-cold-code";
-      CMAKE_CXX_FLAGS = "-Xclang -fno-split-cold-code";
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
+      CMAKE_C_FLAGS = "-Xclang -fno-split-cold-code -I$SDKInstallRoot\usr\include -I$SDKInstallRoot\usr\include\Block";
+      CMAKE_CXX_FLAGS = "-Xclang -fno-split-cold-code -I$SDKInstallRoot\usr\include -I$SDKInstallRoot\usr\include\Block";
     }
 }
 
@@ -936,6 +906,7 @@ function Build-Syntax($Arch)
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
@@ -944,19 +915,15 @@ function Build-Syntax($Arch)
 
 function Build-SourceKitLSP($Arch)
 {
-  $DispatchBuildDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBuildDir = Get-ProjectBuildDir $Arch 3
-
   Build-CMakeProject `
     -Src $SourceCache\sourcekit-lsp `
     -Bin $BinaryCache\15 `
     -InstallTo $ToolchainInstallRoot\usr `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
+    -SwiftSDK $SDKInstallRoot `
     -BuildDefaultTarget `
     -Defines @{
-      dispatch_DIR = "$DispatchBuildDir\cmake\modules";
-      Foundation_DIR = "$FoundationBuildDir\cmake\modules";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
       TSC_DIR = "$BinaryCache\3\cmake\modules";
       LLBuild_DIR = "$BinaryCache\4\cmake\modules";
