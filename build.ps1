@@ -3,13 +3,13 @@
 
 param(
   [string[]] $SDKs = @("X64","X86","Arm64"),
-  [string] $SourceCache = "S:\SourceCache"
+  [string] $SourceCache = "S:\SourceCache",
+  [string] $BinaryCache = "S:\b"
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
-$BinaryCache = "S:\b"
 $InstallRoot = "S:\Library"
 $ToolchainInstallRoot = "$InstallRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
 $PlatformInstallRoot = "$InstallRoot\Developer\Platforms\Windows.platform"
