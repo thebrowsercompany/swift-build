@@ -393,7 +393,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/0/bin/swift-serialize-diagnostics.exe
             ${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols.exe
 
-  toolchain:
+  compilers:
     runs-on:
       labels: windows-latest-8-cores
     needs: [context, build_tools]
@@ -427,6 +427,11 @@ jobs:
           repository: apple/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
+      - uses: actions/checkout@v3
+        with:
+          repository: apple/swift-experimental-string-processing
+          ref: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
       - uses: actions/checkout@v3
         with:
           repository: apple/swift-syntax
@@ -490,7 +495,7 @@ jobs:
           Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
 
       # TODO(compnerd) switch this to Python 3.6.8
-      - name: Configure Toolchain
+      - name: Configure Compilers
         run: |
           if ( "${{ matrix.arch }}" -eq "arm64" ) {
             $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
@@ -519,12 +524,7 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
                 -D CLANG_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe `
                 -D CLANG_TIDY_CONFUSABLE_CHARS_GEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen.exe `
-                -D CLANG_VENDOR=compnerd.org `
-                -D CLANG_VENDOR_UTI=org.compnerd.dt `
-                -D LLDB_PYTHON_EXE_RELATIVE_PATH=python.exe `
-                -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
                 -D LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe `
-                -D LLVM_APPEND_VC_REV=NO `
                 -D LLVM_CONFIG_PATH=${{ github.workspace }}/BinaryCache/0/bin/llvm-config.exe `
                 -D LLVM_ENABLE_PDB=${{ needs.context.outputs.LLVM_ENABLE_PDB }} `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
@@ -532,14 +532,9 @@ jobs:
                 -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
                 -D LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe `
                 -D LLVM_USE_HOST_TOOLS=NO `
-                -D LLVM_VERSION_SUFFIX="" `
-                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
-                -D PACKAGE_VENDOR=compnerd.org `
-                -D Python3_ROOT_DIR=$env:pythonLocation `
-                -D Python3_INCLUDE_DIR=$env:PYTHON_LOCATION_${{ matrix.arch }}\include `
-                -D Python3_LIBRARY=$env:PYTHON_LOCATION_${{ matrix.arch }}\libs\python39.lib `
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_REMOTE_MIRROR=NO `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
@@ -548,18 +543,30 @@ jobs:
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
+                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
+                -D CLANG_VENDOR=compnerd.org `
+                -D CLANG_VENDOR_UTI=org.compnerd.dt `
+                -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
+                -D LLVM_APPEND_VC_REV=NO `
+                -D LLVM_VERSION_SUFFIX="" `
+                -D LLDB_PYTHON_EXE_RELATIVE_PATH=python.exe `
+                -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
+                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
+                -D Python3_ROOT_DIR=$env:pythonLocation `
+                -D Python3_INCLUDE_DIR=$env:PYTHON_LOCATION_${{ matrix.arch }}\include `
+                -D Python3_LIBRARY=$env:PYTHON_LOCATION_${{ matrix.arch }}\libs\python39.lib `
                 ${SWIFT_CLANG_LOCATION}
 
-      - name: Build Toolchain Distribution
+      - name: Build Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
 
-      - name: Install Toolchain Distribution
+      - name: Install Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
 
       - uses: actions/upload-artifact@v3
         with:
-          name: toolchain-${{ matrix.arch }}
+          name: compilers-${{ matrix.arch }}
           path: |
             ${{ github.workspace }}/BuildRoot/Library
             !${{ github.workspace }}/BuildRoot/Library/icu-69.1
@@ -568,7 +575,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         if: false # ${{ needs.context.outputs.debug_info }}
         with:
-          name: toolchain-${{ matrix.arch }}-debug-info
+          name: compilers-${{ matrix.arch }}-debug-info
           path: |
             ${{ github.workspace }}/BinaryCache/1/**/*.pdb
 
@@ -754,7 +761,7 @@ jobs:
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
     runs-on: windows-latest
-    needs: [context, icu, libxml2, curl, zlib, toolchain]
+    needs: [context, icu, libxml2, curl, zlib, compilers]
 
     strategy:
       fail-fast: false
@@ -791,7 +798,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
       - uses: actions/download-artifact@v3
         with:
-          name: toolchain-amd64
+          name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - uses: actions/checkout@v3
@@ -1032,7 +1039,7 @@ jobs:
 
   devtools:
     runs-on: windows-latest
-    needs: [context, sqlite, toolchain, sdk]
+    needs: [context, sqlite, compilers, sdk]
 
     strategy:
       fail-fast: false
@@ -1053,7 +1060,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
       - uses: actions/download-artifact@v3
         with:
-          name: toolchain-amd64
+          name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v3
         with:
@@ -1526,7 +1533,7 @@ jobs:
 
   package_toolchain:
     runs-on: windows-latest
-    needs: [context, toolchain, devtools]
+    needs: [context, compilers, devtools]
 
     strategy:
       fail-fast: false
@@ -1536,7 +1543,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: toolchain-${{ matrix.arch }}
+          name: compilers-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v3
         with:

@@ -293,7 +293,7 @@ function Build-BuildTools($Arch)
     -Src $SourceCache\llvm-project\llvm `
     -Bin $BinaryCache\0 `
     -Arch $Arch `
-    -BuildTargets llvm-tblgen,clang-tblgen,lldb-tblgen,llvm-config,swift-def-to-strings-converter,swift-serialize-diagnostics,swift-compatibility-symbols `
+    -BuildTargets llvm-tblgen,clang-tblgen,clang-pseudo-gen,clang-tidy-confusable-chars-gen,lldb-tblgen,llvm-config,swift-def-to-strings-converter,swift-serialize-diagnostics,swift-compatibility-symbols `
     -Defines @{
       LLDB_ENABLE_PYTHON = "NO";
       LLDB_INCLUDE_TESTS = "NO";
@@ -301,7 +301,7 @@ function Build-BuildTools($Arch)
       LLVM_ENABLE_ASSERTIONS = "NO";
       LLVM_ENABLE_LIBEDIT = "NO";
       LLVM_ENABLE_LIBXML2 = "NO";
-      LLVM_ENABLE_PROJECTS = "clang;lldb";
+      LLVM_ENABLE_PROJECTS = "clang;clang-tools-extra;lldb";
       LLVM_EXTERNAL_PROJECTS = "cmark;swift";
       LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
       LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
@@ -327,12 +327,14 @@ function Build-Compilers($Arch)
     -CacheScript $SourceCache\swift\cmake\caches\Windows-$($Arch.LLVMName).cmake `
     -Defines @{
       CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
+      CLANG_TIDY_CONFUSABLE_CHARS_GEN = "$BinaryCache\0\bin\clang-tidy-confusable-chars-gen.exe";
       CMAKE_INSTALL_PREFIX = "$ToolchainInstallRoot\usr";
       LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
       LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
       LLVM_ENABLE_PDB = "YES";
       LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
       LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
+      LLVM_NATIVE_TOOL_DIR = "$BinaryCache\0\bin";
       LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
       LLVM_USE_HOST_TOOLS = "NO";
       SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "NO";
