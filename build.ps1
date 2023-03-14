@@ -265,17 +265,21 @@ function Build-WiXProject()
 {
   [CmdletBinding(PositionalBinding = $false)]
   param(
-    [Parameter(Position = 0)]
+    [Parameter(Position = 0, Mandatory = $true)]
     [string]$FileName,
+    [Parameter(Mandatory = $true)]
+    [hashtable]$Arch,
     [hashtable]$Properties = @{}
   )
 
   $Name = $FileName.Split('.')[0]
+  $ArchName = $Arch.VSName
 
   $Properties = $Properties.Clone()
+  TryAdd-KeyValue $Properties ProductArchitecture $ArchName
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
-  TryAdd-KeyValue $Properties OutputPath $BinaryCache\msi\
-  TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\
+  TryAdd-KeyValue $Properties OutputPath $BinaryCache\msi\$ArchName\
+  TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\$ArchName\
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
   $MSBuildArgs += "-noLogo"
@@ -941,28 +945,37 @@ function Build-SourceKitLSP($Arch)
 function Build-Installer()
 {
   # Currently fails due to _InternalSwiftScan paths
-  # Build-WiXProject toolchain.wixproj -Properties @{
+  # Build-WiXProject toolchain.wixproj -Arch $HostArch -Properties @{
   #   DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
   #   TOOLCHAIN_ROOT = "$ToolchainInstallRoot\";
   # }
 
-  # TODO: The XCTest depends on the architecture
-  # Build-WiXProject sdk.wixproj -Properties @{
-  #   PLATFORM_ROOT = "$PlatformInstallRoot\";
-  #   SDK_ROOT = "$SDKInstallRoot\";
-  #   SWIFT_SOURCE_DIR = "$SourceCache\swift\";
-  # }
+  foreach ($Arch in $SDKArchs)
+  {
+    # WiX v3 does not support ARM64
+    if ($Arch -eq $ArchARM64)
+    {
+      continue
+    }
 
-  Build-WiXProject runtime.wixproj -Properties @{
-    SDK_ROOT = (Get-RuntimeInstallDir $ArchX64) + "\";
+    Build-WiXProject runtime.wixproj -Arch $Arch -Properties @{
+      SDK_ROOT = (Get-RuntimeInstallDir $Arch) + "\";
+    }
+    
+    # TODO: The XCTest depends on the architecture
+    # Build-WiXProject sdk.wixproj -Properties @{
+    #   PLATFORM_ROOT = "$PlatformInstallRoot\";
+    #   SDK_ROOT = "$SDKInstallRoot\";
+    #   SWIFT_SOURCE_DIR = "$SourceCache\swift\";
+    # }
   }
 
-  Build-WiXProject devtools.wixproj -Properties @{
+  Build-WiXProject devtools.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
   }
 
   # TODO: The above wixprojs need to build
-  # Build-WiXProject installer.wixproj -Properties @{
+  # Build-WiXProject installer.wixproj -Arch $HostArch -Properties @{
   #   OutputPath = "$BinaryCache\";
   #   MSI_LOCATION = "$BinaryCache\msi\";
   # }
