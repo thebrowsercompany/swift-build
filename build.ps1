@@ -322,6 +322,7 @@ function Build-Compilers($Arch)
     -Src $SourceCache\llvm-project\llvm `
     -Bin $BinaryCache\1 `
     -Arch $Arch `
+    -UseMSVCCompilers C,CXX `
     -BuildTargets distribution,install-distribution `
     -CacheScript $SourceCache\swift\cmake\caches\Windows-$($Arch.LLVMName).cmake `
     -Defines @{
