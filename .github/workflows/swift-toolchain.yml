@@ -426,6 +426,11 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
       - uses: actions/checkout@v3
         with:
+          repository: apple/swift-experimental-string-processing
+          ref: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+      - uses: actions/checkout@v3
+        with:
           repository: apple/swift-syntax
           ref: ${{ needs.context.outputs.swift_syntax_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-syntax
@@ -516,38 +521,40 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
                 -D CLANG_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe `
                 -D CLANG_TIDY_CONFUSABLE_CHARS_GEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen.exe `
-                -D CLANG_VENDOR=compnerd.org `
-                -D CLANG_VENDOR_UTI=org.compnerd.dt `
-                -D LLDB_PYTHON_EXE_RELATIVE_PATH=python.exe `
-                -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
                 -D LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe `
-                -D LLVM_APPEND_VC_REV=NO `
                 -D LLVM_CONFIG_PATH=${{ github.workspace }}/BinaryCache/0/bin/llvm-config.exe `
                 -D LLVM_ENABLE_PDB=${{ needs.context.outputs.LLVM_ENABLE_PDB }} `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
                 -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
                 -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
-                -D LLVM_PARALLEL_LINK_JOBS=2 `
                 -D LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe `
                 -D LLVM_USE_HOST_TOOLS=NO `
-                -D LLVM_VERSION_SUFFIX="" `
-                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
-                -D PACKAGE_VENDOR=compnerd.org `
-                -D Python3_ROOT_DIR=$env:pythonLocation `
-                -D Python3_INCLUDE_DIR=$env:PYTHON_LOCATION_${{ matrix.arch }}\include `
-                -D Python3_LIBRARY=$env:PYTHON_LOCATION_${{ matrix.arch }}\libs\python39.lib `
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_REMOTE_MIRROR=NO `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_REFLECTION=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
-                -D SWIFT_PARALLEL_LINK_JOBS=2 `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
+                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
+                -D CLANG_VENDOR=compnerd.org `
+                -D CLANG_VENDOR_UTI=org.compnerd.dt `
+                -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
+                -D LLVM_PARALLEL_LINK_JOBS=2 `
+                -D SWIFT_PARALLEL_LINK_JOBS=2 `
+                -D LLVM_APPEND_VC_REV=NO `
+                -D LLVM_VERSION_SUFFIX="" `
+                -D LLDB_PYTHON_EXE_RELATIVE_PATH=python.exe `
+                -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
+                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
+                -D Python3_ROOT_DIR=$env:pythonLocation `
+                -D Python3_INCLUDE_DIR=$env:PYTHON_LOCATION_${{ matrix.arch }}\include `
+                -D Python3_LIBRARY=$env:PYTHON_LOCATION_${{ matrix.arch }}\libs\python39.lib `
                 ${SWIFT_CLANG_LOCATION}
 
       - name: Build Compiler Distribution
