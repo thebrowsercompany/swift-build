@@ -637,18 +637,12 @@ function Build-XCTest($Arch)
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
     -Defines @{
+      CMAKE_INSTALL_BINDIR = $Arch.BinaryDir;
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       dispatch_DIR = "$DispatchBinDir\cmake\modules";
       Foundation_DIR = "$FoundationBinDir\cmake\modules";
     }
-
-  # Restructure Runtime
-  Remove-Item -Recurse -Force -ErrorAction Ignore `
-    $InstallDir\$($Arch.BinaryDir)
-  Move-Item -Force `
-    $InstallDir\bin `
-    $InstallDir\$($Arch.BinaryDir)
 
   # Restructure Import Libraries
   New-Item -ErrorAction Ignore -Type Directory `
