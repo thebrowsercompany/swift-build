@@ -508,6 +508,7 @@ function Build-Runtime($Arch)
     -BuildDefaultTarget `
     -Defines @{
       CMAKE_INSTALL_BINDIR = Get-RuntimeInstallDir $Arch "usr\bin";
+      CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
       LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
       SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
