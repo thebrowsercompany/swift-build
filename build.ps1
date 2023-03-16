@@ -736,7 +736,7 @@ function Build-SQLite($Arch)
   if (-not (Test-Path -Path $Dest))
   {
     New-Item -ErrorAction Ignore -Type Directory -Path $Dest
-    ."$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
+    & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
     Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
   }
 
