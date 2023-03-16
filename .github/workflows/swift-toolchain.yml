@@ -1673,10 +1673,6 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
-      - name: Build Installer Custom Action
-        run: msbuild -nologo -restore -p:PlatformToolset=v142 -p:Configuration=Release
-        working-directory: ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/CustomActions/SwiftInstaller
-
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
           $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
@@ -1686,7 +1682,6 @@ jobs:
 
       - name: Package SDK
         run: |
-          # TODO(compnerd) determine why PlatformToolset is set to v100 on GHA
           msbuild -nologo -restore `
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
@@ -1698,7 +1693,6 @@ jobs:
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
-              -p:PlatformToolset=v142 `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj
 
       - name: Package Runtime
