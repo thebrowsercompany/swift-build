@@ -490,14 +490,6 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
-      - name: 'Copy Support Files'
-        run: |
-          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\ucrt.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\ucrt\module.modulemap"
-          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\vcruntime.modulemap" -destination "$env:VCToolsInstallDir\include\module.modulemap"
-          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\vcruntime.apinotes" -destination "$env:VCToolsInstallDir\include\vcruntime.apinotes"
-          Copy-Item "${{ github.workspace }}\SourceCache\swift\stdlib\public\Platform\winsdk.modulemap" -destination "$env:UniversalCRTSdkDir\Include\$env:UCRTVersion\um\module.modulemap"
-
-      # TODO(compnerd) switch this to Python 3.6.8
       - name: Configure Compilers
         run: |
           if ( "${{ matrix.arch }}" -eq "arm64" ) {
@@ -1064,6 +1056,12 @@ jobs:
         with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+
+      - run: |
+          mkdir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/usr/include
+          mv ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/usr/lib/swift/dispatch ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/usr/include
+          mv ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/usr/lib/swift/os ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/usr/include
+          mv ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/usr/lib/swift/Block ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/usr/include
 
       - uses: actions/checkout@v3
         with:
