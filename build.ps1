@@ -280,7 +280,7 @@ function Build-CMakeProject
   if ("" -ne $CacheScript) {
     $cmakeGenerateArgs += @("-C", $CacheScript)
   }
-  foreach ($Define in $Defines.GetEnumerator()) {
+  foreach ($Define in ($Defines.GetEnumerator() | Sort-Object Name)) {
     $cmakeGenerateArgs += @("-D", "$($Define.Key)=$($Define.Value)")
   }
 
