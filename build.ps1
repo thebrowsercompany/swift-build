@@ -4,7 +4,8 @@
 param(
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $SourceCache = "S:\SourceCache",
-  [string] $BinaryCache = "S:\b"
+  [string] $BinaryCache = "S:\b",
+  [switch] $ToBatch
 )
 
 $ErrorActionPreference = "Stop"
@@ -91,12 +92,54 @@ function Get-RuntimeInstallDir($Arch, $SubDir = "")
   return $Path
 }
 
-function Check-LastExitCode
+function Invoke-Program($Executable, [switch] $OutNull) # Supports variadic args
 {
-  if ($LastExitCode -ne 0)
+  if ($ToBatch)
   {
-    $callstack = @(Get-PSCallStack) -Join "`n"
-    throw "Command execution returned $LastExitCode. Call stack:`n$callstack"
+    # Print the invocation in batch file-compatible format
+    $OutputLine = '"' + $Executable + '"'
+    $ShouldBreakLine = $false
+    for ($i = 0; $i -lt $Args.Length; $i++)
+    {
+      if ($ShouldBreakLine -or $OutputLine.Length -ge 40)
+      {
+        $OutputLine += " ^"
+        Write-Output $OutputLine
+        $OutputLine = "  "
+      }
+
+      $Arg = $Args[$i]
+      if ($Arg.Contains(' '))
+      {
+        $OutputLine += ' "' + $Arg +'"'
+      }
+      else
+      {
+        $OutputLine += " $Arg"
+      }
+
+      # Break lines after non-switch arguments
+      $ShouldBreakLine = -not $Arg.StartsWith("-")
+    }
+    
+    Write-Output $OutputLine
+  }
+  else
+  {
+    if ($OutNull)
+    {
+      & $Executable @Args | Out-Null
+    }
+    else
+    {
+      & $Executable @Args
+    }
+
+    if ($LastExitCode -ne 0)
+    {
+      $callstack = @(Get-PSCallStack) -Join "`n"
+      throw "Command execution returned $LastExitCode. Call stack:`n$callstack"
+    }
   }
 }
 
@@ -108,8 +151,7 @@ function Invoke-VsDevShell($Arch)
     [Environment]::SetEnvironmentVariable($entry.Name, $entry.Value, "Process")
   }
 
-  & "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName | Out-Null
-  Check-LastExitCode
+  Invoke-Program "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName -OutNull
 }
 
 function TryAdd-KeyValue([hashtable]$Hashtable, [string]$Key, [string]$Value)
@@ -152,7 +194,14 @@ function Build-CMakeProject
     [string[]] $BuildTargets = @()
   )
 
-  Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
+  if ($ToBatch)
+  {
+    Write-Output "echo Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
+  }
+  else
+  {
+    Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
+  }
   $Stopwatch = [Diagnostics.Stopwatch]::StartNew()
 
   # Make sure we have the right VSDevShell target architecture for building
@@ -235,30 +284,33 @@ function Build-CMakeProject
     $cmakeGenerateArgs += @("-D", "$($Define.Key)=$($Define.Value)")
   }
 
-  cmake @cmakeGenerateArgs
-  Check-LastExitCode
+  Invoke-Program cmake.exe @cmakeGenerateArgs
 
   # Build all requested targets
   if ($BuildDefaultTarget)
   {
-    cmake --build $Bin
-    Check-LastExitCode
+    Invoke-Program cmake.exe --build $Bin
   }
 
   foreach ($Target in $BuildTargets)
   {
-    cmake --build $Bin --target $Target
-    Check-LastExitCode
+    Invoke-Program cmake.exe --build $Bin --target $Target
   }
 
   if ("" -ne $InstallTo)
   {
-    cmake --build $Bin --target install
-    Check-LastExitCode
+    Invoke-Program cmake.exe --build $Bin --target install
   }
 
-  Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Finished building '$Src' to '$Bin' for arch '$($Arch.ShortName)' in $($Stopwatch.Elapsed)"
-  Write-Host ""
+  if ($ToBatch)
+  {
+    Write-Output ""
+  }
+  else
+  {
+    Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Finished building '$Src' to '$Bin' for arch '$($Arch.ShortName)' in $($Stopwatch.Elapsed)"
+    Write-Host ""
+  }
 }
 
 function Build-WiXProject()
@@ -287,8 +339,7 @@ function Build-WiXProject()
     $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
   }
 
-  & $msbuild @MSBuildArgs
-  Check-LastExitCode
+  Invoke-Program $msbuild @MSBuildArgs
 }
 
 function Build-BuildTools($Arch)
@@ -1025,7 +1076,7 @@ if (-not (Test-Path $python))
 }
 
 # SDKSettings.plist
-& $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > $SDKInstallRoot\SDKSettings.plist
+Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > $SDKInstallRoot\SDKSettings.plist
 
 # Info.plist
-& $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > $PlatformInstallRoot\Info.plist
+Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > $PlatformInstallRoot\Info.plist
