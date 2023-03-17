@@ -20,6 +20,16 @@ $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 $VSInstallRoot = & $vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
 $msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$env:PROCESSOR_ARCHITECTURE\MSBuild.exe"
 
+$python = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
+if (-not (Test-Path $python))
+{
+  $python = (where.exe python) | Select-Object -First 1
+  if (-not (Test-Path $python))
+  {
+    throw "Python.exe not found"
+  }
+}
+
 # Architecture definitions
 $ArchX64 = @{
   VSName = "amd64";
@@ -28,7 +38,11 @@ $ArchX64 = @{
   LLVMTarget = "x86_64-unknown-windows-msvc";
   CMakeName = "AMD64";
   BinaryDir = "bin64";
-  BuildID = 100
+  BuildID = 100;
+  RedistInstallRoot = "$InstallRoot\x64\swift-development";
+  PlatformInstallRoot = "$BinaryCache\x64\Windows.platform\";
+  SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
+  XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
 }
 
 $ArchX86 = @{
@@ -38,7 +52,11 @@ $ArchX86 = @{
   LLVMTarget = "i686-unknown-windows-msvc";
   CMakeName = "i686";
   BinaryDir = "bin32";
-  BuildID = 200
+  BuildID = 200;
+  RedistInstallRoot = "$InstallRoot\x86\swift-development";
+  PlatformInstallRoot = "$BinaryCache\x86\Windows.platform\";
+  SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
+  XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-development";
 }
 
 $ArchARM64 = @{
@@ -48,7 +66,11 @@ $ArchARM64 = @{
   LLVMTarget = "aarch64-unknown-windows-msvc";
   CMakeName = "aarch64";
   BinaryDir = "bin64a";
-  BuildID = 300
+  BuildID = 300;
+  RedistInstallRoot = "$InstallRoot\arm64\swift-development";
+  PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform\";
+  SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
+  XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
 }
 
 $HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
@@ -81,15 +103,6 @@ $InitialEnvPaths = @{
 function Get-ProjectBuildDir($Arch, $ID)
 {
   return "$BinaryCache\" + ($Arch.BuildID + $ID)
-}
-
-function Get-RuntimeInstallDir($Arch, $SubDir = "")
-{
-  $Path = "$InstallRoot\swift-development\$($Arch.ShortName)"
-  if ("" -ne $SubDir) {
-    $Path += "\$SubDir"
-  }
-  return $Path
 }
 
 function Invoke-Program($Executable, [switch] $OutNull) # Supports variadic args
@@ -552,13 +565,12 @@ function Build-Runtime($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift `
     -Bin (Get-ProjectBuildDir $Arch 1) `
-    -InstallTo $SDKInstallRoot\usr `
+    -InstallTo "$($Arch.SDKInstallRoot)\usr" `
     -Arch $Arch `
     -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
     -UseBuiltCompilers C,CXX `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_INSTALL_BINDIR = Get-RuntimeInstallDir $Arch "usr\bin";
       CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
       LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
       SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
@@ -571,6 +583,9 @@ function Build-Runtime($Arch)
       SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
       SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
     }
+
+  Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" `
+    > "$($Arch.SDKInstallRoot)\SDKSettings.plist"
 }
 
 function Build-Dispatch($Arch)
@@ -578,45 +593,16 @@ function Build-Dispatch($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-corelibs-libdispatch `
     -Bin (Get-ProjectBuildDir $Arch 2) `
-    -InstallTo $SDKInstallRoot\usr `
+    -InstallTo "$($Arch.SDKInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,CXX,Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_INSTALL_BINDIR = Get-RuntimeInstallDir $Arch "usr\bin";
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       ENABLE_SWIFT = "YES";
       BUILD_TESTING = "NO";
     }
-
-  # Restructure BlocksRuntime, dispatch headers
-  foreach ($module in ("Block", "dispatch", "os"))
-  {
-    Remove-Item -Recurse -Force -ErrorAction Ignore `
-      $SDKInstallRoot\usr\include\$module
-    Move-Item -Force `
-      $SDKInstallRoot\usr\lib\swift\$module `
-      $SDKInstallRoot\usr\include\
-  }
-
-  # Restructure Import Libraries
-  foreach ($module in ("BlocksRuntime", "dispatch", "swiftDispatch"))
-  {
-    Move-Item -Force `
-      $SDKInstallRoot\usr\lib\swift\windows\$($module).lib `
-      $SDKInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)
-  }
-
-  # Restructure Module
-  New-item -ErrorAction Ignore -Type Directory `
-    -Path $SDKInstallRoot\usr\lib\swift\windows\Dispatch.swiftmodule
-  Move-Item -Force `
-    $SDKInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\Dispatch.swiftmodule `
-    $SDKInstallRoot\usr\lib\swift\windows\Dispatch.swiftmodule\$($Arch.LLVMTarget).swiftmodule
-  Move-Item -Force `
-    $SDKInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\Dispatch.swiftdoc `
-    $SDKInstallRoot\usr\lib\swift\windows\Dispatch.swiftmodule\$($Arch.LLVMTarget).swiftdoc
 }
 
 function Build-Foundation($Arch)
@@ -627,12 +613,11 @@ function Build-Foundation($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-corelibs-foundation `
     -Bin (Get-ProjectBuildDir $Arch 3) `
-    -InstallTo $SDKInstallRoot\usr `
+    -InstallTo "$($Arch.SDKInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers ASM,C,Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_INSTALL_BINDIR = Get-RuntimeInstallDir $Arch "usr\bin";
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       CURL_DIR = "$InstallRoot\curl-7.77.0\usr\lib\$ShortArch\cmake\CURL";
@@ -648,42 +633,17 @@ function Build-Foundation($Arch)
       dispatch_DIR = "$DispatchBinDir\cmake\modules";
       ENABLE_TESTING = "NO";
     }
-
-  # Remove CoreFoundation Headers
-  foreach ($module in ("CoreFoundation", "CFXMLInterface", "CFURLSessionInterface"))
-  {
-    Remove-Item -Recurse -Force -ErrorAction Ignore `
-      $SDKInstallRoot\usr\lib\swift\$module
-  }
-
-  # Restructure Import Libraries, Modules
-  foreach ($module in ("Foundation", "FoundationNetworking", "FoundationXML"))
-  {
-    Move-Item -Force `
-      $SDKInstallRoot\usr\lib\swift\windows\$($module).lib `
-      $SDKInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)
-
-    New-Item -ErrorAction Ignore -Type Directory `
-      -Path $SDKInstallRoot\usr\lib\swift\windows\$($module).swiftmodule
-    Move-Item -Force `
-      $SDKInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\$($module).swiftmodule `
-      $SDKInstallRoot\usr\lib\swift\windows\$($module).swiftmodule\$($Arch.LLVMTarget).swiftmodule
-    Move-Item -Force `
-      $SDKInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\$($module).swiftdoc `
-      $SDKInstallRoot\usr\lib\swift\windows\$($module).swiftmodule\$($Arch.LLVMTarget).swiftdoc
-  }
 }
 
 function Build-XCTest($Arch)
 {
   $DispatchBinDir = Get-ProjectBuildDir $Arch 2
   $FoundationBinDir = Get-ProjectBuildDir $Arch 3
-  $InstallDir = "$PlatformInstallRoot\Developer\Library\XCTest-development\usr"
 
   Build-CMakeProject `
     -Src $SourceCache\swift-corelibs-xctest `
     -Bin (Get-ProjectBuildDir $Arch 4) `
-    -InstallTo $InstallDir `
+    -InstallTo "$($Arch.XCTestInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
@@ -694,23 +654,70 @@ function Build-XCTest($Arch)
       dispatch_DIR = "$DispatchBinDir\cmake\modules";
       Foundation_DIR = "$FoundationBinDir\cmake\modules";
     }
+  
+  Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
+    > "$($Arch.PlatformInstallRoot)\Info.plist"
+}
 
-  # Restructure Import Libraries
-  New-Item -ErrorAction Ignore -Type Directory `
-    -Path $InstallDir\lib\swift\windows\$($Arch.LLVMName)
-  Move-Item -Force `
-    $InstallDir\lib\swift\windows\XCTest.lib `
-    $InstallDir\lib\swift\windows\$($Arch.LLVMName)\XCTest.lib
+function Copy-Dir($Src, $Dst)
+{
+  New-Item -ItemType Directory -ErrorAction Ignore $Dst | Out-Null
+  Copy-Item -Force -Recurse $Src $Dst
+}
 
-  # Restructure Module
-  New-Item -ErrorAction Ignore -Type Directory `
-    -Path $InstallDir\lib\swift\windows\XCTest.swiftmodule
-  Move-Item -Force `
-    $InstallDir\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftdoc `
-    $InstallDir\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftdoc
-  Move-Item -Force `
-    $InstallDir\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftmodule `
-    $InstallDir\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftmodule
+function Consolidate-RedistInstall($Arch)
+{
+  Remove-Item -Force -Recurse $($Arch.RedistInstallRoot) -ErrorAction Ignore
+  Copy-Dir "$($Arch.SDKInstallRoot)\usr\bin" "$($Arch.RedistInstallRoot)\usr"
+}
+
+# Copies files installed by CMake from the arch-specific platform root,
+# where they follow the layout expected by the installer,
+# to the final platform root, following the installer layout.
+function Consolidate-PlatformInstall($Arch)
+{
+  New-Item -ItemType Directory -ErrorAction Ignore $SDKInstallRoot\usr | Out-Null
+
+  # Copy SDK header files
+  Copy-Dir "$($Arch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" $SDKInstallRoot\usr\include\swift
+  Copy-Dir "$($Arch.SDKInstallRoot)\usr\lib\swift\shims" $SDKInstallRoot\usr\lib\swift
+  foreach ($Module in ("Block", "dispatch", "os"))
+  {
+    Copy-Dir "$($Arch.SDKInstallRoot)\usr\lib\swift\$Module" $SDKInstallRoot\usr\include
+  }
+
+  # Copy SDK share folder
+  New-Item -ItemType Directory -ErrorAction Ignore $SDKInstallRoot\usr\share | Out-Null
+  Copy-Item -Force "$($Arch.SDKInstallRoot)\usr\share\*.*" $SDKInstallRoot\usr\share\
+
+  # Copy SDK libs, placing them in an arch-specific directory
+  $WindowsLibSrc = "$($Arch.SDKInstallRoot)\usr\lib\swift\windows"
+  $WindowsLibDst = "$SDKInstallRoot\usr\lib\swift\windows"
+
+  New-Item -ItemType Directory "$WindowsLibDst\$($Arch.LLVMName)" | Out-Null
+  Copy-Item -Force "$WindowsLibSrc\*.lib" "$WindowsLibDst\$($Arch.LLVMName)"
+  Copy-Item -Force "$WindowsLibSrc\$($Arch.LLVMName)\*.lib" "$WindowsLibDst\$($Arch.LLVMName)"
+
+  # Copy well-structured SDK modules
+  Copy-Item -Force -Recurse "$WindowsLibSrc\*.swiftmodule" $WindowsLibDst
+
+  # Copy files from the arch subdirectory, including "*.swiftmodule" which need restructuring
+  Get-ChildItem -Recurse "$WindowsLibSrc\$($Arch.LLVMName)" | ForEach-Object {
+    if (".swiftmodule", ".swiftdoc", ".swiftinterface" -contains $_.Extension)
+    {
+      $DstDir = "$WindowsLibDst\$($_.BaseName).swiftmodule"
+      New-Item -ItemType Directory $DstDir -ErrorAction Ignore | Out-Null
+      Copy-Item -Force $_.FullName "$DstDir\$($Arch.LLVMTarget)$($_.Extension)"
+    }
+    else
+    {
+      Copy-Item $_.FullName "$WindowsLibDst\$($Arch.LLVMName)\"
+    }
+  }
+
+  # Copy plist files (same across architectures)
+  Copy-Item -Force "$($Arch.PlatformInstallRoot)\Info.plist" $PlatformInstallRoot\
+  Copy-Item -Force "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
 }
 
 function Build-SQLite($Arch)
@@ -1005,15 +1012,14 @@ function Build-Installer()
     }
 
     Build-WiXProject runtime.wixproj -Arch $Arch -Properties @{
-      SDK_ROOT = (Get-RuntimeInstallDir $Arch) + "\";
+      SDK_ROOT = "$($Arch.SDKInstallRoot)\";
     }
     
-    # TODO: The XCTest depends on the architecture
-    # Build-WiXProject sdk.wixproj -Properties @{
-    #   PLATFORM_ROOT = "$PlatformInstallRoot\";
-    #   SDK_ROOT = "$SDKInstallRoot\";
-    #   SWIFT_SOURCE_DIR = "$SourceCache\swift\";
-    # }
+    Build-WiXProject sdk.wixproj -Arch $Arch -Properties @{
+      PLATFORM_ROOT = "$($Arch.PlatforInstallRoot)\";
+      SDK_ROOT = "$($Arch.SDKInstallRoot)\";
+      SWIFT_SOURCE_DIR = "$SourceCache\swift\";
+    }
   }
 
   Build-WiXProject devtools.wixproj -Arch $HostArch -Properties @{
@@ -1032,6 +1038,8 @@ function Build-Installer()
 Build-BuildTools $HostArch
 Build-Compilers $HostArch
 
+Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
+
 foreach ($Arch in $SDKArchs)
 {
   Build-ZLib $Arch
@@ -1039,10 +1047,15 @@ foreach ($Arch in $SDKArchs)
   Build-CURL $Arch
   Build-ICU $Arch
   Build-LLVM $Arch
+
+  # Build platform: SDK, Redist and XCTest
   Build-Runtime $Arch
   Build-Dispatch $Arch
   Build-Foundation $Arch
   Build-XCTest $Arch
+  
+  Consolidate-RedistInstall $Arch
+  Consolidate-PlatformInstall $Arch
 }
 
 Build-SQLite $HostArch
@@ -1064,19 +1077,3 @@ Build-SourceKitLSP $HostArch
 # Switch to swift-driver
 Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
 Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
-
-$python = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
-if (-not (Test-Path $python))
-{
-  $python = (where.exe python) | Select-Object -First 1
-  if (-not (Test-Path $python))
-  {
-    throw "Python.exe not found"
-  }
-}
-
-# SDKSettings.plist
-Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" > $SDKInstallRoot\SDKSettings.plist
-
-# Info.plist
-Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" > $PlatformInstallRoot\Info.plist
