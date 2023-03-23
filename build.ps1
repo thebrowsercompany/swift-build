@@ -377,6 +377,7 @@ function Build-WiXProject()
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
   $MSBuildArgs += "-noLogo"
+  $MSBuildArgs += "-restore"
   foreach ($Property in $Properties.GetEnumerator()) {
     $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
   }
