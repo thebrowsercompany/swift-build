@@ -687,7 +687,6 @@ function Build-XCTest($Arch)
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_INSTALL_BINDIR = $Arch.BinaryDir;
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       dispatch_DIR = "$DispatchBinDir\cmake\modules";
@@ -698,7 +697,16 @@ function Build-XCTest($Arch)
     -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
 }
 
-function Copy-Dir($Src, $Dst)
+function Copy-File($Src, $Dst)
+{
+  # Create the directory tree first so Copy-Item succeeds
+  # If $Dst is the target directory, make sure it ends with "\"
+  $DstDir = [IO.Path]::GetDirectoryName($Dst)
+  New-Item -ItemType Directory -ErrorAction Ignore $DstDir | Out-Null
+  Copy-Item -Force $Src $Dst
+}
+
+function Copy-Directory($Src, $Dst)
 {
   New-Item -ItemType Directory -ErrorAction Ignore $Dst | Out-Null
   Copy-Item -Force -Recurse $Src $Dst
@@ -709,7 +717,7 @@ function Consolidate-RedistInstall($Arch)
   if ($ToBatch) { return }
 
   Remove-Item -Force -Recurse $($Arch.RedistInstallRoot) -ErrorAction Ignore
-  Copy-Dir "$($Arch.SDKInstallRoot)\usr\bin" "$($Arch.RedistInstallRoot)\usr"
+  Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$($Arch.RedistInstallRoot)\usr"
 }
 
 # Copies files installed by CMake from the arch-specific platform root,
@@ -722,45 +730,49 @@ function Consolidate-PlatformInstall($Arch)
   New-Item -ItemType Directory -ErrorAction Ignore $SDKInstallRoot\usr | Out-Null
 
   # Copy SDK header files
-  Copy-Dir "$($Arch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" $SDKInstallRoot\usr\include\swift
-  Copy-Dir "$($Arch.SDKInstallRoot)\usr\lib\swift\shims" $SDKInstallRoot\usr\lib\swift
+  Copy-Directory "$($Arch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" $SDKInstallRoot\usr\include\swift
+  Copy-Directory "$($Arch.SDKInstallRoot)\usr\lib\swift\shims" $SDKInstallRoot\usr\lib\swift
   foreach ($Module in ("Block", "dispatch", "os"))
   {
-    Copy-Dir "$($Arch.SDKInstallRoot)\usr\lib\swift\$Module" $SDKInstallRoot\usr\include
+    Copy-Directory "$($Arch.SDKInstallRoot)\usr\lib\swift\$Module" $SDKInstallRoot\usr\include
   }
 
   # Copy SDK share folder
-  New-Item -ItemType Directory -ErrorAction Ignore $SDKInstallRoot\usr\share | Out-Null
-  Copy-Item -Force "$($Arch.SDKInstallRoot)\usr\share\*.*" $SDKInstallRoot\usr\share\
+  Copy-File "$($Arch.SDKInstallRoot)\usr\share\*.*" $SDKInstallRoot\usr\share\
 
   # Copy SDK libs, placing them in an arch-specific directory
   $WindowsLibSrc = "$($Arch.SDKInstallRoot)\usr\lib\swift\windows"
   $WindowsLibDst = "$SDKInstallRoot\usr\lib\swift\windows"
 
-  New-Item -ItemType Directory "$WindowsLibDst\$($Arch.LLVMName)" | Out-Null
-  Copy-Item -Force "$WindowsLibSrc\*.lib" "$WindowsLibDst\$($Arch.LLVMName)"
-  Copy-Item -Force "$WindowsLibSrc\$($Arch.LLVMName)\*.lib" "$WindowsLibDst\$($Arch.LLVMName)"
+  Copy-File "$WindowsLibSrc\*.lib" "$WindowsLibDst\$($Arch.LLVMName)\"
+  Copy-File "$WindowsLibSrc\$($Arch.LLVMName)\*.lib" "$WindowsLibDst\$($Arch.LLVMName)\"
 
   # Copy well-structured SDK modules
-  Copy-Item -Force -Recurse "$WindowsLibSrc\*.swiftmodule" $WindowsLibDst
+  Copy-Directory "$WindowsLibSrc\*.swiftmodule" "$WindowsLibDst\"
 
   # Copy files from the arch subdirectory, including "*.swiftmodule" which need restructuring
   Get-ChildItem -Recurse "$WindowsLibSrc\$($Arch.LLVMName)" | ForEach-Object {
     if (".swiftmodule", ".swiftdoc", ".swiftinterface" -contains $_.Extension)
     {
       $DstDir = "$WindowsLibDst\$($_.BaseName).swiftmodule"
-      New-Item -ItemType Directory $DstDir -ErrorAction Ignore | Out-Null
-      Copy-Item -Force $_.FullName "$DstDir\$($Arch.LLVMTarget)$($_.Extension)"
+      Copy-File $_.FullName "$DstDir\$($Arch.LLVMTarget)$($_.Extension)"
     }
     else
     {
-      Copy-Item $_.FullName "$WindowsLibDst\$($Arch.LLVMName)\"
+      Copy-File $_.FullName "$WindowsLibDst\$($Arch.LLVMName)\"
     }
   }
 
   # Copy plist files (same across architectures)
-  Copy-Item -Force "$($Arch.PlatformInstallRoot)\Info.plist" $PlatformInstallRoot\
-  Copy-Item -Force "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
+  Copy-File "$($Arch.PlatformInstallRoot)\Info.plist" $PlatformInstallRoot\
+  Copy-File "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
+
+  # Copy XCTest
+  $XCTestInstallRoot = "$PlatformInstallRoot\Developer\Library\XCTest-development"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\bin\XCTest.dll" "$XCTestInstallRoot\usr\$($Arch.BinaryDir)\"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\XCTest.lib" "$XCTestInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftmodule" "$XCTestInstallRoot\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftmodule"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftdoc" "$XCTestInstallRoot\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftdoc"
 }
 
 function Build-SQLite($Arch)
