@@ -105,8 +105,18 @@ function Get-ProjectBuildDir($Arch, $ID)
   return "$BinaryCache\" + ($Arch.BuildID + $ID)
 }
 
-function Invoke-Program($Executable, [switch] $OutNull) # Supports variadic args
+function Invoke-Program()
 {
+  [CmdletBinding(PositionalBinding = $false)]
+  param(
+    [Parameter(Position = 0, Mandatory = $true)]
+    [string] $Executable,
+    [switch] $OutNull = $false,
+    [string] $OutFile = "",
+    [Parameter(Position = 1, ValueFromRemainingArguments)]
+    [string[]] $Args
+  )
+
   if ($ToBatch)
   {
     # Print the invocation in batch file-compatible format
@@ -135,6 +145,15 @@ function Invoke-Program($Executable, [switch] $OutNull) # Supports variadic args
       $ShouldBreakLine = -not $Arg.StartsWith("-")
     }
     
+    if ($OutNull)
+    {
+      $OutputLine += " > nul"
+    }
+    elseif ("" -ne $OutFile)
+    {
+      $OutputLine += ' > "' + $OutFile + '"'
+    }
+
     Write-Output $OutputLine
   }
   else
@@ -142,6 +161,10 @@ function Invoke-Program($Executable, [switch] $OutNull) # Supports variadic args
     if ($OutNull)
     {
       & $Executable @Args | Out-Null
+    }
+    elseif ("" -ne $OutFile)
+    {
+      & $Executable @Args | Out-File $OutFile
     }
     else
     {
@@ -209,6 +232,7 @@ function Build-CMakeProject
 
   if ($ToBatch)
   {
+    Write-Output ""
     Write-Output "echo Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
   }
   else
@@ -315,11 +339,7 @@ function Build-CMakeProject
     Invoke-Program cmake.exe --build $Bin --target install
   }
 
-  if ($ToBatch)
-  {
-    Write-Output ""
-  }
-  else
+  if (-not $ToBatch)
   {
     Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Finished building '$Src' to '$Bin' for arch '$($Arch.ShortName)' in $($Stopwatch.Elapsed)"
     Write-Host ""
@@ -419,15 +439,18 @@ function Build-Compilers($Arch)
       SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
     }
 
-  # Restructure Internal Modules
-  Remove-Item -Recurse -Force  -ErrorAction Ignore `
-    $ToolchainInstallRoot\usr\include\_InternalSwiftScan
-  Move-Item -Force `
-    $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
-    $ToolchainInstallRoot\usr\include
-  Move-Item -Force `
-    $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
-    $ToolchainInstallRoot\usr\lib
+  if (-not $ToBatch)
+  {
+    # Restructure Internal Modules
+    Remove-Item -Recurse -Force  -ErrorAction Ignore `
+      $ToolchainInstallRoot\usr\include\_InternalSwiftScan
+    Move-Item -Force `
+      $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
+      $ToolchainInstallRoot\usr\include
+    Move-Item -Force `
+      $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
+      $ToolchainInstallRoot\usr\lib
+  }
 }
 
 function Build-LLVM($Arch)
@@ -526,10 +549,13 @@ function Build-ICU($Arch)
 {
   $ArchName = $Arch.ShortName
 
-  if (-not(Test-Path -Path "$SourceCache\icu\icu4c\CMakeLists.txt"))
+  if (-not $ToBatch)
   {
-    Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt $SourceCache\icu\icu4c\
-    Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake $SourceCache\icu\icu4c\
+    if (-not(Test-Path -Path "$SourceCache\icu\icu4c\CMakeLists.txt"))
+    {
+      Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt $SourceCache\icu\icu4c\
+      Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake $SourceCache\icu\icu4c\
+    }
   }
 
   if ($Arch -eq $ArchARM64)
@@ -585,7 +611,7 @@ function Build-Runtime($Arch)
     }
 
   Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" `
-    > "$($Arch.SDKInstallRoot)\SDKSettings.plist"
+    -OutFile "$($Arch.SDKInstallRoot)\SDKSettings.plist"
 }
 
 function Build-Dispatch($Arch)
@@ -656,7 +682,7 @@ function Build-XCTest($Arch)
     }
   
   Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
-    > "$($Arch.PlatformInstallRoot)\Info.plist"
+    -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
 }
 
 function Copy-Dir($Src, $Dst)
@@ -667,6 +693,8 @@ function Copy-Dir($Src, $Dst)
 
 function Consolidate-RedistInstall($Arch)
 {
+  if ($ToBatch) { return }
+
   Remove-Item -Force -Recurse $($Arch.RedistInstallRoot) -ErrorAction Ignore
   Copy-Dir "$($Arch.SDKInstallRoot)\usr\bin" "$($Arch.RedistInstallRoot)\usr"
 }
@@ -676,6 +704,8 @@ function Consolidate-RedistInstall($Arch)
 # to the final platform root, following the installer layout.
 function Consolidate-PlatformInstall($Arch)
 {
+  if ($ToBatch) { return }
+
   New-Item -ItemType Directory -ErrorAction Ignore $SDKInstallRoot\usr | Out-Null
 
   # Copy SDK header files
@@ -726,18 +756,21 @@ function Build-SQLite($Arch)
   $Dest = "$SourceCache\sqlite-3.36.0"
 
   # Download the sources
-  New-Item -ErrorAction Ignore -Type Directory `
-    -Path "S:\var\cache"
-  if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
+  if (-not $ToBatch)
   {
-    curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
-  }
+    New-Item -ErrorAction Ignore -Type Directory `
+      -Path "S:\var\cache"
+    if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
+    {
+      curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
+    }
 
-  if (-not (Test-Path -Path $Dest))
-  {
-    New-Item -ErrorAction Ignore -Type Directory -Path $Dest
-    & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
-    Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
+    if (-not (Test-Path -Path $Dest))
+    {
+      New-Item -ErrorAction Ignore -Type Directory -Path $Dest
+      & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
+      Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
+    }
   }
 
   Build-CMakeProject `
@@ -1038,7 +1071,10 @@ function Build-Installer()
 Build-BuildTools $HostArch
 Build-Compilers $HostArch
 
-Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
+if (-not $ToBatch)
+{
+  Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
+}
 
 foreach ($Arch in $SDKArchs)
 {
@@ -1075,5 +1111,8 @@ Build-Syntax $HostArch
 Build-SourceKitLSP $HostArch
 
 # Switch to swift-driver
-Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
-Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
+if (-not $ToBatch)
+{
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
+}
