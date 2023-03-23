@@ -120,7 +120,7 @@ function Invoke-Program()
   if ($ToBatch)
   {
     # Print the invocation in batch file-compatible format
-    $OutputLine = '"' + $Executable + '"'
+    $OutputLine = "`"$Executable`""
     $ShouldBreakLine = $false
     for ($i = 0; $i -lt $Args.Length; $i++)
     {
@@ -132,9 +132,9 @@ function Invoke-Program()
       }
 
       $Arg = $Args[$i]
-      if ($Arg.Contains(' '))
+      if ($Arg.Contains(" "))
       {
-        $OutputLine += ' "' + $Arg +'"'
+        $OutputLine += " `"$Arg`""
       }
       else
       {
@@ -151,7 +151,7 @@ function Invoke-Program()
     }
     elseif ("" -ne $OutFile)
     {
-      $OutputLine += ' > "' + $OutFile + '"'
+      $OutputLine += " > `"$OutFile`""
     }
 
     Write-Output $OutputLine
@@ -181,13 +181,19 @@ function Invoke-Program()
 
 function Invoke-VsDevShell($Arch)
 {
+  if ($ToBatch)
+  {
+    Write-Output "`"$VSInstallRoot\Common7\Tools\VsDevCmd.bat`" -no_logo -host_arch=amd64 -arch=$($Arch.VSName)"
+    return
+  }
+
   # Restore path-style environment variables to avoid appending ever more entries
   foreach ($entry in $InitialEnvPaths.GetEnumerator())
   {
     [Environment]::SetEnvironmentVariable($entry.Name, $entry.Value, "Process")
   }
 
-  Invoke-Program "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName -OutNull
+  & "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName | Out-Null
 }
 
 function TryAdd-KeyValue([hashtable]$Hashtable, [string]$Key, [string]$Value)
