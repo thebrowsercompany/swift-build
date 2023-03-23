@@ -1635,7 +1635,7 @@ jobs:
 
       - name: Package
         run: |
-          msbuild -nologo `
+          msbuild -nologo -restore `
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\toolchain\ `
@@ -1672,11 +1672,6 @@ jobs:
           repository: apple/swift-installer-scripts
           ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
-      - uses: actions/checkout@v3
-        with:
-          repository: apple/swift
-          ref: ${{ needs.context.outputs.swift_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -1703,12 +1698,11 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
-              -p:SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj
 
       - name: Package Runtime
         run: |
-          msbuild -nologo `
+          msbuild -nologo -restore `
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\runtime\ `
@@ -1718,7 +1712,6 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
-              -p:SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/runtime.wixproj
 
       - uses: actions/upload-artifact@v3
@@ -1766,7 +1759,7 @@ jobs:
 
       - name: Package
         run: |
-          msbuild -nologo `
+          msbuild -nologo -restore `
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\devtools\ `
@@ -1830,7 +1823,7 @@ jobs:
 
       - name: Package
         run: |
-          msbuild -nologo `
+          msbuild -nologo -restore `
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
               -p:OutputPath=${{ github.workspace }}\BinaryCache\installer\ `

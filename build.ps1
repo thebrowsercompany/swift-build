@@ -1,10 +1,12 @@
 # Copyright 2020 Saleem Abdulrasool <compnerd@compnerd.org>
 # Copyright 2023 Tristan Labelle <tristan@thebrowser.company>
 
+[CmdletBinding(PositionalBinding = $false)]
 param(
-  [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $SourceCache = "S:\SourceCache",
   [string] $BinaryCache = "S:\b",
+  [string[]] $SDKs = @("X64","X86","Arm64"),
+  [string] $ProductVersion = "0.0.0",
   [switch] $ToBatch
 )
 
@@ -120,7 +122,7 @@ function Invoke-Program()
   if ($ToBatch)
   {
     # Print the invocation in batch file-compatible format
-    $OutputLine = '"' + $Executable + '"'
+    $OutputLine = "`"$Executable`""
     $ShouldBreakLine = $false
     for ($i = 0; $i -lt $Args.Length; $i++)
     {
@@ -132,9 +134,9 @@ function Invoke-Program()
       }
 
       $Arg = $Args[$i]
-      if ($Arg.Contains(' '))
+      if ($Arg.Contains(" "))
       {
-        $OutputLine += ' "' + $Arg +'"'
+        $OutputLine += " `"$Arg`""
       }
       else
       {
@@ -151,7 +153,7 @@ function Invoke-Program()
     }
     elseif ("" -ne $OutFile)
     {
-      $OutputLine += ' > "' + $OutFile + '"'
+      $OutputLine += " > `"$OutFile`""
     }
 
     Write-Output $OutputLine
@@ -181,13 +183,19 @@ function Invoke-Program()
 
 function Invoke-VsDevShell($Arch)
 {
+  if ($ToBatch)
+  {
+    Write-Output "`"$VSInstallRoot\Common7\Tools\VsDevCmd.bat`" -no_logo -host_arch=amd64 -arch=$($Arch.VSName)"
+    return
+  }
+
   # Restore path-style environment variables to avoid appending ever more entries
   foreach ($entry in $InitialEnvPaths.GetEnumerator())
   {
     [Environment]::SetEnvironmentVariable($entry.Name, $entry.Value, "Process")
   }
 
-  Invoke-Program "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName -OutNull
+  & "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName | Out-Null
 }
 
 function TryAdd-KeyValue([hashtable]$Hashtable, [string]$Key, [string]$Value)
@@ -307,6 +315,9 @@ function Build-CMakeProject
 
     $SwiftcFlags = $SwiftArgs.ToArray() -Join " "
     Append-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftcFlags
+
+    # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
+    Append-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
   }
   if ("" -ne $InstallTo) {
     TryAdd-KeyValue $Defines CMAKE_INSTALL_PREFIX $InstallTo
@@ -362,12 +373,14 @@ function Build-WiXProject()
 
   $Properties = $Properties.Clone()
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
+  TryAdd-KeyValue $Properties ProductVersion $ProductVersion
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
   TryAdd-KeyValue $Properties OutputPath $BinaryCache\msi\$ArchName\
   TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\$ArchName\
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
   $MSBuildArgs += "-noLogo"
+  $MSBuildArgs += "-restore"
   foreach ($Property in $Properties.GetEnumerator()) {
     $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
   }
