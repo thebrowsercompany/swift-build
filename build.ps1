@@ -45,6 +45,7 @@ $ArchX64 = @{
   PlatformInstallRoot = "$BinaryCache\x64\Windows.platform\";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
+  MSIRoot = "$BinaryCache\x64\msi";
 }
 
 $ArchX86 = @{
@@ -59,6 +60,7 @@ $ArchX86 = @{
   PlatformInstallRoot = "$BinaryCache\x86\Windows.platform\";
   SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-development";
+  MSIRoot = "$BinaryCache\x86\msi";
 }
 
 $ArchARM64 = @{
@@ -73,6 +75,7 @@ $ArchARM64 = @{
   PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform\";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
+  MSIRoot = "$BinaryCache\arm64\msi";
 }
 
 $HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
@@ -375,7 +378,7 @@ function Build-WiXProject()
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
   TryAdd-KeyValue $Properties ProductVersion $ProductVersion
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
-  TryAdd-KeyValue $Properties OutputPath $BinaryCache\msi\$ArchName\
+  TryAdd-KeyValue $Properties OutputPath $Arch.MSIRoot
   TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\$ArchName\
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
@@ -454,16 +457,16 @@ function Build-Compilers($Arch)
 
   if (-not $ToBatch)
   {
-    # Restructure Internal Modules
-    Remove-Item -Recurse -Force  -ErrorAction Ignore `
-      $ToolchainInstallRoot\usr\include\_InternalSwiftScan
+  # Restructure Internal Modules
+  Remove-Item -Recurse -Force  -ErrorAction Ignore `
+    $ToolchainInstallRoot\usr\include\_InternalSwiftScan
     Move-Item -Force `
-      $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
-      $ToolchainInstallRoot\usr\include
+    $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
+    $ToolchainInstallRoot\usr\include
     Move-Item -Force `
-      $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
-      $ToolchainInstallRoot\usr\lib
-  }
+    $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
+    $ToolchainInstallRoot\usr\lib
+}
 }
 
 function Build-LLVM($Arch)
@@ -564,11 +567,11 @@ function Build-ICU($Arch)
 
   if (-not $ToBatch)
   {
-    if (-not(Test-Path -Path "$SourceCache\icu\icu4c\CMakeLists.txt"))
-    {
-      Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt $SourceCache\icu\icu4c\
-      Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake $SourceCache\icu\icu4c\
-    }
+  if (-not(Test-Path -Path "$SourceCache\icu\icu4c\CMakeLists.txt"))
+  {
+    Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt $SourceCache\icu\icu4c\
+    Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake $SourceCache\icu\icu4c\
+  }
   }
 
   if ($Arch -eq $ArchARM64)
@@ -783,18 +786,18 @@ function Build-SQLite($Arch)
   # Download the sources
   if (-not $ToBatch)
   {
-    New-Item -ErrorAction Ignore -Type Directory `
-      -Path "S:\var\cache"
-    if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
-    {
-      curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
-    }
+  New-Item -ErrorAction Ignore -Type Directory `
+    -Path "S:\var\cache"
+  if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
+  {
+    curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
+  }
 
-    if (-not (Test-Path -Path $Dest))
-    {
-      New-Item -ErrorAction Ignore -Type Directory -Path $Dest
-      & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
-      Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
+  if (-not (Test-Path -Path $Dest))
+  {
+    New-Item -ErrorAction Ignore -Type Directory -Path $Dest
+    & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
+    Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
     }
   }
 
@@ -1074,7 +1077,7 @@ function Build-Installer()
     }
     
     Build-WiXProject sdk.wixproj -Arch $Arch -Properties @{
-      PLATFORM_ROOT = "$($Arch.PlatforInstallRoot)\";
+      PLATFORM_ROOT = "$($Arch.PlatformInstallRoot)\";
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
       SWIFT_SOURCE_DIR = "$SourceCache\swift\";
     }
@@ -1087,7 +1090,7 @@ function Build-Installer()
   # TODO: The above wixprojs need to build
   # Build-WiXProject installer.wixproj -Arch $HostArch -Properties @{
   #   OutputPath = "$BinaryCache\";
-  #   MSI_LOCATION = "$BinaryCache\msi\";
+  #   MSI_LOCATION = "$($Arch.MSIRoot)\";
   # }
 }
 
@@ -1098,7 +1101,7 @@ Build-Compilers $HostArch
 
 if (-not $ToBatch)
 {
-  Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
+Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
 }
 
 foreach ($Arch in $SDKArchs)
@@ -1138,6 +1141,6 @@ Build-SourceKitLSP $HostArch
 # Switch to swift-driver
 if (-not $ToBatch)
 {
-  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
-  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
+Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
+Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
 }
