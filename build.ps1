@@ -457,16 +457,16 @@ function Build-Compilers($Arch)
 
   if (-not $ToBatch)
   {
-  # Restructure Internal Modules
-  Remove-Item -Recurse -Force  -ErrorAction Ignore `
-    $ToolchainInstallRoot\usr\include\_InternalSwiftScan
+    # Restructure Internal Modules
+    Remove-Item -Recurse -Force  -ErrorAction Ignore `
+      $ToolchainInstallRoot\usr\include\_InternalSwiftScan
     Move-Item -Force `
-    $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
-    $ToolchainInstallRoot\usr\include
+      $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
+      $ToolchainInstallRoot\usr\include
     Move-Item -Force `
-    $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
-    $ToolchainInstallRoot\usr\lib
-}
+      $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
+      $ToolchainInstallRoot\usr\lib
+  }
 }
 
 function Build-LLVM($Arch)
@@ -567,11 +567,11 @@ function Build-ICU($Arch)
 
   if (-not $ToBatch)
   {
-  if (-not(Test-Path -Path "$SourceCache\icu\icu4c\CMakeLists.txt"))
-  {
-    Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt $SourceCache\icu\icu4c\
-    Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake $SourceCache\icu\icu4c\
-  }
+    if (-not(Test-Path -Path "$SourceCache\icu\icu4c\CMakeLists.txt"))
+    {
+      Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt $SourceCache\icu\icu4c\
+      Copy-Item $SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake $SourceCache\icu\icu4c\
+    }
   }
 
   if ($Arch -eq $ArchARM64)
@@ -786,18 +786,18 @@ function Build-SQLite($Arch)
   # Download the sources
   if (-not $ToBatch)
   {
-  New-Item -ErrorAction Ignore -Type Directory `
-    -Path "S:\var\cache"
-  if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
-  {
-    curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
-  }
+    New-Item -ErrorAction Ignore -Type Directory `
+      -Path "S:\var\cache"
+    if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
+    {
+      curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
+    }
 
-  if (-not (Test-Path -Path $Dest))
-  {
-    New-Item -ErrorAction Ignore -Type Directory -Path $Dest
-    & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
-    Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
+    if (-not (Test-Path -Path $Dest))
+    {
+      New-Item -ErrorAction Ignore -Type Directory -Path $Dest
+      & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
+      Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
     }
   }
 
@@ -1101,7 +1101,7 @@ Build-Compilers $HostArch
 
 if (-not $ToBatch)
 {
-Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
+  Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
 }
 
 foreach ($Arch in $SDKArchs)
@@ -1141,6 +1141,6 @@ Build-SourceKitLSP $HostArch
 # Switch to swift-driver
 if (-not $ToBatch)
 {
-Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
-Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
 }
