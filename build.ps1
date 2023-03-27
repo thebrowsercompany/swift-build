@@ -367,15 +367,25 @@ function Build-WiXProject()
     [string]$FileName,
     [Parameter(Mandatory = $true)]
     [hashtable]$Arch,
+    [switch]$Bundle,
     [hashtable]$Properties = @{}
   )
 
   $Name = $FileName.Split('.')[0]
   $ArchName = $Arch.VSName
 
+  $ProductVersionArg = $ProductVersion
+  if (-not $Bundle)
+  {
+    # WiX v4 will accept a semantic version string for Bundles,
+    # but Packages still require a purely numerical version number, 
+    # so trim any semantic versionning suffixes
+    $ProductVersionArg = [regex]::Replace($ProductVersion, "[-+].*", "")
+  }
+
   $Properties = $Properties.Clone()
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
-  TryAdd-KeyValue $Properties ProductVersion $ProductVersion
+  TryAdd-KeyValue $Properties ProductVersion $ProductVersionArg
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
   TryAdd-KeyValue $Properties OutputPath $Arch.MSIRoot
   TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\$ArchName\
@@ -1120,7 +1130,7 @@ function Build-Installer()
       DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     }
 
-    Build-WiXProject installer.wixproj -Arch $HostArch -Properties @{
+    Build-WiXProject installer.wixproj -Arch $HostArch -Bundle -Properties @{
       OutputPath = "$BinaryCache\";
       MSI_LOCATION = "$($HostArch.MSIRoot)\";
     }
