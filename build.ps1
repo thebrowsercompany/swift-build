@@ -45,6 +45,7 @@ $ArchX64 = @{
   PlatformInstallRoot = "$BinaryCache\x64\Windows.platform\";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
+  ToolchainInstallRoot = "$BinaryCache\x64\unknown-Asserts-development.xctoolchain";
   MSIRoot = "$BinaryCache\x64\msi";
 }
 
@@ -75,6 +76,7 @@ $ArchARM64 = @{
   PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform\";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
+  ToolchainInstallRoot = "$BinaryCache\arm64\unknown-Asserts-development.xctoolchain";
   MSIRoot = "$BinaryCache\arm64\msi";
 }
 
@@ -432,7 +434,8 @@ function Build-Compilers($Arch)
     -Defines @{
       CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
       CLANG_TIDY_CONFUSABLE_CHARS_GEN = "$BinaryCache\0\bin\clang-tidy-confusable-chars-gen.exe";
-      CMAKE_INSTALL_PREFIX = "$ToolchainInstallRoot\usr";
+      CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
+      LLDB_PYTHON_EXT_SUFFIX = ".pyd";
       LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
       LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
       LLVM_ENABLE_PDB = "YES";
@@ -454,19 +457,6 @@ function Build-Compilers($Arch)
       SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
       SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
     }
-
-  if (-not $ToBatch)
-  {
-    # Restructure Internal Modules
-    Remove-Item -Recurse -Force  -ErrorAction Ignore `
-      $ToolchainInstallRoot\usr\include\_InternalSwiftScan
-    Move-Item -Force `
-      $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
-      $ToolchainInstallRoot\usr\include
-    Move-Item -Force `
-      $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
-      $ToolchainInstallRoot\usr\lib
-  }
 }
 
 function Build-LLVM($Arch)
@@ -817,7 +807,7 @@ function Build-System($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-system `
     -Bin $BinaryCache\2 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -832,7 +822,7 @@ function Build-ToolsSupportCore($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-tools-support-core `
     -Bin $BinaryCache\3 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -850,7 +840,7 @@ function Build-LLBuild($Arch)
   Build-CMakeProject `
     -Src $SourceCache\llbuild `
     -Bin $BinaryCache\4 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseMSVCCompilers CXX `
     -UseBuiltCompilers Swift `
@@ -884,7 +874,7 @@ function Build-ArgumentParser($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-argument-parser `
     -Bin $BinaryCache\6 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -900,7 +890,7 @@ function Build-Driver($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-driver `
     -Bin $BinaryCache\7 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -936,7 +926,7 @@ function Build-Collections($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-collections `
     -Bin $BinaryCache\9 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -981,7 +971,7 @@ function Build-PackageManager($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-package-manager `
     -Bin $BinaryCache\12 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -1024,7 +1014,7 @@ function Build-Syntax($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-syntax `
     -Bin $BinaryCache\14 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -1039,7 +1029,7 @@ function Build-SourceKitLSP($Arch)
   Build-CMakeProject `
     -Src $SourceCache\sourcekit-lsp `
     -Bin $BinaryCache\15 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -1056,13 +1046,32 @@ function Build-SourceKitLSP($Arch)
     }
 }
 
+function Consolidate-HostToolchainInstall()
+{
+  if ($ToBatch) { return }
+
+  Remove-Item -Force -Recurse $ToolchainInstallRoot -ErrorAction Ignore
+  Copy-Directory "$($HostArch.ToolchainInstallRoot)\usr" $ToolchainInstallRoot\
+
+  # Restructure _InternalSwiftScan
+  Move-Item -Force `
+    $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
+    $ToolchainInstallRoot\usr\include
+  Move-Item -Force `
+    $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
+    $ToolchainInstallRoot\usr\lib
+
+  # Switch to swift-driver
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
+}
+
 function Build-Installer()
 {
-  # Currently fails due to _InternalSwiftScan paths
-  # Build-WiXProject toolchain.wixproj -Arch $HostArch -Properties @{
-  #   DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
-  #   TOOLCHAIN_ROOT = "$ToolchainInstallRoot\";
-  # }
+  Build-WiXProject toolchain.wixproj -Arch $HostArch -Properties @{
+    DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+  }
 
   foreach ($Arch in $SDKArchs)
   {
@@ -1084,7 +1093,7 @@ function Build-Installer()
   }
 
   Build-WiXProject devtools.wixproj -Arch $HostArch -Properties @{
-    DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
+    DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
   }
 
   # TODO: The above wixprojs need to build
@@ -1138,9 +1147,4 @@ Build-IndexStoreDB $HostArch
 Build-Syntax $HostArch
 Build-SourceKitLSP $HostArch
 
-# Switch to swift-driver
-if (-not $ToBatch)
-{
-  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
-  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
-}
+Consolidate-HostToolchainInstall
