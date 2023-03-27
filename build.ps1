@@ -1,12 +1,10 @@
 # Copyright 2020 Saleem Abdulrasool <compnerd@compnerd.org>
 # Copyright 2023 Tristan Labelle <tristan@thebrowser.company>
 
-[CmdletBinding(PositionalBinding = $false)]
 param(
+  [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $SourceCache = "S:\SourceCache",
   [string] $BinaryCache = "S:\b",
-  [string[]] $SDKs = @("X64","X86","Arm64"),
-  [string] $ProductVersion = "0.0.0",
   [switch] $ToBatch
 )
 
@@ -41,8 +39,7 @@ $ArchX64 = @{
   CMakeName = "AMD64";
   BinaryDir = "bin64";
   BuildID = 100;
-  RedistInstallRoot = "$InstallRoot\x64\swift-development";
-  PlatformInstallRoot = "$BinaryCache\x64\Windows.platform\";
+  PlatformInstallRoot = "$BinaryCache\x64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
   ToolchainInstallRoot = "$BinaryCache\x64\unknown-Asserts-development.xctoolchain";
@@ -57,8 +54,7 @@ $ArchX86 = @{
   CMakeName = "i686";
   BinaryDir = "bin32";
   BuildID = 200;
-  RedistInstallRoot = "$InstallRoot\x86\swift-development";
-  PlatformInstallRoot = "$BinaryCache\x86\Windows.platform\";
+  PlatformInstallRoot = "$BinaryCache\x86\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-development";
   MSIRoot = "$BinaryCache\x86\msi";
@@ -72,8 +68,7 @@ $ArchARM64 = @{
   CMakeName = "aarch64";
   BinaryDir = "bin64a";
   BuildID = 300;
-  RedistInstallRoot = "$InstallRoot\arm64\swift-development";
-  PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform\";
+  PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
   ToolchainInstallRoot = "$BinaryCache\arm64\unknown-Asserts-development.xctoolchain";
@@ -378,7 +373,6 @@ function Build-WiXProject()
 
   $Properties = $Properties.Clone()
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
-  TryAdd-KeyValue $Properties ProductVersion $ProductVersion
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
   TryAdd-KeyValue $Properties OutputPath $Arch.MSIRoot
   TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\$ArchName\
@@ -709,8 +703,30 @@ function Consolidate-RedistInstall($Arch)
 {
   if ($ToBatch) { return }
 
-  Remove-Item -Force -Recurse $($Arch.RedistInstallRoot) -ErrorAction Ignore
-  Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$($Arch.RedistInstallRoot)\usr"
+  if ($Arch -eq $HostArch)
+  {
+    $ProgramFilesName = "Program Files"
+  }
+  elseif ($Arch -eq $ArchX86)
+  {
+    $ProgramFilesName = "Program Files (x86)"
+  }
+  elseif (($HostArch -eq $ArchArm64) -and ($Arch -eq $ArchX64))
+  {
+    # x64 programs actually install under "Program Files" on arm64,
+    # but this would conflict with the native installation.
+    $ProgramFilesName = "Program Files (Amd64)"
+  }
+  else
+  {
+    # arm64 cannot be installed on x64
+    return
+  }
+
+  $RedistInstallRoot = "S:\$ProgramFilesName\swift\runtime-development"
+
+  Remove-Item -Force -Recurse $RedistInstallRoot -ErrorAction Ignore
+  Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$RedistInstallRoot\usr"
 }
 
 # Copies files installed by CMake from the arch-specific platform root,
@@ -1126,7 +1142,7 @@ foreach ($Arch in $SDKArchs)
   Build-Dispatch $Arch
   Build-Foundation $Arch
   Build-XCTest $Arch
-  
+
   Consolidate-RedistInstall $Arch
   Consolidate-PlatformInstall $Arch
 }
