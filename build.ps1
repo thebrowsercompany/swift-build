@@ -41,10 +41,11 @@ $ArchX64 = @{
   CMakeName = "AMD64";
   BinaryDir = "bin64";
   BuildID = 100;
-  RedistInstallRoot = "$InstallRoot\x64\swift-development";
-  PlatformInstallRoot = "$BinaryCache\x64\Windows.platform\";
+  PlatformInstallRoot = "$BinaryCache\x64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
+  ToolchainInstallRoot = "$BinaryCache\x64\unknown-Asserts-development.xctoolchain";
+  MSIRoot = "$BinaryCache\x64\msi";
 }
 
 $ArchX86 = @{
@@ -55,10 +56,10 @@ $ArchX86 = @{
   CMakeName = "i686";
   BinaryDir = "bin32";
   BuildID = 200;
-  RedistInstallRoot = "$InstallRoot\x86\swift-development";
-  PlatformInstallRoot = "$BinaryCache\x86\Windows.platform\";
+  PlatformInstallRoot = "$BinaryCache\x86\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-development";
+  MSIRoot = "$BinaryCache\x86\msi";
 }
 
 $ArchARM64 = @{
@@ -69,10 +70,11 @@ $ArchARM64 = @{
   CMakeName = "aarch64";
   BinaryDir = "bin64a";
   BuildID = 300;
-  RedistInstallRoot = "$InstallRoot\arm64\swift-development";
-  PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform\";
+  PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
+  ToolchainInstallRoot = "$BinaryCache\arm64\unknown-Asserts-development.xctoolchain";
+  MSIRoot = "$BinaryCache\arm64\msi";
 }
 
 $HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
@@ -365,17 +367,27 @@ function Build-WiXProject()
     [string]$FileName,
     [Parameter(Mandatory = $true)]
     [hashtable]$Arch,
+    [switch]$Bundle,
     [hashtable]$Properties = @{}
   )
 
   $Name = $FileName.Split('.')[0]
   $ArchName = $Arch.VSName
 
+  $ProductVersionArg = $ProductVersion
+  if (-not $Bundle)
+  {
+    # WiX v4 will accept a semantic version string for Bundles,
+    # but Packages still require a purely numerical version number, 
+    # so trim any semantic versionning suffixes
+    $ProductVersionArg = [regex]::Replace($ProductVersion, "[-+].*", "")
+  }
+
   $Properties = $Properties.Clone()
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
-  TryAdd-KeyValue $Properties ProductVersion $ProductVersion
+  TryAdd-KeyValue $Properties ProductVersion $ProductVersionArg
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
-  TryAdd-KeyValue $Properties OutputPath $BinaryCache\msi\$ArchName\
+  TryAdd-KeyValue $Properties OutputPath $Arch.MSIRoot
   TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\$ArchName\
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
@@ -429,7 +441,8 @@ function Build-Compilers($Arch)
     -Defines @{
       CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
       CLANG_TIDY_CONFUSABLE_CHARS_GEN = "$BinaryCache\0\bin\clang-tidy-confusable-chars-gen.exe";
-      CMAKE_INSTALL_PREFIX = "$ToolchainInstallRoot\usr";
+      CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
+      LLDB_PYTHON_EXT_SUFFIX = ".pyd";
       LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
       LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
       LLVM_ENABLE_PDB = "YES";
@@ -451,19 +464,6 @@ function Build-Compilers($Arch)
       SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
       SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
     }
-
-  if (-not $ToBatch)
-  {
-    # Restructure Internal Modules
-    Remove-Item -Recurse -Force  -ErrorAction Ignore `
-      $ToolchainInstallRoot\usr\include\_InternalSwiftScan
-    Move-Item -Force `
-      $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
-      $ToolchainInstallRoot\usr\include
-    Move-Item -Force `
-      $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
-      $ToolchainInstallRoot\usr\lib
-  }
 }
 
 function Build-LLVM($Arch)
@@ -687,7 +687,6 @@ function Build-XCTest($Arch)
     -UseBuiltCompilers Swift `
     -BuildDefaultTarget `
     -Defines @{
-      CMAKE_INSTALL_BINDIR = $Arch.BinaryDir;
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       dispatch_DIR = "$DispatchBinDir\cmake\modules";
@@ -698,7 +697,16 @@ function Build-XCTest($Arch)
     -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
 }
 
-function Copy-Dir($Src, $Dst)
+function Copy-File($Src, $Dst)
+{
+  # Create the directory tree first so Copy-Item succeeds
+  # If $Dst is the target directory, make sure it ends with "\"
+  $DstDir = [IO.Path]::GetDirectoryName($Dst)
+  New-Item -ItemType Directory -ErrorAction Ignore $DstDir | Out-Null
+  Copy-Item -Force $Src $Dst
+}
+
+function Copy-Directory($Src, $Dst)
 {
   New-Item -ItemType Directory -ErrorAction Ignore $Dst | Out-Null
   Copy-Item -Force -Recurse $Src $Dst
@@ -708,8 +716,30 @@ function Consolidate-RedistInstall($Arch)
 {
   if ($ToBatch) { return }
 
-  Remove-Item -Force -Recurse $($Arch.RedistInstallRoot) -ErrorAction Ignore
-  Copy-Dir "$($Arch.SDKInstallRoot)\usr\bin" "$($Arch.RedistInstallRoot)\usr"
+  if ($Arch -eq $HostArch)
+  {
+    $ProgramFilesName = "Program Files"
+  }
+  elseif ($Arch -eq $ArchX86)
+  {
+    $ProgramFilesName = "Program Files (x86)"
+  }
+  elseif (($HostArch -eq $ArchArm64) -and ($Arch -eq $ArchX64))
+  {
+    # x64 programs actually install under "Program Files" on arm64,
+    # but this would conflict with the native installation.
+    $ProgramFilesName = "Program Files (Amd64)"
+  }
+  else
+  {
+    # arm64 cannot be installed on x64
+    return
+  }
+
+  $RedistInstallRoot = "S:\$ProgramFilesName\swift\runtime-development"
+
+  Remove-Item -Force -Recurse $RedistInstallRoot -ErrorAction Ignore
+  Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$RedistInstallRoot\usr"
 }
 
 # Copies files installed by CMake from the arch-specific platform root,
@@ -722,45 +752,49 @@ function Consolidate-PlatformInstall($Arch)
   New-Item -ItemType Directory -ErrorAction Ignore $SDKInstallRoot\usr | Out-Null
 
   # Copy SDK header files
-  Copy-Dir "$($Arch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" $SDKInstallRoot\usr\include\swift
-  Copy-Dir "$($Arch.SDKInstallRoot)\usr\lib\swift\shims" $SDKInstallRoot\usr\lib\swift
+  Copy-Directory "$($Arch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" $SDKInstallRoot\usr\include\swift
+  Copy-Directory "$($Arch.SDKInstallRoot)\usr\lib\swift\shims" $SDKInstallRoot\usr\lib\swift
   foreach ($Module in ("Block", "dispatch", "os"))
   {
-    Copy-Dir "$($Arch.SDKInstallRoot)\usr\lib\swift\$Module" $SDKInstallRoot\usr\include
+    Copy-Directory "$($Arch.SDKInstallRoot)\usr\lib\swift\$Module" $SDKInstallRoot\usr\include
   }
 
   # Copy SDK share folder
-  New-Item -ItemType Directory -ErrorAction Ignore $SDKInstallRoot\usr\share | Out-Null
-  Copy-Item -Force "$($Arch.SDKInstallRoot)\usr\share\*.*" $SDKInstallRoot\usr\share\
+  Copy-File "$($Arch.SDKInstallRoot)\usr\share\*.*" $SDKInstallRoot\usr\share\
 
   # Copy SDK libs, placing them in an arch-specific directory
   $WindowsLibSrc = "$($Arch.SDKInstallRoot)\usr\lib\swift\windows"
   $WindowsLibDst = "$SDKInstallRoot\usr\lib\swift\windows"
 
-  New-Item -ItemType Directory "$WindowsLibDst\$($Arch.LLVMName)" | Out-Null
-  Copy-Item -Force "$WindowsLibSrc\*.lib" "$WindowsLibDst\$($Arch.LLVMName)"
-  Copy-Item -Force "$WindowsLibSrc\$($Arch.LLVMName)\*.lib" "$WindowsLibDst\$($Arch.LLVMName)"
+  Copy-File "$WindowsLibSrc\*.lib" "$WindowsLibDst\$($Arch.LLVMName)\"
+  Copy-File "$WindowsLibSrc\$($Arch.LLVMName)\*.lib" "$WindowsLibDst\$($Arch.LLVMName)\"
 
   # Copy well-structured SDK modules
-  Copy-Item -Force -Recurse "$WindowsLibSrc\*.swiftmodule" $WindowsLibDst
+  Copy-Directory "$WindowsLibSrc\*.swiftmodule" "$WindowsLibDst\"
 
   # Copy files from the arch subdirectory, including "*.swiftmodule" which need restructuring
   Get-ChildItem -Recurse "$WindowsLibSrc\$($Arch.LLVMName)" | ForEach-Object {
     if (".swiftmodule", ".swiftdoc", ".swiftinterface" -contains $_.Extension)
     {
       $DstDir = "$WindowsLibDst\$($_.BaseName).swiftmodule"
-      New-Item -ItemType Directory $DstDir -ErrorAction Ignore | Out-Null
-      Copy-Item -Force $_.FullName "$DstDir\$($Arch.LLVMTarget)$($_.Extension)"
+      Copy-File $_.FullName "$DstDir\$($Arch.LLVMTarget)$($_.Extension)"
     }
     else
     {
-      Copy-Item $_.FullName "$WindowsLibDst\$($Arch.LLVMName)\"
+      Copy-File $_.FullName "$WindowsLibDst\$($Arch.LLVMName)\"
     }
   }
 
   # Copy plist files (same across architectures)
-  Copy-Item -Force "$($Arch.PlatformInstallRoot)\Info.plist" $PlatformInstallRoot\
-  Copy-Item -Force "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
+  Copy-File "$($Arch.PlatformInstallRoot)\Info.plist" $PlatformInstallRoot\
+  Copy-File "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
+
+  # Copy XCTest
+  $XCTestInstallRoot = "$PlatformInstallRoot\Developer\Library\XCTest-development"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\bin\XCTest.dll" "$XCTestInstallRoot\usr\$($Arch.BinaryDir)\"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\XCTest.lib" "$XCTestInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftmodule" "$XCTestInstallRoot\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftmodule"
+  Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftdoc" "$XCTestInstallRoot\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftdoc"
 }
 
 function Build-SQLite($Arch)
@@ -802,7 +836,7 @@ function Build-System($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-system `
     -Bin $BinaryCache\2 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -817,7 +851,7 @@ function Build-ToolsSupportCore($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-tools-support-core `
     -Bin $BinaryCache\3 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -835,7 +869,7 @@ function Build-LLBuild($Arch)
   Build-CMakeProject `
     -Src $SourceCache\llbuild `
     -Bin $BinaryCache\4 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseMSVCCompilers CXX `
     -UseBuiltCompilers Swift `
@@ -869,7 +903,7 @@ function Build-ArgumentParser($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-argument-parser `
     -Bin $BinaryCache\6 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -885,7 +919,7 @@ function Build-Driver($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-driver `
     -Bin $BinaryCache\7 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -921,7 +955,7 @@ function Build-Collections($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-collections `
     -Bin $BinaryCache\9 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -966,7 +1000,7 @@ function Build-PackageManager($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-package-manager `
     -Bin $BinaryCache\12 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -1009,7 +1043,7 @@ function Build-Syntax($Arch)
   Build-CMakeProject `
     -Src $SourceCache\swift-syntax `
     -Bin $BinaryCache\14 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -1024,7 +1058,7 @@ function Build-SourceKitLSP($Arch)
   Build-CMakeProject `
     -Src $SourceCache\sourcekit-lsp `
     -Bin $BinaryCache\15 `
-    -InstallTo $ToolchainInstallRoot\usr `
+    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
@@ -1041,17 +1075,39 @@ function Build-SourceKitLSP($Arch)
     }
 }
 
+function Consolidate-HostToolchainInstall()
+{
+  if ($ToBatch) { return }
+
+  Remove-Item -Force -Recurse $ToolchainInstallRoot -ErrorAction Ignore
+  Copy-Directory "$($HostArch.ToolchainInstallRoot)\usr" $ToolchainInstallRoot\
+
+  # Restructure _InternalSwiftScan
+  Move-Item -Force `
+    $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
+    $ToolchainInstallRoot\usr\include
+  Move-Item -Force `
+    $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
+    $ToolchainInstallRoot\usr\lib
+
+  # Switch to swift-driver
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
+  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
+}
+
 function Build-Installer()
 {
-  # Currently fails due to _InternalSwiftScan paths
-  # Build-WiXProject toolchain.wixproj -Arch $HostArch -Properties @{
-  #   DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
-  #   TOOLCHAIN_ROOT = "$ToolchainInstallRoot\";
-  # }
+  # WiX v3 does not support ARM64
+  if ($HostArch -ne $ArchARM64)
+  {
+    Build-WiXProject toolchain.wixproj -Arch $HostArch -Properties @{
+      DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+      TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    }
+  }
 
   foreach ($Arch in $SDKArchs)
   {
-    # WiX v3 does not support ARM64
     if ($Arch -eq $ArchARM64)
     {
       continue
@@ -1062,21 +1118,23 @@ function Build-Installer()
     }
     
     Build-WiXProject sdk.wixproj -Arch $Arch -Properties @{
-      PLATFORM_ROOT = "$($Arch.PlatforInstallRoot)\";
+      PLATFORM_ROOT = "$($Arch.PlatformInstallRoot)\";
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
       SWIFT_SOURCE_DIR = "$SourceCache\swift\";
     }
   }
 
-  Build-WiXProject devtools.wixproj -Arch $HostArch -Properties @{
-    DEVTOOLS_ROOT = "$ToolchainInstallRoot\";
-  }
+  if ($HostArch -ne $ArchARM64)
+  {
+    Build-WiXProject devtools.wixproj -Arch $HostArch -Properties @{
+      DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    }
 
-  # TODO: The above wixprojs need to build
-  # Build-WiXProject installer.wixproj -Arch $HostArch -Properties @{
-  #   OutputPath = "$BinaryCache\";
-  #   MSI_LOCATION = "$BinaryCache\msi\";
-  # }
+    Build-WiXProject installer.wixproj -Arch $HostArch -Bundle -Properties @{
+      OutputPath = "$BinaryCache\";
+      MSI_LOCATION = "$($HostArch.MSIRoot)\";
+    }
+  }
 }
 
 #-------------------------------------------------------------------
@@ -1102,7 +1160,7 @@ foreach ($Arch in $SDKArchs)
   Build-Dispatch $Arch
   Build-Foundation $Arch
   Build-XCTest $Arch
-  
+
   Consolidate-RedistInstall $Arch
   Consolidate-PlatformInstall $Arch
 }
@@ -1123,9 +1181,6 @@ Build-IndexStoreDB $HostArch
 Build-Syntax $HostArch
 Build-SourceKitLSP $HostArch
 
-# Switch to swift-driver
-if (-not $ToBatch)
-{
-  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swift.exe
-  Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
-}
+Build-Installer
+
+Consolidate-HostToolchainInstall
