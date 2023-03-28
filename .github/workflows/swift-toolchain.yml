@@ -8,8 +8,14 @@ on:
         default: false
         type: boolean
       swift_tag:
-        description: 'swift tag'
+        description: 'Swift Build Tag'
         required: false
+
+      swift_version:
+        description: 'Swift Version'
+        default: '0.0.0'
+        required: false
+        type: string
 
       debug_info:
         description: 'Emit PDBs (Debug Info)'
@@ -49,6 +55,8 @@ jobs:
       CMAKE_BUILD_TYPE: ${{ steps.context.outputs.CMAKE_BUILD_TYPE }}
       LLVM_ENABLE_PDB: ${{ steps.context.outputs.LLVM_ENABLE_PDB }}
       debug_info: ${{ steps.context.outputs.debug_info }}
+      swift_version: ${{ steps.context.outputs.swift_version }}
+      swift_tag: ${{ steps.context.outputs.swift_tag }}
     steps:
       - id: context
         name: Generate Build Context
@@ -115,6 +123,13 @@ jobs:
               echo CMAKE_BUILD_TYPE=Release >> ${GITHUB_OUTPUT}
               echo LLVM_ENABLE_PDB=NO >> ${GITHUB_OUTPUT}
             fi
+          fi
+
+          echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
+          if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
+            echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
+          else
+            echo swift_tag=$(date +%Y%m%d.$(date +%-H/4 | bc)) | tee -a ${GITHUB_OUTPUT}
           fi
 
       - uses: actions/upload-artifact@v3
@@ -1643,6 +1658,7 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/toolchain.wixproj
 
       - uses: actions/upload-artifact@v3
@@ -1696,6 +1712,7 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
+              -p:ProductVersion:${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj
 
       - name: Package Runtime
@@ -1710,6 +1727,7 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
+              -p:ProductVersion:${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/runtime.wixproj
 
       - uses: actions/upload-artifact@v3
@@ -1766,6 +1784,7 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ProductVersion:${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/devtools.wixproj
 
       - uses: actions/upload-artifact@v3
@@ -1830,6 +1849,7 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:MSI_LOCATION=${{ github.workspace }}/BuildRoot `
+              -p:ProductVersion:${{ needs.context.outputs.swift_version }}-${{ needs.context.otuputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/installer.wixproj
 
       - uses: actions/upload-artifact@v3
