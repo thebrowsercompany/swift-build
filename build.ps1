@@ -92,17 +92,6 @@ $SDKArchs = $SDKs | ForEach-Object {
   }
 }
 
-$CurrentVSDevShellTargetArch = $null
-
-$InitialEnvPaths = @{
-  EXTERNAL_INCLUDE = $env:EXTERNAL_INCLUDE;
-  INCLUDE = $env:INCLUDE;
-  LIB = $env:LIB;
-  LIBPATH = $env:LIBPATH;
-  Path = $env:Path;
-  __VSCMD_PREINIT_PATH = $env:__VSCMD_PREINIT_PATH
-}
-
 # Build functions
 function Get-ProjectBuildDir($Arch, $ID)
 {
@@ -183,21 +172,43 @@ function Invoke-Program()
   }
 }
 
+function Isolate-EnvVars([scriptblock]$Block)
+{
+  if ($ToBatch)
+  {
+    Write-Output "setlocal enableextensions enabledelayedexpansion"
+  }
+
+  $OldVars = @{}
+  foreach ($Var in (Get-ChildItem env:*).GetEnumerator())
+  {
+    $OldVars.Add($Var.Key, $Var.Value)
+  }
+
+  & $Block
+
+  Remove-Item env:*
+  foreach ($Var in $OldVars.GetEnumerator())
+  {
+    New-Item -Path "env:\$($Var.Key)" -Value $Var.Value -ErrorAction Ignore | Out-Null
+  }
+  
+  if ($ToBatch)
+  {
+    Write-Output "endlocal"
+  }
+}
+
 function Invoke-VsDevShell($Arch)
 {
   if ($ToBatch)
   {
     Write-Output "`"$VSInstallRoot\Common7\Tools\VsDevCmd.bat`" -no_logo -host_arch=amd64 -arch=$($Arch.VSName)"
-    return
   }
-
-  # Restore path-style environment variables to avoid appending ever more entries
-  foreach ($entry in $InitialEnvPaths.GetEnumerator())
+  else
   {
-    [Environment]::SetEnvironmentVariable($entry.Name, $entry.Value, "Process")
+    & "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName | Out-Null
   }
-
-  & "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName | Out-Null
 }
 
 function TryAdd-KeyValue([hashtable]$Hashtable, [string]$Key, [string]$Value)
@@ -250,12 +261,6 @@ function Build-CMakeProject
     Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
   }
   $Stopwatch = [Diagnostics.Stopwatch]::StartNew()
-
-  # Make sure we have the right VSDevShell target architecture for building
-  if ($Arch -ne $CurrentVSDevShellTargetArch) {
-    Invoke-VsDevShell $Arch
-    $CurrentVSDevShellTargetArch = $Arch
-  }
 
   # Add additional defines (unless already present)
   $Defines = $Defines.Clone()
@@ -334,22 +339,26 @@ function Build-CMakeProject
     $cmakeGenerateArgs += @("-D", "$($Define.Key)=$($Define.Value)")
   }
 
-  Invoke-Program cmake.exe @cmakeGenerateArgs
+  Isolate-EnvVars {
+    Invoke-VsDevShell $Arch
 
-  # Build all requested targets
-  if ($BuildDefaultTarget)
-  {
-    Invoke-Program cmake.exe --build $Bin
-  }
+    Invoke-Program cmake.exe @cmakeGenerateArgs
 
-  foreach ($Target in $BuildTargets)
-  {
-    Invoke-Program cmake.exe --build $Bin --target $Target
-  }
+    # Build all requested targets
+    if ($BuildDefaultTarget)
+    {
+      Invoke-Program cmake.exe --build $Bin
+    }
 
-  if ("" -ne $InstallTo)
-  {
-    Invoke-Program cmake.exe --build $Bin --target install
+    foreach ($Target in $BuildTargets)
+    {
+      Invoke-Program cmake.exe --build $Bin --target $Target
+    }
+
+    if ("" -ne $InstallTo)
+    {
+      Invoke-Program cmake.exe --build $Bin --target install
+    }
   }
 
   if (-not $ToBatch)
