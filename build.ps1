@@ -7,6 +7,7 @@ param(
   [string] $BinaryCache = "S:\b",
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
+  [string[]] $Test = @(),
   [switch] $ToBatch
 )
 
@@ -30,6 +31,11 @@ if (-not (Test-Path $python))
   {
     throw "Python.exe not found"
   }
+}
+
+if ($Test -contains "*")
+{
+  $Test = @("swift", "dispatch", "foundation", "xctest")
 }
 
 # Architecture definitions
@@ -247,7 +253,6 @@ function Build-CMakeProject
     [string[]] $UseBuiltCompilers = @(), # ASM,C,CXX,Swift
     [string] $SwiftSDK = "",
     [hashtable] $Defines = @{},
-    [switch] $BuildDefaultTarget = $false,
     [string[]] $BuildTargets = @()
   )
 
@@ -345,14 +350,16 @@ function Build-CMakeProject
     Invoke-Program cmake.exe @cmakeGenerateArgs
 
     # Build all requested targets
-    if ($BuildDefaultTarget)
-    {
-      Invoke-Program cmake.exe --build $Bin
-    }
-
     foreach ($Target in $BuildTargets)
     {
-      Invoke-Program cmake.exe --build $Bin --target $Target
+      if ($Target -eq "default")
+      {
+        Invoke-Program cmake.exe --build $Bin
+      }
+      else
+      {
+        Invoke-Program cmake.exe --build $Bin --target $Target
+      }
     }
 
     if ("" -ne $InstallTo)
@@ -438,41 +445,62 @@ function Build-BuildTools($Arch)
     }
 }
 
-function Build-Compilers($Arch)
+function Build-Compilers($Arch, [switch]$Test = $false)
 {
-  Build-CMakeProject `
-    -Src $SourceCache\llvm-project\llvm `
-    -Bin $BinaryCache\1 `
-    -Arch $Arch `
-    -UseMSVCCompilers C,CXX `
-    -BuildTargets distribution,install-distribution `
-    -CacheScript $SourceCache\swift\cmake\caches\Windows-$($Arch.LLVMName).cmake `
-    -Defines @{
-      CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
-      CLANG_TIDY_CONFUSABLE_CHARS_GEN = "$BinaryCache\0\bin\clang-tidy-confusable-chars-gen.exe";
-      CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
-      LLDB_PYTHON_EXT_SUFFIX = ".pyd";
-      LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
-      LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
-      LLVM_ENABLE_PDB = "YES";
-      LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
-      LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
-      LLVM_NATIVE_TOOL_DIR = "$BinaryCache\0\bin";
-      LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
-      LLVM_USE_HOST_TOOLS = "NO";
-      SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "NO";
-      SWIFT_BUILD_DYNAMIC_STDLIB = "NO";
-      SWIFT_BUILD_REMOTE_MIRROR = "NO";
-      SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_REFLECTION = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
-      SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\0\bin";
-      SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
-      SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
-      SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
+  Isolate-EnvVars {
+    if ($Test)
+    {
+      $LibdispatchBinDir = "$BinaryCache\1\tools\swift\libdispatch-windows-$($Arch.LLVMName)-prefix\bin"
+      $env:Path = "$LibdispatchBinDir;$BinaryCache\1\bin;$env:Path;$env:ProgramFiles\Git\usr\bin"
+      $Targets = @("check-swift")
+      $TestingDefines = @{
+        SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "YES";
+        SWIFT_BUILD_DYNAMIC_STDLIB = "YES";
+        SWIFT_BUILD_REMOTE_MIRROR = "YES";
+        SWIFT_NATIVE_SWIFT_TOOLS_PATH = "";
+      }
     }
+    else
+    {
+      $Targets = @("distribution", "install-distribution")
+      $TestingDefines = @{
+        SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "NO";
+        SWIFT_BUILD_DYNAMIC_STDLIB = "NO";
+        SWIFT_BUILD_REMOTE_MIRROR = "NO";
+        SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\0\bin";
+      }
+    }
+
+    Build-CMakeProject `
+      -Src $SourceCache\llvm-project\llvm `
+      -Bin $BinaryCache\1 `
+      -Arch $Arch `
+      -UseMSVCCompilers C,CXX `
+      -BuildTargets $Targets `
+      -CacheScript $SourceCache\swift\cmake\caches\Windows-$($Arch.LLVMName).cmake `
+      -Defines ($TestingDefines + @{
+        CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
+        CLANG_TIDY_CONFUSABLE_CHARS_GEN = "$BinaryCache\0\bin\clang-tidy-confusable-chars-gen.exe";
+        CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
+        LLDB_PYTHON_EXT_SUFFIX = ".pyd";
+        LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
+        LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
+        LLVM_ENABLE_PDB = "YES";
+        LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
+        LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
+        LLVM_NATIVE_TOOL_DIR = "$BinaryCache\0\bin";
+        LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
+        LLVM_USE_HOST_TOOLS = "NO";
+        SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_REFLECTION = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
+        SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
+        SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
+        SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
+      })
+  }
 }
 
 function Build-LLVM($Arch)
@@ -495,7 +523,7 @@ function Build-ZLib($Arch)
     -Bin $BinaryCache\zlib-1.2.11.$ArchName `
     -InstallTo $InstallRoot\zlib-1.2.11\usr `
     -Arch $Arch `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
       INSTALL_BIN_DIR = "$InstallRoot\zlib-1.2.11\usr\bin\$ArchName";
@@ -512,7 +540,7 @@ function Build-XML2($Arch)
     -Bin $BinaryCache\libxml2-2.9.12.$ArchName `
     -InstallTo "$InstallRoot\libxml2-2.9.12\usr" `
     -Arch $Arch `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
       CMAKE_INSTALL_BINDIR = "bin/$ArchName";
@@ -536,7 +564,7 @@ function Build-CURL($Arch)
     -Bin $BinaryCache\curl-7.77.0.$ArchName `
     -InstallTo "$InstallRoot\curl-7.77.0\usr" `
     -Arch $Arch `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
       CMAKE_INSTALL_BINDIR = "bin/$ArchName";
@@ -598,7 +626,7 @@ function Build-ICU($Arch)
     -Bin $BinaryCache\icu-69.1.$ArchName `
     -InstallTo "$InstallRoot\icu-69.1\usr" `
     -Arch $Arch `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines ($BuildToolsDefines + @{
       BUILD_SHARED_LIBS = "NO";
       CMAKE_INSTALL_BINDIR = "bin/$ArchName";
@@ -610,100 +638,144 @@ function Build-Runtime($Arch)
 {
   $LLVMBuildDir = Get-ProjectBuildDir $Arch 0
 
-  Build-CMakeProject `
-    -Src $SourceCache\swift `
+    Build-CMakeProject `
+      -Src $SourceCache\swift `
     -Bin (Get-ProjectBuildDir $Arch 1) `
     -InstallTo "$($Arch.SDKInstallRoot)\usr" `
-    -Arch $Arch `
-    -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
-    -UseBuiltCompilers C,CXX `
-    -BuildDefaultTarget `
-    -Defines @{
-      CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
-      LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
-      SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_REFLECTION = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
-      SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
-      SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
-      SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
-      SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
-    }
+      -Arch $Arch `
+      -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
+      -UseBuiltCompilers C,CXX `
+    -BuildTargets default `
+      -Defines @{
+        CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
+        LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
+        SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_REFLECTION = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
+        SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
+        SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
+        SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
+        SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
+      }
 
   Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" `
     -OutFile "$($Arch.SDKInstallRoot)\SDKSettings.plist"
 }
 
-function Build-Dispatch($Arch)
+function Build-Dispatch($Arch, [switch]$Test = $false)
 {
+  $Targets = if ($Test) { @("default", "ExperimentalTest") } else { @("default", "install") }
+
   Build-CMakeProject `
     -Src $SourceCache\swift-corelibs-libdispatch `
     -Bin (Get-ProjectBuildDir $Arch 2) `
-    -InstallTo "$($Arch.SDKInstallRoot)\usr" `
     -Arch $Arch `
     -UseBuiltCompilers C,CXX,Swift `
-    -BuildDefaultTarget `
+    -BuildTargets $Targets `
     -Defines @{
+      CMAKE_INSTALL_PREFIX = "$($Arch.SDKInstallRoot)\usr";
       CMAKE_SYSTEM_NAME = "Windows";
       CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
       ENABLE_SWIFT = "YES";
-      BUILD_TESTING = "NO";
     }
 }
 
-function Build-Foundation($Arch)
-{
-  $DispatchBinDir = Get-ProjectBuildDir $Arch 2
-  $ShortArch = $Arch.ShortName
-
-  Build-CMakeProject `
-    -Src $SourceCache\swift-corelibs-foundation `
-    -Bin (Get-ProjectBuildDir $Arch 3) `
-    -InstallTo "$($Arch.SDKInstallRoot)\usr" `
-    -Arch $Arch `
-    -UseBuiltCompilers ASM,C,Swift `
-    -BuildDefaultTarget `
-    -Defines @{
-      CMAKE_SYSTEM_NAME = "Windows";
-      CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
-      CURL_DIR = "$InstallRoot\curl-7.77.0\usr\lib\$ShortArch\cmake\CURL";
-      ICU_DATA_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicudt69.lib";
-      ICU_I18N_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicuin69.lib";
-      ICU_ROOT = "$InstallRoot\icu-69.1\usr";
-      ICU_UC_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicuuc69.lib";
-      LIBXML2_LIBRARY = "$InstallRoot\libxml2-2.9.12\usr\lib\$ShortArch\libxml2s.lib";
-      LIBXML2_INCLUDE_DIR = "$InstallRoot\libxml2-2.9.12\usr\include\libxml2";
-      LIBXML2_DEFINITIONS = "/DLIBXML_STATIC";
-      ZLIB_LIBRARY = "$InstallRoot\zlib-1.2.11\usr\lib\$ShortArch\zlibstatic.lib";
-      ZLIB_INCLUDE_DIR = "$InstallRoot\zlib-1.2.11\usr\include";
-      dispatch_DIR = "$DispatchBinDir\cmake\modules";
-      ENABLE_TESTING = "NO";
-    }
-}
-
-function Build-XCTest($Arch)
+function Build-Foundation($Arch, [switch]$Test = $false)
 {
   $DispatchBinDir = Get-ProjectBuildDir $Arch 2
   $FoundationBinDir = Get-ProjectBuildDir $Arch 3
+  $ShortArch = $Arch.ShortName
 
-  Build-CMakeProject `
-    -Src $SourceCache\swift-corelibs-xctest `
-    -Bin (Get-ProjectBuildDir $Arch 4) `
-    -InstallTo "$($Arch.XCTestInstallRoot)\usr" `
-    -Arch $Arch `
-    -UseBuiltCompilers Swift `
-    -BuildDefaultTarget `
-    -Defines @{
-      CMAKE_SYSTEM_NAME = "Windows";
-      CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
-      dispatch_DIR = "$DispatchBinDir\cmake\modules";
-      Foundation_DIR = "$FoundationBinDir\cmake\modules";
+  Isolate-EnvVars {
+    if ($Test)
+    {
+      $RuntimeBinDir = Get-ProjectBuildDir $Arch 1
+      $XCTestBinDir = Get-ProjectBuildDir $Arch 4
+      $TestingDefines = @{
+        ENABLE_TESTING = "YES";
+        XCTest_DIR = "$XCTestBinDir\cmake\modules";
+      }
+      $Targets = @("default", "test")
+      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path"
     }
-  
-  Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
-    -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+    else
+    {
+      $TestingDefines = @{ ENABLE_TESTING = "NO" }
+      $Targets = @("default", "install")
+    }
+
+    $env:CTEST_OUTPUT_ON_FAILURE = 1
+    Build-CMakeProject `
+      -Src $SourceCache\swift-corelibs-foundation `
+      -Bin $FoundationBinDir `
+      -Arch $Arch `
+      -UseBuiltCompilers ASM,C,Swift `
+      -BuildTargets $Targets `
+      -Defines (@{
+        CMAKE_INSTALL_PREFIX = "$($Arch.SDKInstallRoot)\usr";
+        CMAKE_SYSTEM_NAME = "Windows";
+        CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
+        CURL_DIR = "$InstallRoot\curl-7.77.0\usr\lib\$ShortArch\cmake\CURL";
+        ICU_DATA_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicudt69.lib";
+        ICU_I18N_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicuin69.lib";
+        ICU_ROOT = "$InstallRoot\icu-69.1\usr";
+        ICU_UC_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicuuc69.lib";
+        LIBXML2_LIBRARY = "$InstallRoot\libxml2-2.9.12\usr\lib\$ShortArch\libxml2s.lib";
+        LIBXML2_INCLUDE_DIR = "$InstallRoot\libxml2-2.9.12\usr\include\libxml2";
+        LIBXML2_DEFINITIONS = "/DLIBXML_STATIC";
+        ZLIB_LIBRARY = "$InstallRoot\zlib-1.2.11\usr\lib\$ShortArch\zlibstatic.lib";
+        ZLIB_INCLUDE_DIR = "$InstallRoot\zlib-1.2.11\usr\include";
+        dispatch_DIR = "$DispatchBinDir\cmake\modules";
+      } + $TestingDefines)
+  }
+}
+
+function Build-XCTest($Arch, [switch]$Test = $false)
+{
+  $LLVMBinDir = Get-ProjectBuildDir $Arch 0
+  $DispatchBinDir = Get-ProjectBuildDir $Arch 2
+  $FoundationBinDir = Get-ProjectBuildDir $Arch 3
+  $XCTestBinDir = Get-ProjectBuildDir $Arch 4
+
+  Isolate-EnvVars {
+    if ($Test)
+    {
+      $RuntimeBinDir = Get-ProjectBuildDir $Arch 1
+      $TestingDefines = @{
+        ENABLE_TESTING = "YES";
+        LLVM_DIR = "$LLVMBinDir/lib/cmake/llvm";
+        XCTEST_PATH_TO_LIBDISPATCH_BUILD = $DispatchBinDir;
+        XCTEST_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
+        XCTEST_PATH_TO_FOUNDATION_BUILD = $FoundationBinDir;
+      }
+      $Targets = @("default", "check-xctest")
+      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path;$env:ProgramFiles\Git\usr\bin"
+    }
+    else
+    {
+      $TestingDefines = @{ ENABLE_TESTING = "NO" }
+      $Targets = @("default", "install")
+    }
+
+    Build-CMakeProject `
+      -Src $SourceCache\swift-corelibs-xctest `
+      -Bin $XCTestBinDir `
+      -Arch $Arch `
+      -UseBuiltCompilers Swift `
+      -BuildTargets $Targets `
+      -Defines (@{
+        CMAKE_INSTALL_PREFIX = "$($Arch.XCTestInstallRoot)\usr";
+        CMAKE_SYSTEM_NAME = "Windows";
+        CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
+        dispatch_DIR = "$DispatchBinDir\cmake\modules";
+        Foundation_DIR = "$FoundationBinDir\cmake\modules";
+      } + $TestingDefines)
+    
+    Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
+      -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+  }
 }
 
 function Copy-File($Src, $Dst)
@@ -834,7 +906,7 @@ function Build-SQLite($Arch)
     -Bin $BinaryCache\sqlite-3.36.0.$ArchName `
     -InstallTo $InstallRoot\sqlite-3.36.0\usr `
     -Arch $Arch `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
     }
@@ -849,7 +921,7 @@ function Build-System($Arch)
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
     }
@@ -864,7 +936,7 @@ function Build-ToolsSupportCore($Arch)
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
@@ -883,7 +955,7 @@ function Build-LLBuild($Arch)
     -UseMSVCCompilers CXX `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       LLBUILD_SUPPORT_BINDINGS = "Swift";
@@ -900,7 +972,7 @@ function Build-Yams($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
       BUILD_TESTING = "NO";
@@ -916,7 +988,7 @@ function Build-ArgumentParser($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       BUILD_TESTING = "NO";
@@ -932,7 +1004,7 @@ function Build-Driver($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
@@ -953,7 +1025,7 @@ function Build-Crypto($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
     }
@@ -968,7 +1040,7 @@ function Build-Collections($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
     }
@@ -982,7 +1054,7 @@ function Build-ASN1($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
     }
@@ -996,7 +1068,7 @@ function Build-Certificates($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
       SwiftASN1_DIR = "$BinaryCache\10\cmake\modules";
@@ -1013,7 +1085,7 @@ function Build-PackageManager($Arch)
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       CMAKE_Swift_FLAGS = "-DCRYPTO_v2";
@@ -1039,7 +1111,7 @@ function Build-IndexStoreDB($Arch)
     -Arch $Arch `
     -UseBuiltCompilers C,CXX,Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
       CMAKE_C_FLAGS = "-Xclang -fno-split-cold-code -I$SDKInstallRoot\usr\include -I$SDKInstallRoot\usr\include\Block";
@@ -1056,7 +1128,7 @@ function Build-Syntax($Arch)
     -Arch $Arch `
     -UseBuiltCompilers Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
     }
@@ -1071,7 +1143,7 @@ function Build-SourceKitLSP($Arch)
     -Arch $Arch `
     -UseBuiltCompilers C,Swift `
     -SwiftSDK $SDKInstallRoot `
-    -BuildDefaultTarget `
+    -BuildTargets default `
     -Defines @{
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
       TSC_DIR = "$BinaryCache\3\cmake\modules";
@@ -1193,3 +1265,8 @@ Build-SourceKitLSP $HostArch
 Build-Installer
 
 Consolidate-HostToolchainInstall
+
+if ($Test -contains "swift") { Build-Compilers $HostArch -Test }
+if ($Test -contains "dispatch") { Build-Dispatch $HostArch -Test }
+if ($Test -contains "foundation") { Build-Foundation $HostArch -Test }
+if ($Test -contains "xctest") { Build-XCTest $HostArch -Test }
