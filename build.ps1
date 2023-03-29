@@ -494,7 +494,7 @@ function Build-Compilers($Arch, [switch]$Test = $false)
         SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_REFLECTION = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
         SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
         SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
@@ -645,14 +645,14 @@ function Build-Runtime($Arch)
       -Arch $Arch `
       -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
       -UseBuiltCompilers C,CXX `
-    -BuildTargets default `
+      -BuildTargets default `
       -Defines @{
         CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
         LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
         SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_REFLECTION = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
         SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
         SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
