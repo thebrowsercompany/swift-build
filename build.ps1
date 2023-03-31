@@ -47,11 +47,11 @@ $ArchX64 = @{
   CMakeName = "AMD64";
   BinaryDir = "bin64";
   BuildID = 100;
+  BinaryRoot = "$BinaryCache\x64";
   PlatformInstallRoot = "$BinaryCache\x64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
   ToolchainInstallRoot = "$BinaryCache\x64\unknown-Asserts-development.xctoolchain";
-  MSIRoot = "$BinaryCache\x64\msi";
 }
 
 $ArchX86 = @{
@@ -62,10 +62,10 @@ $ArchX86 = @{
   CMakeName = "i686";
   BinaryDir = "bin32";
   BuildID = 200;
+  BinaryRoot = "$BinaryCache\x86";
   PlatformInstallRoot = "$BinaryCache\x86\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-development";
-  MSIRoot = "$BinaryCache\x86\msi";
 }
 
 $ArchARM64 = @{
@@ -76,11 +76,11 @@ $ArchARM64 = @{
   CMakeName = "aarch64";
   BinaryDir = "bin64a";
   BuildID = 300;
+  BinaryRoot = "$BinaryCache\arm64";
   PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
   ToolchainInstallRoot = "$BinaryCache\arm64\unknown-Asserts-development.xctoolchain";
-  MSIRoot = "$BinaryCache\arm64\msi";
 }
 
 $HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
@@ -403,8 +403,8 @@ function Build-WiXProject()
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
   TryAdd-KeyValue $Properties ProductVersion $ProductVersionArg
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
-  TryAdd-KeyValue $Properties OutputPath $Arch.MSIRoot
-  TryAdd-KeyValue $Properties IntermediateOutputPath BinaryCache\$Name\$ArchName\
+  TryAdd-KeyValue $Properties OutputPath "$($Arch.BinaryRoot)\msi\"
+  TryAdd-KeyValue $Properties IntermediateOutputPath "$($Arch.BinaryRoot)\$Name\"
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
   $MSBuildArgs += "-noLogo"
@@ -520,7 +520,7 @@ function Build-ZLib($Arch)
 
   Build-CMakeProject `
     -Src $SourceCache\zlib `
-    -Bin $BinaryCache\zlib-1.2.11.$ArchName `
+    -Bin "$($Arch.BinaryRoot)\zlib-1.2.11" `
     -InstallTo $InstallRoot\zlib-1.2.11\usr `
     -Arch $Arch `
     -BuildTargets default `
@@ -537,7 +537,7 @@ function Build-XML2($Arch)
 
   Build-CMakeProject `
     -Src $SourceCache\libxml2 `
-    -Bin $BinaryCache\libxml2-2.9.12.$ArchName `
+    -Bin "$($Arch.BinaryRoot)\libxml2-2.9.12" `
     -InstallTo "$InstallRoot\libxml2-2.9.12\usr" `
     -Arch $Arch `
     -BuildTargets default `
@@ -561,7 +561,7 @@ function Build-CURL($Arch)
 
   Build-CMakeProject `
     -Src $SourceCache\curl `
-    -Bin $BinaryCache\curl-7.77.0.$ArchName `
+    -Bin "$($Arch.BinaryRoot)\curl-7.77.0" `
     -InstallTo "$InstallRoot\curl-7.77.0\usr" `
     -Arch $Arch `
     -BuildTargets default `
@@ -613,7 +613,7 @@ function Build-ICU($Arch)
     # Use previously built x64 tools
     $BuildToolsDefines = @{
       BUILD_TOOLS = "NO";
-      ICU_TOOLS_DIR = "S:\b\icu-69.1.x64"
+      ICU_TOOLS_DIR = "$($ArchX64.BinaryRoot)\icu-69.1"
     }
   }
   else
@@ -623,7 +623,7 @@ function Build-ICU($Arch)
 
   Build-CMakeProject `
     -Src $SourceCache\icu\icu4c `
-    -Bin $BinaryCache\icu-69.1.$ArchName `
+    -Bin "$($Arch.BinaryRoot)\icu-69.1" `
     -InstallTo "$InstallRoot\icu-69.1\usr" `
     -Arch $Arch `
     -BuildTargets default `
@@ -903,7 +903,7 @@ function Build-SQLite($Arch)
 
   Build-CMakeProject `
     -Src $SourceCache\sqlite-3.36.0 `
-    -Bin $BinaryCache\sqlite-3.36.0.$ArchName `
+    -Bin "$($Arch.BinaryRoot)\sqlite-3.36.0" `
     -InstallTo $InstallRoot\sqlite-3.36.0\usr `
     -Arch $Arch `
     -BuildTargets default `
@@ -1201,8 +1201,8 @@ function Build-Installer()
   }
 
   Build-WiXProject installer.wixproj -Arch $HostArch -Bundle -Properties @{
-    OutputPath = "$BinaryCache\";
-    MSI_LOCATION = "$($HostArch.MSIRoot)\";
+    OutputPath = "$($HostArch.BinaryRoot)\";
+    MSI_LOCATION = "$($HostArch.BinaryRoot)\msi\";
   }
 }
 
