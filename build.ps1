@@ -143,7 +143,7 @@ function Invoke-Program()
       # Break lines after non-switch arguments
       $ShouldBreakLine = -not $Arg.StartsWith("-")
     }
-    
+
     if ($OutNull)
     {
       $OutputLine += " > nul"
@@ -153,7 +153,7 @@ function Invoke-Program()
       $OutputLine += " > `"$OutFile`""
     }
 
-    Write-Output $OutputLine
+    Write-Output -Encoding UTF8 $OutputLine
   }
   else
   {
@@ -163,7 +163,7 @@ function Invoke-Program()
     }
     elseif ("" -ne $OutFile)
     {
-      & $Executable @Args | Out-File $OutFile
+      & $Executable @Args | Out-File -Encoding UTF8 $OutFile
     }
     else
     {
