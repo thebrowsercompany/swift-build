@@ -128,10 +128,10 @@ jobs:
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
-          if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
+          if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
             echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
           else
-            echo swift_tag=$(date +%Y%m%d.$(date +%-H/4 | bc)) | tee -a ${GITHUB_OUTPUT}
+            echo swift_tag=-$(date +%Y%m%d.$(date +%-H/4 | bc)) | tee -a ${GITHUB_OUTPUT}
           fi
 
       - uses: actions/upload-artifact@v3
@@ -548,7 +548,7 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_REFLECTION=YES `
+                -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
@@ -896,7 +896,7 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_REFLECTION=YES `
+                -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
@@ -1851,7 +1851,7 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:MSI_LOCATION=${{ github.workspace }}/BuildRoot `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.otuputs.swift_tag }} `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }}${{ needs.context.otuputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/installer.wixproj
 
       - uses: actions/upload-artifact@v3
