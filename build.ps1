@@ -8,6 +8,7 @@ param(
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
   [string[]] $Test = @(),
+  [string] $Stage = "",
   [switch] $ToBatch
 )
 
@@ -1258,3 +1259,11 @@ if ($Test -contains "swift") { Build-Compilers $HostArch -Test }
 if ($Test -contains "dispatch") { Build-Dispatch $HostArch -Test }
 if ($Test -contains "foundation") { Build-Foundation $HostArch -Test }
 if ($Test -contains "xctest") { Build-XCTest $HostArch -Test }
+
+if ($Stage -ne "")
+{
+  $Stage += "\" # Interpret as target directory
+
+  Copy-File "$($HostArch.BinaryRoot)\msi\*.msi" $Stage
+  Copy-File "$($HostArch.BinaryRoot)\installer.exe" $Stage
+}
