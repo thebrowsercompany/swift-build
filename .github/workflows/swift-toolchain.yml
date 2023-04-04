@@ -126,10 +126,10 @@ jobs:
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
-          if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
+          if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
             echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
           else
-            echo swift_tag=$(date +%Y%m%d.$(date +%-H/4 | bc)) | tee -a ${GITHUB_OUTPUT}
+            echo swift_tag=-$(date +%Y%m%d.$(date +%-H/4 | bc)) | tee -a ${GITHUB_OUTPUT}
           fi
 
       - uses: actions/upload-artifact@v3
@@ -1849,7 +1849,7 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:MSI_LOCATION=${{ github.workspace }}/BuildRoot `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.otuputs.swift_tag }} `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }}${{ needs.context.otuputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/installer.wixproj
 
       - uses: actions/upload-artifact@v3
