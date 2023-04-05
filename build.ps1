@@ -1,6 +1,50 @@
 # Copyright 2020 Saleem Abdulrasool <compnerd@compnerd.org>
 # Copyright 2023 Tristan Labelle <tristan@thebrowser.company>
 
+<#
+.SYNOPSIS
+Builds the Swift toolchain, installers, and optionally runs tests.
+
+.DESCRIPTION
+This script performs various steps associated with building the Swift toolchain:
+
+- Builds the redistributable, SDK, devtools and toolchain binaries and files
+- Builds the msi's and installer executable
+- Creates a mock installation under S:\Program Files and S:\Library for local toolchain use
+- Optionally runs tests for supported projects
+- Optionally stages build artifacts for CI
+
+.PARAMETER SourceCache
+The path to a directory where projects contributing to the Swift.
+toolchain have been cloned.
+
+.PARAMETER BinaryCache
+The path to a directory where to write build system files and outputs.
+
+.PARAMETER SDKs
+An array of architectures for which the Swift SDK should be built.
+
+.PARAMETER ProductVersion
+The product version to be used when building the installer.
+Supports semantic version strings.
+
+.PARAMETER Test
+An array of names of projects to run tests for.
+'*' runs all tests
+
+.PARAMETER Stage
+The path to a directory where built msi's and the installer executable should be staged (for CI).
+
+.PARAMETER ToBatch
+When set, runs the script in a special mode which outputs a listing of command invocations
+in batch file format instead of executing them.
+
+.EXAMPLE
+PS> .\Build.ps1
+
+.EXAMPLE
+PS> .\Build.ps1 -SDKs x64 -ProductVersion 1.2.3 -Test foundation,xctest
+#>
 [CmdletBinding(PositionalBinding = $false)]
 param(
   [string] $SourceCache = "S:\SourceCache",
