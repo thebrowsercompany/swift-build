@@ -21,12 +21,18 @@ toolchain have been cloned.
 .PARAMETER BinaryCache
 The path to a directory where to write build system files and outputs.
 
+.PARAMETER BuildType
+The CMake build type to use, one of: Release, RelWithDebInfo, Debug.
+
 .PARAMETER SDKs
 An array of architectures for which the Swift SDK should be built.
 
 .PARAMETER ProductVersion
 The product version to be used when building the installer.
 Supports semantic version strings.
+
+.PARAMETER SkipPackaging
+If set, skips building the msi's and installer
 
 .PARAMETER Test
 An array of names of projects to run tests for.
@@ -49,8 +55,10 @@ PS> .\Build.ps1 -SDKs x64 -ProductVersion 1.2.3 -Test foundation,xctest
 param(
   [string] $SourceCache = "S:\SourceCache",
   [string] $BinaryCache = "S:\b",
+  [string] $BuildType = "Release",
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
+  [switch] $SkipPackaging = $false,
   [string[]] $Test = @(),
   [string] $Stage = "",
   [switch] $ToBatch
@@ -291,7 +299,6 @@ function Build-CMakeProject
     [string] $Bin,
     [string] $InstallTo = "",
     [hashtable] $Arch,
-    [string] $BuildType = "Release", 
     [string] $Generator = "Ninja",
     [string] $CacheScript = "",
     [string[]] $UseMSVCCompilers = @(), # C,CXX
@@ -1295,7 +1302,10 @@ Build-IndexStoreDB $HostArch
 Build-Syntax $HostArch
 Build-SourceKitLSP $HostArch
 
-Build-Installer
+if (-not $SkipPackaging)
+{
+  Build-Installer
+}
 
 Consolidate-HostToolchainInstall
 
@@ -1304,7 +1314,7 @@ if ($Test -contains "dispatch") { Build-Dispatch $HostArch -Test }
 if ($Test -contains "foundation") { Build-Foundation $HostArch -Test }
 if ($Test -contains "xctest") { Build-XCTest $HostArch -Test }
 
-if ($Stage -ne "")
+if (-not $SkipPackaging -and $Stage -ne "")
 {
   $Stage += "\" # Interpret as target directory
 
