@@ -210,7 +210,7 @@ function Invoke-VsDevShell($Arch)
 {
   if ($ToBatch)
   {
-    Write-Output "`call "$VSInstallRoot\Common7\Tools\VsDevCmd.bat`" -no_logo -host_arch=amd64 -arch=$($Arch.VSName)"
+    Write-Output "call `"$VSInstallRoot\Common7\Tools\VsDevCmd.bat`" -no_logo -host_arch=amd64 -arch=$($Arch.VSName)"
   }
   else
   {
