@@ -210,7 +210,7 @@ function Invoke-Program()
       $OutputLine += " > `"$OutFile`""
     }
 
-    Write-Output -Encoding UTF8 $OutputLine
+    Write-Output $OutputLine
   }
   else
   {
