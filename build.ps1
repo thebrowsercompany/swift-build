@@ -1,13 +1,72 @@
 # Copyright 2020 Saleem Abdulrasool <compnerd@compnerd.org>
 # Copyright 2023 Tristan Labelle <tristan@thebrowser.company>
 
+<#
+.SYNOPSIS
+Builds the Swift toolchain, installers, and optionally runs tests.
+
+.DESCRIPTION
+This script performs various steps associated with building the Swift toolchain:
+
+- Builds the redistributable, SDK, devtools and toolchain binaries and files
+- Builds the msi's and installer executable
+- Creates a mock installation under S:\Program Files and S:\Library for local toolchain use
+- Optionally runs tests for supported projects
+- Optionally stages build artifacts for CI
+
+.PARAMETER SourceCache
+The path to a directory where projects contributing to the Swift.
+toolchain have been cloned.
+
+.PARAMETER BinaryCache
+The path to a directory where to write build system files and outputs.
+
+.PARAMETER BuildType
+The CMake build type to use, one of: Release, RelWithDebInfo, Debug.
+
+.PARAMETER SDKs
+An array of architectures for which the Swift SDK should be built.
+
+.PARAMETER ProductVersion
+The product version to be used when building the installer.
+Supports semantic version strings.
+
+.PARAMETER SkipInstall
+If set, does not create S:\Program Files and S:\Library mimicking an
+installed redistributable, SDK and toolchain.
+("install" is used in the sense of the installer, not the CMake install step)
+
+.PARAMETER SkipPackaging
+If set, skips building the msi's and installer
+
+.PARAMETER Test
+An array of names of projects to run tests for.
+'*' runs all tests
+
+.PARAMETER Stage
+The path to a directory where built msi's and the installer executable should be staged (for CI).
+
+.PARAMETER ToBatch
+When set, runs the script in a special mode which outputs a listing of command invocations
+in batch file format instead of executing them.
+
+.EXAMPLE
+PS> .\Build.ps1
+
+.EXAMPLE
+PS> .\Build.ps1 -SDKs x64 -ProductVersion 1.2.3 -Test foundation,xctest
+#>
 [CmdletBinding(PositionalBinding = $false)]
 param(
   [string] $SourceCache = "S:\SourceCache",
   [string] $BinaryCache = "S:\b",
+  [string] $BuildType = "Release",
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
+  [switch] $SkipInstall = $false,
+  [switch] $SkipPackaging = $false,
   [string[]] $Test = @(),
+  [string] $Stage = "",
   [switch] $ToBatch
 )
 
@@ -32,6 +91,10 @@ if (-not (Test-Path $python))
     throw "Python.exe not found"
   }
 }
+
+# Work around limitations of cmd passing in array arguments via powershell.exe -File
+if ($SDKs.Length -eq 1) { $SDKs = $SDKs[0].Split(",") }
+if ($Test.Length -eq 1) { $Test = $Test[0].Split(",") }
 
 if ($Test -contains "*")
 {
@@ -153,7 +216,7 @@ function Invoke-Program()
       $OutputLine += " > `"$OutFile`""
     }
 
-    Write-Output -Encoding UTF8 $OutputLine
+    Write-Output $OutputLine
   }
   else
   {
@@ -209,11 +272,13 @@ function Invoke-VsDevShell($Arch)
 {
   if ($ToBatch)
   {
-    Write-Output "`"$VSInstallRoot\Common7\Tools\VsDevCmd.bat`" -no_logo -host_arch=amd64 -arch=$($Arch.VSName)"
+    Write-Output "call `"$VSInstallRoot\Common7\Tools\VsDevCmd.bat`" -no_logo -host_arch=$($HostArch.VSName) -arch=$($Arch.VSName)"
   }
   else
   {
-    & "$VSInstallRoot\Common7\Tools\Launch-VsDevShell.ps1" -VsInstallationPath $VSInstallRoot -HostArch amd64 -Arch $Arch.VSName | Out-Null
+    # This dll path is valid for VS2019 and VS2022, but it was under a vsdevcmd subfolder in VS2017 
+    Import-Module "$VSInstallRoot\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+    Enter-VsDevShell -VsInstallPath $VSInstallRoot -SkipAutomaticLocation -DevCmdArguments "-no_logo -host_arch=$($HostArch.VSName) -arch=$($Arch.VSName)"
   }
 }
 
@@ -246,7 +311,6 @@ function Build-CMakeProject
     [string] $Bin,
     [string] $InstallTo = "",
     [hashtable] $Arch,
-    [string] $BuildType = "Release", 
     [string] $Generator = "Ninja",
     [string] $CacheScript = "",
     [string[]] $UseMSVCCompilers = @(), # C,CXX
@@ -793,7 +857,7 @@ function Copy-Directory($Src, $Dst)
   Copy-Item -Force -Recurse $Src $Dst
 }
 
-function Consolidate-RedistInstall($Arch)
+function Install-Redist($Arch)
 {
   if ($ToBatch) { return }
 
@@ -826,7 +890,7 @@ function Consolidate-RedistInstall($Arch)
 # Copies files installed by CMake from the arch-specific platform root,
 # where they follow the layout expected by the installer,
 # to the final platform root, following the installer layout.
-function Consolidate-PlatformInstall($Arch)
+function Install-Platform($Arch)
 {
   if ($ToBatch) { return }
 
@@ -1156,7 +1220,7 @@ function Build-SourceKitLSP($Arch)
     }
 }
 
-function Consolidate-HostToolchainInstall()
+function Install-HostToolchain()
 {
   if ($ToBatch) { return }
 
@@ -1211,11 +1275,6 @@ function Build-Installer()
 Build-BuildTools $HostArch
 Build-Compilers $HostArch
 
-if (-not $ToBatch)
-{
-  Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
-}
-
 foreach ($Arch in $SDKArchs)
 {
   Build-ZLib $Arch
@@ -1230,8 +1289,19 @@ foreach ($Arch in $SDKArchs)
   Build-Foundation $Arch
   Build-XCTest $Arch
 
-  Consolidate-RedistInstall $Arch
-  Consolidate-PlatformInstall $Arch
+  if (-not $SkipInstall)
+  {
+    Install-Redist $Arch
+  }
+}
+
+if (-not $SkipInstall -and -not $ToBatch)
+{
+  Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
+  foreach ($Arch in $SDKArchs)
+  {
+    Install-Platform $Arch
+  }
 }
 
 Build-SQLite $HostArch
@@ -1250,11 +1320,25 @@ Build-IndexStoreDB $HostArch
 Build-Syntax $HostArch
 Build-SourceKitLSP $HostArch
 
-Build-Installer
+if (-not $SkipInstall)
+{
+  Install-HostToolchain
+}
 
-Consolidate-HostToolchainInstall
+if (-not $SkipPackaging)
+{
+  Build-Installer
+}
 
 if ($Test -contains "swift") { Build-Compilers $HostArch -Test }
 if ($Test -contains "dispatch") { Build-Dispatch $HostArch -Test }
 if ($Test -contains "foundation") { Build-Foundation $HostArch -Test }
 if ($Test -contains "xctest") { Build-XCTest $HostArch -Test }
+
+if (-not $SkipPackaging -and $Stage -ne "")
+{
+  $Stage += "\" # Interpret as target directory
+
+  Copy-File "$($HostArch.BinaryRoot)\msi\*.msi" $Stage
+  Copy-File "$($HostArch.BinaryRoot)\installer.exe" $Stage
+}
