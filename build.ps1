@@ -946,29 +946,24 @@ function Install-Platform($Arch)
 
 function Build-SQLite($Arch)
 {
-  $ArchName = $Arch.ShortName
-  $Dest = "$SourceCache\sqlite-3.36.0"
+  $SrcPath = "$SourceCache\sqlite-3.36.0"
 
   # Download the sources
-  if (-not $ToBatch)
+  if (-not (Test-Path $SrcPath))
   {
-    New-Item -ErrorAction Ignore -Type Directory `
-      -Path "S:\var\cache"
-    if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
-    {
-      curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
-    }
+    $ZipPath = "$env:TEMP\sqlite-amalgamation-3360000.zip"
+    if (-not $ToBatch) { Remove-item $ZipPath -ErrorAction Ignore | Out-Null }
+    Invoke-Program curl.exe -- -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o $ZipPath
 
-    if (-not (Test-Path -Path $Dest))
-    {
-      New-Item -ErrorAction Ignore -Type Directory -Path $Dest
-      & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
-      Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
-    }
+    if (-not $ToBatch) { New-Item -Type Directory -Path $SrcPath -ErrorAction Ignore | Out-Null }
+    Invoke-Program "$env:ProgramFiles\Git\usr\bin\unzip.exe" -- -j -o $ZipPath -d $SrcPath
+    if (-not $ToBatch) { Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $SrcPath\ }
+
+    if (-not $ToBatch) { Remove-item $ZipPath | Out-Null }
   }
 
   Build-CMakeProject `
-    -Src $SourceCache\sqlite-3.36.0 `
+    -Src $SrcPath `
     -Bin "$($Arch.BinaryRoot)\sqlite-3.36.0" `
     -InstallTo $LibraryRoot\sqlite-3.36.0\usr `
     -Arch $Arch `
