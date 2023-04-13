@@ -41,6 +41,9 @@ If set, does not create S:\Program Files to mimic an installed redistributable.
 .PARAMETER SkipPackaging
 If set, skips building the msi's and installer
 
+.PARAMETER DefaultsLLD
+If false, use `link.exe` as the default linker with the SDK (with SPM)
+
 .PARAMETER Test
 An array of names of projects to run tests for.
 '*' runs all tests
@@ -68,6 +71,7 @@ param(
   [string] $ProductVersion = "0.0.0",
   [switch] $SkipRedistInstall = $false,
   [switch] $SkipPackaging = $false,
+  [bool] $DefaultsLLD = $true,
   [string[]] $Test = @(),
   [string] $Stage = "",
   [switch] $ToBatch
@@ -846,9 +850,14 @@ function Build-XCTest($Arch, [switch]$Test = $false)
         dispatch_DIR = "$DispatchBinDir\cmake\modules";
         Foundation_DIR = "$FoundationBinDir\cmake\modules";
       } + $TestingDefines)
-    
-    Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
-      -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+
+    if ($DefaultsLLD) {
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }), encoding='utf-8'))" `
+        -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+    } else {
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
+        -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+    }
   }
 }
 
