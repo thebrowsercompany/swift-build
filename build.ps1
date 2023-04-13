@@ -149,9 +149,13 @@ $ArchARM64 = @{
 }
 
 $HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
-  'ARM64' { $ArchARM64 }
+  "ARM64" { $ArchARM64 }
   default { $ArchX64 }
 }
+
+# For dev productivity, install the host toolchain directly using CMake.
+# This allows iterating on the toolchain using ninja builds.
+$HostArch.ToolchainInstallRoot = $ToolchainInstallRoot
 
 # Resolve the architectures received as argument
 $SDKArchs = $SDKs | ForEach-Object {
@@ -1225,14 +1229,14 @@ function Install-HostToolchain()
 {
   if ($ToBatch) { return }
 
-  Remove-Item -Force -Recurse $ToolchainInstallRoot -ErrorAction Ignore
-  Copy-Directory "$($HostArch.ToolchainInstallRoot)\usr" $ToolchainInstallRoot\
+  # We've already special-cased $HostArch.ToolchainInstallRoot to point to $ToolchainInstallRoot.
+  # There are only a few extra restructuring steps we need to take care of.
 
-  # Restructure _InternalSwiftScan
-  Move-Item -Force `
+  # Restructure _InternalSwiftScan (keep the original one for the installer)
+  Copy-Item -Force `
     $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
     $ToolchainInstallRoot\usr\include
-  Move-Item -Force `
+  Copy-Item -Force `
     $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
     $ToolchainInstallRoot\usr\lib
 
