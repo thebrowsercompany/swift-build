@@ -21,6 +21,10 @@ toolchain have been cloned.
 .PARAMETER BinaryCache
 The path to a directory where to write build system files and outputs.
 
+.PARAMETER LibraryRoot
+The path to a directory where built libraries should be placed,
+similar to the /Library or ~/Library directories on macOS.
+
 .PARAMETER BuildType
 The CMake build type to use, one of: Release, RelWithDebInfo, Debug.
 
@@ -31,13 +35,14 @@ An array of architectures for which the Swift SDK should be built.
 The product version to be used when building the installer.
 Supports semantic version strings.
 
-.PARAMETER SkipInstall
-If set, does not create S:\Program Files and S:\Library mimicking an
-installed redistributable, SDK and toolchain.
-("install" is used in the sense of the installer, not the CMake install step)
+.PARAMETER SkipRedistInstall
+If set, does not create S:\Program Files to mimic an installed redistributable.
 
 .PARAMETER SkipPackaging
 If set, skips building the msi's and installer
+
+.PARAMETER DefaultsLLD
+If false, use `link.exe` as the default linker with the SDK (with SPM)
 
 .PARAMETER Test
 An array of names of projects to run tests for.
@@ -60,11 +65,13 @@ PS> .\Build.ps1 -SDKs x64 -ProductVersion 1.2.3 -Test foundation,xctest
 param(
   [string] $SourceCache = "S:\SourceCache",
   [string] $BinaryCache = "S:\b",
+  [string] $LibraryRoot = "S:\Library",
   [string] $BuildType = "Release",
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
-  [switch] $SkipInstall = $false,
+  [switch] $SkipRedistInstall = $false,
   [switch] $SkipPackaging = $false,
+  [bool] $DefaultsLLD = $true,
   [string[]] $Test = @(),
   [string] $Stage = "",
   [switch] $ToBatch
@@ -73,9 +80,8 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
-$InstallRoot = "S:\Library"
-$ToolchainInstallRoot = "$InstallRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
-$PlatformInstallRoot = "$InstallRoot\Developer\Platforms\Windows.platform"
+$ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
+$PlatformInstallRoot = "$LibraryRoot\Developer\Platforms\Windows.platform"
 $SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
 
 $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -147,9 +153,13 @@ $ArchARM64 = @{
 }
 
 $HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
-  'ARM64' { $ArchARM64 }
+  "ARM64" { $ArchARM64 }
   default { $ArchX64 }
 }
+
+# For dev productivity, install the host toolchain directly using CMake.
+# This allows iterating on the toolchain using ninja builds.
+$HostArch.ToolchainInstallRoot = $ToolchainInstallRoot
 
 # Resolve the architectures received as argument
 $SDKArchs = $SDKs | ForEach-Object {
@@ -349,22 +359,22 @@ function Build-CMakeProject
     Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("ASM")) {
-    TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     Append-FlagsDefine $Defines CMAKE_ASM_FLAGS "--target=$($Arch.LLVMTarget)"
     TryAdd-KeyValue $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
   }
   if ($UseBuiltCompilers.Contains("C")) {
-    TryAdd-KeyValue $Defines CMAKE_C_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
     Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
   }
   if ($UseBuiltCompilers.Contains("CXX")) {
-    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER S:/b/1/bin/clang-cl.exe
+    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
     Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("Swift")) {
-    TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER S:/b/1/bin/swiftc.exe
+    TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER "$BinaryCache\1\bin\swiftc.exe"
     TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
 
     $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
@@ -405,7 +415,11 @@ function Build-CMakeProject
     $cmakeGenerateArgs += @("-C", $CacheScript)
   }
   foreach ($Define in ($Defines.GetEnumerator() | Sort-Object Name)) {
-    $cmakeGenerateArgs += @("-D", "$($Define.Key)=$($Define.Value)")
+    # Avoid backslashes in defines since they are going into CMakeCache.txt,
+    # where they are interpreted as escapes. Assume all backslashes
+    # are path separators and can be turned into forward slashes.
+    $ValueWithForwardSlashes = $Define.Value.Replace("\", "/")
+    $cmakeGenerateArgs += @("-D", "$($Define.Key)=$ValueWithForwardSlashes")
   }
 
   Isolate-EnvVars {
@@ -585,13 +599,13 @@ function Build-ZLib($Arch)
   Build-CMakeProject `
     -Src $SourceCache\zlib `
     -Bin "$($Arch.BinaryRoot)\zlib-1.2.11" `
-    -InstallTo $InstallRoot\zlib-1.2.11\usr `
+    -InstallTo $LibraryRoot\zlib-1.2.11\usr `
     -Arch $Arch `
     -BuildTargets default `
     -Defines @{
       BUILD_SHARED_LIBS = "NO";
-      INSTALL_BIN_DIR = "$InstallRoot\zlib-1.2.11\usr\bin\$ArchName";
-      INSTALL_LIB_DIR = "$InstallRoot\zlib-1.2.11\usr\lib\$ArchName";
+      INSTALL_BIN_DIR = "$LibraryRoot\zlib-1.2.11\usr\bin\$ArchName";
+      INSTALL_LIB_DIR = "$LibraryRoot\zlib-1.2.11\usr\lib\$ArchName";
     }
 }
 
@@ -602,7 +616,7 @@ function Build-XML2($Arch)
   Build-CMakeProject `
     -Src $SourceCache\libxml2 `
     -Bin "$($Arch.BinaryRoot)\libxml2-2.9.12" `
-    -InstallTo "$InstallRoot\libxml2-2.9.12\usr" `
+    -InstallTo "$LibraryRoot\libxml2-2.9.12\usr" `
     -Arch $Arch `
     -BuildTargets default `
     -Defines @{
@@ -626,7 +640,7 @@ function Build-CURL($Arch)
   Build-CMakeProject `
     -Src $SourceCache\curl `
     -Bin "$($Arch.BinaryRoot)\curl-7.77.0" `
-    -InstallTo "$InstallRoot\curl-7.77.0\usr" `
+    -InstallTo "$LibraryRoot\curl-7.77.0\usr" `
     -Arch $Arch `
     -BuildTargets default `
     -Defines @{
@@ -654,8 +668,8 @@ function Build-CURL($Arch)
       CURL_ZLIB = "YES";
       ENABLE_UNIX_SOCKETS = "NO";
       ENABLE_THREADED_RESOLVER = "NO";
-      ZLIB_ROOT = "$InstallRoot\zlib-1.2.11\usr";
-      ZLIB_LIBRARY = "$InstallRoot\zlib-1.2.11\usr\lib\$ArchName\zlibstatic.lib";
+      ZLIB_ROOT = "$LibraryRoot\zlib-1.2.11\usr";
+      ZLIB_LIBRARY = "$LibraryRoot\zlib-1.2.11\usr\lib\$ArchName\zlibstatic.lib";
     }
 }
 
@@ -688,7 +702,7 @@ function Build-ICU($Arch)
   Build-CMakeProject `
     -Src $SourceCache\icu\icu4c `
     -Bin "$($Arch.BinaryRoot)\icu-69.1" `
-    -InstallTo "$InstallRoot\icu-69.1\usr" `
+    -InstallTo "$LibraryRoot\icu-69.1\usr" `
     -Arch $Arch `
     -BuildTargets default `
     -Defines ($BuildToolsDefines + @{
@@ -781,16 +795,16 @@ function Build-Foundation($Arch, [switch]$Test = $false)
         CMAKE_INSTALL_PREFIX = "$($Arch.SDKInstallRoot)\usr";
         CMAKE_SYSTEM_NAME = "Windows";
         CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
-        CURL_DIR = "$InstallRoot\curl-7.77.0\usr\lib\$ShortArch\cmake\CURL";
-        ICU_DATA_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicudt69.lib";
-        ICU_I18N_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicuin69.lib";
-        ICU_ROOT = "$InstallRoot\icu-69.1\usr";
-        ICU_UC_LIBRARY_RELEASE = "$InstallRoot\icu-69.1\usr\lib\$ShortArch\sicuuc69.lib";
-        LIBXML2_LIBRARY = "$InstallRoot\libxml2-2.9.12\usr\lib\$ShortArch\libxml2s.lib";
-        LIBXML2_INCLUDE_DIR = "$InstallRoot\libxml2-2.9.12\usr\include\libxml2";
+        CURL_DIR = "$LibraryRoot\curl-7.77.0\usr\lib\$ShortArch\cmake\CURL";
+        ICU_DATA_LIBRARY_RELEASE = "$LibraryRoot\icu-69.1\usr\lib\$ShortArch\sicudt69.lib";
+        ICU_I18N_LIBRARY_RELEASE = "$LibraryRoot\icu-69.1\usr\lib\$ShortArch\sicuin69.lib";
+        ICU_ROOT = "$LibraryRoot\icu-69.1\usr";
+        ICU_UC_LIBRARY_RELEASE = "$LibraryRoot\icu-69.1\usr\lib\$ShortArch\sicuuc69.lib";
+        LIBXML2_LIBRARY = "$LibraryRoot\libxml2-2.9.12\usr\lib\$ShortArch\libxml2s.lib";
+        LIBXML2_INCLUDE_DIR = "$LibraryRoot\libxml2-2.9.12\usr\include\libxml2";
         LIBXML2_DEFINITIONS = "/DLIBXML_STATIC";
-        ZLIB_LIBRARY = "$InstallRoot\zlib-1.2.11\usr\lib\$ShortArch\zlibstatic.lib";
-        ZLIB_INCLUDE_DIR = "$InstallRoot\zlib-1.2.11\usr\include";
+        ZLIB_LIBRARY = "$LibraryRoot\zlib-1.2.11\usr\lib\$ShortArch\zlibstatic.lib";
+        ZLIB_INCLUDE_DIR = "$LibraryRoot\zlib-1.2.11\usr\include";
         dispatch_DIR = "$DispatchBinDir\cmake\modules";
       } + $TestingDefines)
   }
@@ -836,9 +850,14 @@ function Build-XCTest($Arch, [switch]$Test = $false)
         dispatch_DIR = "$DispatchBinDir\cmake\modules";
         Foundation_DIR = "$FoundationBinDir\cmake\modules";
       } + $TestingDefines)
-    
-    Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
-      -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+
+    if ($DefaultsLLD) {
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }), encoding='utf-8'))" `
+        -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+    } else {
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
+        -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
+    }
   }
 }
 
@@ -944,31 +963,26 @@ function Install-Platform($Arch)
 
 function Build-SQLite($Arch)
 {
-  $ArchName = $Arch.ShortName
-  $Dest = "$SourceCache\sqlite-3.36.0"
+  $SrcPath = "$SourceCache\sqlite-3.36.0"
 
   # Download the sources
-  if (-not $ToBatch)
+  if (-not (Test-Path $SrcPath))
   {
-    New-Item -ErrorAction Ignore -Type Directory `
-      -Path "S:\var\cache"
-    if (-not (Test-Path -Path "S:\var\cache\sqlite-amalgamation-3360000.zip"))
-    {
-      curl.exe -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o S:\var\cache\sqlite-amalgamation-3360000.zip
-    }
+    $ZipPath = "$env:TEMP\sqlite-amalgamation-3360000.zip"
+    if (-not $ToBatch) { Remove-item $ZipPath -ErrorAction Ignore | Out-Null }
+    Invoke-Program curl.exe -- -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o $ZipPath
 
-    if (-not (Test-Path -Path $Dest))
-    {
-      New-Item -ErrorAction Ignore -Type Directory -Path $Dest
-      & "$env:ProgramFiles\Git\usr\bin\unzip.exe" -j -o S:\var\cache\sqlite-amalgamation-3360000.zip -d $Dest
-      Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $Dest\
-    }
+    if (-not $ToBatch) { New-Item -Type Directory -Path $SrcPath -ErrorAction Ignore | Out-Null }
+    Invoke-Program "$env:ProgramFiles\Git\usr\bin\unzip.exe" -- -j -o $ZipPath -d $SrcPath
+    if (-not $ToBatch) { Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $SrcPath\ }
+
+    if (-not $ToBatch) { Remove-item $ZipPath | Out-Null }
   }
 
   Build-CMakeProject `
-    -Src $SourceCache\sqlite-3.36.0 `
+    -Src $SrcPath `
     -Bin "$($Arch.BinaryRoot)\sqlite-3.36.0" `
-    -InstallTo $InstallRoot\sqlite-3.36.0\usr `
+    -InstallTo $LibraryRoot\sqlite-3.36.0\usr `
     -Arch $Arch `
     -BuildTargets default `
     -Defines @{
@@ -1004,8 +1018,8 @@ function Build-ToolsSupportCore($Arch)
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
-      SQLite3_INCLUDE_DIR = "$InstallRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$InstallRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
+      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
     }
 }
 
@@ -1023,8 +1037,8 @@ function Build-LLBuild($Arch)
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       LLBUILD_SUPPORT_BINDINGS = "Swift";
-      SQLite3_INCLUDE_DIR = "$InstallRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$InstallRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
+      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
     }
 }
 
@@ -1076,8 +1090,8 @@ function Build-Driver($Arch)
       LLBuild_DIR = "$BinaryCache\4\cmake\modules";
       Yams_DIR = "$BinaryCache\5\cmake\modules";
       ArgumentParser_DIR = "$BinaryCache\6\cmake\modules";
-      SQLite3_INCLUDE_DIR = "$InstallRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$InstallRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
+      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
     }
 }
 
@@ -1162,8 +1176,8 @@ function Build-PackageManager($Arch)
       SwiftCollections_DIR = "$BinaryCache\9\cmake\modules";
       SwiftASN1_DIR = "$BinaryCache\10\cmake\modules";
       SwiftCertificates_DIR = "$BinaryCache\11\cmake\modules";
-      SQLite3_INCLUDE_DIR = "$InstallRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$InstallRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
+      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
     }
 }
 
@@ -1224,14 +1238,14 @@ function Install-HostToolchain()
 {
   if ($ToBatch) { return }
 
-  Remove-Item -Force -Recurse $ToolchainInstallRoot -ErrorAction Ignore
-  Copy-Directory "$($HostArch.ToolchainInstallRoot)\usr" $ToolchainInstallRoot\
+  # We've already special-cased $HostArch.ToolchainInstallRoot to point to $ToolchainInstallRoot.
+  # There are only a few extra restructuring steps we need to take care of.
 
-  # Restructure _InternalSwiftScan
-  Move-Item -Force `
+  # Restructure _InternalSwiftScan (keep the original one for the installer)
+  Copy-Item -Force `
     $ToolchainInstallRoot\usr\lib\swift\_InternalSwiftScan `
     $ToolchainInstallRoot\usr\include
-  Move-Item -Force `
+  Copy-Item -Force `
     $ToolchainInstallRoot\usr\lib\swift\windows\_InternalSwiftScan.lib `
     $ToolchainInstallRoot\usr\lib
 
@@ -1289,13 +1303,13 @@ foreach ($Arch in $SDKArchs)
   Build-Foundation $Arch
   Build-XCTest $Arch
 
-  if (-not $SkipInstall)
+  if (-not $SkipRedistInstall)
   {
     Install-Redist $Arch
   }
 }
 
-if (-not $SkipInstall -and -not $ToBatch)
+if (-not $ToBatch)
 {
   Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
   foreach ($Arch in $SDKArchs)
@@ -1320,10 +1334,7 @@ Build-IndexStoreDB $HostArch
 Build-Syntax $HostArch
 Build-SourceKitLSP $HostArch
 
-if (-not $SkipInstall)
-{
-  Install-HostToolchain
-}
+Install-HostToolchain
 
 if (-not $SkipPackaging)
 {
