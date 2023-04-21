@@ -93,26 +93,6 @@ If you wish to sync to a point that is known to build successfull, you can use t
 
 > **NOTE:** the first clone will fail if you do not have git-lfs.  The failure is due to the inability to checkout the ICU data which is stored using LFS, but is not fatal in practice.
 
-### Configure Support Files
-
-In order to import the MSVC and WinSDK headers as modules into Swift code, the
-components must be modularized.  This is done by adding in module map files to
-describe the modules.  The following setups symlinks to inject the module map
-definitions into the SDK.
-
-> **NOTE:** this step needs to be re-run after every VS update.
-
-```cmd
-del /Q "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap"
-del /Q "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap"
-del /Q "%VCToolsInstallDir%\include\module.modulemap"
-del /Q "%VCToolsInstallDir%\include\visualc.apinotes"
-mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\ucrt\module.modulemap" S:\SourceCache\swift\stdlib\public\Platform\ucrt.modulemap
-mklink "%UniversalCRTSdkDir%\Include\%UCRTVersion%\um\module.modulemap" S:\SourceCache\swift\stdlib\public\Platform\winsdk.modulemap
-mklink "%VCToolsInstallDir%\include\module.modulemap" S:\SourceCache\swift\stdlib\public\Platform\vcruntime.modulemap
-mklink "%VCToolsInstallDir%\include\vcruntime.apinotes" S:\SourceCache\swift\stdlib\public\Platform\vcruntime.apinotes
-```
-
 ## Building
 
 ### Entering the Correct Environment
