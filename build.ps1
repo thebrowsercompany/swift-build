@@ -505,6 +505,9 @@ function Build-BuildTools($Arch)
       LLDB_ENABLE_PYTHON = "NO";
       LLDB_INCLUDE_TESTS = "NO";
       LLDB_ENABLE_SWIFT_SUPPORT = "NO";
+      LLDB_PYTHON_EXE_RELATIVE_PATH = "python.exe";
+      LLDB_PYTHON_EXT_SUFFIX = ".pyd";
+      LLDB_PYTHON_RELATIVE_PATH = "lib/site-packages";
       LLVM_ENABLE_ASSERTIONS = "NO";
       LLVM_ENABLE_LIBEDIT = "NO";
       LLVM_ENABLE_LIBXML2 = "NO";
