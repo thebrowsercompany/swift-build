@@ -577,7 +577,15 @@ jobs:
       - name: Install Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
 
-      - uses: actions/upload-artifact@v3
+      - name: Zip Compilers Before Upload
+        run: |
+          $zip = "${{ github.workspace }}/BinaryCache/swift-windows-${{ matrix.arch }}.zip"
+          $path = "${{ github.workspace }}/BuildRoot/Library"
+          Remove-Item -Path "${{ github.workspace }}/BuildRoot/Library/icu-69.1" -Recurse -Force
+          Compress-Archive -Path $path -DestinationPath $zip -CompressionLevel Optimal
+
+      - name: Upload Compilers
+        uses: actions/upload-artifact@v3
         with:
           name: compilers-${{ matrix.arch }}
           path: |
@@ -809,11 +817,15 @@ jobs:
         with:
           name: zlib-${{ matrix.arch }}-1.2.11
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
-      - uses: actions/download-artifact@v3
+      - name: Download Compilers
+        uses: actions/download-artifact@v3
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-
+      - name: Uncompress Compilers
+        run: |
+          $zip = "${{ github.workspace }}/BuildRoot/Library/swift-windows-*.zip"
+          Expand-Archive -Path $zip -DestinationPath ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/checkout@v3
         with:
           repository: apple/llvm-project
@@ -1068,10 +1080,15 @@ jobs:
         with:
           name: sqlite-${{ matrix.arch }}-3.36.0
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
-      - uses: actions/download-artifact@v3
+      - name: Download Compilers
+        uses: actions/download-artifact@v3
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Uncompress Compilers
+        run: |
+          $zip = "${{ github.workspace }}/BuildRoot/Library/swift-windows-*.zip"
+          Expand-Archive -Path $zip -DestinationPath ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v3
         with:
           name: windows-sdk-${{ matrix.arch }}
@@ -1622,10 +1639,16 @@ jobs:
         arch: ['amd64'] # , 'arm64']
 
     steps:
-      - uses: actions/download-artifact@v3
+      - name: Download Compilers
+        uses: actions/download-artifact@v3
         with:
           name: compilers-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Uncompress Compilers
+        run: |
+          $zip = "${{ github.workspace }}/BuildRoot/Library/swift-windows-*.zip"
+          Expand-Archive -Path $zip -DestinationPath ${{ github.workspace }}/BuildRoot/Library
+
       - uses: actions/download-artifact@v3
         with:
           name: devtools-${{ matrix.arch }}
