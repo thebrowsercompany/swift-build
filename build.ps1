@@ -80,6 +80,9 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
+# Prevent elsewhere-installed swift modules from confusing our builds.
+$Env:SDKROOT = ""
+
 $ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
 $PlatformInstallRoot = "$LibraryRoot\Developer\Platforms\Windows.platform"
 $SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
@@ -505,9 +508,6 @@ function Build-BuildTools($Arch)
       LLDB_ENABLE_PYTHON = "NO";
       LLDB_INCLUDE_TESTS = "NO";
       LLDB_ENABLE_SWIFT_SUPPORT = "NO";
-      LLDB_PYTHON_EXE_RELATIVE_PATH = "python.exe";
-      LLDB_PYTHON_EXT_SUFFIX = ".pyd";
-      LLDB_PYTHON_RELATIVE_PATH = "lib/site-packages";
       LLVM_ENABLE_ASSERTIONS = "NO";
       LLVM_ENABLE_LIBEDIT = "NO";
       LLVM_ENABLE_LIBXML2 = "NO";
@@ -563,7 +563,9 @@ function Build-Compilers($Arch, [switch]$Test = $false)
         CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
         CLANG_TIDY_CONFUSABLE_CHARS_GEN = "$BinaryCache\0\bin\clang-tidy-confusable-chars-gen.exe";
         CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
+        LLDB_PYTHON_EXE_RELATIVE_PATH = "python.exe";
         LLDB_PYTHON_EXT_SUFFIX = ".pyd";
+        LLDB_PYTHON_RELATIVE_PATH = "lib/site-packages";
         LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
         LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
         LLVM_ENABLE_PDB = "YES";

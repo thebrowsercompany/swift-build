@@ -15,12 +15,14 @@ automated fashion.
 
 ```cmd
 curl.exe -sOL https://aka.ms/vs/17/release/vs_community.exe
-vs_community ^
+vs_community.exe ^
   --add Component.CPython39.x64 ^
   --add Microsoft.VisualStudio.Component.Git ^
-  --add Microsoft.VisualStudio.Component.VC.ATL ^
   --add Microsoft.VisualStudio.Component.VC.CMake.Project ^
   --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
+  --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 ^
+  --add Microsoft.VisualStudio.Component.VC.ATL ^
+  --add Microsoft.VisualStudio.Component.VC.ATL.ARM64 ^
   --add Microsoft.VisualStudio.Component.Windows10SDK ^
   --add Microsoft.VisualStudio.Component.Windows11SDK.22000
 del /q vs_community.exe
