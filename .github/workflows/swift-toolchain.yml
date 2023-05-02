@@ -578,12 +578,11 @@ jobs:
       - name: Install Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
 
-      - uses: actions/upload-artifact@v3
+      - name: Upload Compilers
+        uses: actions/upload-artifact@v3
         with:
           name: compilers-${{ matrix.arch }}
-          path: |
-            ${{ github.workspace }}/BuildRoot/Library
-            !${{ github.workspace }}/BuildRoot/Library/icu-69.1
+          path: ${{ github.workspace }}/BuildRoot/Library
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
       - uses: actions/upload-artifact@v3
@@ -810,7 +809,8 @@ jobs:
         with:
           name: zlib-${{ matrix.arch }}-1.2.11
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
-      - uses: actions/download-artifact@v3
+      - name: Download Compilers
+        uses: actions/download-artifact@v3
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
@@ -1069,7 +1069,8 @@ jobs:
         with:
           name: sqlite-${{ matrix.arch }}-3.36.0
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
-      - uses: actions/download-artifact@v3
+      - name: Download Compilers
+        uses: actions/download-artifact@v3
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
@@ -1623,7 +1624,8 @@ jobs:
         arch: ['amd64'] # , 'arm64']
 
     steps:
-      - uses: actions/download-artifact@v3
+      - name: Download Compilers
+        uses: actions/download-artifact@v3
         with:
           name: compilers-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
