@@ -579,18 +579,20 @@ jobs:
 
       - name: Zip Compilers Before Upload
         run: |
-          $zip = "${{ github.workspace }}/BinaryCache/swift-windows-${{ matrix.arch }}.zip"
           $path = "${{ github.workspace }}/BuildRoot/Library"
-          Remove-Item -Path "${{ github.workspace }}/BuildRoot/Library/icu-69.1" -Recurse -Force
+          $zip = "${{ github.workspace }}/BinaryCache/swift-windows-${{ matrix.arch }}.zip"
+          $icu_path = "${{ github.workspace }}/BuildRoot/Library/icu-69.1"
+          dir $path
+          if (test-path "$icu_path") {
+            Remove-Item -Path "${{ github.workspace }}/BuildRoot/Library/icu-69.1" -Recurse -Force
+          }
           Compress-Archive -Path $path -DestinationPath $zip -CompressionLevel Optimal
 
       - name: Upload Compilers
         uses: actions/upload-artifact@v3
         with:
           name: compilers-${{ matrix.arch }}
-          path: |
-            ${{ github.workspace }}/BuildRoot/Library
-            !${{ github.workspace }}/BuildRoot/Library/icu-69.1
+          path: "${{ github.workspace }}/BinaryCache/swift-windows-${{ matrix.arch }}.zip"
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
       - uses: actions/upload-artifact@v3
