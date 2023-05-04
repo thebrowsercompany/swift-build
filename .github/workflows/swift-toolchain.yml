@@ -1937,3 +1937,36 @@ jobs:
             git push origin HEAD:main
           fi
 
+  release:
+    runs-on: ubuntu-latest
+    needs: [smoke_test]
+
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: installer-amd64
+          path: ${{ github.workspace }}/tmp
+
+      - name: compute release name
+        id: release_name
+        run: |
+          echo name=$(date +%Y%m%d.$(date +%-H/4 | bc)) >> ${GITHUB_OUTPUT}
+      - uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: create_release
+        with:
+          draft: false
+          prerelease: false
+          release_name: ${{ steps.release_name.outputs.name }}
+          tag_name: ${{ steps.release_name.outputs.name }}
+
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_content_type: application/octet-stream
+          asset_name: installer-amd64.exe
+          asset_path: ${{ github.workspace }}/tmp/installer.exe
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+
