@@ -91,6 +91,9 @@ $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 $VSInstallRoot = & $vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
 $msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$env:PROCESSOR_ARCHITECTURE\MSBuild.exe"
 
+# Avoid $env:ProgramFiles in case this script is running as x86
+$UnixToolsBinDir = "$env:SystemDrive\Program Files\Git\usr\bin"
+
 $python = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
 if (-not (Test-Path $python))
 {
@@ -532,7 +535,7 @@ function Build-Compilers($Arch, [switch]$Test = $false)
     if ($Test)
     {
       $LibdispatchBinDir = "$BinaryCache\1\tools\swift\libdispatch-windows-$($Arch.LLVMName)-prefix\bin"
-      $env:Path = "$LibdispatchBinDir;$BinaryCache\1\bin;$env:Path;$env:ProgramFiles\Git\usr\bin"
+      $env:Path = "$LibdispatchBinDir;$BinaryCache\1\bin;$env:Path;$UnixToolsBinDir"
       $Targets = @("check-swift")
       $TestingDefines = @{
         SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "YES";
@@ -836,7 +839,7 @@ function Build-XCTest($Arch, [switch]$Test = $false)
         XCTEST_PATH_TO_FOUNDATION_BUILD = $FoundationBinDir;
       }
       $Targets = @("default", "check-xctest")
-      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path;$env:ProgramFiles\Git\usr\bin"
+      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path;$UnixToolsBinDir"
     }
     else
     {
@@ -980,7 +983,7 @@ function Build-SQLite($Arch)
     Invoke-Program curl.exe -- -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o $ZipPath
 
     if (-not $ToBatch) { New-Item -Type Directory -Path $SrcPath -ErrorAction Ignore | Out-Null }
-    Invoke-Program "$env:ProgramFiles\Git\usr\bin\unzip.exe" -- -j -o $ZipPath -d $SrcPath
+    Invoke-Program "$UnixToolsBinDir\unzip.exe" -- -j -o $ZipPath -d $SrcPath
     if (-not $ToBatch) { Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $SrcPath\ }
 
     if (-not $ToBatch) { Remove-item $ZipPath | Out-Null }
