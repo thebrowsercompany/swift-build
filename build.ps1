@@ -984,9 +984,28 @@ function Build-SQLite($Arch)
 
     if (-not $ToBatch) { New-Item -Type Directory -Path $SrcPath -ErrorAction Ignore | Out-Null }
     Invoke-Program "$UnixToolsBinDir\unzip.exe" -- -j -o $ZipPath -d $SrcPath
-    if (-not $ToBatch) { Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $SrcPath\ }
-
     if (-not $ToBatch) { Remove-item $ZipPath | Out-Null }
+
+    if (-not $ToBatch) {
+      # Inject a CMakeLists.txt so we can build sqlite
+@"
+cmake_minimum_required(VERSION 3.12.3)
+project(SQLite LANGUAGES C)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE YES)
+add_library(SQLite3 sqlite3.c)
+
+if(CMAKE_SYSTEM_NAME STREQUAL Windows AND BUILD_SHARED_LIBS)
+  target_compile_definitions(SQLite3 PRIVATE "SQLITE_API=__declspec(dllexport)")
+endif()
+
+install(TARGETS SQLite3
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
+install(FILES sqlite3.h sqlite3ext.h DESTINATION include)
+"@ | Out-File -Encoding UTF8 $SrcPath\CMakeLists.txt
+    }
   }
 
   Build-CMakeProject `
