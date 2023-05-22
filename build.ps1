@@ -1185,8 +1185,14 @@ function Build-Certificates($Arch)
 
 function Build-PackageManager($Arch)
 {
+  $SrcPath = "$SourceCache\swift-package-manager"
+  if (-not (Test-Path -PathType Container $SrcPath)) {
+    # The Apple CI clones this repo as "swiftpm"
+    $SrcPath = "$SourceCache\swiftpm"
+  }
+
   Build-CMakeProject `
-    -Src $SourceCache\swift-package-manager `
+    -Src $SrcPath `
     -Bin $BinaryCache\12 `
     -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
