@@ -82,6 +82,8 @@ Set-StrictMode -Version 3.0
 
 # Prevent elsewhere-installed swift modules from confusing our builds.
 $Env:SDKROOT = ""
+$NativeProcessorArchName = $env:PROCESSOR_ARCHITEW6432
+if ($null -eq $NativeProcessorArchName) { $NativeProcessorArchName = $env:PROCESSOR_ARCHITECTURE }
 
 $ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
 $PlatformInstallRoot = "$LibraryRoot\Developer\Platforms\Windows.platform"
@@ -89,7 +91,7 @@ $SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
 
 $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $VSInstallRoot = & $vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
-$msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$env:PROCESSOR_ARCHITECTURE\MSBuild.exe"
+$msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$NativeProcessorArchName\MSBuild.exe"
 
 # Avoid $env:ProgramFiles in case this script is running as x86
 $UnixToolsBinDir = "$env:SystemDrive\Program Files\Git\usr\bin"
@@ -159,9 +161,10 @@ $ArchARM64 = @{
   ToolchainInstallRoot = "$BinaryCache\arm64\unknown-Asserts-development.xctoolchain";
 }
 
-$HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
+$HostArch = switch ($NativeProcessorArchName) {
+  "AMD64" { $ArchX64 }
   "ARM64" { $ArchARM64 }
-  default { $ArchX64 }
+  default { throw "Unsupported processor architecture" }
 }
 
 # For dev productivity, install the host toolchain directly using CMake.
