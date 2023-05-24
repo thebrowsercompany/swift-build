@@ -265,12 +265,6 @@ function Invoke-Program()
         $ErrorMessage += "  $Frame`n"
       }
 
-      $ErrorMessage += "Environment:`n"
-      foreach ($EnvVar in ((Get-ChildItem env:*).GetEnumerator() | Sort-Object Key))
-      {
-        $ErrorMessage += "  $($EnvVar.Key)=$($EnvVar.Value)`n"
-      }
-
       throw $ErrorMessage
     }
   }
