@@ -1,0 +1,52 @@
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+      Language="1033"
+      Manufacturer="nicklockwood"
+      Name="SwiftFormat for Windows aarch64"
+      UpgradeCode="12571ad2-06b7-46e0-9e03-209db2b5667d"
+      Version="$(var.ProductVersion)"
+      Scope="perMachine">
+    <SummaryInformation Description="SwiftFormat for Windows aarch64" />
+
+    <!-- NOTE(compnerd) use pre-3.0 schema for better compatibility. -->
+    <Media Id="1" Cabinet="SwiftFormat.cab" EmbedCab="yes" />
+
+    <!-- Directory Structure -->
+    <!-- WindowsVolume is not a StandardDirectory value, but rather a standard property. See https://github.com/wixtoolset/issues/issues/7314 -->
+    <SetDirectory Id="WINDOWSVOLUME" Value="[WindowsVolume]" />
+    <Directory ComponentGuidGenerationSeed="ae6cd8c6-6eba-46ff-8784-d432fa64367e" Id="WINDOWSVOLUME">
+      <Directory Id="INSTALLDIR">
+        <Directory Id="Library" Name="Library">
+          <Directory Id="Developer" Name="Developer">
+            <Directory Id="Tools" Name="Tools">
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!-- Components -->
+    <ComponentGroup Id="SwiftFormat">
+      <Component Id="swiftformat.exe" Directory="Tools" Guid="2803667e-f043-4bf8-94d6-f3926be39597">
+        <File Id="swiftformat.exe" Source="$(var.SWIFTFORMAT_BUILD)\swiftformat.exe" Checksum="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="EnvironmentVariables" Directory="INSTALLDIR" Guid="9e402459-cfe7-4476-a084-fc613016b626">
+      <Environment Id="Path" Action="set" Name="Path" Part="last" Permanent="no" System="yes" Value="[INSTALLDIR]Library\Developer\Tools" />
+    </Component>
+
+    <Feature Id="SwiftFormat" AllowAbsent="no" AllowAdvertise="yes" ConfigurableDirectory="INSTALLDIR" Description="SwiftFormat for Windows aarch64" Level="1" Title="SwiftFormat (Windows aarch64)">
+      <ComponentGroupRef Id="SwiftFormat" />
+      <ComponentRef Id="EnvironmentVariables" />
+    </Feature>
+
+    <UI>
+      <ui:WixUI Id="WixUI_InstallDir" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" />
+    </UI>
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR"></Property>
+
+  </Package>
+</Wix>
