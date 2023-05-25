@@ -82,6 +82,8 @@ Set-StrictMode -Version 3.0
 
 # Prevent elsewhere-installed swift modules from confusing our builds.
 $Env:SDKROOT = ""
+$NativeProcessorArchName = $env:PROCESSOR_ARCHITEW6432
+if ($null -eq $NativeProcessorArchName) { $NativeProcessorArchName = $env:PROCESSOR_ARCHITECTURE }
 
 $ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
 $PlatformInstallRoot = "$LibraryRoot\Developer\Platforms\Windows.platform"
@@ -89,7 +91,10 @@ $SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
 
 $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $VSInstallRoot = & $vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
-$msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$env:PROCESSOR_ARCHITECTURE\MSBuild.exe"
+$msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$NativeProcessorArchName\MSBuild.exe"
+
+# Avoid $env:ProgramFiles in case this script is running as x86
+$UnixToolsBinDir = "$env:SystemDrive\Program Files\Git\usr\bin"
 
 $python = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
 if (-not (Test-Path $python))
@@ -107,6 +112,7 @@ if ($Test.Length -eq 1) { $Test = $Test[0].Split(",") }
 
 if ($Test -contains "*")
 {
+  # Explicitly don't include llbuild yet since tests are known to fail on Windows
   $Test = @("swift", "dispatch", "foundation", "xctest")
 }
 
@@ -155,9 +161,10 @@ $ArchARM64 = @{
   ToolchainInstallRoot = "$BinaryCache\arm64\unknown-Asserts-development.xctoolchain";
 }
 
-$HostArch = switch (${Env:PROCESSOR_ARCHITECTURE}) {
+$HostArch = switch ($NativeProcessorArchName) {
+  "AMD64" { $ArchX64 }
   "ARM64" { $ArchARM64 }
-  default { $ArchX64 }
+  default { throw "Unsupported processor architecture" }
 }
 
 # For dev productivity, install the host toolchain directly using CMake.
@@ -532,7 +539,7 @@ function Build-Compilers($Arch, [switch]$Test = $false)
     if ($Test)
     {
       $LibdispatchBinDir = "$BinaryCache\1\tools\swift\libdispatch-windows-$($Arch.LLVMName)-prefix\bin"
-      $env:Path = "$LibdispatchBinDir;$BinaryCache\1\bin;$env:Path;$env:ProgramFiles\Git\usr\bin"
+      $env:Path = "$LibdispatchBinDir;$BinaryCache\1\bin;$env:Path;$UnixToolsBinDir"
       $Targets = @("check-swift")
       $TestingDefines = @{
         SWIFT_BUILD_DYNAMIC_SDK_OVERLAY = "YES";
@@ -575,11 +582,11 @@ function Build-Compilers($Arch, [switch]$Test = $false)
         LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
         LLVM_USE_HOST_TOOLS = "NO";
         SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
         SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
         SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
         SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
@@ -734,11 +741,11 @@ function Build-Runtime($Arch)
         CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
         LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
         SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
         SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
         SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
         SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
@@ -836,7 +843,7 @@ function Build-XCTest($Arch, [switch]$Test = $false)
         XCTEST_PATH_TO_FOUNDATION_BUILD = $FoundationBinDir;
       }
       $Targets = @("default", "check-xctest")
-      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path;$env:ProgramFiles\Git\usr\bin"
+      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path;$UnixToolsBinDir"
     }
     else
     {
@@ -980,10 +987,29 @@ function Build-SQLite($Arch)
     Invoke-Program curl.exe -- -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o $ZipPath
 
     if (-not $ToBatch) { New-Item -Type Directory -Path $SrcPath -ErrorAction Ignore | Out-Null }
-    Invoke-Program "$env:ProgramFiles\Git\usr\bin\unzip.exe" -- -j -o $ZipPath -d $SrcPath
-    if (-not $ToBatch) { Copy-Item $SourceCache\swift-build\cmake\SQLite\CMakeLists.txt $SrcPath\ }
-
+    Invoke-Program "$UnixToolsBinDir\unzip.exe" -- -j -o $ZipPath -d $SrcPath
     if (-not $ToBatch) { Remove-item $ZipPath | Out-Null }
+
+    if (-not $ToBatch) {
+      # Inject a CMakeLists.txt so we can build sqlite
+@"
+cmake_minimum_required(VERSION 3.12.3)
+project(SQLite LANGUAGES C)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE YES)
+add_library(SQLite3 sqlite3.c)
+
+if(CMAKE_SYSTEM_NAME STREQUAL Windows AND BUILD_SHARED_LIBS)
+  target_compile_definitions(SQLite3 PRIVATE "SQLITE_API=__declspec(dllexport)")
+endif()
+
+install(TARGETS SQLite3
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
+install(FILES sqlite3.h sqlite3ext.h DESTINATION include)
+"@ | Out-File -Encoding UTF8 $SrcPath\CMakeLists.txt
+    }
   }
 
   Build-CMakeProject `
@@ -1030,23 +1056,48 @@ function Build-ToolsSupportCore($Arch)
     }
 }
 
-function Build-LLBuild($Arch)
+function Build-LLBuild($Arch, [switch]$Test = $false)
 {
-  Build-CMakeProject `
-    -Src $SourceCache\llbuild `
-    -Bin $BinaryCache\4 `
-    -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
-    -Arch $Arch `
-    -UseMSVCCompilers CXX `
-    -UseBuiltCompilers Swift `
-    -SwiftSDK $SDKInstallRoot `
-    -BuildTargets default `
-    -Defines @{
-      BUILD_SHARED_LIBS = "YES";
-      LLBUILD_SUPPORT_BINDINGS = "Swift";
-      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+  Isolate-EnvVars {
+    if ($Test)
+    {
+      # Build additional llvm executables needed by tests
+      Isolate-EnvVars {
+        Invoke-VsDevShell $HostArch
+        Invoke-Program ninja.exe -C "$BinaryCache\0" FileCheck not
+      }
+
+      $Targets = @("default", "test-llbuild")
+      $TestingDefines = @{
+        FILECHECK_EXECUTABLE = "$BinaryCache\0\bin\FileCheck.exe";
+        LIT_EXECUTABLE = "$SourceCache\llvm-project\llvm\utils\lit\lit.py";
+      }
+      $env:Path = "$env:Path;$UnixToolsBinDir"
+      $env:AR = "$BinaryCache\1\llvm-ar.exe"
+      $env:CLANG = "$BinaryCache\1\clang.exe"
     }
+    else
+    {
+      $Targets = @("default", "install")
+      $TestingDefines = @{}
+    }
+
+    Build-CMakeProject `
+      -Src $SourceCache\llbuild `
+      -Bin $BinaryCache\4 `
+      -Arch $Arch `
+      -UseMSVCCompilers CXX `
+      -UseBuiltCompilers Swift `
+      -SwiftSDK $SDKInstallRoot `
+      -BuildTargets $Targets `
+      -Defines ($TestingDefines + @{
+        CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
+        BUILD_SHARED_LIBS = "YES";
+        LLBUILD_SUPPORT_BINDINGS = "Swift";
+        SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
+        SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+      })
+  }
 }
 
 function Build-Yams($Arch)
@@ -1163,8 +1214,14 @@ function Build-Certificates($Arch)
 
 function Build-PackageManager($Arch)
 {
+  $SrcPath = "$SourceCache\swift-package-manager"
+  if (-not (Test-Path -PathType Container $SrcPath)) {
+    # The Apple CI clones this repo as "swiftpm"
+    $SrcPath = "$SourceCache\swiftpm"
+  }
+
   Build-CMakeProject `
-    -Src $SourceCache\swift-package-manager `
+    -Src $SrcPath `
     -Bin $BinaryCache\12 `
     -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
     -Arch $Arch `
@@ -1352,6 +1409,7 @@ if ($Test -contains "swift") { Build-Compilers $HostArch -Test }
 if ($Test -contains "dispatch") { Build-Dispatch $HostArch -Test }
 if ($Test -contains "foundation") { Build-Foundation $HostArch -Test }
 if ($Test -contains "xctest") { Build-XCTest $HostArch -Test }
+if ($Test -contains "llbuild") { Build-LLBuild $HostArch -Test }
 
 if (-not $SkipPackaging -and $Stage -ne "")
 {

@@ -1,0 +1,76 @@
+name: SwiftFormat
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        include:
+          - tag: 0.51.10
+            branch: master
+
+    steps:
+      # Build
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+          ref: refs/tags/${{ matrix.tag }}
+          repository: nicklockwood/SwiftFormat
+
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: development
+          tag: DEVELOPMENT-SNAPSHOT-2023-05-22-a
+
+      - name: test
+        run: |
+          swift test
+
+      - name: build
+        run: |
+          swift build -c release
+
+      # Package
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+          ref: ${{ vars.GITHUB_REF_NAME }}
+          repository: ${{ vars.GITHUB_REPOSITORY }}
+          path: ${{ github.workspace }}/SourceCache/${{ vars.GITHUB_REPOSITORY }}
+
+      - uses: microsoft/setup-msbuild@v1.0.3
+
+      - name: package
+        run: |
+          msbuild -restore ${{ github.workspace }}\SourceCache\${{ vars.GITHUB_REPOSITORY }}\installer-scripts\SwiftFormat.wixproj -nologo -p:Configuration=Release -p:ProductVersion=${{ matrix.tag }} -p:SWIFTFORMAT_BUILD=${{ github.workspace }}\.build\release -p:OutputPath=${{ github.workspace }}\artifacts -p:RunWixToolsOutOfProc=true
+
+      # Release
+      - uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: create_release
+        with:
+          draft: true
+          prerelease: true
+          release_name: SwiftFormat-${{ matrix.tag }}
+          tag_name: SwiftFormat-${{ matrix.tag }}
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_content_type: application/octet-stream
+          asset_name: swiftformat.exe
+          asset_path: .build\x86_64-unknown-windows-msvc\release\swiftformat.exe
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_content_type: application/octet-stream
+          asset_name: SwiftFormat.msi
+          asset_path: ${{ github.workspace }}\artifacts\SwiftFormat.msi
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
