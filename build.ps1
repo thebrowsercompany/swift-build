@@ -255,8 +255,17 @@ function Invoke-Program()
 
     if ($LastExitCode -ne 0)
     {
-      $callstack = @(Get-PSCallStack) -Join "`n"
-      throw "Command execution returned $LastExitCode. Call stack:`n$callstack"
+      $ErrorMessage = "Error: $([IO.Path]::GetFileName($Executable)) exited with code $($LastExitCode).`n"
+
+      $ErrorMessage += "Invocation:`n"
+      $ErrorMessage += "  $Executable $Args`n"
+
+      $ErrorMessage += "Call stack:`n"
+      foreach ($Frame in @(Get-PSCallStack)) {
+        $ErrorMessage += "  $Frame`n"
+      }
+
+      throw $ErrorMessage
     }
   }
 }
