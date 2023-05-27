@@ -10,15 +10,15 @@ jobs:
     strategy:
       matrix:
         include:
-          - tag: 5.7.2-RELEASE
-            branch: swift-5.7.2-release
+          - tag: 5.8-RELEASE
+            branch: swift-5.8-release
 
     steps:
       # Build
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-          ref: refs/tags/swift-5.7.2-RELEASE
+          ref: refs/heads/release/5.8
           repository: apple/swift-format
 
       - uses: compnerd/gha-setup-swift@main
@@ -32,7 +32,7 @@ jobs:
 
       - name: build
         run: |
-          swift build -c release -Xcc -IC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\include -Xlinker -LC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\lib
+          swift build -c release -Xcc -IC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\include -Xlinker -LC:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\lib -Xswiftc -gnone
 
       # Package
       - uses: actions/checkout@v3
@@ -46,7 +46,7 @@ jobs:
 
       - name: package
         run: |
-          msbuild ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/swift-format.wixproj -nologo -p:Configuration=Release -p:ProductVersion=5.7.2 -p:SWIFT_FORMAT_BUILD=${{ github.workspace }}\.build\release -p:OutputPath=${{ github.workspace }}\artifacts -p:RunWixToolsOutOfProc=true
+          msbuild ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/swift-format.wixproj -nologo -restore -p:Configuration=Release -p:ProductVersion=5.8 -p:SWIFT_FORMAT_BUILD=${{ github.workspace }}\.build\release -p:OutputPath=${{ github.workspace }}\artifacts -p:RunWixToolsOutOfProc=true
 
       # Release
       - uses: actions/create-release@v1
