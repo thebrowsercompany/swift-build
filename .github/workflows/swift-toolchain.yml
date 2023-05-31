@@ -43,6 +43,7 @@ jobs:
       swift_crypto_revision: ${{ steps.context.outputs.swift_crypto_revision }}
       swift_driver_revision: ${{ steps.context.outputs.swift_driver_revision }}
       swift_experimental_string_processing_revision: ${{ steps.context.outputs.swift_experimental_string_processing_revision }}
+      swift_format_revision: ${{ steps.context.outputs.swift_format_revision }}
       swift_installer_scripts_revision: ${{ steps.context.outputs.swift_installer_scripts_revision }}
       swift_llbuild_revision: ${{ steps.context.outputs.swift_llbuild_revision }}
       swift_package_manager_revision: ${{ steps.context.outputs.swift_package_manager_revision }}
@@ -85,6 +86,7 @@ jobs:
           swift_crypto_revision=refs/tags/2.4.0
           swift_driver_revision=refs/tags/${{ github.event.inputs.swift_tag }}
           swift_experimental_string_processing_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+          swift_format_revision=refs/tags/${{ github.event.inputs.swift_tag }}
           swift_installer_scripts_revision=refs/heads/main
           swift_llbuild_revision=refs/tags/${{ github.event.inputs.swift_tag }}
           swift_package_manager_revision=refs/tags/${{ github.event.inputs.swift_tag }}
@@ -1873,6 +1875,7 @@ jobs:
           name: installer-amd64
           path: ${{ github.workspace }}/tmp
 
+      # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
       - run: |
           function Update-EnvironmentVariables {
             foreach ($level in "Machine", "User") {
@@ -1918,9 +1921,84 @@ jobs:
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
 
+  swift_format:
+    runs-on: windows-latest
+    needs: [context, installer]
+
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: installer-amd64
+          path: ${{ github.workspace }}/tmp
+
+      # TODO(compnerd) can this be done via a re-usage workflow for swift-format?
+
+      # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
+      - run: |
+          function Update-EnvironmentVariables {
+            foreach ($level in "Machine", "User") {
+              [Environment]::GetEnvironmentVariables($level).GetEnumerator() | % {
+                # For Path variables, append the new values, if they're not already in there
+                if ($_.Name -Match 'Path$') {
+                  $_.Value = ($((Get-Content "Env:$($_.Name)") + ";$($_.Value)") -Split ';' | Select -Unique) -Join ';'
+                }
+                $_
+              } | Set-Content -Path { "Env:$($_.Name)" }
+            }
+          }
+
+          try {
+            Write-Host "Starting Install installer.exe..."
+            $Process = Start-Process -FilePath ${{ github.workspace }}/tmp/installer.exe -ArgumentList ("-q") -Wait -PassThru
+            $ExitCode = $Process.ExitCode
+            if ($ExitCode -eq 0 -or $ExitCode -eq 3010) {
+              Write-Host "Installation successful"
+            } else {
+              Write-Host "non-zero exit code returned by the installation process: $ExitCode"
+              exit $ExitCode
+            }
+          } catch {
+            Write-Host "Failed to install: $($_.Exception.Message)"
+            exit 1
+          }
+          Update-EnvironmentVariables
+
+          # Reset Path and environment
+          echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
+          Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+
+      - uses: actions/checkout@v3
+        with:
+          repository: apple/swift-format
+          ref: ${{ needs.context.outputs.swift_format_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-format
+
+      - run: swift test
+        working-directory: ${{ github.workspace }}/SourceCache/swift-format
+
+      - run: swift build -c release -Xswiftc -gnone
+        working-directory: ${{ github.workspace }}/SourceCache/swift-format
+
+      - uses: actions/checkout@v3
+        with:
+          repository: apple/swift-installer-scripts
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - uses: microsoft/setup-msbuild@v1.3.1
+
+      - run: msbuild ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/swift-format.wixproj -nologo -restore -p:Configuration=Release -p:SWIFT_FORMAT_BUILD=${{ github.workspace }}\SourceCache\swift-format\.build\release -p:OutputPath=${{ github.workspace }}\artifacts -p:RunWixToolsOutOfProc=true
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: swift-format
+          path: |
+            ${{ github.workspace }}/.build/release/swift-format.exe
+            ${{ github.workspace }}/artifacts/swift-format.msi
+
   snapshot:
     runs-on: ubuntu-latest
-    needs: [context, smoke_test]
+    needs: [context, swift_format]
 
     steps:
       - uses: actions/checkout@v3
@@ -1942,7 +2020,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [smoke_test]
+    needs: [smoke_test, swift_format]
 
     steps:
       - uses: actions/download-artifact@v3
