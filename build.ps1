@@ -35,6 +35,9 @@ An array of architectures for which the Swift SDK should be built.
 The product version to be used when building the installer.
 Supports semantic version strings.
 
+.PARAMETER SkipBuild
+If set, does not run the build phase.
+
 .PARAMETER SkipRedistInstall
 If set, does not create S:\Program Files to mimic an installed redistributable.
 
@@ -69,6 +72,7 @@ param(
   [string] $BuildType = "Release",
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
+  [switch] $SkipBuild = $false,
   [switch] $SkipRedistInstall = $false,
   [switch] $SkipPackaging = $false,
   [bool] $DefaultsLLD = $true,
@@ -1359,22 +1363,29 @@ function Build-Installer()
 
 #-------------------------------------------------------------------
 
-Build-BuildTools $HostArch
-Build-Compilers $HostArch
+if (-not $SkipBuild)
+{
+  Build-BuildTools $HostArch
+  Build-Compilers $HostArch
+}
+
 
 foreach ($Arch in $SDKArchs)
 {
-  Build-ZLib $Arch
-  Build-XML2 $Arch
-  Build-CURL $Arch
-  Build-ICU $Arch
-  Build-LLVM $Arch
+  if (-not $SkipBuild)
+  {
+    Build-ZLib $Arch
+    Build-XML2 $Arch
+    Build-CURL $Arch
+    Build-ICU $Arch
+    Build-LLVM $Arch
 
-  # Build platform: SDK, Redist and XCTest
-  Build-Runtime $Arch
-  Build-Dispatch $Arch
-  Build-Foundation $Arch
-  Build-XCTest $Arch
+    # Build platform: SDK, Redist and XCTest
+    Build-Runtime $Arch
+    Build-Dispatch $Arch
+    Build-Foundation $Arch
+    Build-XCTest $Arch
+  }
 
   if (-not $SkipRedistInstall)
   {
@@ -1391,21 +1402,24 @@ if (-not $ToBatch)
   }
 }
 
-Build-SQLite $HostArch
-Build-System $HostArch
-Build-ToolsSupportCore $HostArch
-Build-LLBuild $HostArch
-Build-Yams $HostArch
-Build-ArgumentParser $HostArch
-Build-Driver $HostArch
-Build-Crypto $HostArch
-Build-Collections $HostArch
-Build-ASN1 $HostArch
-Build-Certificates $HostArch
-Build-PackageManager $HostArch
-Build-IndexStoreDB $HostArch
-Build-Syntax $HostArch
-Build-SourceKitLSP $HostArch
+if (-not $SkipBuild)
+{
+  Build-SQLite $HostArch
+  Build-System $HostArch
+  Build-ToolsSupportCore $HostArch
+  Build-LLBuild $HostArch
+  Build-Yams $HostArch
+  Build-ArgumentParser $HostArch
+  Build-Driver $HostArch
+  Build-Crypto $HostArch
+  Build-Collections $HostArch
+  Build-ASN1 $HostArch
+  Build-Certificates $HostArch
+  Build-PackageManager $HostArch
+  Build-IndexStoreDB $HostArch
+  Build-Syntax $HostArch
+  Build-SourceKitLSP $HostArch
+}
 
 Install-HostToolchain
 
