@@ -84,6 +84,13 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
+# Avoid being run in a "Developer" shell since this script launches its own sub-shells targeting
+# different architectures, and these variables cause confusion.
+if ($env:VSCMD_ARG_HOST_ARCH -ne $null -or $env:VSCMD_ARG_TGT_ARCH -ne $null)
+{
+  throw "At least one of VSCMD_ARG_HOST_ARCH and VSCMD_ARG_TGT_ARCH is set, which is incompatible with this script. Likely need to run outside of a Developer shell."
+}
+
 # Prevent elsewhere-installed swift modules from confusing our builds.
 $Env:SDKROOT = ""
 $NativeProcessorArchName = $env:PROCESSOR_ARCHITEW6432
