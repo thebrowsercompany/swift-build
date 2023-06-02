@@ -376,14 +376,6 @@ function Build-CMakeProject
   TryAdd-KeyValue $Defines CMAKE_BUILD_TYPE $BuildType
   TryAdd-KeyValue $Defines CMAKE_MT "mt"
 
-  # Workaround for running into MAX_PATH with CMake-generated output directory paths.
-  # CMake has logic to shorten output directory paths if they approach MAX_PATH,
-  # but when appending the filename we can still exceed MAX_PATH.
-  # The specific issue this solves is rc.exe writing windows_version_resource.rc.res
-  $MAX_PATH = 260
-  $LONG_FILENAME_LENGTH = 40
-  TryAdd-KeyValue $Defines CMAKE_OBJECT_PATH_MAX ($MAX_PATH - $LONG_FILENAME_LENGTH)
-
   $CFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline"
   $CXXFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:__cplusplus"
   if ($UseMSVCCompilers.Contains("C"))
