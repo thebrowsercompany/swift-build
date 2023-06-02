@@ -84,6 +84,13 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
+# Avoid being run in a "Developer" shell since this script launches its own sub-shells targeting
+# different architectures, and these variables cause confusion.
+if ($env:VSCMD_ARG_HOST_ARCH -ne $null -or $env:VSCMD_ARG_TGT_ARCH -ne $null)
+{
+  throw "At least one of VSCMD_ARG_HOST_ARCH and VSCMD_ARG_TGT_ARCH is set, which is incompatible with this script. Likely need to run outside of a Developer shell."
+}
+
 # Prevent elsewhere-installed swift modules from confusing our builds.
 $Env:SDKROOT = ""
 $NativeProcessorArchName = $env:PROCESSOR_ARCHITEW6432
@@ -368,14 +375,6 @@ function Build-CMakeProject
   $Defines = $Defines.Clone()
   TryAdd-KeyValue $Defines CMAKE_BUILD_TYPE $BuildType
   TryAdd-KeyValue $Defines CMAKE_MT "mt"
-
-  # Workaround for running into MAX_PATH with CMake-generated output directory paths.
-  # CMake has logic to shorten output directory paths if they approach MAX_PATH,
-  # but when appending the filename we can still exceed MAX_PATH.
-  # The specific issue this solves is rc.exe writing windows_version_resource.rc.res
-  $MAX_PATH = 260
-  $LONG_FILENAME_LENGTH = 40
-  TryAdd-KeyValue $Defines CMAKE_OBJECT_PATH_MAX ($MAX_PATH - $LONG_FILENAME_LENGTH)
 
   $CFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline"
   $CXXFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:__cplusplus"
