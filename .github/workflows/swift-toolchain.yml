@@ -2011,10 +2011,13 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: swift-format
-          path: |
-            ${{ github.workspace }}/.build/release/swift-format.exe
-            ${{ github.workspace }}/artifacts/swift-format.msi
+          name: swift-format-msi
+          path: ${{ github.workspace }}/artifacts/swift-format.msi
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: swift-format.exe
+          path: ${{ github.workspace }}/SourceCache/swift-format/.build/release/swift-format.exe
 
   snapshot:
     runs-on: ubuntu-latest
@@ -2048,6 +2051,11 @@ jobs:
           name: installer-amd64
           path: ${{ github.workspace }}/tmp
 
+      - uses: actions/download-artifact@v3
+        with:
+          name: swift-format-msi
+          path: ${{ github.workspace }}/tmp
+
       - name: compute release name
         id: release_name
         run: |
@@ -2069,5 +2077,13 @@ jobs:
           asset_content_type: application/octet-stream
           asset_name: installer-amd64.exe
           asset_path: ${{ github.workspace }}/tmp/installer.exe
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_content_type: application/octet-stream
+          asset_name: swift-format.msi
+          asset_path: ${{ github.workspace }}/tmp/swift-format.msi
           upload_url: ${{ steps.create_release.outputs.upload_url }}
 
