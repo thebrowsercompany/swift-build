@@ -2019,9 +2019,93 @@ jobs:
           name: swift-format.exe
           path: ${{ github.workspace }}/SourceCache/swift-format/.build/x86_64-unknown-windows-msvc/release/swift-format.exe
 
+  swift_inspect:
+    runs-on: windows-latest
+    needs: [context, installer]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: 'amd64'
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-windows-msvc'
+
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: installer-amd64
+          path: ${{ github.workspace }}/tmp
+
+      # TODO(compnerd) can this be done via a re-usage workflow for swift-format?
+
+      # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
+      - run: |
+          function Update-EnvironmentVariables {
+            foreach ($level in "Machine", "User") {
+              [Environment]::GetEnvironmentVariables($level).GetEnumerator() | % {
+                # For Path variables, append the new values, if they're not already in there
+                if ($_.Name -Match 'Path$') {
+                  $_.Value = ($((Get-Content "Env:$($_.Name)") + ";$($_.Value)") -Split ';' | Select -Unique) -Join ';'
+                }
+                $_
+              } | Set-Content -Path { "Env:$($_.Name)" }
+            }
+          }
+          try {
+            Write-Host "Starting Install installer.exe..."
+            $Process = Start-Process -FilePath ${{ github.workspace }}/tmp/installer.exe -ArgumentList ("-q") -Wait -PassThru
+            $ExitCode = $Process.ExitCode
+            if ($ExitCode -eq 0 -or $ExitCode -eq 3010) {
+              Write-Host "Installation successful"
+            } else {
+              Write-Host "non-zero exit code returned by the installation process: $ExitCode"
+              exit $ExitCode
+            }
+          } catch {
+            Write-Host "Failed to install: $($_.Exception.Message)"
+            exit 1
+          }
+          Update-EnvironmentVariables
+          # Reset Path and environment
+          echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
+          Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+
+      - uses: microsoft/setup-msbuild@v1.3.1
+
+      - uses: actions/checkout@v3
+        with:
+          repository: apple/swift
+          ref: ${{ needs.context.outputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+
+      - run: |
+          swift build -c release -Xswiftc -gnone -Xcc -I"${env:SDKROOT}"\usr\include\swift\SwiftRemoteMirror -Xlinker ${env:SDKROOT}\usr\lib\swift\windows\x86_64\swiftRemoteMirror.lib
+        working-directory: ${{ github.workspace }}\SourceCache\swift\tools\swift-inspect
+
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          repository: apple/swift-installer-scripts
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - name: Package
+        run: |
+          msbuild -nologo -restore -p:Configuration=Release -p:RunWixToolsOutOfProc=true -p:OutputPath=${{ github.workspace }}\artifacts -p:ProductVersion=${{ needs.context.outputs.swift_version }} -p:SWIFT_INSPECT_BUILD=${{ github.workspace }}\SourceCache\swift\tools\swift-inspect\.build\release ${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\swift-inspect.wixproj
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: swift-inspect-msi
+          path: ${{ github.workspace }}/artifacts/swift-inspect.msi
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: swift-inspect.exe
+          path: ${{ github.workspace }}/SourceCache/swift/tools/swift-inspect/.build/${{ matrix.triple }}/release/swift-inspect.exe
+
   snapshot:
     runs-on: ubuntu-latest
-    needs: [context, swift_format]
+    needs: [context, smoke_test, swift_format, swift_inspect]
 
     steps:
       - uses: actions/checkout@v3
@@ -2043,7 +2127,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [smoke_test, swift_format]
+    needs: [smoke_test, swift_format, swift_inspect]
 
     steps:
       - uses: actions/download-artifact@v3
@@ -2054,6 +2138,11 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: swift-format-msi
+          path: ${{ github.workspace }}/tmp
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: swift-inspect-msi
           path: ${{ github.workspace }}/tmp
 
       - name: compute release name
@@ -2085,5 +2174,13 @@ jobs:
           asset_content_type: application/octet-stream
           asset_name: swift-format.msi
           asset_path: ${{ github.workspace }}/tmp/swift-format.msi
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_content_type: application/octet-stream
+          asset_name: swift-inspect.msi
+          asset_path: ${{ github.workspace }}/tmp/swift-inspect.msi
           upload_url: ${{ steps.create_release.outputs.upload_url }}
 
