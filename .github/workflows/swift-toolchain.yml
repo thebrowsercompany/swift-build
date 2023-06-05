@@ -1945,10 +1945,18 @@ jobs:
     runs-on: windows-latest
     needs: [context, installer]
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: 'amd64'
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-windows-msvc'
+
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: installer-amd64
+          name: installer-${{ matrix.arch }}
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd) can this be done via a re-usage workflow for swift-format?
@@ -2017,7 +2025,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: swift-format.exe
-          path: ${{ github.workspace }}/SourceCache/swift-format/.build/x86_64-unknown-windows-msvc/release/swift-format.exe
+          path: ${{ github.workspace }}/SourceCache/swift-format/.build/${{ matrix.triple }}/release/swift-format.exe
 
   swift_inspect:
     runs-on: windows-latest
@@ -2034,7 +2042,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: installer-amd64
+          name: installer-${{ matrix.arch }}
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd) can this be done via a re-usage workflow for swift-format?
@@ -2080,7 +2088,7 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
 
       - run: |
-          swift build -c release -Xswiftc -gnone -Xcc -I"${env:SDKROOT}"\usr\include\swift\SwiftRemoteMirror -Xlinker ${env:SDKROOT}\usr\lib\swift\windows\x86_64\swiftRemoteMirror.lib
+          swift build -c release -Xswiftc -gnone -Xcc -I"${env:SDKROOT}"\usr\include\swift\SwiftRemoteMirror -Xlinker ${env:SDKROOT}\usr\lib\swift\windows\${{ matrix.cpu }}\swiftRemoteMirror.lib
         working-directory: ${{ github.workspace }}\SourceCache\swift\tools\swift-inspect
 
       - uses: actions/checkout@v3
