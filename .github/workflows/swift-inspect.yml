@@ -1,0 +1,57 @@
+name: swift-inspect
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        include:
+          - tag: 5.8-RELEASE
+            branch: swift-5.8-release
+
+    steps:
+      # Build
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: ${{ matrix.branch }}
+          tag: ${{ matrix.tag }}
+
+      - uses: microsoft/setup-msbuild@v1.3.1
+
+      - uses: actions/checkout@v3
+        with:
+          repository: apple/swift
+          ref: refs/heads/release/5.8
+          path: ${{ github.workspace }}/SourceCache/swift
+
+      - name: build
+        run: |
+          swift build -c release -Xswiftc -gnone -Xcc -I"${env:SDKROOT}"\usr\include\swift\SwiftRemoteMirror -Xlinker ${env:SDKROOT}\usr\lib\swift\windows\x86_64\swiftRemoteMirror.lib
+        working-directory: ${{ github.workspace }}\SourceCache\swift\tools\swift-inspect
+
+      # Package
+
+      - uses: actions/checkout@v3
+        with:
+          ref: refs/heads/main
+          repository: apple/swift-installer-scripts
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - name: Package
+        run: |
+          msbuild -nologo -restore -p:Configuration=Release -p:RunWixToolsOutOfProc=true -p:OutputPath=${{ github.workspace }}\artifacts -p:ProductVersion=5.8 -p:SWIFT_INSPECT_BUILD=${{ github.workspace }}\SourceCache\swift\tools\swift-inspect\.build\release ${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\swift-inspect.wixproj
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: swift-inspect-msi
+          path: ${{ github.workspace }}/artifacts/swift-inspect.msi
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: swift-inspect.exe
+          path: ${{ github.workspace }}/SourceCache/swift/tools/swift-inspect/.build/x86_64-unknown-windows-msvc/release/swift-inspect.exe
+
