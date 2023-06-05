@@ -2,7 +2,7 @@ name: swift-toolchain
 
 on:
   schedule:
-    - cron: "0 */4 * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       snapshot:
@@ -137,7 +137,7 @@ jobs:
           if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
             echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
           else
-            echo swift_tag=-$(date +%Y%m%d.$(date +%-H/4 | bc)) | tee -a ${GITHUB_OUTPUT}
+            echo swift_tag=-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
           fi
 
       - uses: actions/upload-artifact@v3
@@ -2201,7 +2201,7 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           if ! git diff --exit-code ; then
             git add stable.xml
-            git commit -m "repo: update stable revision snapshot $(date +%Y%m%d.$(date +%-H/4 | bc))"
+            git commit -m "repo: update stable revision snapshot $(date +%Y%m%d.$(date +%-H/6 | bc))"
             git push origin HEAD:main
           fi
 
@@ -2228,7 +2228,7 @@ jobs:
       - name: compute release name
         id: release_name
         run: |
-          echo name=$(date +%Y%m%d.$(date +%-H/4 | bc)) >> ${GITHUB_OUTPUT}
+          echo name=$(date +%Y%m%d.$(date +%-H/6 | bc)) >> ${GITHUB_OUTPUT}
       - uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
