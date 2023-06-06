@@ -396,11 +396,13 @@ function Build-CMakeProject
   if ($UseBuiltCompilers.Contains("C")) {
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
+    Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
     Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
   }
   if ($UseBuiltCompilers.Contains("CXX")) {
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
+    Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
     Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("Swift")) {
@@ -421,9 +423,11 @@ function Build-CMakeProject
     }
 
     # Debug Information
-    $SwiftArgs.Add("-g -debug-info-format=codeview") | Out-Null
+    # $SwiftArgs.Add("-g -debug-info-format=codeview") | Out-Null
+    $SwiftArgs.Add("-g") | Out-Null
+    $SwiftArgs.Add("-use-ld=lld-link") | Out-Null
     $SwiftArgs.Add("-Xlinker /INCREMENTAL:NO") | Out-Null
-    $SwiftArgs.Add("-Xlinker /DEBUG") | Out-Null
+    $SwiftArgs.Add("-Xlinker /DEBUG:DWARF") | Out-Null
 
     # Swift Requries COMDAT folding and de-duplication
     $SwiftArgs.Add("-Xlinker /OPT:REF") | Out-Null
