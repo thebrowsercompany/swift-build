@@ -780,29 +780,29 @@ function Build-Runtime($Arch)
 {
   $LLVMBuildDir = Get-ProjectBuildDir $Arch 0
 
-    Build-CMakeProject `
-      -Src $SourceCache\swift `
+  Build-CMakeProject `
+    -Src $SourceCache\swift `
     -Bin (Get-ProjectBuildDir $Arch 1) `
     -InstallTo "$($Arch.SDKInstallRoot)\usr" `
-      -Arch $Arch `
-      -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
-      -UseBuiltCompilers C,CXX `
-      -BuildTargets default `
-      -Defines @{
-        CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
-        LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
-        SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
-        SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
-        SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
-        SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
-        SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
-        SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
-        CMAKE_SHARED_LINKER_FLAGS = "/DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF";
-      }
+    -Arch $Arch `
+    -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
+    -UseBuiltCompilers C,CXX `
+    -BuildTargets default `
+    -Defines @{
+      CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
+      LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
+      SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
+      SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
+      SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
+      SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
+      SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
+      SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
+      SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
+      SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
+      SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
+      SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
+      CMAKE_SHARED_LINKER_FLAGS = "/DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF";
+    }
 
   Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" `
     -OutFile "$($Arch.SDKInstallRoot)\SDKSettings.plist"
