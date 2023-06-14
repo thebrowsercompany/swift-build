@@ -512,11 +512,12 @@ function Build-WiXProject()
   }
 
   $Properties = $Properties.Clone()
+  TryAdd-KeyValue $Properties Configuration Release
+  TryAdd-KeyValue $Properties IntermediateOutputPath "$($Arch.BinaryRoot)\$Name\"
+  TryAdd-KeyValue $Properties OutputPath "$($Arch.BinaryRoot)\msi\"
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
   TryAdd-KeyValue $Properties ProductVersion $ProductVersionArg
   TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
-  TryAdd-KeyValue $Properties OutputPath "$($Arch.BinaryRoot)\msi\"
-  TryAdd-KeyValue $Properties IntermediateOutputPath "$($Arch.BinaryRoot)\$Name\"
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
   $MSBuildArgs += "-noLogo"
