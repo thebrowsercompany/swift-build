@@ -96,10 +96,6 @@ $Env:SDKROOT = ""
 $NativeProcessorArchName = $env:PROCESSOR_ARCHITEW6432
 if ($null -eq $NativeProcessorArchName) { $NativeProcessorArchName = $env:PROCESSOR_ARCHITECTURE }
 
-$ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
-$PlatformInstallRoot = "$LibraryRoot\Developer\Platforms\Windows.platform"
-$SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
-
 $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $VSInstallRoot = & $vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
 $msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$NativeProcessorArchName\MSBuild.exe"
@@ -177,6 +173,36 @@ $HostArch = switch ($NativeProcessorArchName) {
   "ARM64" { $ArchARM64 }
   default { throw "Unsupported processor architecture" }
 }
+
+function Get-RuntimeInstallRoot($Arch)
+{
+  if ($Arch -eq $HostArch)
+  {
+    $ProgramFilesName = "Program Files"
+  }
+  elseif ($Arch -eq $ArchX86)
+  {
+    $ProgramFilesName = "Program Files (x86)"
+  }
+  elseif (($HostArch -eq $ArchArm64) -and ($Arch -eq $ArchX64))
+  {
+    # x64 programs actually install under "Program Files" on arm64,
+    # but this would conflict with the native installation.
+    $ProgramFilesName = "Program Files (Amd64)"
+  }
+  else
+  {
+    # arm64 cannot be installed on x64
+    return $null
+  }
+
+  return "S:\$ProgramFilesName\swift\runtime-development"
+}
+
+$ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
+$PlatformInstallRoot = "$LibraryRoot\Developer\Platforms\Windows.platform"
+$RuntimeInstallRoot = "$(Get-RuntimeInstallRoot $HostArch)"
+$SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
 
 # For dev productivity, install the host toolchain directly using CMake.
 # This allows iterating on the toolchain using ninja builds.
@@ -920,27 +946,7 @@ function Install-Redist($Arch)
 {
   if ($ToBatch) { return }
 
-  if ($Arch -eq $HostArch)
-  {
-    $ProgramFilesName = "Program Files"
-  }
-  elseif ($Arch -eq $ArchX86)
-  {
-    $ProgramFilesName = "Program Files (x86)"
-  }
-  elseif (($HostArch -eq $ArchArm64) -and ($Arch -eq $ArchX64))
-  {
-    # x64 programs actually install under "Program Files" on arm64,
-    # but this would conflict with the native installation.
-    $ProgramFilesName = "Program Files (Amd64)"
-  }
-  else
-  {
-    # arm64 cannot be installed on x64
-    return
-  }
-
-  $RedistInstallRoot = "S:\$ProgramFilesName\swift\runtime-development"
+  $RedistInstallRoot = Get-RuntimeInstallRoot $Arch
 
   Remove-Item -Force -Recurse $RedistInstallRoot -ErrorAction Ignore
   Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$RedistInstallRoot\usr"
