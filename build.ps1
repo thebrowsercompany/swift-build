@@ -28,6 +28,12 @@ similar to the /Library or ~/Library directories on macOS.
 .PARAMETER BuildType
 The CMake build type to use, one of: Release, RelWithDebInfo, Debug.
 
+.PARAMETER CDebugFormat
+The debug information format for C/C++ code: dwarf or codeview.
+
+.PARAMETER SwiftDebugFormat
+The debug information format for Swift code: dwarf or codeview.
+
 .PARAMETER SDKs
 An array of architectures for which the Swift SDK should be built.
 
@@ -70,6 +76,8 @@ param(
   [string] $BinaryCache = "S:\b",
   [string] $LibraryRoot = "S:\Library",
   [string] $BuildType = "Release",
+  [string] $CDebugFormat = "dwarf",
+  [string] $SwiftDebugFormat = "dwarf",
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
   [switch] $SkipBuild = $false,
@@ -352,8 +360,8 @@ function Build-CMakeProject {
   TryAdd-KeyValue $Defines CMAKE_BUILD_TYPE $BuildType
   TryAdd-KeyValue $Defines CMAKE_MT "mt"
 
-  $IsRelease = $Defines["CMAKE_BUILD_TYPE"] -eq "Release"
-  $Zi = if ($IsRelease) { "" } else { "/Zi" }
+  $GenerateDebugInfo = $Defines["CMAKE_BUILD_TYPE"] -ne "Release"
+  $Zi = if ($GenerateDebugInfo) { "/Zi" } else { "" }
 
   $CFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline"
   $CXXFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline /Zc:__cplusplus"
@@ -373,7 +381,7 @@ function Build-CMakeProject {
   if ($UseBuiltCompilers.Contains("C")) {
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
-    if (-not $IsRelease) {
+    if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
       Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
     }
     Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
@@ -381,7 +389,7 @@ function Build-CMakeProject {
   if ($UseBuiltCompilers.Contains("CXX")) {
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
-    if (-not $IsRelease) {
+    if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
       Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
     }
     Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
@@ -404,18 +412,16 @@ function Build-CMakeProject {
     }
 
     # Debug Information
-    if ($IsRelease) {
-      $SwiftArgs.Add("-gnone") | Out-Null
+    if ($GenerateDebugInfo) {
+      if ($SwiftDebugFormat -eq "dwarf") {
+        $SwiftArgs.Add("-g -Xlinker /DEBUG:DWARF -use-ld=lld-link") | Out-Null
+      } else {
+        $SwiftArgs.Add("-g -debug-info-format=codeview -Xlinker -debug") | Out-Null
+      }
     } else {
-      # $SwiftArgs.Add("-g -debug-info-format=codeview") | Out-Null
-      $SwiftArgs.Add("-g") | Out-Null
-      $SwiftArgs.Add("-use-ld=lld-link") | Out-Null
+      $SwiftArgs.Add("-gnone") | Out-Null
     }
     $SwiftArgs.Add("-Xlinker /INCREMENTAL:NO") | Out-Null
-    if (-not $IsRelease) {
-      # $SwiftArgs.Add("-Xlinker -debug") | Out-Null
-      $SwiftArgs.Add("-Xlinker /DEBUG:DWARF") | Out-Null
-    }
 
     # Swift Requries COMDAT folding and de-duplication
     $SwiftArgs.Add("-Xlinker /OPT:REF") | Out-Null
