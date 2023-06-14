@@ -352,8 +352,11 @@ function Build-CMakeProject {
   TryAdd-KeyValue $Defines CMAKE_BUILD_TYPE $BuildType
   TryAdd-KeyValue $Defines CMAKE_MT "mt"
 
-  $CFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline"
-  $CXXFlags = "/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:__cplusplus"
+  $IsRelease = $Defines["CMAKE_BUILD_TYPE"] -eq "Release"
+  $Zi = if ($IsRelease) { "" } else { "/Zi" }
+
+  $CFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline"
+  $CXXFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline /Zc:__cplusplus"
   if ($UseMSVCCompilers.Contains("C")) {
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER cl
     Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
@@ -370,13 +373,17 @@ function Build-CMakeProject {
   if ($UseBuiltCompilers.Contains("C")) {
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
-    Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
+    if (-not $IsRelease) {
+      Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
+    }
     Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
   }
   if ($UseBuiltCompilers.Contains("CXX")) {
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
-    Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
+    if (-not $IsRelease) {
+      Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
+    }
     Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
   }
   if ($UseBuiltCompilers.Contains("Swift")) {
@@ -397,11 +404,18 @@ function Build-CMakeProject {
     }
 
     # Debug Information
-    # $SwiftArgs.Add("-g -debug-info-format=codeview") | Out-Null
-    $SwiftArgs.Add("-g") | Out-Null
-    $SwiftArgs.Add("-use-ld=lld-link") | Out-Null
+    if ($IsRelease) {
+      $SwiftArgs.Add("-gnone") | Out-Null
+    } else {
+      # $SwiftArgs.Add("-g -debug-info-format=codeview") | Out-Null
+      $SwiftArgs.Add("-g") | Out-Null
+      $SwiftArgs.Add("-use-ld=lld-link") | Out-Null
+    }
     $SwiftArgs.Add("-Xlinker /INCREMENTAL:NO") | Out-Null
-    $SwiftArgs.Add("-Xlinker /DEBUG:DWARF") | Out-Null
+    if (-not $IsRelease) {
+      # $SwiftArgs.Add("-Xlinker -debug") | Out-Null
+      $SwiftArgs.Add("-Xlinker /DEBUG:DWARF") | Out-Null
+    }
 
     # Swift Requries COMDAT folding and de-duplication
     $SwiftArgs.Add("-Xlinker /OPT:REF") | Out-Null
@@ -545,6 +559,11 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
       }
     }
 
+    $LLVM_ENABLE_PDB = switch ($BuildType) {
+      "Release" { "NO" }
+      default { "YES" }
+    }
+
     Build-CMakeProject `
       -Src $SourceCache\llvm-project\llvm `
       -Bin $BinaryCache\1 `
@@ -555,13 +574,17 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
       -Defines ($TestingDefines + @{
         CLANG_TABLEGEN = "$BinaryCache\0\bin\clang-tblgen.exe";
         CLANG_TIDY_CONFUSABLE_CHARS_GEN = "$BinaryCache\0\bin\clang-tidy-confusable-chars-gen.exe";
+        # LLVM plays tricks with flags and prefers to use `LLVM_ENABLE_PDB` for
+        # debug information on Windows rather than the CMake handling.  This
+        # give us a sligtly faster build.
+        CMAKE_BUILD_TYPE = "Release";
         CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
         LLDB_PYTHON_EXE_RELATIVE_PATH = "python.exe";
         LLDB_PYTHON_EXT_SUFFIX = ".pyd";
         LLDB_PYTHON_RELATIVE_PATH = "lib/site-packages";
         LLDB_TABLEGEN = "$BinaryCache\0\bin\lldb-tblgen.exe";
         LLVM_CONFIG_PATH = "$BinaryCache\0\bin\llvm-config.exe";
-        LLVM_ENABLE_PDB = "YES";
+        LLVM_ENABLE_PDB = $LLVM_ENABLE_PDB;
         LLVM_EXTERNAL_CMARK_SOURCE_DIR = "$SourceCache\cmark";
         LLVM_EXTERNAL_SWIFT_SOURCE_DIR = "$SourceCache\swift";
         LLVM_NATIVE_TOOL_DIR = "$BinaryCache\0\bin";
@@ -725,7 +748,7 @@ function Build-Runtime($Arch) {
       SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
       SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
       SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
-      CMAKE_SHARED_LINKER_FLAGS = "/DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF";
+      CMAKE_SHARED_LINKER_FLAGS = "/INCREMENTAL:NO /OPT:REF /OPT:ICF";
     }
 
   Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" `
