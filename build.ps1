@@ -1271,7 +1271,22 @@ function Install-HostToolchain() {
 }
 
 function Build-Installer() {
-  Build-WiXProject toolchain.wixproj -Arch $HostArch -Properties @{
+  Build-WiXProject bld.wixproj -Arch $HostArch -Properties @{
+    DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+  }
+
+  Build-WiXProject cli.wixproj -Arch $HostArch -Properties @{
+    DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+  }
+
+  Build-WiXProject dbg.wixproj -Arch $HostArch -Properties @{
+    DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+  }
+
+  Build-WiXProject ide.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
   }
@@ -1286,10 +1301,6 @@ function Build-Installer() {
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
       SWIFT_SOURCE_DIR = "$SourceCache\swift\";
     }
-  }
-
-  Build-WiXProject devtools.wixproj -Arch $HostArch -Properties @{
-    DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
   }
 
   Build-WiXProject installer.wixproj -Arch $HostArch -Bundle -Properties @{
