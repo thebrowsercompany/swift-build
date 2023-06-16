@@ -1635,7 +1635,7 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
 
-  package_toolchain:
+  package_build_tools:
     runs-on: windows-latest
     needs: [context, compilers, devtools]
 
@@ -1674,25 +1674,85 @@ jobs:
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
-      - name: Package
+      - name: Package Build Tools
         run: |
           msbuild -nologo -restore `
               -p:Configuration=Release `
               -p:RunWixToolsOutOfProc=true `
-              -p:OutputPath=${{ github.workspace }}\BinaryCache\toolchain\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\toolchain\obj\ `
+              -p:OutputPath=${{ github.workspace }}\BinaryCache\bld\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\bld\obj\ `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/toolchain.wixproj
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld.wixproj
+
+      - name: Package CLI Tools
+        run: |
+          msbuild -nologo -restore `
+              -p:Configuration=Release `
+              -p:RunWixToolsOutOfProc=true `
+              -p:OutputPath=${{ github.workspace }}\BinaryCache\cli\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\cli\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli.wixproj
+
+      - name: Package Debugging Tools
+        run: |
+          msbuild -nologo -restore `
+              -p:Configuration=Release `
+              -p:RunWixToolsOutOfProc=true `
+              -p:OutputPath=${{ github.workspace }}\BinaryCache\dbg\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\dbg\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg.wixproj
+
+      - name: Package IDE Tools
+        run: |
+          msbuild -nologo -restore `
+              -p:Configuration=Release `
+              -p:RunWixToolsOutOfProc=true `
+              -p:OutputPath=${{ github.workspace }}\BinaryCache\ide\ `
+              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\ide\obj\ `
+              -p:SignOutput=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide.wixproj
 
       - uses: actions/upload-artifact@v3
         with:
-          name: toolchain-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/toolchain/toolchain.msi
+          name: bld-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BinaryCache/bld/bld.msi
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: cli-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BinaryCache/cli/cli.msi
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: dbg-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BinaryCache/dbg/dbg.msi
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ide-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BinaryCache/ide/ide.msi
 
   package_sdk_runtime:
     runs-on: windows-latest
@@ -1767,62 +1827,9 @@ jobs:
           name: runtime-windows-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/runtime/runtime.msi
 
-  package_devtools:
-    runs-on: windows-latest
-    needs: [context, devtools]
-
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: ['amd64'] # , 'arm64']
-
-    steps:
-      - uses: actions/download-artifact@v3
-        with:
-          name: devtools-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library
-
-      - uses: actions/checkout@v3
-        with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
-
-      - uses: compnerd/gha-setup-vsdevenv@main
-        with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
-
-      - run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil -decode $CertificatePath $PFXPath
-          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-      - name: Package
-        run: |
-          msbuild -nologo -restore `
-              -p:Configuration=Release `
-              -p:RunWixToolsOutOfProc=true `
-              -p:OutputPath=${{ github.workspace }}\BinaryCache\devtools\ `
-              -p:IntermediateOutputPath=${{ github.workspace }}\BinaryCache\devtools\obj\ `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/devtools.wixproj
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: devtools-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/devtools/devtools.msi
-
   installer:
     runs-on: windows-latest
-    needs: [context, package_toolchain, package_sdk_runtime, package_devtools]
+    needs: [context, package_build_tools, package_sdk_runtime]
 
     strategy:
       fail-fast: false
@@ -1832,7 +1839,19 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: toolchain-${{ matrix.arch }}-msi
+          name: bld-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+      - uses: actions/download-artifact@v3
+        with:
+          name: cli-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+      - uses: actions/download-artifact@v3
+        with:
+          name: dbg-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot
+      - uses: actions/download-artifact@v3
+        with:
+          name: ide-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BuildRoot
       - uses: actions/download-artifact@v3
         with:
@@ -1841,10 +1860,6 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: sdk-windows-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
-      - uses: actions/download-artifact@v3
-        with:
-          name: devtools-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BuildRoot
 
       - uses: actions/checkout@v3
