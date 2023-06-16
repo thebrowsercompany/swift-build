@@ -475,6 +475,58 @@ function Build-CMakeProject {
   }
 }
 
+function Build-SPMProject {
+  [CmdletBinding(PositionalBinding = $false)]
+  param(
+    [string] $Src,
+    [string] $Bin,
+    [hashtable] $Arch,
+    [Parameter(ValueFromRemainingArguments)]
+    [string[]] $AdditionalArguments
+  )
+
+  if ($ToBatch) {
+    Write-Output ""
+    Write-Output "echo Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
+  } else {
+    Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
+  }
+
+  $Stopwatch = [Diagnostics.Stopwatch]::StartNew()
+
+  Isolate-EnvVars {
+    $env:Path = "${RuntimeInstallRoot}\usr\bin;${ToolchainInstallRoot}\usr\bin;${env:Path}"
+    $env:SDKROOT = $Arch.SDKInstallRoot
+
+    $Arguments = @(
+        "--scratch-path", $Bin,
+        "--package-path", $Src,
+        "-c", "release",
+        "-Xbuild-tools-swiftc", "-I$($HostArch.SDKInstallRoot)\usr\lib\swift",
+        "-Xbuild-tools-swiftc", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows",
+        "-Xcc", "-I$($HostArch.SDKInstallRoot)\usr\lib\swift",
+        "-Xlinker", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows"
+    )
+    if ($BuildType -eq "Release") {
+      $Arguments += @("-Xswiftc", "-gnone")
+    } else {
+      if ($SwiftDebugFormat -eq "dwarf") {
+        $Arguments += @("-Xlinker", "-debug:dwarf")
+      } else {
+        $Arguments += @("-g", "-debug-info-format=codeview")
+        $Arguments += @("-Xlinker", "-debug")
+      }
+    }
+
+    Invoke-Program "$($Arch.ToolchainInstallRoot)\usr\bin\swift.exe" "build" @Arguments @AdditionalArguments
+  }
+
+  if (-not $ToBatch) {
+    Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Finished building '$Src' to '$Bin' for arch '$($Arch.ShortName)' in $($Stopwatch.Elapsed)"
+    Write-Host ""
+  }
+}
+
 function Build-WiXProject() {
   [CmdletBinding(PositionalBinding = $false)]
   param(
