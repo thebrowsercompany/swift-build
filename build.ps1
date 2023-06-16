@@ -1332,6 +1332,15 @@ function Build-Inspect() {
     -Xcc "-I$($HostArch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" -Xlinker "$($HostArch.SDKInstallRoot)\usr\lib\swift\windows\$($HostArch.LLVMName)\swiftRemoteMirror.lib"
 }
 
+function Build-Format() {
+  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-format
+
+  Build-SPMProject `
+    -Src $SourceCache\swift-format `
+    -Bin $OutDir `
+    -Arch $HostArch
+}
+
 function Build-Installer() {
   Build-WiXProject bld.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
@@ -1363,6 +1372,10 @@ function Build-Installer() {
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
       SWIFT_SOURCE_DIR = "$SourceCache\swift\";
     }
+  }
+
+  Build-WiXProject swift-format.wixproj -Arch $HostArch -Properties @{
+    SWIFT_FORMAT_BUILD = "$($HostArch.BinaryRoot)\swift-format\release"
   }
 
   Build-WiXProject swift-inspect.wixproj -Arch $HostArch -Properties @{
@@ -1432,6 +1445,7 @@ Install-HostToolchain
 
 if (-not $SkipBuild) {
   Build-Inspect $HostArch
+  Build-Format $HostArch
 }
 
 if (-not $SkipPackaging) {
