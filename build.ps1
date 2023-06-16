@@ -1341,6 +1341,16 @@ function Build-Format() {
     -Arch $HostArch
 }
 
+function Build-DocC() {
+  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-docc
+
+  Build-SPMProject `
+    -Src $SourceCache\swift-docc `
+    -Bin $OutDir `
+    -Arch $HostArch `
+    --product docc
+}
+
 function Build-Installer() {
   Build-WiXProject bld.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
@@ -1446,6 +1456,7 @@ Install-HostToolchain
 if (-not $SkipBuild) {
   Build-Inspect $HostArch
   Build-Format $HostArch
+  Build-DocC $HostArch
 }
 
 if (-not $SkipPackaging) {
