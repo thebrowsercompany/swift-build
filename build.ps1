@@ -944,6 +944,7 @@ function Install-Redist($Arch) {
   if ($ToBatch) { return }
 
   $RedistInstallRoot = Get-RuntimeInstallRoot $Arch
+  if ($null -eq $RedistInstallRoot) { return }
 
   Remove-Item -Force -Recurse $RedistInstallRoot -ErrorAction Ignore
   Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$RedistInstallRoot\usr"
