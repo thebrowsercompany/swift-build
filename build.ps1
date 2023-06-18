@@ -1379,6 +1379,7 @@ function Build-Installer() {
     }
 
     Build-WiXProject sdk.wixproj -Arch $Arch -Properties @{
+      InstallerPlatform = $HostArch.ShortName;
       PLATFORM_ROOT = "$($Arch.PlatformInstallRoot)\";
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
       SWIFT_SOURCE_DIR = "$SourceCache\swift\";
