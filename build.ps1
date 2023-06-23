@@ -475,6 +475,58 @@ function Build-CMakeProject {
   }
 }
 
+function Build-SPMProject {
+  [CmdletBinding(PositionalBinding = $false)]
+  param(
+    [string] $Src,
+    [string] $Bin,
+    [hashtable] $Arch,
+    [Parameter(ValueFromRemainingArguments)]
+    [string[]] $AdditionalArguments
+  )
+
+  if ($ToBatch) {
+    Write-Output ""
+    Write-Output "echo Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
+  } else {
+    Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Building '$Src' to '$Bin' for arch '$($Arch.ShortName)'..."
+  }
+
+  $Stopwatch = [Diagnostics.Stopwatch]::StartNew()
+
+  Isolate-EnvVars {
+    $env:Path = "${RuntimeInstallRoot}\usr\bin;${ToolchainInstallRoot}\usr\bin;${env:Path}"
+    $env:SDKROOT = $Arch.SDKInstallRoot
+
+    $Arguments = @(
+        "--scratch-path", $Bin,
+        "--package-path", $Src,
+        "-c", "release",
+        "-Xbuild-tools-swiftc", "-I$($HostArch.SDKInstallRoot)\usr\lib\swift",
+        "-Xbuild-tools-swiftc", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows",
+        "-Xcc", "-I$($HostArch.SDKInstallRoot)\usr\lib\swift",
+        "-Xlinker", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows"
+    )
+    if ($BuildType -eq "Release") {
+      $Arguments += @("-Xswiftc", "-gnone")
+    } else {
+      if ($SwiftDebugFormat -eq "dwarf") {
+        $Arguments += @("-Xlinker", "-debug:dwarf")
+      } else {
+        $Arguments += @("-g", "-debug-info-format=codeview")
+        $Arguments += @("-Xlinker", "-debug")
+      }
+    }
+
+    Invoke-Program "$($Arch.ToolchainInstallRoot)\usr\bin\swift.exe" "build" @Arguments @AdditionalArguments
+  }
+
+  if (-not $ToBatch) {
+    Write-Host -ForegroundColor Cyan "[$([DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))] Finished building '$Src' to '$Bin' for arch '$($Arch.ShortName)' in $($Stopwatch.Elapsed)"
+    Write-Host ""
+  }
+}
+
 function Build-WiXProject() {
   [CmdletBinding(PositionalBinding = $false)]
   param(
@@ -892,6 +944,7 @@ function Install-Redist($Arch) {
   if ($ToBatch) { return }
 
   $RedistInstallRoot = Get-RuntimeInstallRoot $Arch
+  if ($null -eq $RedistInstallRoot) { return }
 
   Remove-Item -Force -Recurse $RedistInstallRoot -ErrorAction Ignore
   Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$RedistInstallRoot\usr"
@@ -1270,6 +1323,35 @@ function Install-HostToolchain() {
   Copy-Item -Force $BinaryCache\7\bin\swift-driver.exe $ToolchainInstallRoot\usr\bin\swiftc.exe
 }
 
+function Build-Inspect() {
+  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-inspect
+
+  Build-SPMProject `
+    -Src $SourceCache\swift\tools\swift-inspect `
+    -Bin $OutDir `
+    -Arch $HostArch `
+    -Xcc "-I$($HostArch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" -Xlinker "$($HostArch.SDKInstallRoot)\usr\lib\swift\windows\$($HostArch.LLVMName)\swiftRemoteMirror.lib"
+}
+
+function Build-Format() {
+  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-format
+
+  Build-SPMProject `
+    -Src $SourceCache\swift-format `
+    -Bin $OutDir `
+    -Arch $HostArch
+}
+
+function Build-DocC() {
+  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-docc
+
+  Build-SPMProject `
+    -Src $SourceCache\swift-docc `
+    -Bin $OutDir `
+    -Arch $HostArch `
+    --product docc
+}
+
 function Build-Installer() {
   Build-WiXProject bld.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
@@ -1297,10 +1379,19 @@ function Build-Installer() {
     }
 
     Build-WiXProject sdk.wixproj -Arch $Arch -Properties @{
+      InstallerPlatform = $HostArch.ShortName;
       PLATFORM_ROOT = "$($Arch.PlatformInstallRoot)\";
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
       SWIFT_SOURCE_DIR = "$SourceCache\swift\";
     }
+  }
+
+  Build-WiXProject swift-format.wixproj -Arch $HostArch -Properties @{
+    SWIFT_FORMAT_BUILD = "$($HostArch.BinaryRoot)\swift-format\release"
+  }
+
+  Build-WiXProject swift-inspect.wixproj -Arch $HostArch -Properties @{
+    SWIFT_INSPECT_BUILD = "$($HostArch.BinaryRoot)\swift-inspect\release"
   }
 
   Build-WiXProject installer.wixproj -Arch $HostArch -Bundle -Properties @{
@@ -1363,6 +1454,12 @@ if (-not $SkipBuild) {
 }
 
 Install-HostToolchain
+
+if (-not $SkipBuild) {
+  Build-Inspect $HostArch
+  Build-Format $HostArch
+  Build-DocC $HostArch
+}
 
 if (-not $SkipPackaging) {
   Build-Installer

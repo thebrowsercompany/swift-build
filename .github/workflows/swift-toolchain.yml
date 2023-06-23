@@ -1637,7 +1637,8 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
 
-  package_build_tools:
+  package_tools:
+    name: Package Tools
     runs-on: windows-latest
     needs: [context, compilers, devtools]
 
@@ -1757,13 +1758,18 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/ide/ide.msi
 
   package_sdk_runtime:
+    name: Package SDK & Runtime
     runs-on: windows-latest
     needs: [context, sdk]
 
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64'] # , 'arm64']
+        include:
+          - arch: amd64
+            platform: x64
+          # - arch: arm64
+          #   platform: arm64
 
     steps:
       - uses: actions/download-artifact@v3
@@ -1803,6 +1809,7 @@ jobs:
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:InstallerPlatform = ${{ matrix.platform }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj
 
       - name: Package Runtime
@@ -1831,7 +1838,7 @@ jobs:
 
   installer:
     runs-on: windows-latest
-    needs: [context, package_build_tools, package_sdk_runtime]
+    needs: [context, package_tools, package_sdk_runtime]
 
     strategy:
       fail-fast: false
