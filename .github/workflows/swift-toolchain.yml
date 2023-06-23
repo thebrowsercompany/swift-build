@@ -1763,7 +1763,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64'] # , 'arm64']
+        include:
+          - arch: amd64
+            platform: x64
+          # - arch: arm64
+          #   platform: arm64
 
     steps:
       - uses: actions/download-artifact@v3
@@ -1803,6 +1807,7 @@ jobs:
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:InstallerPlatform = ${{ matrix.platform }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk.wixproj
 
       - name: Package Runtime
