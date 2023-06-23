@@ -439,6 +439,7 @@ function Build-CMakeProject {
 
     # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
     Append-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
+    Append-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELWITHDEBINFO "-O"
   }
   if ("" -ne $InstallTo) {
     TryAdd-KeyValue $Defines CMAKE_INSTALL_PREFIX $InstallTo
