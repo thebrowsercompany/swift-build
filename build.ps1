@@ -330,6 +330,18 @@ function Append-FlagsDefine([hashtable]$Defines, [string]$Name, [string]$Value) 
   }
 }
 
+function Test-CMakeAtLeast([int]$Major, [int]$Minor, [int]$Patch = 0) {
+  $CMakeVersionString = @(cmake --version)[0]
+  if (-not ($CMakeVersionString -match "^cmake version (\d+)\.(\d+)(?:\.(\d+))?")) {
+    throw "Unexpected CMake version string format"
+  }
+
+  if ([int]$Matches.1 -ne $Major) { return [int]$Matches.1 -gt $Major }
+  if ([int]$Matches.2 -ne $Minor) { return [int]$Matches.2 -gt $Minor }
+  if ($null -eq $Matches.3) { return 0 -gt $Patch }
+  return [int]$Matches.3 -ge $Patch
+}
+
 function Build-CMakeProject {
   [CmdletBinding(PositionalBinding = $false)]
   param(
@@ -382,8 +394,10 @@ function Build-CMakeProject {
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
 
-    # Workaround for https://github.com/ninja-build/ninja/issues/2280 (fixed in CMake 3.26.3)
-    TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
+    if (-not (Test-CMakeAtLeast -Major 3 -Minor 26 -Patch 3)) {
+      # Workaround for https://github.com/ninja-build/ninja/issues/2280
+      TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
+    }
 
     if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
       Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
@@ -394,7 +408,10 @@ function Build-CMakeProject {
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
     TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
 
-    TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
+    if (-not (Test-CMakeAtLeast -Major 3 -Minor 26 -Patch 3)) {
+      # Workaround for https://github.com/ninja-build/ninja/issues/2280
+      TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
+    }
 
     if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
       Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
