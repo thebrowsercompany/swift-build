@@ -331,7 +331,7 @@ function Append-FlagsDefine([hashtable]$Defines, [string]$Name, [string]$Value) 
 }
 
 function Test-CMakeAtLeast([int]$Major, [int]$Minor, [int]$Patch = 0) {
-  $CMakeVersionString = @(cmake --version)[0]
+  $CMakeVersionString = @(& cmake.exe --version)[0]
   if (-not ($CMakeVersionString -match "^cmake version (\d+)\.(\d+)(?:\.(\d+))?")) {
     throw "Unexpected CMake version string format"
   }
