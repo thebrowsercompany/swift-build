@@ -1357,7 +1357,8 @@ function Build-Inspect() {
     -Src $SourceCache\swift\tools\swift-inspect `
     -Bin $OutDir `
     -Arch $HostArch `
-    -Xcc "-I$($HostArch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" -Xlinker "$($HostArch.SDKInstallRoot)\usr\lib\swift\windows\$($HostArch.LLVMName)\swiftRemoteMirror.lib"
+    -Xcc "-I$($HostArch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" -Xlinker "$($HostArch.SDKInstallRoot)\usr\lib\swift\windows\$($HostArch.LLVMName)\swiftRemoteMirror.lib" `
+    -Xcc -Xclang -Xcc -fno-split-cold-code # Workaround https://github.com/llvm/llvm-project/issues/40056
 }
 
 function Build-Format() {
