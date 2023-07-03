@@ -786,7 +786,7 @@ function Build-ICU($Arch) {
     }
   }
 
-  if ($Arch -eq $ArchARM64) {
+  if ($Arch -eq $ArchARM64 -and $HostArch -ne $ArchARM64) {
     # Use previously built x64 tools
     $BuildToolsDefines = @{
       BUILD_TOOLS = "NO";
