@@ -330,6 +330,18 @@ function Append-FlagsDefine([hashtable]$Defines, [string]$Name, [string]$Value) 
   }
 }
 
+function Test-CMakeAtLeast([int]$Major, [int]$Minor, [int]$Patch = 0) {
+  $CMakeVersionString = @(& cmake.exe --version)[0]
+  if (-not ($CMakeVersionString -match "^cmake version (\d+)\.(\d+)(?:\.(\d+))?")) {
+    throw "Unexpected CMake version string format"
+  }
+
+  if ([int]$Matches.1 -ne $Major) { return [int]$Matches.1 -gt $Major }
+  if ([int]$Matches.2 -ne $Minor) { return [int]$Matches.2 -gt $Minor }
+  if ($null -eq $Matches.3) { return 0 -gt $Patch }
+  return [int]$Matches.3 -ge $Patch
+}
+
 function Build-CMakeProject {
   [CmdletBinding(PositionalBinding = $false)]
   param(
@@ -355,110 +367,118 @@ function Build-CMakeProject {
 
   $Stopwatch = [Diagnostics.Stopwatch]::StartNew()
 
-  # Add additional defines (unless already present)
-  $Defines = $Defines.Clone()
-  TryAdd-KeyValue $Defines CMAKE_BUILD_TYPE $BuildType
-  TryAdd-KeyValue $Defines CMAKE_MT "mt"
-
-  $GenerateDebugInfo = $Defines["CMAKE_BUILD_TYPE"] -ne "Release"
-  $Zi = if ($GenerateDebugInfo) { "/Zi" } else { "" }
-
-  $CFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline"
-  $CXXFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline /Zc:__cplusplus"
-  if ($UseMSVCCompilers.Contains("C")) {
-    TryAdd-KeyValue $Defines CMAKE_C_COMPILER cl
-    Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
-  }
-  if ($UseMSVCCompilers.Contains("CXX")) {
-    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER cl
-    Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
-  }
-  if ($UseBuiltCompilers.Contains("ASM")) {
-    TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
-    Append-FlagsDefine $Defines CMAKE_ASM_FLAGS "--target=$($Arch.LLVMTarget)"
-    TryAdd-KeyValue $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
-  }
-  if ($UseBuiltCompilers.Contains("C")) {
-    TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
-    TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
-
-    # Workaround for https://github.com/ninja-build/ninja/issues/2280 (fixed in CMake 3.26.3)
-    TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
-
-    if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
-      Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
-    }
-    Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
-  }
-  if ($UseBuiltCompilers.Contains("CXX")) {
-    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
-    TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
-
-    TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
-
-    if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
-      Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
-    }
-    Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
-  }
-  if ($UseBuiltCompilers.Contains("Swift")) {
-    TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER "$BinaryCache\1\bin\swiftc.exe"
-    TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
-
-    $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
-    $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
-
-    $SwiftArgs = [System.Collections.ArrayList]@()
-
-    if ($SwiftSDK -ne "") {
-      $SwiftArgs.Add("-sdk $SwiftSDK") | Out-Null
-    } else {
-      $SwiftArgs.Add("-resource-dir $SwiftResourceDir") | Out-Null
-      $SwiftArgs.Add("-L $SwiftResourceDir\windows") | Out-Null
-      $SwiftArgs.Add("-vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml") | Out-Null
-    }
-
-    # Debug Information
-    if ($GenerateDebugInfo) {
-      if ($SwiftDebugFormat -eq "dwarf") {
-        $SwiftArgs.Add("-g -Xlinker /DEBUG:DWARF -use-ld=lld-link") | Out-Null
-      } else {
-        $SwiftArgs.Add("-g -debug-info-format=codeview -Xlinker -debug") | Out-Null
-      }
-    } else {
-      $SwiftArgs.Add("-gnone") | Out-Null
-    }
-    $SwiftArgs.Add("-Xlinker /INCREMENTAL:NO") | Out-Null
-
-    # Swift Requries COMDAT folding and de-duplication
-    $SwiftArgs.Add("-Xlinker /OPT:REF") | Out-Null
-    $SwiftArgs.Add("-Xlinker /OPT:ICF") | Out-Null
-
-    $SwiftcFlags = $SwiftArgs.ToArray() -Join " "
-    Append-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftcFlags
-
-    # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
-    Append-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
-  }
-  if ("" -ne $InstallTo) {
-    TryAdd-KeyValue $Defines CMAKE_INSTALL_PREFIX $InstallTo
-  }
-
-  # Generate the project
-  $cmakeGenerateArgs = @("-B", $Bin, "-S", $Src, "-G", $Generator)
-  if ("" -ne $CacheScript) {
-    $cmakeGenerateArgs += @("-C", $CacheScript)
-  }
-  foreach ($Define in ($Defines.GetEnumerator() | Sort-Object Name)) {
-    # Avoid backslashes in defines since they are going into CMakeCache.txt,
-    # where they are interpreted as escapes. Assume all backslashes
-    # are path separators and can be turned into forward slashes.
-    $ValueWithForwardSlashes = $Define.Value.Replace("\", "/")
-    $cmakeGenerateArgs += @("-D", "$($Define.Key)=$ValueWithForwardSlashes")
-  }
-
+  # Enter the developer command shell early so we can resolve cmake.exe
+  # for version checks.
   Isolate-EnvVars {
     Invoke-VsDevShell $Arch
+
+    # Add additional defines (unless already present)
+    $Defines = $Defines.Clone()
+    TryAdd-KeyValue $Defines CMAKE_BUILD_TYPE $BuildType
+    TryAdd-KeyValue $Defines CMAKE_MT "mt"
+
+    $GenerateDebugInfo = $Defines["CMAKE_BUILD_TYPE"] -ne "Release"
+    $Zi = if ($GenerateDebugInfo) { "/Zi" } else { "" }
+
+    $CFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline"
+    $CXXFlags = "/GS- /Gw /Gy /Oi /Oy $Zi /Zc:inline /Zc:__cplusplus"
+    if ($UseMSVCCompilers.Contains("C")) {
+      TryAdd-KeyValue $Defines CMAKE_C_COMPILER cl
+      Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
+    }
+    if ($UseMSVCCompilers.Contains("CXX")) {
+      TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER cl
+      Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
+    }
+    if ($UseBuiltCompilers.Contains("ASM")) {
+      TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+      Append-FlagsDefine $Defines CMAKE_ASM_FLAGS "--target=$($Arch.LLVMTarget)"
+      TryAdd-KeyValue $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
+    }
+    if ($UseBuiltCompilers.Contains("C")) {
+      TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+      TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
+
+      if (-not (Test-CMakeAtLeast -Major 3 -Minor 26 -Patch 3)) {
+        # Workaround for https://github.com/ninja-build/ninja/issues/2280
+        TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
+      }
+
+      if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
+        Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
+      }
+      Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
+    }
+    if ($UseBuiltCompilers.Contains("CXX")) {
+      TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+      TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
+
+      if (-not (Test-CMakeAtLeast -Major 3 -Minor 26 -Patch 3)) {
+        # Workaround for https://github.com/ninja-build/ninja/issues/2280
+        TryAdd-KeyValue $Defines CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: "
+      }
+
+      if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
+        Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
+      }
+      Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
+    }
+    if ($UseBuiltCompilers.Contains("Swift")) {
+      TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER "$BinaryCache\1\bin\swiftc.exe"
+      TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
+
+      $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
+      $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
+
+      $SwiftArgs = [System.Collections.ArrayList]@()
+
+      if ($SwiftSDK -ne "") {
+        $SwiftArgs.Add("-sdk $SwiftSDK") | Out-Null
+      } else {
+        $SwiftArgs.Add("-resource-dir $SwiftResourceDir") | Out-Null
+        $SwiftArgs.Add("-L $SwiftResourceDir\windows") | Out-Null
+        $SwiftArgs.Add("-vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml") | Out-Null
+      }
+
+      # Debug Information
+      if ($GenerateDebugInfo) {
+        if ($SwiftDebugFormat -eq "dwarf") {
+          $SwiftArgs.Add("-g -Xlinker /DEBUG:DWARF -use-ld=lld-link") | Out-Null
+        } else {
+          $SwiftArgs.Add("-g -debug-info-format=codeview -Xlinker -debug") | Out-Null
+        }
+      } else {
+        $SwiftArgs.Add("-gnone") | Out-Null
+      }
+      $SwiftArgs.Add("-Xlinker /INCREMENTAL:NO") | Out-Null
+
+      # Swift Requries COMDAT folding and de-duplication
+      $SwiftArgs.Add("-Xlinker /OPT:REF") | Out-Null
+      $SwiftArgs.Add("-Xlinker /OPT:ICF") | Out-Null
+
+      $SwiftcFlags = $SwiftArgs.ToArray() -Join " "
+      Append-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftcFlags
+
+      # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
+      Append-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
+      Append-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELWITHDEBINFO "-O"
+    }
+    if ("" -ne $InstallTo) {
+      TryAdd-KeyValue $Defines CMAKE_INSTALL_PREFIX $InstallTo
+    }
+
+    # Generate the project
+    $cmakeGenerateArgs = @("-B", $Bin, "-S", $Src, "-G", $Generator)
+    if ("" -ne $CacheScript) {
+      $cmakeGenerateArgs += @("-C", $CacheScript)
+    }
+    foreach ($Define in ($Defines.GetEnumerator() | Sort-Object Name)) {
+      # Avoid backslashes in defines since they are going into CMakeCache.txt,
+      # where they are interpreted as escapes. Assume all backslashes
+      # are path separators and can be turned into forward slashes.
+      $ValueWithForwardSlashes = $Define.Value.Replace("\", "/")
+      $cmakeGenerateArgs += @("-D", "$($Define.Key)=$ValueWithForwardSlashes")
+    }
 
     Invoke-Program cmake.exe @cmakeGenerateArgs
 
@@ -766,7 +786,7 @@ function Build-ICU($Arch) {
     }
   }
 
-  if ($Arch -eq $ArchARM64) {
+  if ($Arch -eq $ArchARM64 -and $HostArch -ne $ArchARM64) {
     # Use previously built x64 tools
     $BuildToolsDefines = @{
       BUILD_TOOLS = "NO";
@@ -1337,7 +1357,8 @@ function Build-Inspect() {
     -Src $SourceCache\swift\tools\swift-inspect `
     -Bin $OutDir `
     -Arch $HostArch `
-    -Xcc "-I$($HostArch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" -Xlinker "$($HostArch.SDKInstallRoot)\usr\lib\swift\windows\$($HostArch.LLVMName)\swiftRemoteMirror.lib"
+    -Xcc "-I$($HostArch.SDKInstallRoot)\usr\include\swift\SwiftRemoteMirror" -Xlinker "$($HostArch.SDKInstallRoot)\usr\lib\swift\windows\$($HostArch.LLVMName)\swiftRemoteMirror.lib" `
+    -Xcc -Xclang -Xcc -fno-split-cold-code # Workaround https://github.com/llvm/llvm-project/issues/40056
 }
 
 function Build-Format() {
