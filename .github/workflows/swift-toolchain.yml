@@ -135,7 +135,7 @@ jobs:
           if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
             echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
           else
-            echo swift_tag=-$(date +%Y%m%d.$(date +%-H/4 | bc)) | tee -a ${GITHUB_OUTPUT}
+            echo swift_tag=-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
           fi
 
       - uses: actions/upload-artifact@v3
@@ -2151,13 +2151,13 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           if ! git diff --exit-code ; then
             git add stable.xml
-            git commit -m "repo: update stable revision snapshot $(date +%Y%m%d.$(date +%-H/4 | bc))"
+            git commit -m "repo: update stable revision snapshot ${{ needs.context.outputs.swift_tag }}"
             git push origin HEAD:main
           fi
 
   release:
     runs-on: ubuntu-latest
-    needs: [smoke_test, swift_format, swift_inspect]
+    needs: [context, smoke_test, swift_format, swift_inspect]
 
     steps:
       - uses: actions/download-artifact@v3
@@ -2175,10 +2175,6 @@ jobs:
           name: swift-inspect-msi
           path: ${{ github.workspace }}/tmp
 
-      - name: compute release name
-        id: release_name
-        run: |
-          echo name=$(date +%Y%m%d.$(date +%-H/4 | bc)) >> ${GITHUB_OUTPUT}
       - uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -2186,8 +2182,8 @@ jobs:
         with:
           draft: false
           prerelease: false
-          release_name: ${{ steps.release_name.outputs.name }}
-          tag_name: ${{ steps.release_name.outputs.name }}
+          release_name: ${{ needs.context.outputs.swift_tag }}
+          tag_name: ${{ needs.context.outputs.swift_tag }}
 
       - uses: actions/upload-release-asset@v1.0.2
         env:
