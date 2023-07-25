@@ -8,8 +8,7 @@
       Scope="perMachine">
     <SummaryInformation Description="SwiftLint" />
 
-    <!-- NOTE(compnerd) use pre-3.0 schema for better compatibility. -->
-    <Media Id="1" Cabinet="SwiftLint.cab" EmbedCab="yes" />
+    <MediaTemplate CabinetTemplate="lint{0}.cab" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ManufacturerFolder" Name="MongoDB">
@@ -21,30 +20,22 @@
       </Directory>
     </StandardDirectory>
 
-    <Component Directory="_usr_bin" Id="swiftlint.exe">
-      <File Id="swiftlint.exe" Source="$(var.SWIFT_LINT_BUILD)\swiftlint.exe" Checksum="yes" KeyPath="yes" />
+    <Component Id="swiftlint.exe" Directory="_usr_bin">
+      <File Source="$(var.SWIFT_LINT_BUILD)\swiftlint.exe" />
     </Component>
 
     <ComponentGroup Id="EnvironmentVariables">
       <Component Id="SystemEnvironmentVariables" Condition="ALLUSERS=1" Directory="INSTALLDIR" Guid="c48cc327-9591-459f-a93e-6244162cff16">
-        <Environment Id="SystemPath" Action="set" Name="Path" Part="last" Permanent="no" System="yes" Value="[INSTALLDIR]usr\bin" />
+        <Environment Id="SystemPath" Action="set" Name="Path" Part="last" Permanent="no" System="yes" Value="[_usr_bin]" />
       </Component>
       <Component Id="UserEnvironmentVariables" Condition="NOT ALLUSERS=1" Directory="INSTALLDIR" Guid="f7f401ff-962c-4055-91b1-f31fcff91374">
-        <Environment Id="UserPath" Action="set" Name="Path" Part="last" Permanent="no" System="no" Value="[INSTALLDIR]usr\bin" />
+        <Environment Id="UserPath" Action="set" Name="Path" Part="last" Permanent="no" System="no" Value="[_usr_bin]" />
       </Component>
     </ComponentGroup>
 
-    <Feature Id="SwiftLint" AllowAbsent="no" AllowAdvertise="yes" ConfigurableDirectory="INSTALLDIR" Description="Linting Tool for Swift" Level="1" Title="SwiftLint">
+    <Feature Id="SwiftLint" AllowAbsent="no" Description="Linting Tool for Swift" Title="SwiftLint">
       <ComponentRef Id="swiftlint.exe" />
-      <ComponentRef Id="EnvironmentVariables" />
+      <ComponentGroupRef Id="EnvironmentVariables" />
     </Feature>
-
-    <UI>
-      <ui:WixUI Id="WixUI_InstallDir" />
-      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" />
-      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" />
-    </UI>
-
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR"></Property>
   </Package>
 </Wix>
