@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
+          path: ${{ github.workspace }}/SourceCache/SwiftLint
           ref: refs/heads/compnerd/windows
           repository: thebrowsercompany/SwiftLint
 
@@ -31,23 +32,23 @@ jobs:
       #   run: swift test
 
       - name: build
-        run: swift build -c release -Xswiftc -gnone -Xcc -g0
+        run: swift build --package-path ${{ github.workspace }}/SourceCache/SwiftLint --scratch-path ${{ github.workspace }}/BinaryCache/SwiftLint -c release -Xswiftc -gnone -Xcc -g0
 
       # Package
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-          ref: refs/heads/main
+          ref: ${{ env.GITHUB_REF }}
           path: ${{ github.workspace }}/SourceCache/swift-build
 
       - uses: microsoft/setup-msbuild@v1.3.1
 
       - name: package
-        run: msbuild ${{ github.workspace }}/SourceCache/swift-build/platforms/Windows/SwiftLint.wixproj -nologo -restore -p:Configuration=Release -p:SWIFT_LINT_BUILD=${{ github.workspace }}\.build\release -p:OutputPath=${{ github.workspace }}\artifacts -p:RunWixToolsOutOfProc=true
+        run: msbuild ${{ github.workspace }}/SourceCache/swift-build/platforms/Windows/SwiftLint.wixproj -nologo -restore -p:Configuration=Release -p:SWIFT_LINT_BUILD=${{ github.workspace }}\BinaryCache\SwiftLint\x86_64-unknown-windows-msvc\release -p:OutputPath=${{ github.workspace }}\BinaryCache\artifacts -p:RunWixToolsOutOfProc=true
 
       # Release
       - run: |
-          $MSI_PATH = cygpath -m ${{ github.workspace }}\artifacts\SwiftLint.msi
+          $MSI_PATH = cygpath -m ${{ github.workspace }}\BinaryCache\artifacts\SwiftLint.msi
           Write-Output MSI_PATH=${MSI_PATH} | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - uses: softprops/action-gh-release@v1
@@ -56,6 +57,6 @@ jobs:
           prerelease: true
           name: SwiftLint-${{ matrix.tag }}
           tag_name: SwiftLint-${{ matrix.tag }}
-          files:
-            .build/x86_64-unknown-windows-msvc/release/SwiftLint.exe
+          files: |
+            ${{ github.workspace }}/BinaryCache/SwiftLint/x86_64-unknown-windows-msvc/release/SwiftLint.exe
             ${{ env.MSI_PATH }}
