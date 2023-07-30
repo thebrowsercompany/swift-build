@@ -1381,32 +1381,36 @@ function Build-DocC() {
 }
 
 function Build-Installer() {
-  Build-WiXProject bld.wixproj -Arch $HostArch -Properties @{
+  Build-WiXProject bld\bld.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
   }
 
-  Build-WiXProject cli.wixproj -Arch $HostArch -Properties @{
+  Build-WiXProject cli\cli.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    INCLUDE_SWIFT_FORMAT = "true";
+    SWIFT_FORMAT_BUILD = "$($HostArch.BinaryRoot)\swift-format\release";
   }
 
-  Build-WiXProject dbg.wixproj -Arch $HostArch -Properties @{
+  Build-WiXProject dbg\dbg.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
+    INCLUDE_SWIFT_INSPECT = "true";
+    SWIFT_INSPECT_BUILD = "$($HostArch.BinaryRoot)\swift-inspect\release";
   }
 
-  Build-WiXProject ide.wixproj -Arch $HostArch -Properties @{
+  Build-WiXProject ide\ide.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
   }
 
   foreach ($Arch in $SDKArchs) {
-    Build-WiXProject runtime.wixproj -Arch $Arch -Properties @{
+    Build-WiXProject runtime\runtime.wixproj -Arch $Arch -Properties @{
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
     }
 
-    Build-WiXProject sdk.wixproj -Arch $Arch -Properties @{
+    Build-WiXProject sdk\sdk.wixproj -Arch $Arch -Properties @{
       InstallerPlatform = $HostArch.ShortName;
       PLATFORM_ROOT = "$($Arch.PlatformInstallRoot)\";
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
@@ -1414,15 +1418,7 @@ function Build-Installer() {
     }
   }
 
-  Build-WiXProject swift-format.wixproj -Arch $HostArch -Properties @{
-    SWIFT_FORMAT_BUILD = "$($HostArch.BinaryRoot)\swift-format\release"
-  }
-
-  Build-WiXProject swift-inspect.wixproj -Arch $HostArch -Properties @{
-    SWIFT_INSPECT_BUILD = "$($HostArch.BinaryRoot)\swift-inspect\release"
-  }
-
-  Build-WiXProject installer.wixproj -Arch $HostArch -Bundle -Properties @{
+  Build-WiXProject bundle\installer.wixproj -Arch $HostArch -Bundle -Properties @{
     OutputPath = "$($HostArch.BinaryRoot)\";
     MSI_LOCATION = "$($HostArch.BinaryRoot)\msi\";
   }
