@@ -21,27 +21,29 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
           arch: amd64
 
+      - uses: actions/setup-python@v4
+
+      - name: Install absl-py
+        run: pip install absl-py
+
       - name: Configure firebase
         run:
           cmake -B ${{ github.workspace }}/BinaryCache/firebase `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor" `
-                -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor /Zc:__cplusplus" `
-                -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/firebase/usr `
-                -G "Visual Studio 2022" `
+                -G "Visual Studio 17 2022" `
                 -A x64 `
                 -S ${{ github.workspace }}/SourceCache/firebase-cpp-sdk `
+                -D FIREBASE_CPP_BUILD_PACKAGE=YES `
                 -D FIREBASE_INCLUDE_LIBRARY_DEFAULT=OFF `
                 -D FIREBASE_INCLUDE_AUTH=YES `
+                -D FIREBASE_INCLUDE_FIRESTORE=YES `
                 -D FIREBASE_USE_BORINGSSL=YES
       - name: Build firebase
-        run: cmake --build ${{ github.workspace }}/BinaryCache/firebase
+        run: cmake --build ${{ github.workspace }}/BinaryCache/firebase --config Release
       - name: Install firebase
-        run: cmake --build ${{ github.workspace }}/BinaryCache/firebase
+        run: cmake --build ${{ github.workspace }}/BinaryCache/firebase --config Release --target install
 
       - uses: actions/upload-artifact@v3
         with:
