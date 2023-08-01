@@ -1411,7 +1411,7 @@ function Build-Installer() {
   }
 
   foreach ($Arch in $SDKArchs) {
-    Build-WiXProject runtime\runtime.wixproj -Arch $Arch -Properties @{
+    Build-WiXProject runtimemsi\runtimemsi.wixproj -Arch $Arch -Properties @{
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
     }
 
