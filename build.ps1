@@ -535,13 +535,12 @@ function Build-SPMProject {
         "-Xlinker", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows"
     )
     if ($BuildType -eq "Release") {
-      $Arguments += @("-Xswiftc", "-gnone")
+      $Arguments += @("-debug-info-format", "-none")
     } else {
       if ($SwiftDebugFormat -eq "dwarf") {
-        $Arguments += @("-Xlinker", "-debug:dwarf")
+        $Arguments += @("-debug-info-format", "dwarf")
       } else {
-        $Arguments += @("-g", "-debug-info-format=codeview")
-        $Arguments += @("-Xlinker", "-debug")
+        $Arguments += @("-debug-info-format", "codeview")
       }
     }
 
