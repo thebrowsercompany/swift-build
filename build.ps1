@@ -535,13 +535,12 @@ function Build-SPMProject {
         "-Xlinker", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows"
     )
     if ($BuildType -eq "Release") {
-      $Arguments += @("-Xswiftc", "-gnone")
+      $Arguments += @("-debug-info-format", "-none")
     } else {
       if ($SwiftDebugFormat -eq "dwarf") {
-        $Arguments += @("-Xlinker", "-debug:dwarf")
+        $Arguments += @("-debug-info-format", "dwarf")
       } else {
-        $Arguments += @("-g", "-debug-info-format=codeview")
-        $Arguments += @("-Xlinker", "-debug")
+        $Arguments += @("-debug-info-format", "codeview")
       }
     }
 
@@ -578,11 +577,9 @@ function Build-WiXProject() {
 
   $Properties = $Properties.Clone()
   TryAdd-KeyValue $Properties Configuration Release
-  TryAdd-KeyValue $Properties IntermediateOutputPath "$($Arch.BinaryRoot)\$Name\"
-  TryAdd-KeyValue $Properties OutputPath "$($Arch.BinaryRoot)\msi\"
+  TryAdd-KeyValue $Properties BaseOutputPath "$($Arch.BinaryRoot)\msi\"
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
   TryAdd-KeyValue $Properties ProductVersion $ProductVersionArg
-  TryAdd-KeyValue $Properties RunWixToolsOutOfProc true
 
   $MSBuildArgs = @("$SourceCache\swift-installer-scripts\platforms\Windows\$FileName")
   $MSBuildArgs += "-noLogo"
@@ -1423,8 +1420,11 @@ function Build-Installer() {
     }
   }
 
+  foreach ($MSI in ("bld", "cli", "dbg", "ide", "sdk", "runtime")) {
+    Move-Item "$($HostArch.BinaryRoot)\msi\Release\$($HostArch.VSName)\$MSI.msi" "$($HostArch.BinaryRoot)\msi\";
+  }
+
   Build-WiXProject bundle\installer.wixproj -Arch $HostArch -Bundle -Properties @{
-    OutputPath = "$($HostArch.BinaryRoot)\";
     MSI_LOCATION = "$($HostArch.BinaryRoot)\msi\";
   }
 }
