@@ -1015,6 +1015,11 @@ function Install-Platform($Arch) {
     }
   }
 
+  # Copy the CxxShim module
+  foreach ($Source in ("libcxxshim.h", "libcxxshim.modulemap", "libcxxstdlibshim.h")) {
+    Copy-File "$WindowsLibSrc\$Source" "$WindowsLibDst"
+  }
+
   # Copy plist files (same across architectures)
   Copy-File "$($Arch.PlatformInstallRoot)\Info.plist" $PlatformInstallRoot\
   Copy-File "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
@@ -1406,7 +1411,7 @@ function Build-Installer() {
   }
 
   foreach ($Arch in $SDKArchs) {
-    Build-WiXProject runtime\runtime.wixproj -Arch $Arch -Properties @{
+    Build-WiXProject runtimemsi\runtimemsi.wixproj -Arch $Arch -Properties @{
       SDK_ROOT = "$($Arch.SDKInstallRoot)\";
     }
 
