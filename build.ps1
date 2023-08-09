@@ -331,6 +331,8 @@ function Append-FlagsDefine([hashtable]$Defines, [string]$Name, [string]$Value) 
 }
 
 function Test-CMakeAtLeast([int]$Major, [int]$Minor, [int]$Patch = 0) {
+  if ($ToBatch) { return $false }
+
   $CMakeVersionString = @(& cmake.exe --version)[0]
   if (-not ($CMakeVersionString -match "^cmake version (\d+)\.(\d+)(?:\.(\d+))?")) {
     throw "Unexpected CMake version string format"
@@ -1421,7 +1423,11 @@ function Build-Installer() {
   }
 
   foreach ($MSI in ("bld", "cli", "dbg", "ide", "sdk", "runtime")) {
-    Move-Item "$($HostArch.BinaryRoot)\msi\Release\$($HostArch.VSName)\$MSI.msi" "$($HostArch.BinaryRoot)\msi\";
+    if ($ToBatch) {
+      Write-Output "Move-Item $($HostArch.BinaryRoot)\msi\Release\$($HostArch.VSName)\$MSI.msi $($HostArch.BinaryRoot)\msi\";
+    } else {
+      Move-Item "$($HostArch.BinaryRoot)\msi\Release\$($HostArch.VSName)\$MSI.msi" "$($HostArch.BinaryRoot)\msi\";
+    }
   }
 
   Build-WiXProject bundle\installer.wixproj -Arch $HostArch -Bundle -Properties @{
