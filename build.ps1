@@ -566,7 +566,6 @@ function Build-WiXProject() {
     [hashtable]$Properties = @{}
   )
 
-  $Name = $FileName.Split('.')[0]
   $ArchName = $Arch.VSName
 
   $ProductVersionArg = $ProductVersion
@@ -589,6 +588,8 @@ function Build-WiXProject() {
   foreach ($Property in $Properties.GetEnumerator()) {
     $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
   }
+  $MSBuildArgs += "-bl:$($Arch.BinaryRoot)\msi\$ArchName-$([System.IO.Path]::GetFileNameWithoutExtension($FileName)).binlog"
+  $MSBuildArgs += "-ds:False"
 
   Invoke-Program $msbuild @MSBuildArgs
 }
