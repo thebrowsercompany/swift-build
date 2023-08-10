@@ -1369,20 +1369,26 @@ function Build-Inspect() {
 function Build-Format() {
   $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-format
 
-  Build-SPMProject `
-    -Src $SourceCache\swift-format `
-    -Bin $OutDir `
-    -Arch $HostArch
+  Isolate-EnvVars {
+    $env:SWIFTCI_USE_LOCAL_DEPS=1
+    Build-SPMProject `
+      -Src $SourceCache\swift-format `
+      -Bin $OutDir `
+      -Arch $HostArch
+  }
 }
 
 function Build-DocC() {
   $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-docc
 
-  Build-SPMProject `
-    -Src $SourceCache\swift-docc `
-    -Bin $OutDir `
-    -Arch $HostArch `
-    --product docc
+  Isolate-EnvVars {
+    $env:SWIFTCI_USE_LOCAL_DEPS=1
+    Build-SPMProject `
+      -Src $SourceCache\swift-docc `
+      -Bin $OutDir `
+      -Arch $HostArch `
+      --product docc
+  }
 }
 
 function Build-Installer() {
