@@ -566,7 +566,6 @@ function Build-WiXProject() {
     [hashtable]$Properties = @{}
   )
 
-  $Name = $FileName.Split('.')[0]
   $ArchName = $Arch.VSName
 
   $ProductVersionArg = $ProductVersion
@@ -589,6 +588,8 @@ function Build-WiXProject() {
   foreach ($Property in $Properties.GetEnumerator()) {
     $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
   }
+  $MSBuildArgs += "-bl:$($Arch.BinaryRoot)\msi\$ArchName-$([System.IO.Path]::GetFileNameWithoutExtension($FileName)).binlog"
+  $MSBuildArgs += "-ds:False"
 
   Invoke-Program $msbuild @MSBuildArgs
 }
@@ -1368,20 +1369,26 @@ function Build-Inspect() {
 function Build-Format() {
   $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-format
 
-  Build-SPMProject `
-    -Src $SourceCache\swift-format `
-    -Bin $OutDir `
-    -Arch $HostArch
+  Isolate-EnvVars {
+    $env:SWIFTCI_USE_LOCAL_DEPS=1
+    Build-SPMProject `
+      -Src $SourceCache\swift-format `
+      -Bin $OutDir `
+      -Arch $HostArch
+  }
 }
 
 function Build-DocC() {
   $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-docc
 
-  Build-SPMProject `
-    -Src $SourceCache\swift-docc `
-    -Bin $OutDir `
-    -Arch $HostArch `
-    --product docc
+  Isolate-EnvVars {
+    $env:SWIFTCI_USE_LOCAL_DEPS=1
+    Build-SPMProject `
+      -Src $SourceCache\swift-docc `
+      -Bin $OutDir `
+      -Arch $HostArch `
+      --product docc
+  }
 }
 
 function Build-Installer() {
