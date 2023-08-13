@@ -111,8 +111,7 @@ jobs:
                     gsub(/-/, "_", repo[2]);
                     print tolower(repo[2]) "_revision=" $4
                   }' | tee -a "${GITHUB_OUTPUT}"
-            # TODO(compnerd) trim trailing whitespace
-            repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o stable.xml
+            repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o - | sed -E 's,[[:space:]]+$,,' > stable.xml
           fi
 
           if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.debug_info }}" == "true" ]]; then
