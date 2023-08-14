@@ -14,6 +14,11 @@ This script performs various steps associated with building the Swift toolchain:
 - Optionally runs tests for supported projects
 - Optionally stages build artifacts for CI
 
+.PARAMETER Drive
+The drive letter where we are functioning.  The build will create
+a `Program Files` directory to stage all the content into and
+reference other components relative to this drive.
+
 .PARAMETER SourceCache
 The path to a directory where projects contributing to the Swift.
 toolchain have been cloned.
@@ -72,9 +77,10 @@ PS> .\Build.ps1 -SDKs x64 -ProductVersion 1.2.3 -Test foundation,xctest
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
-  [string] $SourceCache = "S:\SourceCache",
-  [string] $BinaryCache = "S:\b",
-  [string] $LibraryRoot = "S:\Library",
+  [string] $Drive = "S:",
+  [string] $SourceCache = "$Drive\SourceCache",
+  [string] $BinaryCache = "$Drive\b",
+  [string] $LibraryRoot = "$Drive\Library",
   [string] $BuildType = "Release",
   [string] $CDebugFormat = "dwarf",
   [string] $SwiftDebugFormat = "dwarf",
@@ -139,8 +145,8 @@ $ArchX64 = @{
   BinaryRoot = "$BinaryCache\x64";
   PlatformInstallRoot = "$BinaryCache\x64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
-  XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
-  ToolchainInstallRoot = "$BinaryCache\x64\unknown-Asserts-development.xctoolchain";
+  XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-$ProductVersion";
+  ToolchainInstallRoot = "$BinaryCache\x64\toolchains\$ProductVersion+Asserts";
 }
 
 $ArchX86 = @{
@@ -154,7 +160,7 @@ $ArchX86 = @{
   BinaryRoot = "$BinaryCache\x86";
   PlatformInstallRoot = "$BinaryCache\x86\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
-  XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-development";
+  XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-$ProductVersion";
 }
 
 $ArchARM64 = @{
@@ -168,8 +174,8 @@ $ArchARM64 = @{
   BinaryRoot = "$BinaryCache\arm64";
   PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
-  XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
-  ToolchainInstallRoot = "$BinaryCache\arm64\unknown-Asserts-development.xctoolchain";
+  XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-$ProductVersion";
+  ToolchainInstallRoot = "$BinaryCache\arm64\toolchains\$ProductVersion+Asserts";
 }
 
 $HostArch = switch ($NativeProcessorArchName) {
@@ -178,7 +184,7 @@ $HostArch = switch ($NativeProcessorArchName) {
   default { throw "Unsupported processor architecture" }
 }
 
-function Get-RuntimeInstallRoot($Arch) {
+function Get-InstallDir($Arch) {
   if ($Arch -eq $HostArch) {
     $ProgramFilesName = "Program Files"
   } elseif ($Arch -eq $ArchX86) {
@@ -191,13 +197,12 @@ function Get-RuntimeInstallRoot($Arch) {
     # arm64 cannot be installed on x64
     return $null
   }
-
-  return "S:\$ProgramFilesName\swift\runtime-development"
+  return "$Drive\$ProgramFilesName\Swift"
 }
 
-$ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
-$PlatformInstallRoot = "$LibraryRoot\Developer\Platforms\Windows.platform"
-$RuntimeInstallRoot = "$(Get-RuntimeInstallRoot $HostArch)"
+$ToolchainInstallRoot = "$(Get-InstallDir $HostArch)\Toolchains\$ProductVersion+Asserts"
+$PlatformInstallRoot = "$(Get-InstallDir $HostArch)\Platforms\Windows.platform"
+$RuntimeInstallRoot = "$(Get-InstallDir $HostArch)\Runtimes\$ProductVersion"
 $SDKInstallRoot = "$PlatformInstallRoot\Developer\SDKs\Windows.sdk"
 
 # For dev productivity, install the host toolchain directly using CMake.
@@ -478,7 +483,11 @@ function Build-CMakeProject {
       # Avoid backslashes in defines since they are going into CMakeCache.txt,
       # where they are interpreted as escapes. Assume all backslashes
       # are path separators and can be turned into forward slashes.
-      $ValueWithForwardSlashes = $Define.Value.Replace("\", "/")
+      $ValueWithPlaceholder = if ($SwiftSDK -ne "") { $Define.Value.Replace("$SwiftSDK", "<SDK>") } else { $Define.Value }
+      $ValueWithForwardSlashes = $ValueWithPlaceholder.Replace("\", "/")
+      if ($SwiftSDK -ne "") {
+        $ValueWithForwardSlashes = $ValueWithForwardSlashes.Replace("<SDK>", "\`"$SwiftSDK\`"")
+      }
       $cmakeGenerateArgs += @("-D", "$($Define.Key)=$ValueWithForwardSlashes")
     }
 
@@ -537,7 +546,7 @@ function Build-SPMProject {
         "-Xlinker", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows"
     )
     if ($BuildType -eq "Release") {
-      $Arguments += @("-debug-info-format", "-none")
+      $Arguments += @("-debug-info-format", "none")
     } else {
       if ($SwiftDebugFormat -eq "dwarf") {
         $Arguments += @("-debug-info-format", "dwarf")
@@ -945,10 +954,10 @@ function Build-XCTest($Arch, [switch]$Test = $false) {
       } + $TestingDefines)
 
     if ($DefaultsLLD) {
-      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }), encoding='utf-8'))" `
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': '$ProductVersion', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }), encoding='utf-8'))" `
         -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
     } else {
-      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': '$ProductVersion' } }), encoding='utf-8'))" `
         -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
     }
   }
@@ -970,9 +979,7 @@ function Copy-Directory($Src, $Dst) {
 function Install-Redist($Arch) {
   if ($ToBatch) { return }
 
-  $RedistInstallRoot = Get-RuntimeInstallRoot $Arch
-  if ($null -eq $RedistInstallRoot) { return }
-
+  $RedistInstallRoot = "$(Get-InstallDir $Arch)\Runtimes\$ProductVersion"
   Remove-Item -Force -Recurse $RedistInstallRoot -ErrorAction Ignore
   Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$RedistInstallRoot\usr"
 }
@@ -1025,7 +1032,7 @@ function Install-Platform($Arch) {
   Copy-File "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
 
   # Copy XCTest
-  $XCTestInstallRoot = "$PlatformInstallRoot\Developer\Library\XCTest-development"
+  $XCTestInstallRoot = "$PlatformInstallRoot\Developer\Library\XCTest-$ProductVersion"
   Copy-File "$($Arch.XCTestInstallRoot)\usr\bin\XCTest.dll" "$XCTestInstallRoot\usr\$($Arch.BinaryDir)\"
   Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\XCTest.lib" "$XCTestInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\"
   Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftmodule" "$XCTestInstallRoot\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftmodule"
