@@ -14,6 +14,11 @@ This script performs various steps associated with building the Swift toolchain:
 - Optionally runs tests for supported projects
 - Optionally stages build artifacts for CI
 
+.PARAMETER Drive
+The drive letter where we are functioning.  The build will create
+a `Program Files` directory to stage all the content into and
+reference other components relative to this drive.
+
 .PARAMETER SourceCache
 The path to a directory where projects contributing to the Swift.
 toolchain have been cloned.
@@ -72,9 +77,10 @@ PS> .\Build.ps1 -SDKs x64 -ProductVersion 1.2.3 -Test foundation,xctest
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
-  [string] $SourceCache = "S:\SourceCache",
-  [string] $BinaryCache = "S:\b",
-  [string] $LibraryRoot = "S:\Library",
+  [string] $Drive = "S:",
+  [string] $SourceCache = "$Drive\SourceCache",
+  [string] $BinaryCache = "$Drive\b",
+  [string] $LibraryRoot = "$Drive\Library",
   [string] $BuildType = "Release",
   [string] $CDebugFormat = "dwarf",
   [string] $SwiftDebugFormat = "dwarf",
@@ -192,7 +198,7 @@ function Get-RuntimeInstallRoot($Arch) {
     return $null
   }
 
-  return "S:\$ProgramFilesName\swift\runtime-development"
+  return "$Drive\$ProgramFilesName\swift\runtime-development"
 }
 
 $ToolchainInstallRoot = "$LibraryRoot\Developer\Toolchains\unknown-Asserts-development.xctoolchain"
