@@ -537,7 +537,7 @@ function Build-SPMProject {
         "-Xlinker", "-L$($HostArch.SDKInstallRoot)\usr\lib\swift\windows"
     )
     if ($BuildType -eq "Release") {
-      $Arguments += @("-debug-info-format", "-none")
+      $Arguments += @("-debug-info-format", "none")
     } else {
       if ($SwiftDebugFormat -eq "dwarf") {
         $Arguments += @("-debug-info-format", "dwarf")
