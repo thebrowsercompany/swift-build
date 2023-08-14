@@ -128,5 +128,5 @@ the toolchain.
 ```cmd
 set DEVELOPER_DIR=S:\Library\Developer
 set SDKROOT=S:\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
-path S:\Program Files\swift\runtime-development\usr\bin;S:\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin;%PATH%
+path S:\Program Files\Swift\Runtimes\0.0.0\usr\bin;S:\Program Files\Swift\Toolchains\0.0.0+Asserts\usr\bin;%PATH%
 ```
