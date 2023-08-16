@@ -49,9 +49,6 @@ Supports semantic version strings.
 .PARAMETER SkipBuild
 If set, does not run the build phase.
 
-.PARAMETER SkipRedistInstall
-If set, does not create S:\Program Files to mimic an installed redistributable.
-
 .PARAMETER SkipPackaging
 If set, skips building the msi's and installer
 
@@ -1470,10 +1467,6 @@ foreach ($Arch in $SDKArchs) {
     Build-Dispatch $Arch
     Build-Foundation $Arch
     Build-XCTest $Arch
-  }
-
-  if (-not $SkipRedistInstall) {
-    Install-Redist $Arch
   }
 }
 
