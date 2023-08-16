@@ -144,7 +144,7 @@ jobs:
           if-no-files-found: ignore
 
   sqlite:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
 
     strategy:
@@ -196,7 +196,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
 
   icu_tools:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
 
     steps:
@@ -254,7 +254,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/icu-tools-69.1/pkgdata.exe
 
   icu:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, icu_tools]
 
     strategy:
@@ -322,7 +322,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
 
   build_tools:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
 
     steps:
@@ -417,7 +417,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols.exe
 
   compilers:
-    runs-on: windows-latest-64core
+    runs-on: ${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, build_tools]
 
     env:
@@ -604,7 +604,7 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
 
   zlib:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
 
     strategy:
@@ -650,7 +650,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
 
   curl:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, zlib]
 
     strategy:
@@ -724,7 +724,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
 
   libxml2:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
 
     strategy:
@@ -777,7 +777,7 @@ jobs:
 
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, icu, libxml2, curl, zlib, compilers]
 
     strategy:
@@ -1062,7 +1062,7 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
 
   devtools:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, sqlite, compilers, sdk]
 
     strategy:
@@ -1636,7 +1636,7 @@ jobs:
 
   package_tools:
     name: Package Tools
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, compilers, devtools]
 
     strategy:
@@ -1750,7 +1750,7 @@ jobs:
 
   package_sdk_runtime:
     name: Package SDK & Runtime
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, sdk]
 
     strategy:
@@ -1830,7 +1830,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/sdk/Release/${{ matrix.arch }}/runtime.${{ matrix.arch }}.msm
 
   installer:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, package_tools, package_sdk_runtime]
 
     strategy:
@@ -1901,7 +1901,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
   smoke_test:
-    runs-on: windows-latest
+    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [installer]
 
     steps:
