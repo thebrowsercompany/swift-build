@@ -62,6 +62,8 @@ jobs:
       debug_info: ${{ steps.context.outputs.debug_info }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
+      windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
+      compilers_build_runner: ${{ steps.context.outputs.compilers_build_runner }}
     steps:
       - id: context
         name: Generate Build Context
@@ -137,6 +139,9 @@ jobs:
             echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
           fi
 
+          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+
       - uses: actions/upload-artifact@v3
         with:
           name: stable.xml
@@ -144,8 +149,8 @@ jobs:
           if-no-files-found: ignore
 
   sqlite:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -196,8 +201,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
 
   icu_tools:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     steps:
       - uses: actions/checkout@v3
@@ -254,8 +259,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/icu-tools-69.1/pkgdata.exe
 
   icu:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, icu_tools]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -322,8 +327,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
 
   build_tools:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     steps:
       - uses: actions/checkout@v3
@@ -417,8 +422,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols.exe
 
   compilers:
-    runs-on: ${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, build_tools]
+    runs-on: ${{ needs.context.outputs.compilers_build_runner }}
 
     env:
       # Must be a full version string from https://www.nuget.org/packages/pythonarm64
@@ -604,8 +609,8 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
 
   zlib:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -650,8 +655,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
 
   curl:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, zlib]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -724,8 +729,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
 
   libxml2:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -777,8 +782,8 @@ jobs:
 
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, icu, libxml2, curl, zlib, compilers]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1062,8 +1067,8 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
 
   devtools:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, sqlite, compilers, sdk]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1636,8 +1641,8 @@ jobs:
 
   package_tools:
     name: Package Tools
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, compilers, devtools]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1750,8 +1755,8 @@ jobs:
 
   package_sdk_runtime:
     name: Package SDK & Runtime
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, sdk]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1830,8 +1835,8 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/sdk/Release/${{ matrix.arch }}/runtime.${{ matrix.arch }}.msm
 
   installer:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
     needs: [context, package_tools, package_sdk_runtime]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1901,8 +1906,8 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
   smoke_test:
-    runs-on: ${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
-    needs: [installer]
+    needs: [context, installer]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     steps:
       - uses: actions/download-artifact@v3
