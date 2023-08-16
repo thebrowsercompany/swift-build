@@ -14,11 +14,6 @@ This script performs various steps associated with building the Swift toolchain:
 - Optionally runs tests for supported projects
 - Optionally stages build artifacts for CI
 
-.PARAMETER Drive
-The drive letter where we are functioning.  The build will create
-a `Program Files` directory to stage all the content into and
-reference other components relative to this drive.
-
 .PARAMETER SourceCache
 The path to a directory where projects contributing to the Swift.
 toolchain have been cloned.
@@ -26,9 +21,10 @@ toolchain have been cloned.
 .PARAMETER BinaryCache
 The path to a directory where to write build system files and outputs.
 
-.PARAMETER LibraryRoot
-The path to a directory where built libraries should be placed,
-similar to the /Library or ~/Library directories on macOS.
+.PARAMETER ImageRoot
+The path to a directory that mimics a file system image root,
+under which "Library" and "Program Files" subdirectories will be created
+with the files installed by CMake.
 
 .PARAMETER BuildType
 The CMake build type to use, one of: Release, RelWithDebInfo, Debug.
@@ -74,10 +70,9 @@ PS> .\Build.ps1 -SDKs x64 -ProductVersion 1.2.3 -Test foundation,xctest
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
-  [string] $Drive = "S:",
-  [string] $SourceCache = "$Drive\SourceCache",
-  [string] $BinaryCache = "$Drive\b",
-  [string] $LibraryRoot = "$Drive\Library",
+  [string] $SourceCache = "S:\SourceCache",
+  [string] $BinaryCache = "S:\b",
+  [string] $ImageRoot = "S:",
   [string] $BuildType = "Release",
   [string] $CDebugFormat = "dwarf",
   [string] $SwiftDebugFormat = "dwarf",
@@ -139,7 +134,7 @@ $ArchX64 = @{
   CMakeName = "AMD64";
   BinaryDir = "bin64";
   BuildID = 100;
-  BinaryRoot = "$BinaryCache\x64";
+  BinaryCache = "$BinaryCache\x64";
   PlatformInstallRoot = "$BinaryCache\x64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-$ProductVersion";
@@ -154,7 +149,7 @@ $ArchX86 = @{
   CMakeName = "i686";
   BinaryDir = "bin32";
   BuildID = 200;
-  BinaryRoot = "$BinaryCache\x86";
+  BinaryCache = "$BinaryCache\x86";
   PlatformInstallRoot = "$BinaryCache\x86\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-$ProductVersion";
@@ -168,7 +163,7 @@ $ArchARM64 = @{
   CMakeName = "aarch64";
   BinaryDir = "bin64a";
   BuildID = 300;
-  BinaryRoot = "$BinaryCache\arm64";
+  BinaryCache = "$BinaryCache\arm64";
   PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
   XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-$ProductVersion";
@@ -194,9 +189,10 @@ function Get-InstallDir($Arch) {
     # arm64 cannot be installed on x64
     return $null
   }
-  return "$Drive\$ProgramFilesName\Swift"
+  return "$ImageRoot\$ProgramFilesName\Swift"
 }
 
+$LibraryRoot = "$ImageRoot\Library"
 $ToolchainInstallRoot = "$(Get-InstallDir $HostArch)\Toolchains\$ProductVersion+Asserts"
 $PlatformInstallRoot = "$(Get-InstallDir $HostArch)\Platforms\Windows.platform"
 $RuntimeInstallRoot = "$(Get-InstallDir $HostArch)\Runtimes\$ProductVersion"
@@ -217,7 +213,7 @@ $SDKArchs = $SDKs | ForEach-Object {
 }
 
 # Build functions
-function Get-ProjectBuildDir($Arch, $ID) {
+function Get-ProjectBinaryCache($Arch, $ID) {
   return "$BinaryCache\" + ($Arch.BuildID + $ID)
 }
 
@@ -431,8 +427,8 @@ function Build-CMakeProject {
       TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER "$BinaryCache\1\bin\swiftc.exe"
       TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
 
-      $RuntimeBuildDir = Get-ProjectBuildDir $Arch 1
-      $SwiftResourceDir = "${RuntimeBuildDir}\lib\swift"
+      $RuntimeBinaryCache = Get-ProjectBinaryCache $Arch 1
+      $SwiftResourceDir = "${RuntimeBinaryCache}\lib\swift"
 
       $SwiftArgs = [System.Collections.ArrayList]@()
 
@@ -441,7 +437,7 @@ function Build-CMakeProject {
       } else {
         $SwiftArgs.Add("-resource-dir $SwiftResourceDir") | Out-Null
         $SwiftArgs.Add("-L $SwiftResourceDir\windows") | Out-Null
-        $SwiftArgs.Add("-vfsoverlay $RuntimeBuildDir\stdlib\windows-vfs-overlay.yaml") | Out-Null
+        $SwiftArgs.Add("-vfsoverlay $RuntimeBinaryCache\stdlib\windows-vfs-overlay.yaml") | Out-Null
       }
 
       # Debug Information
@@ -584,7 +580,7 @@ function Build-WiXProject() {
 
   $Properties = $Properties.Clone()
   TryAdd-KeyValue $Properties Configuration Release
-  TryAdd-KeyValue $Properties BaseOutputPath "$($Arch.BinaryRoot)\msi\"
+  TryAdd-KeyValue $Properties BaseOutputPath "$($Arch.BinaryCache)\msi\"
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
   TryAdd-KeyValue $Properties ProductVersion $ProductVersionArg
 
@@ -598,7 +594,7 @@ function Build-WiXProject() {
       $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
     }
   }
-  $MSBuildArgs += "-bl:$($Arch.BinaryRoot)\msi\$ArchName-$([System.IO.Path]::GetFileNameWithoutExtension($FileName)).binlog"
+  $MSBuildArgs += "-bl:$($Arch.BinaryCache)\msi\$ArchName-$([System.IO.Path]::GetFileNameWithoutExtension($FileName)).binlog"
   $MSBuildArgs += "-ds:False"
 
   Invoke-Program $msbuild @MSBuildArgs
@@ -701,7 +697,7 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
 function Build-LLVM($Arch) {
   Build-CMakeProject `
     -Src $SourceCache\llvm-project\llvm `
-    -Bin (Get-ProjectBuildDir $Arch 0) `
+    -Bin (Get-ProjectBinaryCache $Arch 0) `
     -Arch $Arch `
     -Defines @{
       LLVM_HOST_TRIPLE = $Arch.LLVMTarget;
@@ -713,7 +709,7 @@ function Build-ZLib($Arch) {
 
   Build-CMakeProject `
     -Src $SourceCache\zlib `
-    -Bin "$($Arch.BinaryRoot)\zlib-1.2.11" `
+    -Bin "$($Arch.BinaryCache)\zlib-1.2.11" `
     -InstallTo $LibraryRoot\zlib-1.2.11\usr `
     -Arch $Arch `
     -BuildTargets default `
@@ -729,7 +725,7 @@ function Build-XML2($Arch) {
 
   Build-CMakeProject `
     -Src $SourceCache\libxml2 `
-    -Bin "$($Arch.BinaryRoot)\libxml2-2.9.12" `
+    -Bin "$($Arch.BinaryCache)\libxml2-2.9.12" `
     -InstallTo "$LibraryRoot\libxml2-2.9.12\usr" `
     -Arch $Arch `
     -BuildTargets default `
@@ -752,7 +748,7 @@ function Build-CURL($Arch) {
 
   Build-CMakeProject `
     -Src $SourceCache\curl `
-    -Bin "$($Arch.BinaryRoot)\curl-7.77.0" `
+    -Bin "$($Arch.BinaryCache)\curl-7.77.0" `
     -InstallTo "$LibraryRoot\curl-7.77.0\usr" `
     -Arch $Arch `
     -BuildTargets default `
@@ -800,7 +796,7 @@ function Build-ICU($Arch) {
     # Use previously built x64 tools
     $BuildToolsDefines = @{
       BUILD_TOOLS = "NO";
-      ICU_TOOLS_DIR = "$($ArchX64.BinaryRoot)\icu-69.1"
+      ICU_TOOLS_DIR = "$($ArchX64.BinaryCache)\icu-69.1"
     }
   } else {
     $BuildToolsDefines = @{BUILD_TOOLS = "YES"}
@@ -808,7 +804,7 @@ function Build-ICU($Arch) {
 
   Build-CMakeProject `
     -Src $SourceCache\icu\icu4c `
-    -Bin "$($Arch.BinaryRoot)\icu-69.1" `
+    -Bin "$($Arch.BinaryCache)\icu-69.1" `
     -InstallTo "$LibraryRoot\icu-69.1\usr" `
     -Arch $Arch `
     -BuildTargets default `
@@ -820,11 +816,11 @@ function Build-ICU($Arch) {
 }
 
 function Build-Runtime($Arch) {
-  $LLVMBuildDir = Get-ProjectBuildDir $Arch 0
+  $LLVMBinaryCache = Get-ProjectBinaryCache $Arch 0
 
   Build-CMakeProject `
     -Src $SourceCache\swift `
-    -Bin (Get-ProjectBuildDir $Arch 1) `
+    -Bin (Get-ProjectBinaryCache $Arch 1) `
     -InstallTo "$($Arch.SDKInstallRoot)\usr" `
     -Arch $Arch `
     -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
@@ -832,7 +828,7 @@ function Build-Runtime($Arch) {
     -BuildTargets default `
     -Defines @{
       CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
-      LLVM_DIR = "$LLVMBuildDir\lib\cmake\llvm";
+      LLVM_DIR = "$LLVMBinaryCache\lib\cmake\llvm";
       SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
       SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
@@ -855,7 +851,7 @@ function Build-Dispatch($Arch, [switch]$Test = $false) {
 
   Build-CMakeProject `
     -Src $SourceCache\swift-corelibs-libdispatch `
-    -Bin (Get-ProjectBuildDir $Arch 2) `
+    -Bin (Get-ProjectBinaryCache $Arch 2) `
     -Arch $Arch `
     -UseBuiltCompilers C,CXX,Swift `
     -BuildTargets $Targets `
@@ -868,20 +864,20 @@ function Build-Dispatch($Arch, [switch]$Test = $false) {
 }
 
 function Build-Foundation($Arch, [switch]$Test = $false) {
-  $DispatchBinDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBinDir = Get-ProjectBuildDir $Arch 3
+  $DispatchBinaryCache = Get-ProjectBinaryCache $Arch 2
+  $FoundationBinaryCache = Get-ProjectBinaryCache $Arch 3
   $ShortArch = $Arch.ShortName
 
   Isolate-EnvVars {
     if ($Test) {
-      $RuntimeBinDir = Get-ProjectBuildDir $Arch 1
-      $XCTestBinDir = Get-ProjectBuildDir $Arch 4
+      $RuntimeBinaryCache = Get-ProjectBinaryCache $Arch 1
+      $XCTestBinaryCache = Get-ProjectBinaryCache $Arch 4
       $TestingDefines = @{
         ENABLE_TESTING = "YES";
-        XCTest_DIR = "$XCTestBinDir\cmake\modules";
+        XCTest_DIR = "$XCTestBinaryCache\cmake\modules";
       }
       $Targets = @("default", "test")
-      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path"
+      $env:Path = "$XCTestBinaryCache;$FoundationBinaryCache\bin;$DispatchBinaryCache;$RuntimeBinaryCache\bin;$env:Path"
     } else {
       $TestingDefines = @{ ENABLE_TESTING = "NO" }
       $Targets = @("default", "install")
@@ -890,7 +886,7 @@ function Build-Foundation($Arch, [switch]$Test = $false) {
     $env:CTEST_OUTPUT_ON_FAILURE = 1
     Build-CMakeProject `
       -Src $SourceCache\swift-corelibs-foundation `
-      -Bin $FoundationBinDir `
+      -Bin $FoundationBinaryCache `
       -Arch $Arch `
       -UseBuiltCompilers ASM,C,Swift `
       -BuildTargets $Targets `
@@ -912,29 +908,29 @@ function Build-Foundation($Arch, [switch]$Test = $false) {
         LIBXML2_DEFINITIONS = "/DLIBXML_STATIC";
         ZLIB_LIBRARY = "$LibraryRoot\zlib-1.2.11\usr\lib\$ShortArch\zlibstatic.lib";
         ZLIB_INCLUDE_DIR = "$LibraryRoot\zlib-1.2.11\usr\include";
-        dispatch_DIR = "$DispatchBinDir\cmake\modules";
+        dispatch_DIR = "$DispatchBinaryCache\cmake\modules";
       } + $TestingDefines)
   }
 }
 
 function Build-XCTest($Arch, [switch]$Test = $false) {
-  $LLVMBinDir = Get-ProjectBuildDir $Arch 0
-  $DispatchBinDir = Get-ProjectBuildDir $Arch 2
-  $FoundationBinDir = Get-ProjectBuildDir $Arch 3
-  $XCTestBinDir = Get-ProjectBuildDir $Arch 4
+  $LLVMBinaryCache = Get-ProjectBinaryCache $Arch 0
+  $DispatchBinaryCache = Get-ProjectBinaryCache $Arch 2
+  $FoundationBinaryCache = Get-ProjectBinaryCache $Arch 3
+  $XCTestBinaryCache = Get-ProjectBinaryCache $Arch 4
 
   Isolate-EnvVars {
     if ($Test) {
-      $RuntimeBinDir = Get-ProjectBuildDir $Arch 1
+      $RuntimeBinaryCache = Get-ProjectBinaryCache $Arch 1
       $TestingDefines = @{
         ENABLE_TESTING = "YES";
-        LLVM_DIR = "$LLVMBinDir/lib/cmake/llvm";
-        XCTEST_PATH_TO_LIBDISPATCH_BUILD = $DispatchBinDir;
+        LLVM_DIR = "$LLVMBinaryCache/lib/cmake/llvm";
+        XCTEST_PATH_TO_LIBDISPATCH_BUILD = $DispatchBinaryCache;
         XCTEST_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
-        XCTEST_PATH_TO_FOUNDATION_BUILD = $FoundationBinDir;
+        XCTEST_PATH_TO_FOUNDATION_BUILD = $FoundationBinaryCache;
       }
       $Targets = @("default", "check-xctest")
-      $env:Path = "$XCTestBinDir;$FoundationBinDir\bin;$DispatchBinDir;$RuntimeBinDir\bin;$env:Path;$UnixToolsBinDir"
+      $env:Path = "$XCTestBinaryCache;$FoundationBinaryCache\bin;$DispatchBinaryCache;$RuntimeBinaryCache\bin;$env:Path;$UnixToolsBinDir"
     } else {
       $TestingDefines = @{ ENABLE_TESTING = "NO" }
       $Targets = @("default", "install")
@@ -942,7 +938,7 @@ function Build-XCTest($Arch, [switch]$Test = $false) {
 
     Build-CMakeProject `
       -Src $SourceCache\swift-corelibs-xctest `
-      -Bin $XCTestBinDir `
+      -Bin $XCTestBinaryCache `
       -Arch $Arch `
       -UseBuiltCompilers Swift `
       -BuildTargets $Targets `
@@ -950,8 +946,8 @@ function Build-XCTest($Arch, [switch]$Test = $false) {
         CMAKE_INSTALL_PREFIX = "$($Arch.XCTestInstallRoot)\usr";
         CMAKE_SYSTEM_NAME = "Windows";
         CMAKE_SYSTEM_PROCESSOR = $Arch.CMakeName;
-        dispatch_DIR = "$DispatchBinDir\cmake\modules";
-        Foundation_DIR = "$FoundationBinDir\cmake\modules";
+        dispatch_DIR = "$DispatchBinaryCache\cmake\modules";
+        Foundation_DIR = "$FoundationBinaryCache\cmake\modules";
       } + $TestingDefines)
 
     if ($DefaultsLLD) {
@@ -1077,7 +1073,7 @@ install(FILES sqlite3.h sqlite3ext.h DESTINATION include)
 
   Build-CMakeProject `
     -Src $SrcPath `
-    -Bin "$($Arch.BinaryRoot)\sqlite-3.36.0" `
+    -Bin "$($Arch.BinaryCache)\sqlite-3.36.0" `
     -InstallTo $LibraryRoot\sqlite-3.36.0\usr `
     -Arch $Arch `
     -BuildTargets default `
@@ -1364,7 +1360,7 @@ function Install-HostToolchain() {
 }
 
 function Build-Inspect() {
-  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-inspect
+  $OutDir = Join-Path -Path $HostArch.BinaryCache -ChildPath swift-inspect
 
   Build-SPMProject `
     -Src $SourceCache\swift\tools\swift-inspect `
@@ -1375,7 +1371,7 @@ function Build-Inspect() {
 }
 
 function Build-Format() {
-  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-format
+  $OutDir = Join-Path -Path $HostArch.BinaryCache -ChildPath swift-format
 
   Isolate-EnvVars {
     $env:SWIFTCI_USE_LOCAL_DEPS=1
@@ -1387,7 +1383,7 @@ function Build-Format() {
 }
 
 function Build-DocC() {
-  $OutDir = Join-Path -Path $HostArch.BinaryRoot -ChildPath swift-docc
+  $OutDir = Join-Path -Path $HostArch.BinaryCache -ChildPath swift-docc
 
   Isolate-EnvVars {
     $env:SWIFTCI_USE_LOCAL_DEPS=1
@@ -1409,14 +1405,14 @@ function Build-Installer() {
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     INCLUDE_SWIFT_FORMAT = "true";
-    SWIFT_FORMAT_BUILD = "$($HostArch.BinaryRoot)\swift-format\release";
+    SWIFT_FORMAT_BUILD = "$($HostArch.BinaryCache)\swift-format\release";
   }
 
   Build-WiXProject dbg\dbg.wixproj -Arch $HostArch -Properties @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     INCLUDE_SWIFT_INSPECT = "true";
-    SWIFT_INSPECT_BUILD = "$($HostArch.BinaryRoot)\swift-inspect\release";
+    SWIFT_INSPECT_BUILD = "$($HostArch.BinaryCache)\swift-inspect\release";
   }
 
   Build-WiXProject ide\ide.wixproj -Arch $HostArch -Properties @{
@@ -1439,14 +1435,14 @@ function Build-Installer() {
 
   foreach ($MSI in ("bld", "cli", "dbg", "ide", "sdk", "runtime")) {
     if ($ToBatch) {
-      Write-Output "Move-Item $($HostArch.BinaryRoot)\msi\Release\$($HostArch.VSName)\$MSI.msi $($HostArch.BinaryRoot)\msi\";
+      Write-Output "Move-Item $($HostArch.BinaryCache)\msi\Release\$($HostArch.VSName)\$MSI.msi $($HostArch.BinaryCache)\msi\";
     } else {
-      Move-Item "$($HostArch.BinaryRoot)\msi\Release\$($HostArch.VSName)\$MSI.msi" "$($HostArch.BinaryRoot)\msi\";
+      Move-Item "$($HostArch.BinaryCache)\msi\Release\$($HostArch.VSName)\$MSI.msi" "$($HostArch.BinaryCache)\msi\";
     }
   }
 
   Build-WiXProject bundle\installer.wixproj -Arch $HostArch -Bundle -Properties @{
-    MSI_LOCATION = "$($HostArch.BinaryRoot)\msi\";
+    MSI_LOCATION = "$($HostArch.BinaryCache)\msi\";
   }
 }
 
@@ -1520,6 +1516,6 @@ if ($Test -contains "llbuild") { Build-LLBuild $HostArch -Test }
 if (-not $SkipPackaging -and $Stage -ne "") {
   $Stage += "\" # Interpret as target directory
 
-  Copy-File "$($HostArch.BinaryRoot)\msi\*.msi" $Stage
-  Copy-File "$($HostArch.BinaryRoot)\installer.exe" $Stage
+  Copy-File "$($HostArch.BinaryCache)\msi\*.msi" $Stage
+  Copy-File "$($HostArch.BinaryCache)\installer.exe" $Stage
 }
