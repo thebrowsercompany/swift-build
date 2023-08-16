@@ -592,7 +592,11 @@ function Build-WiXProject() {
   $MSBuildArgs += "-noLogo"
   $MSBuildArgs += "-restore"
   foreach ($Property in $Properties.GetEnumerator()) {
-    $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
+    if ($Property.Value.Contains(" ")) {
+      $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value.Replace('\', '\\'))"
+    } else {
+      $MSBuildArgs += "-p:$($Property.Key)=$($Property.Value)"
+    }
   }
   $MSBuildArgs += "-bl:$($Arch.BinaryRoot)\msi\$ArchName-$([System.IO.Path]::GetFileNameWithoutExtension($FileName)).binlog"
   $MSBuildArgs += "-ds:False"
