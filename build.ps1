@@ -137,7 +137,7 @@ $ArchX64 = @{
   BinaryCache = "$BinaryCache\x64";
   PlatformInstallRoot = "$BinaryCache\x64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\SDKs\Windows.sdk";
-  XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-$ProductVersion";
+  XCTestInstallRoot = "$BinaryCache\x64\Windows.platform\Developer\Library\XCTest-development";
   ToolchainInstallRoot = "$BinaryCache\x64\toolchains\$ProductVersion+Asserts";
 }
 
@@ -152,7 +152,7 @@ $ArchX86 = @{
   BinaryCache = "$BinaryCache\x86";
   PlatformInstallRoot = "$BinaryCache\x86\Windows.platform";
   SDKInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\SDKs\Windows.sdk";
-  XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-$ProductVersion";
+  XCTestInstallRoot = "$BinaryCache\x86\Windows.platform\Developer\Library\XCTest-development";
 }
 
 $ArchARM64 = @{
@@ -166,7 +166,7 @@ $ArchARM64 = @{
   BinaryCache = "$BinaryCache\arm64";
   PlatformInstallRoot = "$BinaryCache\arm64\Windows.platform";
   SDKInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\SDKs\Windows.sdk";
-  XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-$ProductVersion";
+  XCTestInstallRoot = "$BinaryCache\arm64\Windows.platform\Developer\Library\XCTest-development";
   ToolchainInstallRoot = "$BinaryCache\arm64\toolchains\$ProductVersion+Asserts";
 }
 
@@ -951,10 +951,10 @@ function Build-XCTest($Arch, [switch]$Test = $false) {
       } + $TestingDefines)
 
     if ($DefaultsLLD) {
-      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': '$ProductVersion', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }), encoding='utf-8'))" `
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }), encoding='utf-8'))" `
         -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
     } else {
-      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': '$ProductVersion' } }), encoding='utf-8'))" `
+      Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'XCTEST_VERSION': 'development' } }), encoding='utf-8'))" `
         -OutFile "$($Arch.PlatformInstallRoot)\Info.plist"
     }
   }
@@ -1029,7 +1029,7 @@ function Install-Platform($Arch) {
   Copy-File "$($Arch.SDKInstallRoot)\SDKSettings.plist" $SDKInstallRoot\
 
   # Copy XCTest
-  $XCTestInstallRoot = "$PlatformInstallRoot\Developer\Library\XCTest-$ProductVersion"
+  $XCTestInstallRoot = "$PlatformInstallRoot\Developer\Library\XCTest-development"
   Copy-File "$($Arch.XCTestInstallRoot)\usr\bin\XCTest.dll" "$XCTestInstallRoot\usr\$($Arch.BinaryDir)\"
   Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\XCTest.lib" "$XCTestInstallRoot\usr\lib\swift\windows\$($Arch.LLVMName)\"
   Copy-File "$($Arch.XCTestInstallRoot)\usr\lib\swift\windows\$($Arch.LLVMName)\XCTest.swiftmodule" "$XCTestInstallRoot\usr\lib\swift\windows\XCTest.swiftmodule\$($Arch.LLVMTarget).swiftmodule"
