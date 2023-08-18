@@ -97,17 +97,8 @@ If you wish to sync to a point that is known to build successfull, you can use t
 
 ## Building
 
-### Entering the Correct Environment
-
-Visual Studio provides a custom shell for development which is required for
-building.  It setups the environment appropriately for building and the build
-system relies on that.  We assume that any shell snippets are being executed
-within the "`x64 Native Tools Command Prompt for Visual Studio ____`".
-
-### Building
-
 The full toolchain can be built in an automated fashion.  The following script
-will run a complete build of the toolchain, but will not package the toolchain.
+will perform a build and package of the toolchain.
 
 ```
 S:\SourceCache\swift-build\build.cmd
