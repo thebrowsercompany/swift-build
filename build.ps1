@@ -1430,7 +1430,7 @@ function Build-Installer() {
     if ($ToBatch) {
       Write-Output "Move-Item $($HostArch.BinaryCache)\msi\Release\$($HostArch.VSName)\$MSI.msi $($HostArch.BinaryCache)\msi\";
     } else {
-      Move-Item "$($HostArch.BinaryCache)\msi\Release\$($HostArch.VSName)\$MSI.msi" "$($HostArch.BinaryCache)\msi\";
+      Move-Item -Force "$($HostArch.BinaryCache)\msi\Release\$($HostArch.VSName)\$MSI.msi" "$($HostArch.BinaryCache)\msi\";
     }
   }
 
