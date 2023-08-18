@@ -974,14 +974,6 @@ function Copy-Directory($Src, $Dst) {
   Copy-Item -Force -Recurse $Src $Dst
 }
 
-function Install-Redist($Arch) {
-  if ($ToBatch) { return }
-
-  $RedistInstallRoot = "$(Get-InstallDir $Arch)\Runtimes\$ProductVersion"
-  Remove-Item -Force -Recurse $RedistInstallRoot -ErrorAction Ignore
-  Copy-Directory "$($Arch.SDKInstallRoot)\usr\bin" "$RedistInstallRoot\usr"
-}
-
 # Copies files installed by CMake from the arch-specific platform root,
 # where they follow the layout expected by the installer,
 # to the final platform root, following the installer layout.
@@ -1472,6 +1464,11 @@ foreach ($Arch in $SDKArchs) {
 }
 
 if (-not $ToBatch) {
+  if ($HostArch -in $SDKArchs) {
+    Remove-Item -Force -Recurse $RuntimeInstallRoot -ErrorAction Ignore
+    Copy-Directory "$($HostArch.SDKInstallRoot)\usr\bin" "$RuntimeInstallRoot\usr"
+  }
+
   Remove-Item -Force -Recurse $PlatformInstallRoot -ErrorAction Ignore
   foreach ($Arch in $SDKArchs) {
     Install-Platform $Arch
