@@ -126,7 +126,6 @@ the toolchain.
 > toolchain build will not function properly with the environment configuration.
 
 ```cmd
-set DEVELOPER_DIR=S:\Library\Developer
 set SDKROOT=S:\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
 path S:\Program Files\Swift\Runtimes\0.0.0\usr\bin;S:\Program Files\Swift\Toolchains\0.0.0+Asserts\usr\bin;%PATH%
 ```
