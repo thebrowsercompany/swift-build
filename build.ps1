@@ -580,7 +580,6 @@ function Build-WiXProject() {
 
   $Properties = $Properties.Clone()
   TryAdd-KeyValue $Properties Configuration Release
-  TryAdd-KeyValue $Properties BaseIntermediateOutputPath "$($Arch.BinaryCache)\installer-scripts\"
   TryAdd-KeyValue $Properties BaseOutputPath "$($Arch.BinaryCache)\msi\"
   TryAdd-KeyValue $Properties ProductArchitecture $ArchName
   TryAdd-KeyValue $Properties ProductVersion $ProductVersionArg
