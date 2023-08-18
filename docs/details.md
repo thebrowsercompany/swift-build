@@ -72,10 +72,6 @@ Library
 
 The top level library simply serves as the root.  It is a collection of various items.  The nomenclature for the various pieces is explained below.
 
-## Expected Usage
-
-On Windows, the most convenient setup currently involves the use of CMake to build solutions using Swift.  This requires CMake 3.15+ for Swift support.  An example project with support for mixed-language support is available at https://github.com/compnerd/swift-cmake-demo.
-
 ## Installation Recommendations
 
 On Windows, the suggested distribution mechanism is via MSI.  This allows management of large scale deployments via SCCM (System Center Configuration Manager) and scales to individual installation as well.  The installation can be scripted or run through the regular UI.
