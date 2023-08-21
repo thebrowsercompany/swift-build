@@ -1425,7 +1425,7 @@ function Build-Installer() {
     }
   }
 
-  foreach ($MSI in ("bld", "cli", "dbg", "ide", "sdk", "runtime")) {
+  foreach ($MSI in ("bld", "cli", "dbg", "ide", "sdk", "rtl")) {
     if ($ToBatch) {
       Write-Output "Move-Item $($HostArch.BinaryCache)\msi\Release\$($HostArch.VSName)\$MSI.msi $($HostArch.BinaryCache)\msi\";
     } else {
