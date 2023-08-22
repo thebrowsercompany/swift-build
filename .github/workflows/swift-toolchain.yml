@@ -487,7 +487,7 @@ jobs:
           echo "PYTHON_LOCATION_amd64=$env:pythonLocation" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ env.PYTHON_VERSION }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install llvm
+      - name: Install LLVM
         if: matrix.arch == 'arm64'
         run: |
           curl.exe -sL "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.5/LLVM-15.0.5-win64.exe" -o ${env:TEMP}\llvm-installer.exe
@@ -508,6 +508,23 @@ jobs:
           if (Test-Path -Path $stdatomic) {
             (Get-Content $stdatomic).replace('__has_include_next(<stdatomic.h>) && !(defined(_MSC_VER) && !defined(__cplusplus))', '0') | Set-Content $stdatomic
           }
+
+      - name: Workaround MSVC#10444970
+        if: matrix.arch == 'arm64'
+        run: |
+          $clangTooling = "${{ github.workspace }}/SourceCache/llvm-project/clang/lib/Tooling/Inclusions/Stdlib/CMakeLists.txt"
+          Set-Content $clangTooling @"
+          $(Get-Content -Raw $clangTooling)
+          set_source_files_properties(StandardLibrary.cpp PROPERTIES
+            COMPILE_FLAGS "/Od /Gw /Oi /Oy /Gw /Ob2 /Ot /GF")
+          "@
+
+          $clangCodeGen = "${{ github.workspace }}/SourceCache/llvm-project/clang/lib/CodeGen/CMakeLists.txt"
+          Set-Content $clangCodeGen @"
+          $(Get-Content -Raw $clangCodeGen)
+          set_source_files_properties(CGBuiltin.cpp PROPERTIES
+            COMPILE_FLAGS "/Od /Gw /Oi /Oy /Gw /Ob2 /Ot /GF")
+          "@
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
