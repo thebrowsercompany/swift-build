@@ -77,7 +77,7 @@ from repo to install repo.
 ```cmd
 S:
 md Applications
-curl -sLo S:\Applications\repo https://storage.googleapis.com/git-repo-downloads/repo
+curl.exe -sLo S:\Applications\repo https://storage.googleapis.com/git-repo-downloads/repo
 md SourceCache
 cd SourceCache
 set PYTHONUTF8=1
