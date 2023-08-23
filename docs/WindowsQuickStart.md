@@ -117,6 +117,26 @@ the toolchain.
 > toolchain build will not function properly with the environment configuration.
 
 ```cmd
-set SDKROOT=S:\Library\Developer\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
+set SDKROOT=S:\Program Files\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
 path S:\Program Files\Swift\Runtimes\0.0.0\usr\bin;S:\Program Files\Swift\Toolchains\0.0.0+Asserts\usr\bin;%PATH%
+```
+
+### PowerShell Helper
+
+The following content in your Powershell profile file (whose path is stored in the built-in `$Profile` variable) would help quickly switch a shell to the proper configuration for using the just built toolchain.
+
+```pwsh
+function Set-SwiftEnv {
+  $SwiftRoot = "S:\Program Files\Swift"
+  $env:SDKROOT = "${SwiftRoot}\Platforms\Windows.platform\Developer\SDKs\Windows.sdk"
+  $env:Path = "${env:ProgramFiles}\Python39;${SwiftRoot}\Runtimes\0.0.0\usr\bin;${SwiftRoot}\Toolchains\0.0.0+Asserts\usr\bin;${env:Path}"
+}
+Set-Alias -Name SwiftEnv -Value Set-SwiftEnv
+```
+
+It can be used by sourcing the file and executing the function as follows:
+```pwsh
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+. $Profile
+Set-SwiftEnv
 ```
