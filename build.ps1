@@ -407,7 +407,7 @@ function Build-CMakeProject {
       }
 
       if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
-        Append-FlagsDefine $Defines CMAKE_C_FLAGS -gdwarf
+        Append-FlagsDefine $Defines CMAKE_C_FLAGS "-gdwarf"
       }
       Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
     }
@@ -421,7 +421,7 @@ function Build-CMakeProject {
       }
 
       if ($GenerateDebugInfo -and $CDebugFormat -eq "dwarf") {
-        Append-FlagsDefine $Defines CMAKE_CXX_FLAGS -gdwarf
+        Append-FlagsDefine $Defines CMAKE_CXX_FLAGS "-gdwarf"
       }
       Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
     }
