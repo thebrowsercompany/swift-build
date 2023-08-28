@@ -1828,7 +1828,7 @@ jobs:
       - name: Package Runtime
         run: |
           msbuild -nologo -restore `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\runtime\ `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\rtl\ `
               -p:Configuration=Release `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
@@ -1836,7 +1836,7 @@ jobs:
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/runtimemsi/runtimemsi.wixproj
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
 
       - uses: actions/upload-artifact@v3
         with:
@@ -1845,11 +1845,11 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: runtime-windows-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/runtime/Release/${{ matrix.arch }}/runtime.msi
+          path: ${{ github.workspace }}/BinaryCache/rtl/Release/${{ matrix.arch }}/rtl.msi
       - uses: actions/upload-artifact@v3
         with:
-          name: runtime.${{ matrix.arch }}.msm
-          path: ${{ github.workspace }}/BinaryCache/sdk/Release/${{ matrix.arch }}/runtime.${{ matrix.arch }}.msm
+          name: runtime-windows-${{ matrix.arch }}-msm
+          path: ${{ github.workspace }}/BinaryCache/sdk/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msm
 
   installer:
     needs: [context, package_tools, package_sdk_runtime]
@@ -2012,7 +2012,7 @@ jobs:
 
       - uses: actions/download-artifact@v3
         with:
-          name: runtime.amd64.msm
+          name: runtime-windows-${{ matrix.arch }}-msm
           path: ${{ github.workspace }}/tmp
 
       - uses: actions/create-release@v1
@@ -2039,6 +2039,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           asset_content_type: application/octet-stream
-          asset_name: runtime.amd64.msm
-          asset_path: ${{ github.workspace }}/tmp/runtime.amd64.msm
+          asset_name: rtl.amd64.msm
+          asset_path: ${{ github.workspace }}/tmp/rtl.amd64.msm
           upload_url: ${{ steps.create_release.outputs.upload_url }}
