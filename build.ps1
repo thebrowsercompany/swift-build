@@ -1416,6 +1416,7 @@ function Build-Installer() {
   }
 
   foreach ($Arch in $SDKArchs) {
+    $Properties["INCLUDE_$($Arch.VSName.ToUpperInvariant())"] = "true"
     $Properties["PLATFORM_ROOT_$($Arch.VSName.ToUpperInvariant())"] = "$($Arch.PlatformInstallRoot)\"
     $Properties["SDK_ROOT_$($Arch.VSName.ToUpperInvariant())"] = "$($Arch.SDKInstallRoot)\"
   }
