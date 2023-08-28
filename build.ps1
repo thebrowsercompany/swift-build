@@ -1406,17 +1406,21 @@ function Build-DocC() {
 }
 
 function Build-Installer() {
-  Build-WiXProject bundle\installer.wixproj -Arch $HostArch -Properties @{
+  $Properties = @{
     DEVTOOLS_ROOT = "$($HostArch.ToolchainInstallRoot)\";
     TOOLCHAIN_ROOT = "$($HostArch.ToolchainInstallRoot)\";
-    PLATFORM_ROOT = "$($HostArch.PlatformInstallRoot)\";
-    # Pending support for building other architectures
-    SDK_ROOT = "$($HostArch.SDKInstallRoot)\";
     INCLUDE_SWIFT_FORMAT = "true";
     SWIFT_FORMAT_BUILD = "$($HostArch.BinaryCache)\swift-format\release";
     INCLUDE_SWIFT_INSPECT = "true";
     SWIFT_INSPECT_BUILD = "$($HostArch.BinaryCache)\swift-inspect\release";
   }
+
+  foreach ($Arch in $SDKArchs) {
+    $Properties["PLATFORM_ROOT_$($Arch.VSName.ToUpperInvariant())"] = "$($Arch.PlatformInstallRoot)\"
+    $Properties["SDK_ROOT_$($Arch.VSName.ToUpperInvariant())"] = "$($Arch.SDKInstallRoot)\"
+  }
+
+  Build-WiXProject bundle\installer.wixproj -Arch $HostArch -Properties $Properties
 
   if ($Stage -and (-not $ToBatch)) {
     Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\*.msi" "$Stage\"
