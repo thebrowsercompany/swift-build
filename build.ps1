@@ -1418,11 +1418,9 @@ function Build-Installer() {
     SWIFT_INSPECT_BUILD = "$($HostArch.BinaryCache)\swift-inspect\release";
   }
 
-  if (($Stage -ne "") -and (-not $ToBatch)) {
-    $Stage += "\" # Interpret as target directory
-
-    Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\*.msi" $Stage
-    Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\installer.exe" $Stage
+  if ($Stage -and (-not $ToBatch)) {
+    Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\*.msi" "$Stage\"
+    Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\installer.exe" "$Stage\"
   }
 }
 
