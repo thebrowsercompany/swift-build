@@ -31,5 +31,5 @@ repository set.
 ## Getting the latest build
 
 ### Stable builds
-The latest stable build can be acuqired from the Swift [downloads](https://download.swift.org).
+The latest stable build can be acquired from the Swift [downloads](https://download.swift.org).
 
