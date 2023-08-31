@@ -98,12 +98,12 @@ Set-StrictMode -Version 3.0
 
 # Avoid being run in a "Developer" shell since this script launches its own sub-shells targeting
 # different architectures, and these variables cause confusion.
-if ($env:VSCMD_ARG_HOST_ARCH -ne $null -or $env:VSCMD_ARG_TGT_ARCH -ne $null) {
+if ($null -ne $env:VSCMD_ARG_HOST_ARCH -or $null -ne $env:VSCMD_ARG_TGT_ARCH) {
   throw "At least one of VSCMD_ARG_HOST_ARCH and VSCMD_ARG_TGT_ARCH is set, which is incompatible with this script. Likely need to run outside of a Developer shell."
 }
 
 # Prevent elsewhere-installed swift modules from confusing our builds.
-$Env:SDKROOT = ""
+$env:SDKROOT = ""
 $NativeProcessorArchName = $env:PROCESSOR_ARCHITEW6432
 if ($null -eq $NativeProcessorArchName) { $NativeProcessorArchName = $env:PROCESSOR_ARCHITECTURE }
 
@@ -112,14 +112,14 @@ $WindowsSDKMajorMinorBuildMatch = [Regex]::Match($WinSDKVersion, "^\d+\.\d+\.\d+
 $WinSDKVersionRevisionZero = if ($WindowsSDKMajorMinorBuildMatch.Success) { $WindowsSDKMajorMinorBuildMatch.Value + ".0" } else { "" }
 $CustomWinSDKRoot = $null # Overwritten if we download a Windows SDK from nuget
 
-$vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $VSInstallRoot = & $vswhere -nologo -latest -products "*" -all -prerelease -property installationPath
 $msbuild = "$VSInstallRoot\MSBuild\Current\Bin\$NativeProcessorArchName\MSBuild.exe"
 
 # Avoid $env:ProgramFiles in case this script is running as x86
 $UnixToolsBinDir = "$env:SystemDrive\Program Files\Git\usr\bin"
 
-$python = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
+$python = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Shared\Python39_64\python.exe"
 if (-not (Test-Path $python)) {
   $python = (where.exe python) | Select-Object -First 1
   if (-not (Test-Path $python)) {
