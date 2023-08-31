@@ -1696,8 +1696,8 @@ jobs:
 
       - name: Package Build Tools
         run: |
-          msbuild -nologo -restore `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\bld\ `
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
@@ -1709,8 +1709,8 @@ jobs:
 
       - name: Package CLI Tools
         run: |
-          msbuild -nologo -restore `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\cli\ `
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
@@ -1723,8 +1723,8 @@ jobs:
 
       - name: Package Debugging Tools
         run: |
-          msbuild -nologo -restore `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\dbg\ `
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
@@ -1737,8 +1737,8 @@ jobs:
 
       - name: Package IDE Tools
         run: |
-          msbuild -nologo -restore `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\ide\ `
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
@@ -1751,22 +1751,22 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: bld-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/bld/Release/${{ matrix.arch }}/bld.msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.msi
 
       - uses: actions/upload-artifact@v3
         with:
           name: cli-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/cli/Release/${{ matrix.arch }}/cli.msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.msi
 
       - uses: actions/upload-artifact@v3
         with:
           name: dbg-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/dbg/Release/${{ matrix.arch }}/dbg.msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.msi
 
       - uses: actions/upload-artifact@v3
         with:
           name: ide-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/ide/Release/${{ matrix.arch }}/ide.msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.msi
 
   package_sdk_runtime:
     name: Package SDK & Runtime
@@ -1809,10 +1809,10 @@ jobs:
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
-      - name: Package SDK
+      - name: Package SDK (also builds runtime msm)
         run: |
-          msbuild -nologo -restore `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\sdk\ `
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
@@ -1823,10 +1823,10 @@ jobs:
               -p:InstallerPlatform=${{ matrix.platform }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk/sdk.wixproj
 
-      - name: Package Runtime
+      - name: Package Runtime msi
         run: |
-          msbuild -nologo -restore `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\runtime\ `
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
@@ -1834,20 +1834,20 @@ jobs:
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/runtimemsi/runtimemsi.wixproj
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
 
       - uses: actions/upload-artifact@v3
         with:
           name: sdk-windows-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/sdk/Release/${{ matrix.arch }}/sdk.msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.${{ matrix.arch }}.msi
       - uses: actions/upload-artifact@v3
         with:
-          name: runtime-windows-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BinaryCache/runtime/Release/${{ matrix.arch }}/runtime.msi
+          name: rtl-windows-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
       - uses: actions/upload-artifact@v3
         with:
-          name: runtime.${{ matrix.arch }}.msm
-          path: ${{ github.workspace }}/BinaryCache/sdk/Release/${{ matrix.arch }}/runtime.${{ matrix.arch }}.msm
+          name: rtl-windows-${{ matrix.arch }}-msm
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msm
 
   installer:
     needs: [context, package_tools, package_sdk_runtime]
@@ -1862,27 +1862,49 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: bld-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v3
         with:
           name: cli-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v3
         with:
           name: dbg-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v3
         with:
           name: ide-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/${{ matrix.arch }}
+
       - uses: actions/download-artifact@v3
         with:
-          name: runtime-windows-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
+          name: rtl-windows-${{ matrix.arch }}-msi
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v3
         with:
-          name: sdk-windows-${{ matrix.arch }}-msi
-          path: ${{ github.workspace }}/BuildRoot
+          name: rtl-windows-amd64-msm
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/amd64
+      - uses: actions/download-artifact@v3
+        with:
+          name: rtl-windows-x86-msm
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/x86
+      - uses: actions/download-artifact@v3
+        with:
+          name: rtl-windows-arm64-msm
+          path: ${{ github.workspace }}/BuildRoot/installer/Release/arm64
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: sdk-windows-amd64-msi
+          path: ${{ github.workspace }}/BuildRoot/installer/sdk/Release/amd64
+      - uses: actions/download-artifact@v3
+        with:
+          name: sdk-windows-x86-msi
+          path: ${{ github.workspace }}/BuildRoot/installer/sdk/Release/x86
+      - uses: actions/download-artifact@v3
+        with:
+          name: sdk-windows-arm64-msi
+          path: ${{ github.workspace }}/BuildRoot/installer/sdk/Release/arm64
 
       - uses: actions/checkout@v3
         with:
@@ -1905,13 +1927,17 @@ jobs:
 
       - name: Package
         run: |
-          msbuild -nologo -restore `
+          msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
+              -p:BuildProjectReferences=false `
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:MSI_LOCATION=${{ github.workspace }}/BuildRoot `
+              -p:BundleFlavor=offline `
+              -p:INCLUDE_AMD64_SDK=true `
+              -p:INCLUDE_X86_SDK=true `
+              -p:INCLUDE_ARM64_SDK=true `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
