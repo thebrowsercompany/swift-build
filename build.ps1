@@ -42,6 +42,9 @@ An array of architectures for which the Swift SDK should be built.
 The product version to be used when building the installer.
 Supports semantic version strings.
 
+.PARAMETER PinnedToolchain
+The development toolchain snapshot to build the early components with.
+
 .PARAMETER WinSDKVersion
 The version number of the Windows SDK to be used.
 Overrides the value resolved by the Visual Studio command prompt.
@@ -83,6 +86,7 @@ param(
   [string] $SwiftDebugFormat = "dwarf",
   [string[]] $SDKs = @("X64","X86","Arm64"),
   [string] $ProductVersion = "0.0.0",
+  [string] $PinnedToolchain = "swift-DEVELOPMENT-SNAPSHOT-2023-08-12-a",
   [string] $WinSDKVersion = "",
   [switch] $SkipBuild = $false,
   [switch] $SkipRedistInstall = $false,
@@ -401,6 +405,32 @@ function Ensure-WindowsSDK {
   }
 }
 
+function Ensure-SwiftToolchain($Arch) {
+  if (Test-Path "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\swiftc.exe") {
+    return
+  }
+
+  if (-not (Test-Path $BinaryCache\wix-4.0.1.zip)) {
+    curl.exe -sL https://www.nuget.org/api/v2/package/wix/4.0.1 -o $BinaryCache\wix-4.0.1.zip
+  }
+  New-Item -ItemType Directory -ErrorAction Ignore $BinaryCache\wix-4.0.1 | Out-Null
+  Expand-Archive -Path $BinaryCache\wix-4.0.1.zip -Destination $BinaryCache\wix-4.0.1 -Force
+
+  Write-Output "Swift toolchain not found. Downloading from swift.org..."
+  $SwiftToolchainURL = "https://swift.org/builds/development/windows10/${PinnedToolchain}/${PinnedToolchain}-windows10.exe"
+  New-Item -ItemType Directory -ErrorAction Ignore "$BinaryCache\toolchains" | Out-Null
+  if (-not (Test-Path "$BinaryCache\toolchains\${PinnedToolchain}.exe")) {
+    (New-Object Net.WebClient).DownloadFile($SwiftToolchainURL, "$BinaryCache\toolchains\${PinnedToolchain}.exe")
+  }
+
+  Write-Output "Installing Swift toolchain..."
+  Invoke-Program "$BinaryCache\wix-4.0.1\tools\net6.0\any\wix.exe" -- burn extract "$BinaryCache\toolchains\${PinnedToolchain}.exe" -out "$BinaryCache\toolchains\"
+  Invoke-Program -OutNull msiexec.exe /qn /a "$BinaryCache\toolchains\a0" TARGETDIR="$BinaryCache\toolchains\${PinnedToolchain}\PFiles64\Swift\Runtimes\0.0.0\usr\bin"
+  Invoke-Program -OutNull msiexec.exe /qn /a "$BinaryCache\toolchains\a1" TARGETDIR="$BinaryCache\toolchains\${PinnedToolchain}"
+  Invoke-Program -OutNull msiexec.exe /qn /a "$BinaryCache\toolchains\a2" TARGETDIR="$BinaryCache\toolchains\${PinnedToolchain}"
+  Invoke-Program -OutNull msiexec.exe /qn /a "$BinaryCache\toolchains\a5" TARGETDIR="$BinaryCache\toolchains\${PinnedToolchain}"
+}
+
 function TryAdd-KeyValue([hashtable]$Hashtable, [string]$Key, [string]$Value) {
   if (-not $Hashtable.Contains($Key)) {
     $Hashtable.Add($Key, $Value)
@@ -588,6 +618,9 @@ function Build-CMakeProject {
       $cmakeGenerateArgs += @("-D", "$($Define.Key)=$Value")
     }
 
+    if ($UseBuiltCompilers.Contains("Swift")) {
+      $env:Path = "$RuntimeInstallRoot\usr\bin;$ToolchainInstallRoot\usr\bin;${env:Path}"
+    }
     Invoke-Program cmake.exe @cmakeGenerateArgs
 
     # Build all requested targets
@@ -705,6 +738,25 @@ function Build-WiXProject() {
   Invoke-Program $msbuild @MSBuildArgs
 }
 
+function Build-CompilerDependencies($Arch) {
+  Isolate-EnvVars {
+    $env:Path = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Runtimes\0.0.0\usr\bin;${env:Path}"
+    $env:SDKROOT = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk"
+
+    Build-CMakeProject `
+      -Src $SourceCache\swift-syntax `
+      -Bin $BinaryCache\99 `
+      -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
+      -Arch $Arch `
+      -BuildTargets default `
+      -Defines @{
+        BUILD_SHARED_LIBS = "YES";
+        CMAKE_Swift_COMPILER = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\swiftc.exe";
+        CMAKE_Swift_FLAGS = @("-sdk", "${env:SDKROOT}");
+      }
+  }
+}
+
 function Build-BuildTools($Arch) {
   Build-CMakeProject `
     -Src $SourceCache\llvm-project\llvm `
@@ -755,6 +807,8 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
       }
     }
 
+    $env:Path = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Runtimes\0.0.0\usr\bin;${env:Path}"
+
     $LLVM_ENABLE_PDB = switch ($BuildType) {
       "Release" { "NO" }
       default { "YES" }
@@ -775,6 +829,8 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
         # give us a sligtly faster build.
         CMAKE_BUILD_TYPE = "Release";
         CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
+        CMAKE_Swift_COMPILER = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\swiftc.exe";
+        CMAKE_Swift_FLAGS = @("-sdk", "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk");
         LLDB_PYTHON_EXE_RELATIVE_PATH = "python.exe";
         LLDB_PYTHON_EXT_SUFFIX = ".pyd";
         LLDB_PYTHON_RELATIVE_PATH = "lib/site-packages";
@@ -792,9 +848,11 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
         SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
+        SWIFT_PATH_TO_EARLYSWIFTSYNTAX_BUILD_DIR = "$BinaryCache\99";
         SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
         SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
         SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
+        SWIFT_PATH_TO_SWIFT_SDK = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk";
       })
   }
 }
@@ -923,29 +981,33 @@ function Build-ICU($Arch) {
 function Build-Runtime($Arch) {
   $LLVMBinaryCache = Get-ProjectBinaryCache $Arch 0
 
-  Build-CMakeProject `
-    -Src $SourceCache\swift `
-    -Bin (Get-ProjectBinaryCache $Arch 1) `
-    -InstallTo "$($Arch.SDKInstallRoot)\usr" `
-    -Arch $Arch `
-    -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
-    -UseBuiltCompilers C,CXX `
-    -BuildTargets default `
-    -Defines @{
-      CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
-      LLVM_DIR = "$LLVMBinaryCache\lib\cmake\llvm";
-      SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
-      SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
-      SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
-      SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
-      SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
-      SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
-      CMAKE_SHARED_LINKER_FLAGS = @("/INCREMENTAL:NO", "/OPT:REF", "/OPT:ICF");
-    }
+  Isolate-EnvVars {
+    $env:Path = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Runtimes\0.0.0\usr\bin;${env:Path}"
+
+    Build-CMakeProject `
+      -Src $SourceCache\swift `
+      -Bin (Get-ProjectBinaryCache $Arch 1) `
+      -InstallTo "$($Arch.SDKInstallRoot)\usr" `
+      -Arch $Arch `
+      -CacheScript $SourceCache\swift\cmake\caches\Runtime-Windows-$($Arch.LLVMName).cmake `
+      -UseBuiltCompilers C,CXX `
+      -BuildTargets default `
+      -Defines @{
+        CMAKE_Swift_COMPILER_TARGET = $Arch.LLVMTarget;
+        LLVM_DIR = "$LLVMBinaryCache\lib\cmake\llvm";
+        SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
+        SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
+        SWIFT_NATIVE_SWIFT_TOOLS_PATH = "$BinaryCache\1\bin";
+        SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
+        SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
+        SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
+        CMAKE_SHARED_LINKER_FLAGS = @("/INCREMENTAL:NO", "/OPT:REF", "/OPT:ICF");
+      }
+  }
 
   Invoke-Program $python -c "import plistlib; print(str(plistlib.dumps({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }), encoding='utf-8'))" `
     -OutFile "$($Arch.SDKInstallRoot)\SDKSettings.plist"
@@ -1514,6 +1576,9 @@ if (-not $SkipBuild) {
 }
 
 if (-not $SkipBuild) {
+  Ensure-SwiftToolchain $HostArch
+  Build-CompilerDependencies $HostArch
+
   Build-BuildTools $HostArch
   Build-Compilers $HostArch
 }
