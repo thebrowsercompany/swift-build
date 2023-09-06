@@ -1,7 +1,7 @@
 name: swift-toolchain
 
 on:
-  schedule:
+schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
@@ -422,8 +422,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols.exe
 
   compilers:
-    runs-on: ${{ needs.context.outputs.compilers_build_runner }}
     needs: [context, build_tools]
+    runs-on: ${{ needs.context.outputs.compilers_build_runner }}
 
     env:
       # Must be a full version string from https://www.nuget.org/packages/pythonarm64
@@ -1816,8 +1816,8 @@ jobs:
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
           $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil.exe -decode $CertificatePath $PFXPath
-          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+          certutil -decode $CertificatePath $PFXPath
+          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - name: Package SDK
         run: |
@@ -1827,8 +1827,8 @@ jobs:
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:PLATFORM_ROOT_ROOT_${{ matrix.arch }}=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
-              -p:SDK_ROOT_${{ matrix.arch }}=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
+              -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
+              -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk/sdk.wixproj
