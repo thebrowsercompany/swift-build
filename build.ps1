@@ -619,7 +619,7 @@ function Build-CMakeProject {
     }
 
     if ($UseBuiltCompilers.Contains("Swift")) {
-      $env:Path = "$RuntimeInstallRoot\usr\bin;$ToolchainInstallRoot\usr\bin;${env:Path}"
+      $env:Path = "$($HostArch.SDKInstallRoot)\usr\bin;$ToolchainInstallRoot\usr\bin;${env:Path}"
     }
     Invoke-Program cmake.exe @cmakeGenerateArgs
 
