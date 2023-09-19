@@ -330,7 +330,7 @@ jobs:
     needs: [context]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
-    steps:
+        steps:
       - uses: actions/checkout@v3
         with:
           repository: apple/llvm-project
@@ -1095,9 +1095,9 @@ jobs:
             cpu: 'x86_64'
             triple: 'x86_64-unknown-windows-msvc'
 
-          # - arch: 'arm64'
-          #   cpu: 'aarch64'
-          #   triple: 'aarch64-unknown-windows-msvc'
+          - arch: 'arm64'
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-windows-msvc'
 
     steps:
       - uses: actions/download-artifact@v3
@@ -1664,7 +1664,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64'] # , 'arm64']
+        arch: ['amd64' , 'arm64']
 
     steps:
       - name: Download Compilers
@@ -1706,6 +1706,7 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/bld.wixproj
 
@@ -1720,6 +1721,7 @@ jobs:
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:SWIFT_FORMAT_BUILD=false `
+              -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/cli.wixproj
 
@@ -1734,6 +1736,7 @@ jobs:
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:SWIFT_INSPECT_BUILD=false `
+              -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/dbg.wixproj
 
@@ -1747,6 +1750,7 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/ide.wixproj
 
@@ -1873,7 +1877,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64'] # , 'arm64']
+        arch: ['amd64' , 'arm64']
 
     steps:
       - uses: actions/download-artifact@v3
@@ -1952,6 +1956,7 @@ jobs:
               -p:SignOutput=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
@@ -1968,6 +1973,7 @@ jobs:
               -p:INCLUDE_AMD64_SDK=true `
               -p:INCLUDE_X86_SDK=true `
               -p:INCLUDE_ARM64_SDK=true `
+              -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
