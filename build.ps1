@@ -470,6 +470,7 @@ function Build-CMakeProject {
     [string] $CacheScript = "",
     [string[]] $UseMSVCCompilers = @(), # C,CXX
     [string[]] $UseBuiltCompilers = @(), # ASM,C,CXX,Swift
+    [string[]] $UsePinnedCompilers = @(), # ASM,C,CXX,Swift
     [string] $SwiftSDK = "",
     [hashtable] $Defines = @{}, # Values are either single strings or arrays of flags
     [string[]] $BuildTargets = @()
@@ -509,13 +510,21 @@ function Build-CMakeProject {
       TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER cl
       Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
     }
-    if ($UseBuiltCompilers.Contains("ASM")) {
-      TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+    if ($UsePinnedCompilers.Contains("ASM") -Or $UseBuiltCompilers.Contains("ASM")) {
+      if ($UseBuiltCompilers.Contains("ASM")) {
+        TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+      } else {
+        TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\clang-cl.exe"
+      }
       Append-FlagsDefine $Defines CMAKE_ASM_FLAGS "--target=$($Arch.LLVMTarget)"
       TryAdd-KeyValue $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
     }
-    if ($UseBuiltCompilers.Contains("C")) {
-      TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+    if ($UsePinnedCompilers.Contains("C") -Or $UseBuiltCompilers.Contains("C")) {
+      if ($UseBuiltCompilers.Contains("C")) {
+        TryAdd-KeyValue $Defines CMAKE_C_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+      } else {
+        TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\clang-cl.exe"
+      }
       TryAdd-KeyValue $Defines CMAKE_C_COMPILER_TARGET $Arch.LLVMTarget
 
       if (-not (Test-CMakeAtLeast -Major 3 -Minor 26 -Patch 3)) {
@@ -528,8 +537,12 @@ function Build-CMakeProject {
       }
       Append-FlagsDefine $Defines CMAKE_C_FLAGS $CFlags
     }
-    if ($UseBuiltCompilers.Contains("CXX")) {
-      TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+    if ($UsePinnedCompilers.Contains("CXX") -Or $UseBuiltCompilers.Contains("CXX")) {
+      if ($UseBuiltCompilers.Contains("CXX")) {
+        TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER "$BinaryCache\1\bin\clang-cl.exe"
+      } else {
+        TryAdd-KeyValue $Defines CMAKE_ASM_COMPILER "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\clang-cl.exe"
+      }
       TryAdd-KeyValue $Defines CMAKE_CXX_COMPILER_TARGET $Arch.LLVMTarget
 
       if (-not (Test-CMakeAtLeast -Major 3 -Minor 26 -Patch 3)) {
@@ -542,21 +555,28 @@ function Build-CMakeProject {
       }
       Append-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFlags
     }
-    if ($UseBuiltCompilers.Contains("Swift")) {
-      TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER "$BinaryCache\1\bin\swiftc.exe"
-      TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
-
-      $RuntimeBinaryCache = Get-ProjectBinaryCache $Arch 1
-      $SwiftResourceDir = "${RuntimeBinaryCache}\lib\swift"
-
+    if ($UsePinnedCompilers.Contains("Swift") -Or $UseBuiltCompilers.Contains("Swift")) {
       $SwiftArgs = @()
 
-      if ($SwiftSDK -ne "") {
-        $SwiftArgs += @("-sdk", $SwiftSDK)
+      if ($UseBuiltCompilers.Contains("Swift")) {
+        TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER "$BinaryCache\1\bin\swiftc.exe"
       } else {
+        TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\swiftc.exe"
+      }
+      TryAdd-KeyValue $Defines CMAKE_Swift_COMPILER_TARGET $Arch.LLVMTarget
+      if ($UseBuiltCompilers.Contains("Swift")) {
+        if ($SwiftSDK -ne "") {
+          $SwiftArgs += @("-sdk", $SwiftSDK)
+        }
+
+        $RuntimeBinaryCache = Get-ProjectBinaryCache $Arch 1
+        $SwiftResourceDir = "${RuntimeBinaryCache}\lib\swift"
+
         $SwiftArgs += @("-resource-dir", "$SwiftResourceDir")
         $SwiftArgs += @("-L", "$SwiftResourceDir\windows")
         $SwiftArgs += @("-vfsoverlay", "$RuntimeBinaryCache\stdlib\windows-vfs-overlay.yaml")
+      } else {
+        $SwiftArgs += @("-sdk", "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk")
       }
 
       # Debug Information
@@ -741,18 +761,16 @@ function Build-WiXProject() {
 function Build-CompilerDependencies($Arch) {
   Isolate-EnvVars {
     $env:Path = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Runtimes\0.0.0\usr\bin;${env:Path}"
-    $env:SDKROOT = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk"
 
     Build-CMakeProject `
       -Src $SourceCache\swift-syntax `
       -Bin $BinaryCache\99 `
       -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
+      -UsePinnedCompilers Swift `
       -Arch $Arch `
       -BuildTargets default `
       -Defines @{
         BUILD_SHARED_LIBS = "YES";
-        CMAKE_Swift_COMPILER = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Toolchains\0.0.0+Asserts\usr\bin\swiftc.exe";
-        CMAKE_Swift_FLAGS = @("-sdk", "${env:SDKROOT}");
       }
   }
 }
