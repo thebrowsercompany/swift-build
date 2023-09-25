@@ -411,7 +411,7 @@ function Ensure-SwiftToolchain($Arch) {
   }
 
   if (-not (Test-Path $BinaryCache\wix-4.0.1.zip)) {
-    curl.exe -sL https://www.nuget.org/api/v2/package/wix/4.0.1 -o $BinaryCache\wix-4.0.1.zip
+    Invoke-Program curl.exe -sL https://www.nuget.org/api/v2/package/wix/4.0.1 --output $BinaryCache\wix-4.0.1.zip --create-dirs
   }
   New-Item -ItemType Directory -ErrorAction Ignore $BinaryCache\wix-4.0.1 | Out-Null
   Expand-Archive -Path $BinaryCache\wix-4.0.1.zip -Destination $BinaryCache\wix-4.0.1 -Force
