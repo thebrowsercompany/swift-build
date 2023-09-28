@@ -68,6 +68,10 @@ the `subst` command to create a temporary, session local, drive mapping.
 subst S: %UserProfile%\source
 ```
 
+The development drive must be formatted with NTFS or ReFS to ensure that
+symbolic link support is available.  ExFAT does not support this functionality,
+and while portable, would not allow required functionality to build Swift.
+
 ### Cloning Repositories
 
 The easiest way to clone the repositories is by using the
