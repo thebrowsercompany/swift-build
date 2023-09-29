@@ -567,14 +567,14 @@ function Build-CMakeProject {
       if ($UseBuiltCompilers.Contains("Swift")) {
         if ($SwiftSDK -ne "") {
           $SwiftArgs += @("-sdk", $SwiftSDK)
+        } else {
+          $RuntimeBinaryCache = Get-ProjectBinaryCache $Arch 1
+          $SwiftResourceDir = "${RuntimeBinaryCache}\lib\swift"
+
+          $SwiftArgs += @("-resource-dir", "$SwiftResourceDir")
+          $SwiftArgs += @("-L", "$SwiftResourceDir\windows")
+          $SwiftArgs += @("-vfsoverlay", "$RuntimeBinaryCache\stdlib\windows-vfs-overlay.yaml")
         }
-
-        $RuntimeBinaryCache = Get-ProjectBinaryCache $Arch 1
-        $SwiftResourceDir = "${RuntimeBinaryCache}\lib\swift"
-
-        $SwiftArgs += @("-resource-dir", "$SwiftResourceDir")
-        $SwiftArgs += @("-L", "$SwiftResourceDir\windows")
-        $SwiftArgs += @("-vfsoverlay", "$RuntimeBinaryCache\stdlib\windows-vfs-overlay.yaml")
       } else {
         $SwiftArgs += @("-sdk", "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk")
       }
