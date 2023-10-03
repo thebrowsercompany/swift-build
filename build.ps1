@@ -762,23 +762,6 @@ function Build-WiXProject() {
   Invoke-Program $msbuild @MSBuildArgs
 }
 
-function Build-CompilerDependencies($Arch) {
-  Isolate-EnvVars {
-    $env:Path = "$BinaryCache\toolchains\$PinnedToolchain\PFiles64\Swift\runtime-development\usr\bin;${env:Path}"
-
-    Build-CMakeProject `
-      -Src $SourceCache\swift-syntax `
-      -Bin $BinaryCache\99 `
-      -InstallTo "$($Arch.ToolchainInstallRoot)\usr" `
-      -UsePinnedCompilers Swift `
-      -Arch $Arch `
-      -BuildTargets default `
-      -Defines @{
-        BUILD_SHARED_LIBS = "YES";
-      }
-  }
-}
-
 function Build-BuildTools($Arch) {
   Build-CMakeProject `
     -Src $SourceCache\llvm-project\llvm `
@@ -864,13 +847,13 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
         LLVM_NATIVE_TOOL_DIR = "$BinaryCache\0\bin";
         LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
         LLVM_USE_HOST_TOOLS = "NO";
+        SWIFT_BUILD_SWIFT_SYNTAX = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING = "YES";
-        SWIFT_PATH_TO_EARLYSWIFTSYNTAX_BUILD_DIR = "$BinaryCache\99";
         SWIFT_PATH_TO_LIBDISPATCH_SOURCE = "$SourceCache\swift-corelibs-libdispatch";
         SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE = "$SourceCache\swift-syntax";
         SWIFT_PATH_TO_STRING_PROCESSING_SOURCE = "$SourceCache\swift-experimental-string-processing";
@@ -1599,8 +1582,6 @@ if (-not $SkipBuild) {
 
 if (-not $SkipBuild) {
   Ensure-SwiftToolchain $HostArch
-  Build-CompilerDependencies $HostArch
-
   Build-BuildTools $HostArch
   Build-Compilers $HostArch
 }
