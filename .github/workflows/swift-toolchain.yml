@@ -530,13 +530,6 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
-      - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@v1
-        with:
-          max-size: 500M
-          key: sccache-windows-${{ matrix.arch }}
-          variant: sccache
-
       - name: Configure Compilers
         run: |
           if ( "${{ matrix.arch }}" -eq "arm64" ) {
@@ -556,10 +549,8 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 ${CMAKE_SYSTEM_NAME} `
