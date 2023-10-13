@@ -848,6 +848,7 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
         LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
         LLVM_USE_HOST_TOOLS = "NO";
         SWIFT_BUILD_SWIFT_SYNTAX = "YES";
+        SWIFT_CLANG_LOCATION = "$BinaryCache\toolchains\$PinnedToolchain\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin";
         SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
