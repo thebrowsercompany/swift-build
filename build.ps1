@@ -1562,6 +1562,15 @@ function Build-Installer() {
     SWIFT_DOCC_RENDER_ARTIFACT_ROOT = "${SourceCache}\swift-docc-render-artifact";
   }
 
+  Isolate-EnvVars {
+    Invoke-VsDevShell $HostArch
+    $VCRedistInstallerPath = "${env:VCToolsRedistDir}\vc_redist.$($HostArch.ShortName).exe"
+    if (Test-Path $VCRedistInstallerPath) {
+      $Properties["VCRedistInstaller"] = $VCRedistInstallerPath
+      $Properties["VSVersion"] = $env:VSCMD_VER
+    }
+  }
+
   foreach ($Arch in $SDKArchs) {
     $Properties["INCLUDE_$($Arch.VSName.ToUpperInvariant())_SDK"] = "true"
     $Properties["PLATFORM_ROOT_$($Arch.VSName.ToUpperInvariant())"] = "$($Arch.PlatformInstallRoot)\"
