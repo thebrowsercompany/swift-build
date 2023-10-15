@@ -1484,6 +1484,7 @@ function Build-SourceKitLSP($Arch) {
       TSC_DIR = "$BinaryCache\3\cmake\modules";
       LLBuild_DIR = "$BinaryCache\4\cmake\modules";
       ArgumentParser_DIR = "$BinaryCache\6\cmake\modules";
+      SwiftCrypto_DIR = "$BinaryCache\8\cmake\modules";
       SwiftCollections_DIR = "$BinaryCache\9\cmake\modules";
       SwiftPM_DIR = "$BinaryCache\12\cmake\modules";
       IndexStoreDB_DIR = "$BinaryCache\13\cmake\modules";
