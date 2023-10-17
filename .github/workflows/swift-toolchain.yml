@@ -178,14 +178,23 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-sqlite
+          variant: sccache
+
       - name: Configure SQLite
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.36.0 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr `
@@ -229,6 +238,13 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: amd64
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-amd64-icu_tools
+          variant: sccache
+
       - name: Configure ICU Build Tools
         run:
           cmake -B ${{ github.workspace }}/BinaryCache/icu-tools-69.1 `
@@ -236,8 +252,10 @@ jobs:
                 -D BUILD_TOOLS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
@@ -305,6 +323,13 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-icu
+          variant: sccache
+
       - name: Configure ICU
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
@@ -312,8 +337,10 @@ jobs:
                 -D BUILD_TOOLS=${{ matrix.BUILD_TOOLS }} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
@@ -369,13 +396,22 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-amd64-build_tools
+          variant: sccache
+
       - name: Configure Tools
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/0 `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -G Ninja `
@@ -536,6 +572,13 @@ jobs:
             COMPILE_FLAGS "/Od /Gw /Oi /Oy /Gw /Ob2 /Ot /GF")
           "@
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 500M
+          key: sccache-windows-${{ matrix.arch }}-compilers
+          variant: sccache
+
       - name: Configure Compilers
         run: |
           if ( "${{ matrix.arch }}" -eq "arm64" ) {
@@ -556,8 +599,10 @@ jobs:
                 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/${CACHE} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
@@ -655,14 +700,23 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-zlib
+          variant: sccache
+
       - name: Configure zlib
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/zlib-1.2.11 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr `
@@ -707,14 +761,23 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-curl
+          variant: sccache
+
       - name: Configure curl
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/curl-7.77.0 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr `
@@ -777,14 +840,23 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-libxml2
+          variant: sccache
+
       - name: Configure libxml2
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr `
