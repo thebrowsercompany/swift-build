@@ -848,6 +848,7 @@ function Build-Compilers($Arch, [switch]$Test = $false) {
         LLVM_TABLEGEN = "$BinaryCache\0\bin\llvm-tblgen.exe";
         LLVM_USE_HOST_TOOLS = "NO";
         SWIFT_BUILD_SWIFT_SYNTAX = "YES";
+        SWIFT_CLANG_LOCATION = "$BinaryCache\toolchains\$PinnedToolchain\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin";
         SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP = "YES";
         SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING = "YES";
@@ -1484,6 +1485,7 @@ function Build-SourceKitLSP($Arch) {
       TSC_DIR = "$BinaryCache\3\cmake\modules";
       LLBuild_DIR = "$BinaryCache\4\cmake\modules";
       ArgumentParser_DIR = "$BinaryCache\6\cmake\modules";
+      SwiftCrypto_DIR = "$BinaryCache\8\cmake\modules";
       SwiftCollections_DIR = "$BinaryCache\9\cmake\modules";
       SwiftPM_DIR = "$BinaryCache\12\cmake\modules";
       IndexStoreDB_DIR = "$BinaryCache\13\cmake\modules";
@@ -1558,6 +1560,15 @@ function Build-Installer() {
     INCLUDE_SWIFT_DOCC = "true";
     SWIFT_DOCC_BUILD = "$($HostArch.BinaryCache)\swift-docc\release";
     SWIFT_DOCC_RENDER_ARTIFACT_ROOT = "${SourceCache}\swift-docc-render-artifact";
+  }
+
+  Isolate-EnvVars {
+    Invoke-VsDevShell $HostArch
+    $VCRedistInstallerPath = "${env:VCToolsRedistDir}\vc_redist.$($HostArch.ShortName).exe"
+    if (Test-Path $VCRedistInstallerPath) {
+      $Properties["VCRedistInstaller"] = $VCRedistInstallerPath
+      $Properties["VSVersion"] = $env:VSCMD_VER
+    }
   }
 
   foreach ($Arch in $SDKArchs) {
