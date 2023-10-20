@@ -487,6 +487,7 @@ jobs:
 
       - name: Install Python ${{ env.PYTHON_VERSION }} (Host)
         uses: actions/setup-python@v4
+        id: python
         with:
           python-version: '${{ env.PYTHON_VERSION }}'
 
@@ -607,9 +608,10 @@ jobs:
                 -D LLDB_PYTHON_EXE_RELATIVE_PATH=python.exe `
                 -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
                 -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
-                -D Python3_ROOT_DIR=$env:pythonLocation `
+                -D Python3_EXECUTABLE= ${{ steps.python.outputs.python-path }} `
                 -D Python3_INCLUDE_DIR=$env:PYTHON_LOCATION_${{ matrix.arch }}\include `
                 -D Python3_LIBRARY=$env:PYTHON_LOCATION_${{ matrix.arch }}\libs\python39.lib `
+                -D Python3_ROOT_DIR=$env:pythonLocation `
                 ${SWIFT_CLANG_LOCATION}
 
       - name: Build Compiler Distribution
