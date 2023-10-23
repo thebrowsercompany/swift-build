@@ -1467,7 +1467,7 @@ function Build-Syntax($Arch) {
     -SwiftSDK $SDKInstallRoot `
     -BuildTargets default `
     -Defines @{
-      BUILD_SHARED_LIBS = "YES";
+      BUILD_SHARED_LIBS = "NO";
     }
 }
 
