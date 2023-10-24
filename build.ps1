@@ -1260,8 +1260,6 @@ function Build-ToolsSupportCore($Arch) {
     -Defines @{
       BUILD_SHARED_LIBS = "YES";
       SwiftSystem_DIR = "$BinaryCache\2\cmake\modules";
-      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
     }
 }
 
