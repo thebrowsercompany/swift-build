@@ -611,11 +611,16 @@ jobs:
       - name: Install Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
 
+      - name: Compress Compilers
+        run: |
+          tar -C ${{ github.workspace }}/BuildRoot -c -f ${{ github.workspace }}/compilers.tar Library
+          zstd ${{ github.workspace }}/compilers.tar -o ${{ github.workspace }}/compilers.tar.zst
+
       - name: Upload Compilers
         uses: actions/upload-artifact@v3
         with:
           name: compilers-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library
+          path: ${{ github.workspace }}/compilers.tar.zst
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
       - uses: actions/upload-artifact@v3
