@@ -69,6 +69,10 @@ An array of names of projects to run tests for.
 .PARAMETER Stage
 The path to a directory where built msi's and the installer executable should be staged (for CI).
 
+.PARAMETER BuildTo
+The name of a build step after which the script should terminate.
+For example: -BuildTo ToolsSupportCore
+
 .PARAMETER ToBatch
 When set, runs the script in a special mode which outputs a listing of command invocations
 in batch file format instead of executing them.
@@ -98,6 +102,7 @@ param(
   [bool] $DefaultsLLD = $true,
   [string[]] $Test = @(),
   [string] $Stage = "",
+  [string] $BuildTo = "",
   [switch] $ToBatch
 )
 
@@ -234,6 +239,13 @@ $SDKArchs = @($SDKs | ForEach-Object {
 })
 
 # Build functions
+function Invoke-BuildStep([string]$Name) {
+  & $Name @Args
+  if ($Name.Replace("Build-", "") -eq $BuildTo) {
+    exit 0
+  }
+}
+
 function Get-ProjectBinaryCache($Arch, $ID) {
   return "$BinaryCache\" + ($Arch.BuildID + $ID)
 }
@@ -1578,8 +1590,12 @@ function Build-Installer() {
   Build-WiXProject bundle\installer.wixproj -Arch $HostArch -Properties $Properties
 
   if ($Stage -and (-not $ToBatch)) {
+    Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\*.cab" "$Stage\"
+    Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\*.msi" "$Stage\"
     Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\*.msm" "$Stage\"
     Copy-File "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\installer.exe" "$Stage\"
+    # Extract installer engine to ease code-signing on swift.org CI
+    Invoke-Program "$BinaryCache\wix-4.0.1\tools\net6.0\any\wix.exe" -- burn detach "$($HostArch.BinaryCache)\installer\Release\$($HostArch.VSName)\installer.exe" -engine "$Stage\installer-engine.exe" -intermediateFolder "$($HostArch.BinaryCache)\installer\$($HostArch.VSName)\"
   }
 }
 
@@ -1591,23 +1607,23 @@ if (-not $SkipBuild) {
 
 if (-not $SkipBuild) {
   Ensure-SwiftToolchain $HostArch
-  Build-BuildTools $HostArch
-  Build-Compilers $HostArch
+  Invoke-BuildStep Build-BuildTools $HostArch
+  Invoke-BuildStep Build-Compilers $HostArch
 }
 
 foreach ($Arch in $SDKArchs) {
   if (-not $SkipBuild) {
-    Build-ZLib $Arch
-    Build-XML2 $Arch
-    Build-CURL $Arch
-    Build-ICU $Arch
-    Build-LLVM $Arch
+    Invoke-BuildStep Build-ZLib $Arch
+    Invoke-BuildStep Build-XML2 $Arch
+    Invoke-BuildStep Build-CURL $Arch
+    Invoke-BuildStep Build-ICU $Arch
+    Invoke-BuildStep Build-LLVM $Arch
 
     # Build platform: SDK, Redist and XCTest
-    Build-Runtime $Arch
-    Build-Dispatch $Arch
-    Build-Foundation $Arch
-    Build-XCTest $Arch
+    Invoke-BuildStep Build-Runtime $Arch
+    Invoke-BuildStep Build-Dispatch $Arch
+    Invoke-BuildStep Build-Foundation $Arch
+    Invoke-BuildStep Build-XCTest $Arch
   }
 }
 
@@ -1624,33 +1640,33 @@ if (-not $ToBatch) {
 }
 
 if (-not $SkipBuild) {
-  Build-SQLite $HostArch
-  Build-System $HostArch
-  Build-ToolsSupportCore $HostArch
-  Build-LLBuild $HostArch
-  Build-Yams $HostArch
-  Build-ArgumentParser $HostArch
-  Build-Driver $HostArch
-  Build-Crypto $HostArch
-  Build-Collections $HostArch
-  Build-ASN1 $HostArch
-  Build-Certificates $HostArch
-  Build-PackageManager $HostArch
-  Build-IndexStoreDB $HostArch
-  Build-Syntax $HostArch
-  Build-SourceKitLSP $HostArch
+  Invoke-BuildStep Build-SQLite $HostArch
+  Invoke-BuildStep Build-System $HostArch
+  Invoke-BuildStep Build-ToolsSupportCore $HostArch
+  Invoke-BuildStep Build-LLBuild $HostArch
+  Invoke-BuildStep Build-Yams $HostArch
+  Invoke-BuildStep Build-ArgumentParser $HostArch
+  Invoke-BuildStep Build-Driver $HostArch
+  Invoke-BuildStep Build-Crypto $HostArch
+  Invoke-BuildStep Build-Collections $HostArch
+  Invoke-BuildStep Build-ASN1 $HostArch
+  Invoke-BuildStep Build-Certificates $HostArch
+  Invoke-BuildStep Build-PackageManager $HostArch
+  Invoke-BuildStep Build-IndexStoreDB $HostArch
+  Invoke-BuildStep Build-Syntax $HostArch
+  Invoke-BuildStep Build-SourceKitLSP $HostArch
 }
 
 Install-HostToolchain
 
 if (-not $SkipBuild) {
-  Build-Inspect $HostArch
-  Build-Format $HostArch
-  Build-DocC $HostArch
+  Invoke-BuildStep Build-Inspect $HostArch
+  Invoke-BuildStep Build-Format $HostArch
+  Invoke-BuildStep Build-DocC $HostArch
 }
 
 if (-not $SkipPackaging) {
-  Build-Installer
+  Invoke-BuildStep Build-Installer
 }
 
 if ($Test -contains "swift") { Build-Compilers $HostArch -Test }
