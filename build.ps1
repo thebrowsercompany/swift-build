@@ -906,8 +906,8 @@ function Build-XML2($Arch) {
 
   Build-CMakeProject `
     -Src $SourceCache\libxml2 `
-    -Bin "$($Arch.BinaryCache)\libxml2-2.9.12" `
-    -InstallTo "$LibraryRoot\libxml2-2.9.12\usr" `
+    -Bin "$($Arch.BinaryCache)\libxml2-2.11.5" `
+    -InstallTo "$LibraryRoot\libxml2-2.11.5\usr" `
     -Arch $Arch `
     -BuildTargets default `
     -Defines @{
@@ -1088,8 +1088,8 @@ function Build-Foundation($Arch, [switch]$Test = $false) {
         ICU_I18N_LIBRARY_RELEASE = "$LibraryRoot\icu-69.1\usr\lib\$ShortArch\sicuin69.lib";
         ICU_ROOT = "$LibraryRoot\icu-69.1\usr";
         ICU_UC_LIBRARY_RELEASE = "$LibraryRoot\icu-69.1\usr\lib\$ShortArch\sicuuc69.lib";
-        LIBXML2_LIBRARY = "$LibraryRoot\libxml2-2.9.12\usr\lib\$ShortArch\libxml2s.lib";
-        LIBXML2_INCLUDE_DIR = "$LibraryRoot\libxml2-2.9.12\usr\include\libxml2";
+        LIBXML2_LIBRARY = "$LibraryRoot\libxml2-2.11.5\usr\lib\$ShortArch\libxml2s.lib";
+        LIBXML2_INCLUDE_DIR = "$LibraryRoot\libxml2-2.11.5\usr\include\libxml2";
         LIBXML2_DEFINITIONS = "/DLIBXML_STATIC";
         ZLIB_LIBRARY = "$LibraryRoot\zlib-1.3\usr\lib\$ShortArch\zlibstatic.lib";
         ZLIB_INCLUDE_DIR = "$LibraryRoot\zlib-1.3\usr\include";

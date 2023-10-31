@@ -97,7 +97,7 @@ jobs:
           swift_system_revision=refs/tags/1.1.1
           swift_tools_support_core_revision=refs/tags/${{ github.event.inputs.swift_tag }}
           curl_revision=refs/tags/curl-7_77_0
-          libxml2_revision=refs/tags/v2.9.12
+          libxml2_revision=refs/tags/v2.11.5
           yams_revision=refs/tags/5.0.4
           zlib_revision=refs/tags/v1.2.13
           icu_revision=refs/heads/maint/maint-69
@@ -777,7 +777,7 @@ jobs:
 
       - name: Configure libxml2
         run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 `
+          cmake -B ${{ github.workspace }}/BinaryCache/libxml2-2.11.5 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
@@ -785,7 +785,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/libxml2 `
                 -D LIBXML2_WITH_ICONV=NO `
@@ -796,14 +796,14 @@ jobs:
                 -D LIBXML2_WITH_THREADS=YES `
                 -D LIBXML2_WITH_ZLIB=NO
       - name: Build libxml2
-        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.11.5
       - name: Install libxml2
-        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.11.5 --target install
 
       - uses: actions/upload-artifact@v3
         with:
-          name: libxml2-${{ matrix.arch }}-2.9.12
-          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr
+          name: libxml2-${{ matrix.arch }}-2.11.5
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
 
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
@@ -833,8 +833,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
       - uses: actions/download-artifact@v3
         with:
-          name: libxml2-${{ matrix.arch }}-2.9.12
-          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr
+          name: libxml2-${{ matrix.arch }}-2.11.5
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
       - uses: actions/download-artifact@v3
         with:
           name: curl-${{ matrix.arch }}-7.77.0
@@ -1022,8 +1022,8 @@ jobs:
                 -D ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
                 -D ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicuuc69.lib `
                 -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC" `
-                -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/include/libxml2 `
-                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/lib/libxml2s.lib `
+                -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/include/libxml2 `
+                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/lib/libxml2s.lib `
                 -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr `
                 -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/zlibstatic.lib
       - name: Build foundation
