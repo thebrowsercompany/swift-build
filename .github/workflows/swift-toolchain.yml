@@ -163,12 +163,12 @@ jobs:
 
       - name: download sqlite
         run: |
-          curl.exe -sL "https://sqlite.org/2021/sqlite-amalgamation-3360000.zip" -o $env:TEMP\sqlite-amalgamation-3360000.zip
-          New-Item -ItemType Directory -Path ${{ github.workspace }}\SourceCache\sqlite-3.36.0
-          unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3360000.zip -d ${{ github.workspace }}\SourceCache\sqlite-3.36.0
+          curl.exe -sL "https://sqlite.org/2023/sqlite-amalgamation-3430200.zip" -o $env:TEMP\sqlite-amalgamation-3430200.zip
+          New-Item -ItemType Directory -Path ${{ github.workspace }}\SourceCache\sqlite-3.43.2
+          unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3430200.zip -d ${{ github.workspace }}\SourceCache\sqlite-3.43.2
 
       - name: Copy CMakeLists.txt
-        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\SQLite\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\sqlite-3.36.0\CMakeLists.txt
+        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\SQLite\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\sqlite-3.43.2\CMakeLists.txt
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -178,7 +178,7 @@ jobs:
 
       - name: Configure SQLite
         run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.36.0 `
+          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
@@ -186,18 +186,18 @@ jobs:
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/sqlite-3.36.0
+                -S ${{ github.workspace }}/SourceCache/sqlite-3.43.2
       - name: Build SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.36.0
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.43.2
       - name: Install SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.36.0 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 --target install
 
       - uses: actions/upload-artifact@v3
         with:
-          name: sqlite-${{ matrix.arch }}-3.36.0
-          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
+          name: sqlite-${{ matrix.arch }}-3.43.2
+          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
 
   icu_tools:
     needs: [context]
@@ -1117,8 +1117,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: sqlite-${{ matrix.arch }}-3.36.0
-          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
+          name: sqlite-${{ matrix.arch }}-3.43.2
+          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
       - name: Download Compilers
         uses: actions/download-artifact@v3
         with:
@@ -1378,8 +1378,8 @@ jobs:
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-llbuild `
                 -D LLBUILD_SUPPORT_BINDINGS=Swift `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include
       - name: Build swift-llbuild
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild
 
@@ -1439,8 +1439,8 @@ jobs:
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-tools-support-core `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include
       - name: Build swift-tools-support-core
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core
 
@@ -1473,8 +1473,8 @@ jobs:
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include `
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include `
                 -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
                 -D Yams_DIR=${{ github.workspace }}/BinaryCache/yams/cmake/modules
       - name: Build swift-driver
@@ -1550,8 +1550,8 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/swift-package-manager `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include `
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
                 -D SwiftASN1_DIR=${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules `
                 -D SwiftCertificates_DIR=${{ github.workspace }}/BinaryCache/swift-certificates/cmake/modules `
                 -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `

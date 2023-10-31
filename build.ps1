@@ -1201,13 +1201,13 @@ function Install-Platform($Arch) {
 }
 
 function Build-SQLite($Arch) {
-  $SrcPath = "$SourceCache\sqlite-3.36.0"
+  $SrcPath = "$SourceCache\sqlite-3.43.2"
 
   # Download the sources
   if (-not (Test-Path $SrcPath)) {
-    $ZipPath = "$env:TEMP\sqlite-amalgamation-3360000.zip"
+    $ZipPath = "$env:TEMP\sqlite-amalgamation-3430200.zip"
     if (-not $ToBatch) { Remove-item $ZipPath -ErrorAction Ignore | Out-Null }
-    Invoke-Program curl.exe -- -sL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip -o $ZipPath
+    Invoke-Program curl.exe -- -sL https://sqlite.org/2023/sqlite-amalgamation-3430200.zip -o $ZipPath
 
     if (-not $ToBatch) { New-Item -Type Directory -Path $SrcPath -ErrorAction Ignore | Out-Null }
     Invoke-Program "$UnixToolsBinDir\unzip.exe" -- -j -o $ZipPath -d $SrcPath
@@ -1237,8 +1237,8 @@ install(FILES sqlite3.h sqlite3ext.h DESTINATION include)
 
   Build-CMakeProject `
     -Src $SrcPath `
-    -Bin "$($Arch.BinaryCache)\sqlite-3.36.0" `
-    -InstallTo $LibraryRoot\sqlite-3.36.0\usr `
+    -Bin "$($Arch.BinaryCache)\sqlite-3.43.2" `
+    -InstallTo $LibraryRoot\sqlite-3.43.2\usr `
     -Arch $Arch `
     -BuildTargets default `
     -Defines @{
@@ -1309,8 +1309,8 @@ function Build-LLBuild($Arch, [switch]$Test = $false) {
         CMAKE_INSTALL_PREFIX = "$($Arch.ToolchainInstallRoot)\usr";
         BUILD_SHARED_LIBS = "YES";
         LLBUILD_SUPPORT_BINDINGS = "Swift";
-        SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
-        SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+        SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.43.2\usr\include";
+        SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.43.2\usr\lib\SQLite3.lib";
       })
   }
 }
@@ -1360,8 +1360,8 @@ function Build-Driver($Arch) {
       LLBuild_DIR = "$BinaryCache\4\cmake\modules";
       Yams_DIR = "$BinaryCache\5\cmake\modules";
       ArgumentParser_DIR = "$BinaryCache\6\cmake\modules";
-      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.43.2\usr\include";
+      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.43.2\usr\lib\SQLite3.lib";
     }
 }
 
@@ -1447,8 +1447,8 @@ function Build-PackageManager($Arch) {
       SwiftCollections_DIR = "$BinaryCache\9\cmake\modules";
       SwiftASN1_DIR = "$BinaryCache\10\cmake\modules";
       SwiftCertificates_DIR = "$BinaryCache\11\cmake\modules";
-      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.36.0\usr\include";
-      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.36.0\usr\lib\SQLite3.lib";
+      SQLite3_INCLUDE_DIR = "$LibraryRoot\sqlite-3.43.2\usr\include";
+      SQLite3_LIBRARY = "$LibraryRoot\sqlite-3.43.2\usr\lib\SQLite3.lib";
     }
 }
 
