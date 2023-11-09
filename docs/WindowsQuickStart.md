@@ -105,7 +105,7 @@ The full toolchain can be built in an automated fashion.  The following script
 will perform a build and package of the toolchain.
 
 ```
-S:\SourceCache\swift-build\build.cmd
+S:\SourceCache\swift\utils\build.cmd
 ```
 
 ## Using the Toolchain
