@@ -17,6 +17,7 @@ automated fashion.
 curl.exe -sOL https://aka.ms/vs/17/release/vs_community.exe
 vs_community.exe ^
   --add Component.CPython39.x64 ^
+  --add Microsoft.NetCore.Component.SDK ^
   --add Microsoft.VisualStudio.Component.Git ^
   --add Microsoft.VisualStudio.Component.VC.CMake.Project ^
   --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
