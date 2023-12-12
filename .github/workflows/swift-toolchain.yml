@@ -22,6 +22,9 @@ on:
         default: false
         type: boolean
 
+env:
+  SCCACHE_DIRECT: yes
+
 jobs:
   context:
     runs-on: ubuntu-latest
@@ -54,9 +57,9 @@ jobs:
       zlib_revision: ${{ steps.context.outputs.zlib_revision }}
       CMAKE_C_FLAGS: ${{ steps.context.outputs.CMAKE_C_FLAGS }}
       CMAKE_CXX_FLAGS: ${{ steps.context.outputs.CMAKE_CXX_FLAGS }}
+      CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.CMAKE_EXE_LINKER_FLAGS }}
       CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}
       CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
-      LLVM_ENABLE_PDB: ${{ steps.context.outputs.LLVM_ENABLE_PDB }}
       debug_info: ${{ steps.context.outputs.debug_info }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
@@ -96,8 +99,8 @@ jobs:
           swift_syntax_revision=refs/tags/${{ github.event.inputs.swift_tag }}
           swift_system_revision=refs/tags/1.1.1
           swift_tools_support_core_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          curl_revision=refs/tags/curl-7_77_0
-          libxml2_revision=refs/tags/v2.9.12
+          curl_revision=refs/tags/curl-8_4_0
+          libxml2_revision=refs/tags/v2.11.5
           yams_revision=refs/tags/5.0.4
           zlib_revision=refs/tags/v1.2.13
           icu_revision=refs/heads/maint/maint-69
@@ -116,18 +119,18 @@ jobs:
 
           if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.debug_info }}" == "true" ]]; then
             echo debug_info=true >> ${GITHUB_OUTPUT}
-            echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
-            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
+            echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
+            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
+            echo CMAKE_EXE_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
             echo CMAKE_SHARED_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
-            echo LLVM_ENABLE_PDB=YES >> ${GITHUB_OUTPUT}
           else
             echo debug_info=false >> ${GITHUB_OUTPUT}
             echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
             echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
+            echo CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
-            echo LLVM_ENABLE_PDB=NO >> ${GITHUB_OUTPUT}
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
@@ -163,12 +166,12 @@ jobs:
 
       - name: download sqlite
         run: |
-          curl.exe -sL "https://sqlite.org/2021/sqlite-amalgamation-3360000.zip" -o $env:TEMP\sqlite-amalgamation-3360000.zip
-          New-Item -ItemType Directory -Path ${{ github.workspace }}\SourceCache\sqlite-3.36.0
-          unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3360000.zip -d ${{ github.workspace }}\SourceCache\sqlite-3.36.0
+          curl.exe -sL "https://sqlite.org/2023/sqlite-amalgamation-3430200.zip" -o $env:TEMP\sqlite-amalgamation-3430200.zip
+          New-Item -ItemType Directory -Path ${{ github.workspace }}\SourceCache\sqlite-3.43.2
+          unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3430200.zip -d ${{ github.workspace }}\SourceCache\sqlite-3.43.2
 
       - name: Copy CMakeLists.txt
-        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\SQLite\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\sqlite-3.36.0\CMakeLists.txt
+        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\SQLite\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\sqlite-3.43.2\CMakeLists.txt
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -176,28 +179,37 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-sqlite
+          variant: sccache
+
       - name: Configure SQLite
         run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.36.0 `
+          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/sqlite-3.36.0
+                -S ${{ github.workspace }}/SourceCache/sqlite-3.43.2
       - name: Build SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.36.0
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.43.2
       - name: Install SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.36.0 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 --target install
 
       - uses: actions/upload-artifact@v3
         with:
-          name: sqlite-${{ matrix.arch }}-3.36.0
-          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
+          name: sqlite-${{ matrix.arch }}-3.43.2
+          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
 
   icu_tools:
     needs: [context]
@@ -227,6 +239,13 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: amd64
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-amd64-icu_tools
+          variant: sccache
+
       - name: Configure ICU Build Tools
         run:
           cmake -B ${{ github.workspace }}/BinaryCache/icu-tools-69.1 `
@@ -234,8 +253,10 @@ jobs:
                 -D BUILD_TOOLS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
@@ -303,6 +324,13 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-icu
+          variant: sccache
+
       - name: Configure ICU
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
@@ -310,8 +338,10 @@ jobs:
                 -D BUILD_TOOLS=${{ matrix.BUILD_TOOLS }} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
@@ -367,13 +397,22 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-amd64-build_tools
+          variant: sccache
+
       - name: Configure Tools
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/0 `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -G Ninja `
@@ -390,10 +429,14 @@ jobs:
                 -D LLDB_ENABLE_SWIFT_SUPPORT=NO `
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_LIBEXEC=NO `
                 -D SWIFT_BUILD_REMOTE_MIRROR=NO `
+                -D SWIFT_BUILD_SOURCEKIT=NO `
                 -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_STATIC_STDLIB=NO `
+                -D SWIFT_INCLUDE_APINOTES=NO `
                 -D SWIFT_INCLUDE_DOCS=NO `
+                -D SWIFT_INCLUDE_TESTS=NO `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax
       - name: Build llvm-tblgen
@@ -440,7 +483,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64', 'arm64']
+        include:
+          - arch: 'amd64'
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-windows-msvc'
+
+          - arch: 'arm64'
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-windows-msvc'
 
     steps:
       - uses: actions/download-artifact@v3
@@ -502,27 +552,20 @@ jobs:
           echo "PYTHON_LOCATION_amd64=$env:pythonLocation" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ env.PYTHON_VERSION }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install LLVM
-        if: matrix.arch == 'arm64'
-        run: |
-          curl.exe -sL "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.5/LLVM-15.0.5-win64.exe" -o ${env:TEMP}\llvm-installer.exe
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          toolset_version: 14.37.32822
+          components: 'Microsoft.VisualStudio.Component.VC.14.37.17.7.x86.x64;Microsoft.VisualStudio.Component.VC.14.37.17.7.ARM64'
+          arch: ${{ matrix.arch }}
 
-          Write-Host "Starting ${env:TEMP}\llvm-installer.exe"
-          $Process = Start-Process -FilePath ${env:TEMP}\llvm-installer.exe -ArgumentList ("/S", "/D=${env:ProgramFiles}\LLVM") -Wait -PassThru
-          $ExitCode = $Process.ExitCode
-          if ($ExitCode -eq 0) {
-            Write-Host "Installation successful"
-          } else {
-            Write-Host "non-zero exit code returned by the installation process: $ExitCode"
-            exit $ExitCode
-          }
-
-          Remove-Item ${env:TEMP}\llvm-installer.exe
-
-          $stdatomic = "${env:ProgramFiles}\LLVM\lib\clang\15.0.5\include\stdatomic.h"
-          if (Test-Path -Path $stdatomic) {
-            (Get-Content $stdatomic).replace('__has_include_next(<stdatomic.h>) && !(defined(_MSC_VER) && !defined(__cplusplus))', '0') | Set-Content $stdatomic
-          }
+      - name: Install Swift Toolchain
+        uses: compnerd/gha-setup-swift@main
+        with:
+          github-repo: thebrowsercompany/swift-build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-amd64.exe
+          release-tag-name: '20231016.0'
 
       - name: Workaround MSVC#10444970
         if: matrix.arch == 'arm64'
@@ -541,11 +584,12 @@ jobs:
             COMPILE_FLAGS "/Od /Gw /Oi /Oy /Gw /Ob2 /Ot /GF")
           "@
 
-      - uses: compnerd/gha-setup-vsdevenv@main
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
         with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
+          max-size: 500M
+          key: sccache-windows-${{ matrix.arch }}-compilers
+          variant: sccache
 
       - name: Configure Compilers
         run: |
@@ -553,23 +597,32 @@ jobs:
             $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
             $CMAKE_SYSTEM_PROCESSOR="-D CMAKE_SYSTEM_PROCESSOR=ARM64"
             $CACHE="Windows-aarch64.cmake"
-            $CLANG_LOCATION = cygpath -m ${env:ProgramFiles}\llvm\bin
-            $SWIFT_CLANG_LOCATION="-D SWIFT_CLANG_LOCATION=${CLANG_LOCATION}"
 
             # FIXME(compnerd) re-enable runtimes after we sort out compiler-rt
-            (Get-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-aarch64.cmake).replace(' runtimes', '') | Set-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-aarch64.cmake
+            (Get-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-aarch64.cmake).Replace(' runtimes', '') | Set-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-aarch64.cmake
           } else {
             $CACHE="Windows-x86_64.cmake"
           }
+          $SWIFTC = cygpath -m (Get-Command swiftc).Source
+          $SDKROOT = cygpath -m ${env:SDKROOT}
+          $CLANG_LOCATION = cygpath -m (Split-Path (Get-Command clang-cl).Source)
+          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/1 `
                 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/${CACHE} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
+                -D CMAKE_Swift_COMPILER="${SWIFTC}" `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
+                -D CMAKE_Swift_FLAGS="-sdk \`"${SDKROOT}\`"" `
+                -D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_EXE_LINKER_FLAGS }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
@@ -578,7 +631,6 @@ jobs:
                 -D CLANG_TIDY_CONFUSABLE_CHARS_GEN=${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen.exe `
                 -D LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe `
                 -D LLVM_CONFIG_PATH=${{ github.workspace }}/BinaryCache/0/bin/llvm-config.exe `
-                -D LLVM_ENABLE_PDB=${{ needs.context.outputs.LLVM_ENABLE_PDB }} `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
                 -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
                 -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
@@ -587,6 +639,8 @@ jobs:
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
                 -D SWIFT_BUILD_REMOTE_MIRROR=NO `
+                -D SWIFT_BUILD_SWIFT_SYNTAX=YES `
+                -D SWIFT_CLANG_LOCATION=${CLANG_LOCATION} `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
@@ -597,6 +651,7 @@ jobs:
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
                 -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
+                -D SWIFT_PATH_TO_SWIFT_SDK="${SDKROOT}" `
                 -D CLANG_VENDOR=compnerd.org `
                 -D CLANG_VENDOR_UTI=org.compnerd.dt `
                 -D PACKAGE_VENDOR=compnerd.org `
@@ -611,8 +666,7 @@ jobs:
                 -D Python3_EXECUTABLE=${{ steps.python.outputs.python-path }} `
                 -D Python3_INCLUDE_DIR=$env:PYTHON_LOCATION_${{ matrix.arch }}\include `
                 -D Python3_LIBRARY=$env:PYTHON_LOCATION_${{ matrix.arch }}\libs\python39.lib `
-                -D Python3_ROOT_DIR=$env:pythonLocation `
-                ${SWIFT_CLANG_LOCATION}
+                -D Python3_ROOT_DIR=$env:pythonLocation
 
       - name: Build Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
@@ -625,6 +679,24 @@ jobs:
         with:
           name: compilers-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: extract swift-syntax
+        run: |
+          $module = "${{ github.workspace }}/BinaryCache/1/cmake/modules/SwiftSyntaxConfig.cmake"
+          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/1
+          (Get-Content $module).Replace("${bindir}", '<BINARY_DIR>') | Set-Content $module
+          New-Item -Path ${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host -ItemType Directory | Out-Null
+          Copy-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib"
+          Copy-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host"
+          Copy-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/lib/swift/host/*.swiftmodule" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host" -Recurse
+          New-Item -Path ${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules -ItemType Directory | Out-Null
+          Copy-Item -Path $module -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules"
+
+      - name: Upload swift-syntax
+        uses: actions/upload-artifact@v3
+        with:
+          name: swift-syntax-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift-syntax
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
       - uses: actions/upload-artifact@v3
@@ -664,29 +736,38 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-zlib
+          variant: sccache
+
       - name: Configure zlib
         run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/zlib-1.2.11 `
+          cmake -B ${{ github.workspace }}/BinaryCache/zlib-1.3 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/zlib `
                 -D SKIP_INSTALL_FILES=YES
       - name: Build zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.2.11
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.3
       - name: Install zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.2.11 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.3 --target install
 
       - uses: actions/upload-artifact@v3
         with:
-          name: zlib-${{ matrix.arch }}-1.2.11
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
+          name: zlib-${{ matrix.arch }}-1.3
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
 
   curl:
     needs: [context, zlib]
@@ -707,8 +788,8 @@ jobs:
 
       - uses: actions/download-artifact@v3
         with:
-          name: zlib-${{ matrix.arch }}-1.2.11
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
+          name: zlib-${{ matrix.arch }}-1.3
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -716,14 +797,23 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-curl
+          variant: sccache
+
       - name: Configure curl
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/curl-7.77.0 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr `
@@ -731,28 +821,82 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/curl `
                 -D BUILD_TESTING=NO `
                 -D BUILD_CURL_EXE=NO `
-                -D CMAKE_USE_OPENSSL=NO `
-                -D CURL_CA_PATH=none `
-                -D CMAKE_USE_SCHANNEL=YES `
-                -D CMAKE_USE_LIBSSH2=NO `
-                -D HAVE_POLL_FINE=NO `
+                -D CURL_CA_BUNDLE="none" `
+                -D CURL_CA_FALLBACK=NO `
+                -D CURL_CA_PATH="none" `
+                -D CURL_BROTLI=NO `
+                -D CURL_DISABLE_ALTSVC=NO `
+                -D CURL_DISABLE_AWS=YES `
+                -D CURL_DISABLE_BASIC_AUTH=NO `
+                -D CURL_DISABLE_BEARER_AUTH=NO `
+                -D CURL_DISABLE_COOKIES=NO `
+                -D CURL_DISABLE_DICT=YES `
+                -D CURL_DISABLE_DIGEST_AUTH=NO `
+                -D CURL_DISABLE_DOH=NO `
+                -D CURL_DISABLE_FILE=YES `
+                -D CURL_DISABLE_FORM_API=NO `
+                -D CURL_DISABLE_FTP=YES `
+                -D CURL_DISABLE_GETOPTIONS=NO `
+                -D CURL_DISABLE_GOPHER=YES `
+                -D CURL_DISABLE_HSTS=NO `
+                -D CURL_DISABLE_HTTP=NO `
+                -D CURL_DISABLE_HTTP_AUTH=NO `
+                -D CURL_DISABLE_IMAP=YES `
+                -D CURL_DISABLE_KERBEROS_AUTH=NO `
                 -D CURL_DISABLE_LDAP=YES `
                 -D CURL_DISABLE_LDAPS=YES `
-                -D CURL_DISABLE_TELNET=YES `
-                -D CURL_DISABLE_DICT=YES `
-                -D CURL_DISABLE_FILE=YES `
-                -D CURL_DISABLE_TFTP=YES `
-                -D CURL_DISABLE_RTSP=YES `
-                -D CURL_DISABLE_PROXY=YES `
+                -D CURL_DISABLE_MIME=NO `
+                -D CURL_DISABLE_MQTT=YES `
+                -D CURL_DISABLE_NEGOTIATE_AUTH=NO `
+                -D CURL_DISABLE_NETRC=NO `
+                -D CURL_DISABLE_NTLM=NO `
+                -D CURL_DISABLE_PARSEDATE=NO `
                 -D CURL_DISABLE_POP3=YES `
-                -D CURL_DISABLE_IMAP=YES `
+                -D CURL_DISABLE_PROGRESS_METER=YES `
+                -D CURL_DISABLE_PROXY=NO `
+                -D CURL_DISABLE_RTSP=YES `
+                -D CURL_DISABLE_SHUFFLE_DNS=YES `
+                -D CURL_DISABLE_SMB=YES `
                 -D CURL_DISABLE_SMTP=YES `
-                -D CURL_DISABLE_GOPHER=YES `
+                -D CURL_DISABLE_SOCKETPAIR=YES `
+                -D CURL_DISABLE_SRP=NO `
+                -D CURL_DISABLE_TELNET=YES `
+                -D CURL_DISABLE_TFTP=YES `
+                -D CURL_DISABLE_VERBOSE_STRINGS=NO `
+                -D CURL_LTO=NO `
+                -D CURL_USE_BEARSSL=NO `
+                -D CURL_USE_GNUTLS=NO `
+                -D CURL_USE_GSSAPI=NO `
+                -D CURL_USE_LIBPSL=NO `
+                -D CURL_USE_LIBSSH=NO `
+                -D CURL_USE_LIBSSH2=NO `
+                -D CURL_USE_MBEDTLS=NO `
+                -D CURL_USE_OPENSSL=NO `
+                -D CURL_USE_SCHANNEL=YES `
+                -D CURL_USE_WOLFSSL=NO `
+                -D CURL_WINDOWS_SSPI=YES `
                 -D CURL_ZLIB=YES `
-                -D ENABLE_UNIX_SOCKETS=NO `
+                -D CURL_ZSTD=NO `
+                -D ENABLE_ARES=NO `
+                -D ENABLE_CURLDEBUG=NO `
+                -D ENABLE_DEBUG=NO `
+                -D ENABLE_IPV6=YES `
+                -D ENABLE_MANUAL=NO `
                 -D ENABLE_THREADED_RESOLVER=NO `
-                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr  `
-                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr/lib/zlibstatic.lib
+                -D ENABLE_UNICODE=YES `
+                -D ENABLE_UNIX_SOCKETS=NO `
+                -D ENABLE_WEBSOCKETS=NO `
+                -D HAVE_POLL_FINE=NO `
+                -D USE_IDN2=NO `
+                -D USE_MSH3=NO `
+                -D USE_NGHTTP2=NO `
+                -D USE_NGTCP2=NO `
+                -D USE_QUICHE=NO `
+                -D USE_WIN32_IDN=YES `
+                -D USE_WIN32_LARGE_FILES=YES `
+                -D USE_WIN32_LDAP=NO `
+                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr  `
+                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/zlibstatic.lib
       - name: Build curl
         run: cmake --build ${{ github.workspace }}/BinaryCache/curl-7.77.0
       - name: Install curl
@@ -786,17 +930,26 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 100M
+          key: sccache-windows-${{ matrix.arch }}-libxml2
+          variant: sccache
+
       - name: Configure libxml2
         run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 `
+          cmake -B ${{ github.workspace }}/BinaryCache/libxml2-2.11.5 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/libxml2 `
                 -D LIBXML2_WITH_ICONV=NO `
@@ -807,14 +960,14 @@ jobs:
                 -D LIBXML2_WITH_THREADS=YES `
                 -D LIBXML2_WITH_ZLIB=NO
       - name: Build libxml2
-        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.11.5
       - name: Install libxml2
-        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.11.5 --target install
 
       - uses: actions/upload-artifact@v3
         with:
-          name: libxml2-${{ matrix.arch }}-2.9.12
-          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr
+          name: libxml2-${{ matrix.arch }}-2.11.5
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
 
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
@@ -844,16 +997,16 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
       - uses: actions/download-artifact@v3
         with:
-          name: libxml2-${{ matrix.arch }}-2.9.12
-          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr
+          name: libxml2-${{ matrix.arch }}-2.11.5
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
       - uses: actions/download-artifact@v3
         with:
           name: curl-${{ matrix.arch }}-7.77.0
           path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
       - uses: actions/download-artifact@v3
         with:
-          name: zlib-${{ matrix.arch }}-1.2.11
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr
+          name: zlib-${{ matrix.arch }}-1.3
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
       - name: Download Compilers
         uses: actions/download-artifact@v3
         with:
@@ -909,8 +1062,17 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Install Swift Toolchain
+        uses: compnerd/gha-setup-swift@main
+        with:
+          github-repo: thebrowsercompany/swift-build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-amd64.exe
+          release-tag-name: '20231016.0'
+
       - name: Configure LLVM
-        run:
+        run: |
+          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/llvm `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
@@ -928,6 +1090,7 @@ jobs:
           # Workaround CMake 3.20 issue
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
 
+          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/swift `
                 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-Windows-${{ matrix.cpu }}.cmake `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -959,9 +1122,13 @@ jobs:
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
                 -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing
       - name: Build Swift Standard Library
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/swift
       - name: Install Swift Standard Library
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift --target install
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/swift --target install
 
       - name: Configure libdispatch
         run: |
@@ -969,6 +1136,7 @@ jobs:
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
+          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/libdispatch `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -979,6 +1147,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
+                -D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_EXE_LINKER_FLAGS }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr `
                 -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}" `
                 -D CMAKE_SWIFT_COMPILER=${SWIFTC} `
@@ -994,7 +1163,9 @@ jobs:
                 -D BUILD_TESTING=NO `
                 -D ENABLE_SWIFT=YES
       - name: Build libdispatch
-        run: cmake --build ${{ github.workspace }}/BinaryCache/libdispatch
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/libdispatch
 
       - name: Configure Foundation
         run: |
@@ -1002,6 +1173,7 @@ jobs:
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
+          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/foundation `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD" `
@@ -1033,12 +1205,14 @@ jobs:
                 -D ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
                 -D ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/sicuuc69.lib `
                 -D LIBXML2_DEFINITIONS="/DLIBXML_STATIC" `
-                -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/include/libxml2 `
-                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/lib/libxml2s.lib `
-                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr `
-                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.2.11/usr/lib/zlibstatic.lib
+                -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/include/libxml2 `
+                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/lib/libxml2s.lib `
+                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr `
+                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/zlibstatic.lib
       - name: Build foundation
-        run: cmake --build ${{ github.workspace }}/BinaryCache/foundation
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/foundation
 
       # TODO(compnerd) correctly version XCTest
       - name: Configure xctest
@@ -1047,6 +1221,7 @@ jobs:
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
+          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/xctest `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1070,14 +1245,22 @@ jobs:
                 -D Foundation_DIR=${{ github.workspace }}/BinaryCache/foundation/cmake/modules `
                 -D ENABLE_TESTING=NO
       - name: Build xctest
-        run: cmake --build ${{ github.workspace }}/BinaryCache/xctest
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
       - name: Install xctest
-        run: cmake --build ${{ github.workspace }}/BinaryCache/xctest --target install
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/xctest --target install
       - name: Install foundation
-        run: cmake --build ${{ github.workspace }}/BinaryCache/foundation --target install
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/foundation --target install
       - name: Install libdispatch
-        run: cmake --build ${{ github.workspace }}/BinaryCache/libdispatch --target install
+        run: |
+          Remove-Item env:\SDKROOT
+          cmake --build ${{ github.workspace }}/BinaryCache/libdispatch --target install
 
       - uses: actions/setup-python@v4
       - uses: jannekem/run-python-script-action@v1
@@ -1128,8 +1311,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: sqlite-${{ matrix.arch }}-3.36.0
-          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr
+          name: sqlite-${{ matrix.arch }}-3.43.2
+          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
       - name: Download Compilers
         uses: actions/download-artifact@v3
         with:
@@ -1137,20 +1320,18 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v3
         with:
+          name: windows-sdk-amd64
+          path: ${{ github.workspace }}/BinaryCache
+      - name: Download SDK
+        uses: actions/download-artifact@v3
+        with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-
-      - run: |
-          $env:SDKROOT='${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk'
-          mv ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+      - name: Downlaod swift-syntax
+        uses: actions/download-artifact@v3
+        with:
+          name: swift-syntax-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift-syntax
 
       - uses: actions/checkout@v4
         with:
@@ -1236,18 +1417,28 @@ jobs:
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-syntax
-          ref: ${{ needs.context.outputs.swift_syntax_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-syntax
-          show-progress: false
+
+      - run: |
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
           host_arch: amd64
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+
+      - run: |
+          $env:SDKROOT="${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
+          mv ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
+          mv ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
+          mv ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
+          mv ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
       - name: Configure swift-argument-parser
         run: |
@@ -1269,6 +1460,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1298,6 +1490,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1326,6 +1519,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1354,6 +1548,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1382,6 +1577,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1389,8 +1585,8 @@ jobs:
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-llbuild `
                 -D LLBUILD_SUPPORT_BINDINGS=Swift `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include
       - name: Build swift-llbuild
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild
 
@@ -1414,6 +1610,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1443,6 +1640,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1450,8 +1648,8 @@ jobs:
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-tools-support-core `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include
       - name: Build swift-tools-support-core
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core
 
@@ -1475,6 +1673,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1484,8 +1683,8 @@ jobs:
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include `
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include `
                 -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
                 -D Yams_DIR=${{ github.workspace }}/BinaryCache/yams/cmake/modules
       - name: Build swift-driver
@@ -1502,6 +1701,7 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1522,6 +1722,7 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1553,6 +1754,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1561,8 +1763,8 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/swift-package-manager `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/include `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.36.0/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include `
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
                 -D SwiftASN1_DIR=${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules `
                 -D SwiftCertificates_DIR=${{ github.workspace }}/BinaryCache/swift-certificates/cmake/modules `
                 -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `
@@ -1594,6 +1796,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1603,33 +1806,11 @@ jobs:
       - name: Build indexstore-db
         run: cmake --build ${{ github.workspace }}/BinaryCache/indexstore-db
 
-      - name: Configure SwiftSyntax
+      - name: extract swift-syntax
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-
-          cmake -B ${{ github.workspace }}/BinaryCache/swift-syntax `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
-                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-syntax
-      - name: Build swift-syntax
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-syntax
+          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
+          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
+          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
 
       - name: Configure SourceKit-LSP
         run: |
@@ -1651,6 +1832,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
@@ -1893,6 +2075,7 @@ jobs:
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
+              -p:VCRedistDir="${env:VCToolsRedistDir}\${env:VSCMD_ARG_TGT_ARCH}\Microsoft.VC143.CRT\" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
 
       - uses: actions/upload-artifact@v3
@@ -2015,8 +2198,6 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:BundleFlavor=offline `
-              -p:VCRedistInstaller="${env:VCToolsRedistDir}\vc_redist.${env:VSCMD_ARG_TGT_ARCH}.exe" `
-              -p:VSVersion=${env:VSCMD_VER} `
               -p:INCLUDE_AMD64_SDK=true `
               -p:INCLUDE_X86_SDK=true `
               -p:INCLUDE_ARM64_SDK=true `
