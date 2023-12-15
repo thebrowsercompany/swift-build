@@ -144,11 +144,12 @@ jobs:
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
           if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
             echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
-          #else if [[ "$branch_version" == "main" ]] ; then
           else
-            echo swift_tag=swift-5.10-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
-          # else
-          # echo swift_tag=swift-"$branch_version"-DEVELOPMENT-SNAPSHOT-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            if [[ "$branch_version" == "main" ]] ; then
+              echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            else
+              echo swift_tag=swift-"$branch_version"-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            fi
           fi
 
           echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
