@@ -73,7 +73,14 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update -yq
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
 
-          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b main
+          # Which branch is this workflow based on
+          branch_version=5.10
+          if [[ "$branch_version" == "main" ]] ; then
+            branch_name="main"
+          else
+            branch_name="release/${branch_version}"
+          fi
+          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
           if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
@@ -136,8 +143,11 @@ jobs:
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
           if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
             echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
+          #else if [[ "$branch_version" == "main" ]] ; then
           else
-            echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            echo swift_tag=swift-5.10-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+          # else
+          # echo swift_tag=swift-"$branch_version"-DEVELOPMENT-SNAPSHOT-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
           fi
 
           echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
