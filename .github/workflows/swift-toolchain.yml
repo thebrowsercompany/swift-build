@@ -75,16 +75,12 @@ jobs:
 
           # Which branch is this workflow based on
           branch_version_string=${{ github.event.inputs.swift_version || '0.0.0' }}
-          if echo "$branch_version_string" | grep '\.'; then
-            branch_version="$(echo "$branch_version_string" | cut -d '.' -f 1).$(echo "$branch_version_string" | cut -d '.' -f 2)"
+          if [[ $branch_version_string == *.* ]]; then
+            branch_name=$(echo ${branch_version_string} | awk -F. '{ ver=$1"."$2; print (ver == "0.0") ? "main" : "release/"ver }')
           else
-            branch_version="$branch_version_string"
+            branch_name="release/$branch_version_string"
           fi
-          if [[ "$branch_version" == "0.0" ]] ; then
-            branch_name="main"
-          else
-            branch_name="release/${branch_version}"
-          fi
+
           repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
@@ -152,7 +148,7 @@ jobs:
             if [[ "$branch_name" == "main" ]] ; then
               echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
             else
-              echo swift_tag=swift-"$branch_version"-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+              echo swift_tag=swift-"$branch_version_string"-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
             fi
           fi
 
