@@ -11,18 +11,29 @@ the `swift-build` release branch is created.
 
 The swift-toolchain workflow needs to be updated once a new branch is created.
 
-Firstly, the branch that the `repo` tool uses should be updated. The repo tool checks
-out the Swift repos from the manifest provided in the XML file. This line
-in the workflow YAML file sets it up:
+Firstly, the branch that the `repo` tool uses is inferred from the Swift version given to the 
+github action. The repo tool checks
+out the Swift repos from the manifest provided in the XML file. These lines
+specify the Swift version passed to the Github action:
 
 ```cmd
-repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b main
+      swift_version:
+        description: 'Swift Version'
+        default: '0.0.0'
+        required: false
+        type: string
 ```
 
-The new branch should instead point to itself instead of `main`, e.g. for `release/5.10`:
+Instead of the the '0.0.0', the default should be changed to the version that's
+used by the release branch. For instance, for the 5.10 Swift release the default
+should be set to '5.10.0':
 
 ```cmd
-repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b release/5.10
+      swift_version:
+        description: 'Swift Version'
+        default: '5.10.0'
+        required: false
+        type: string
 ```
 
 Then, the `repo` tool manifest should be updated. It's specified in the `default.xml` file.
@@ -37,7 +48,6 @@ This should be changed to appropriate release default, e.g. `release/5.10`.
 Certain other repos need a different default. For example, llvm-project uses
 the `swift/release/5.10` convention instead, and thus it has to be specified
 manually in the repo reference item, so for the 5.10 release it should look like:
-
 ```xml
 <project remote="github" name="apple/llvm-project" path="llvm-project" revision="swift/release/5.10" />
 ```
