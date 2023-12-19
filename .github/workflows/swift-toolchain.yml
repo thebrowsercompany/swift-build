@@ -75,7 +75,15 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update -yq
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
 
-          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build
+          # Which branch is this workflow based on
+          branch_version_string=${{ github.event.inputs.swift_version || '0.0.0' }}
+          if [[ $branch_version_string == *.* ]]; then
+            branch_name=$(echo ${branch_version_string} | awk -F. '{ ver=$1"."$2; print (ver == "0.0") ? "main" : "release/"ver }')
+          else
+            branch_name="release/$branch_version_string"
+          fi
+
+          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
           if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
@@ -139,13 +147,17 @@ jobs:
           if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
             echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
           else
-            echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            if [[ "$branch_name" == "main" ]] ; then
+              echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            else
+              echo swift_tag=swift-"$branch_version_string"-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            fi
           fi
 
           echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
           echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: stable.xml
           path: stable.xml
@@ -208,7 +220,7 @@ jobs:
       - name: Install SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 --target install
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: sqlite-${{ matrix.arch }}-3.43.2
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
@@ -268,7 +280,7 @@ jobs:
       - name: Build ICU Tools
         run: cmake --build ${{ github.workspace }}/BinaryCache/icu-tools-69.1
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: icu-tools-69.1
           path: |
@@ -298,7 +310,7 @@ jobs:
             BUILD_TOOLS: YES
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: icu-tools-69.1
           path: ${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin
@@ -356,7 +368,7 @@ jobs:
       - name: Install ICU
         run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1 --target install
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: icu-${{ matrix.arch }}-69.1
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
@@ -460,7 +472,7 @@ jobs:
       - name: Build swift-compatibility-symbols
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target swift-compatibility-symbols
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: build-tools
           path: |
@@ -495,7 +507,7 @@ jobs:
             triple: 'aarch64-unknown-windows-msvc'
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: build-tools
           path: ${{ github.workspace }}/BinaryCache/0/bin
@@ -677,7 +689,7 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
 
       - name: Upload Compilers
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: compilers-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
@@ -695,13 +707,13 @@ jobs:
           Copy-Item -Path $module -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules"
 
       - name: Upload swift-syntax
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: swift-syntax-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: false # ${{ needs.context.outputs.debug_info }}
         with:
           name: compilers-${{ matrix.arch }}-debug-info
@@ -766,7 +778,7 @@ jobs:
       - name: Install zlib
         run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.3 --target install
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: zlib-${{ matrix.arch }}-1.3
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
@@ -788,7 +800,7 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/curl
           show-progress: false
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: zlib-${{ matrix.arch }}-1.3
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
@@ -904,7 +916,7 @@ jobs:
       - name: Install curl
         run: cmake --build ${{ github.workspace }}/BinaryCache/curl-7.77.0 --target install
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: curl-${{ matrix.arch }}-7.77.0
           path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
@@ -966,7 +978,7 @@ jobs:
       - name: Install libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.11.5 --target install
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: libxml2-${{ matrix.arch }}-2.11.5
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
@@ -993,24 +1005,24 @@ jobs:
             triple: 'i686-unknown-windows-msvc'
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: icu-${{ matrix.arch }}-69.1
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: libxml2-${{ matrix.arch }}-2.11.5
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: curl-${{ matrix.arch }}-7.77.0
           path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: zlib-${{ matrix.arch }}-1.3
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
       - name: Download Compilers
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
@@ -1282,7 +1294,7 @@ jobs:
               # runtime.
               plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
@@ -1311,26 +1323,26 @@ jobs:
             triple: 'aarch64-unknown-windows-msvc'
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: sqlite-${{ matrix.arch }}-3.43.2
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
       - name: Download Compilers
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: windows-sdk-amd64
           path: ${{ github.workspace }}/BinaryCache
       - name: Download SDK
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - name: Downlaod swift-syntax
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: swift-syntax-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
@@ -1870,7 +1882,7 @@ jobs:
       - name: Install SourceKit-LSP
         run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp --target install
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot-DevTools/Library
@@ -1894,11 +1906,11 @@ jobs:
 
     steps:
       - name: Download Compilers
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: compilers-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
@@ -1981,28 +1993,28 @@ jobs:
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/ide.wixproj
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: bld-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.cab
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.cab
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: dbg-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.cab
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ide-${{ matrix.arch }}-msi
           path: |
@@ -2026,7 +2038,7 @@ jobs:
             platform: x86
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
@@ -2080,19 +2092,19 @@ jobs:
               -p:VCRedistDir="${env:VCToolsRedistDir}\${env:VSCMD_ARG_TGT_ARCH}\Microsoft.VC143.CRT\" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: sdk-windows-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.${{ matrix.arch }}.cab
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: rtl-windows-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: rtl-windows-${{ matrix.arch }}-msm
           path: |
@@ -2109,49 +2121,49 @@ jobs:
         arch: ['amd64' , 'arm64']
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: bld-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: cli-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: dbg-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ide-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-amd64-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/amd64
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-x86-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/x86
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-arm64-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: sdk-windows-amd64-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/amd64
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: sdk-windows-x86-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/x86
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: sdk-windows-arm64-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
@@ -2207,7 +2219,7 @@ jobs:
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
@@ -2217,7 +2229,7 @@ jobs:
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: installer-amd64
           path: ${{ github.workspace }}/tmp
@@ -2279,7 +2291,7 @@ jobs:
           ref: refs/heads/main
           show-progress: false
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: stable.xml
 
@@ -2297,12 +2309,12 @@ jobs:
     needs: [context, smoke_test]
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: installer-amd64
           path: ${{ github.workspace }}/tmp/amd64
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: installer-arm64
           path: ${{ github.workspace }}/tmp/arm64
