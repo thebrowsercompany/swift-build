@@ -98,7 +98,8 @@ If you wish to sync to a point that is known to build successfull, you can use t
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -s
 ```
 
-> **NOTE:** the first clone will fail if you do not have git-lfs.  The failure is due to the inability to checkout the ICU data which is stored using LFS, but is not fatal in practice.
+> [!NOTE]
+> The first clone will fail if you do not have git-lfs. The failure is due to the inability to checkout the ICU data which is stored using LFS, but is not fatal in practice.
 
 ## Building
 
@@ -118,8 +119,8 @@ the locally built toolchain without installing with the distribution packaging,
 you will need to manually configure the enviornment everytime you wish to use
 the toolchain.
 
-> **NOTE:** DO NOT add this to your environment by default.  The normal
-> toolchain build will not function properly with the environment configuration.
+> [!CAUTION]
+> **DO NOT** add this to your environment by default.  The normal toolchain build will not function properly with the environment configuration.
 
 ```cmd
 set SDKROOT=S:\Program Files\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
