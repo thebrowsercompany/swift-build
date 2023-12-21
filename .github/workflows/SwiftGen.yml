@@ -1,0 +1,105 @@
+name: SwiftGen
+
+on:
+  workflow_dispatch:
+    inputs:
+      libxml2_revision:
+        description: 'Revision of libxml2'
+        default: refs/tags/v2.9.12
+        type: string
+        required: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        include:
+          - branch: development
+            tag: DEVELOPMENT-SNAPSHOT-2023-07-23-a
+
+    steps:
+      # Build
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          path: ${{ github.workspace }}/SourceCache/SwiftGen
+          ref: refs/heads/compnerd/windows
+          repository: thebrowsercompany/SwiftGen
+
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: ${{ matrix.branch }}
+          tag: ${{ matrix.tag }}
+
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - uses: actions/checkout@v3
+        with:
+          repository: gnome/libxml2
+          ref: github.event.inputs.libxml2_revision
+          path: ${{ github.workspace }}/SourceCache/libxml2
+
+      - name: Configure libxml2
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/libxml2 `
+                -D BUILD_SHARED_LIBS=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zi /Zc:inline /Zc:preprocessor /Zc:__cplusplus" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/libxml2 `
+                -D LIBXML2_WITH_ICONV=NO `
+                -D LIBXML2_WITH_ICU=NO `
+                -D LIBXML2_WITH_LZMA=NO `
+                -D LIBXML2_WITH_PYTHON=NO `
+                -D LIBXML2_WITH_TESTS=NO `
+                -D LIBXML2_WITH_THREADS=YES `
+                -D LIBXML2_WITH_ZLIB=NO
+      - name: Build libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12
+      - name: Install libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-2.9.12 --target install
+
+      # TODO(compnerd) this requires linker main renaming which is not supported
+      # - name: test
+      #   run: swift test
+
+      - name: build
+        run: swift build -debug-info-format none -c release --package-path ${{ github.workspace }}/SourceCache/SwiftGen --scratch-path ${{ github.workspace }}/BinaryCache/SwiftGen -Xcc -I${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/include -Xcc -I${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/include/libxml2 -Xlinker -L${{ github.workspace }}/BuildRoot/Library/libxml2-2.9.12/usr/lib
+
+      # Package
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          ref: ${{ env.GITHUB_REF }}
+          path: ${{ github.workspace }}/SourceCache/swift-build
+
+      - uses: microsoft/setup-msbuild@v1.3.1
+
+      - name: package
+        run: msbuild ${{ github.workspace }}/SourceCache/swift-build/platforms/Windows/SwiftGen.wixproj -nologo -restore -p:Configuration=Release -p:SWIFT_GEN_BUILD=${{ github.workspace }}\BinaryCache\SwiftGen\x86_64-unknown-windows-msvc\release -p:OutputPath=${{ github.workspace }}\BinaryCache\artifacts -p:RunWixToolsOutOfProc=true
+
+      # Release
+      - run: |
+          $BINARY_CACHE = cygpath -m ${{ github.workspace }}\BinaryCache
+          Write-Output "BINARY_CACHE=${BINARY_CACHE}" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          prerelease: true
+          name: SwiftGen-${{ matrix.tag }}
+          tag_name: SwiftGen-${{ matrix.tag }}
+          files: |
+            ${{ env.BINARY_CACHE }}/SwiftLint/x86_64-unknown-windows-msvc/release/swiftgen.exe
+            ${{ env.BINARY_CACHE }}/artifacts/SwiftGen.msi

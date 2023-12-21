@@ -1,0 +1,41 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Language="1033"
+      Manufacturer="SwiftGen"
+      Name="SwiftGen"
+      UpgradeCode="22c50d86-26c6-4eea-b2f3-1d340d35ab27"
+      Version="$(ProductVersion)"
+      Scope="perMachine">
+    <SummaryInformation Description="SwiftGen" />
+
+    <MediaTemplate CabinetTemplate="tmpl{0}.cab" EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ManufacturerFolder" Name="SwiftGen">
+        <Directory Id="INSTALLDIR" Name="SwiftGen">
+          <Directory Id="_usr" Name="usr">
+            <Directory Id="_usr_bin" Name="bin" />
+          </Directory>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <Component Id="swiftgen.exe" Directory="_usr_bin">
+      <File Source="$(SWIFT_GEN_BUILD)\swiftgen.exe" />
+    </Component>
+
+    <ComponentGroup Id="EnvironmentVariables">
+      <Component Id="SystemEnvironmentVariables" Condition="ALLUSERS=1" Directory="INSTALLDIR" Guid="e1887693-0026-4317-9b84-6c141a0e690a">
+        <Environment Id="SystemPath" Action="set" Name="Path" Part="last" Permanent="no" System="yes" Value="[_usr_bin]" />
+      </Component>
+      <Component Id="UserEnvironmentVariables" Condition="NOT ALLUSERS=1" Directory="INSTALLDIR" Guid="b86be6dc-8ac2-4cff-9414-466a3028a0a0">
+        <Environment Id="UserPath" Action="set" Name="Path" Part="last" Permanent="no" System="no" Value="[_usr_bin]" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="SwiftGen" AllowAbsent="no" Description="Templating Tool for Swift" Title="SwiftGen">
+      <ComponentRef Id="swiftgen.exe" />
+      <ComponentGroupRef Id="EnvironmentVariables" />
+    </Feature>
+  </Package>
+</Wix>
