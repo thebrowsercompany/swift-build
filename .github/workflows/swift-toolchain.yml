@@ -23,6 +23,10 @@ on:
         description: 'Emit PDBs (Debug Info)'
         default: true
         type: boolean
+      signed:
+        description: 'Code Sign'
+        default: false
+        type: boolean
 
 env:
   SCCACHE_DIRECT: yes
@@ -63,6 +67,7 @@ jobs:
       CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}
       CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
       debug_info: ${{ steps.context.outputs.debug_info }}
+      signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
       windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
@@ -141,6 +146,13 @@ jobs:
             echo CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+          fi
+
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.signed }}" == "true" ]]; then
+            # FIXME(compnerd) enable this when requested
+            echo signed=false >> ${GITHUB_OUTPUT}
+          else
+            echo signed=false >> ${GITHUB_OUTPUT}
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
@@ -386,27 +398,9 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-cmark
-          ref: ${{ needs.context.outputs.swift_cmark_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-cmark
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
           repository: apple/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-syntax
-          ref: ${{ needs.context.outputs.swift_syntax_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-syntax
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-corelibs-libdispatch
-          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -435,24 +429,25 @@ jobs:
                 -D LLVM_ENABLE_LIBEDIT=NO `
                 -D LLVM_ENABLE_LIBXML2=NO `
                 -D LLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lldb" `
-                -D LLVM_EXTERNAL_PROJECTS="cmark;swift" `
-                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
+                -D LLVM_EXTERNAL_PROJECTS="swift" `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
                 -D LLDB_ENABLE_PYTHON=NO `
                 -D LLDB_INCLUDE_TESTS=NO `
                 -D LLDB_ENABLE_SWIFT_SUPPORT=NO `
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_HOST_DISPATCH=NO `
                 -D SWIFT_BUILD_LIBEXEC=NO `
+                -D SWIFT_BUILD_REGEX_PARSER_IN_COMPILER=NO `
                 -D SWIFT_BUILD_REMOTE_MIRROR=NO `
                 -D SWIFT_BUILD_SOURCEKIT=NO `
                 -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_STATIC_STDLIB=NO `
+                -D SWIFT_BUILD_SWIFT_SYNTAX=NO `
+                -D SWIFT_ENABLE_DISPATCH=NO `
                 -D SWIFT_INCLUDE_APINOTES=NO `
                 -D SWIFT_INCLUDE_DOCS=NO `
-                -D SWIFT_INCLUDE_TESTS=NO `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax
+                -D SWIFT_INCLUDE_TESTS=NO
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
       - name: Build clang-tblgen
@@ -1934,13 +1929,14 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       - name: Package Build Tools
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -1954,7 +1950,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -1969,7 +1965,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -1984,7 +1980,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -2062,13 +2058,14 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       - name: Package SDK
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
@@ -2082,7 +2079,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
@@ -2187,6 +2184,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
@@ -2195,7 +2193,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -2208,7 +2206,7 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:BundleFlavor=offline `
