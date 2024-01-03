@@ -23,6 +23,10 @@ on:
         description: 'Emit PDBs (Debug Info)'
         default: true
         type: boolean
+      signed:
+        description: 'Code Sign'
+        default: false
+        type: boolean
 
 env:
   SCCACHE_DIRECT: yes
@@ -63,6 +67,7 @@ jobs:
       CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}
       CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
       debug_info: ${{ steps.context.outputs.debug_info }}
+      signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
       windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
@@ -141,6 +146,13 @@ jobs:
             echo CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+          fi
+
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.signed }}" == "true" ]]; then
+            # FIXME(compnerd) enable this when requested
+            echo signed=false >> ${GITHUB_OUTPUT}
+          else
+            echo signed=false >> ${GITHUB_OUTPUT}
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
@@ -1934,19 +1946,20 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       - name: Package Build Tools
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/bld.wixproj
 
       - name: Package CLI Tools
@@ -1954,14 +1967,14 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:SWIFT_FORMAT_BUILD=false `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/cli.wixproj
 
       - name: Package Debugging Tools
@@ -1969,14 +1982,14 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:SWIFT_INSPECT_BUILD=false `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/dbg.wixproj
 
       - name: Package IDE Tools
@@ -1984,13 +1997,13 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/ide.wixproj
 
       - uses: actions/upload-artifact@v4
@@ -2062,19 +2075,20 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       - name: Package SDK
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk/sdk.wixproj
 
       - name: Package Runtime
@@ -2082,14 +2096,14 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:VCRedistDir="${env:VCToolsRedistDir}\${env:VSCMD_ARG_TGT_ARCH}\Microsoft.VC143.CRT\" `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
 
       - uses: actions/upload-artifact@v4
@@ -2187,6 +2201,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
@@ -2195,11 +2210,11 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
       - name: Build installer bundle
@@ -2208,15 +2223,15 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
-              -p:SignOutput=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:BundleFlavor=offline `
               -p:INCLUDE_AMD64_SDK=true `
               -p:INCLUDE_X86_SDK=true `
               -p:INCLUDE_ARM64_SDK=true `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - uses: actions/upload-artifact@v4
