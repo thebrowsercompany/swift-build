@@ -21,6 +21,10 @@ on:
         description: 'Emit PDBs (Debug Info)'
         default: false
         type: boolean
+      signed:
+        description: 'Code Sign'
+        default: false
+        type: boolean
 
 env:
   SCCACHE_DIRECT: yes
@@ -61,6 +65,7 @@ jobs:
       CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}
       CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
       debug_info: ${{ steps.context.outputs.debug_info }}
+      signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
       windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
@@ -139,6 +144,13 @@ jobs:
             echo CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+          fi
+
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.signed }}" == "true" ]]; then
+            # FIXME(compnerd) enable this when requested
+            echo signed=false >> ${GITHUB_OUTPUT}
+          else
+            echo signed=false >> ${GITHUB_OUTPUT}
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
@@ -1915,13 +1927,14 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       - name: Package Build Tools
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -1935,7 +1948,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -1950,7 +1963,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -1965,7 +1978,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -2041,15 +2054,16 @@ jobs:
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
           $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil -decode $CertificatePath $PFXPath
-          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+          certutil.exe -decode $CertificatePath $PFXPath
+          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       - name: Package SDK
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
@@ -2063,7 +2077,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
@@ -2168,6 +2182,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
@@ -2176,7 +2191,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -2189,7 +2204,7 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
-              -p:SignOutput=true `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:BundleFlavor=offline `
