@@ -384,27 +384,9 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-cmark
-          ref: ${{ needs.context.outputs.swift_cmark_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-cmark
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
           repository: apple/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-syntax
-          ref: ${{ needs.context.outputs.swift_syntax_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-syntax
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-corelibs-libdispatch
-          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
 
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -433,24 +415,25 @@ jobs:
                 -D LLVM_ENABLE_LIBEDIT=NO `
                 -D LLVM_ENABLE_LIBXML2=NO `
                 -D LLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lldb" `
-                -D LLVM_EXTERNAL_PROJECTS="cmark;swift" `
-                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
+                -D LLVM_EXTERNAL_PROJECTS="swift" `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
                 -D LLDB_ENABLE_PYTHON=NO `
                 -D LLDB_INCLUDE_TESTS=NO `
                 -D LLDB_ENABLE_SWIFT_SUPPORT=NO `
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
+                -D SWIFT_BUILD_HOST_DISPATCH=NO `
                 -D SWIFT_BUILD_LIBEXEC=NO `
+                -D SWIFT_BUILD_REGEX_PARSER_IN_COMPILER=NO `
                 -D SWIFT_BUILD_REMOTE_MIRROR=NO `
                 -D SWIFT_BUILD_SOURCEKIT=NO `
                 -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_STATIC_STDLIB=NO `
+                -D SWIFT_BUILD_SWIFT_SYNTAX=NO `
+                -D SWIFT_ENABLE_DISPATCH=NO `
                 -D SWIFT_INCLUDE_APINOTES=NO `
                 -D SWIFT_INCLUDE_DOCS=NO `
-                -D SWIFT_INCLUDE_TESTS=NO `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax
+                -D SWIFT_INCLUDE_TESTS=NO
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
       - name: Build clang-tblgen
