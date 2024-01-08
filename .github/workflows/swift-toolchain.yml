@@ -25,6 +25,33 @@ on:
         description: 'Code Sign'
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      snapshot:
+        description: 'Build Swift at a tagged snapshot'
+        default: false
+        type: boolean
+      swift_version:
+        description: 'Swift Version'
+        default: '0.0.0'
+        required: false
+        type: string
+
+      debug_info:
+        description: 'Emit PDBs (Debug Info)'
+        default: true
+        type: boolean
+      signed:
+        description: 'Code Sign'
+        default: false
+        type: boolean
+    secrets:
+      SYMBOL_SERVER_PAT:
+        required: true
+      CERTIFICATE:
+        required: true
+      PASSPHRASE:
+        required: true
 
 env:
   SCCACHE_DIRECT: yes
@@ -79,7 +106,7 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
 
           # Which branch is this workflow based on
-          branch_version_string=${{ github.event.inputs.swift_version || '0.0.0' }}
+          branch_version_string=${{ inputs.swift_version || '0.0.0' }}
           if [[ $branch_version_string == *.* ]]; then
             branch_name=$(echo ${branch_version_string} | awk -F. '{ ver=$1"."$2; print (ver == "0.0") ? "main" : "release/"ver }')
           else
@@ -89,29 +116,29 @@ jobs:
           repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
-          if [[ "${{ github.event.inputs.snapshot }}" == "true" ]] ; then
+          if [[ "${{ inputs.snapshot }}" == "true" ]] ; then
             tee -a "${GITHUB_OUTPUT}" <<-EOF
-          indexstore_db_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          llvm_project_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          sourcekit_lsp_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          swift_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+          indexstore_db_revision=refs/tags/${{ inputs.swift_tag }}
+          llvm_project_revision=refs/tags/${{ inputs.swift_tag }}
+          sourcekit_lsp_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_revision=refs/tags/${{ inputs.swift_tag }}
           swift_argument_parser_revision=refs/tags/1.2.2
           swift_asn1_revision=refs/tags/0.7.0
           swift_certificates_revision=refs/tags/0.1.0
-          swift_cmark_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+          swift_cmark_revision=refs/tags/${{ inputs.swift_tag }}
           swift_collections_revision=refs/tags/1.0.4
-          swift_corelibs_foundation_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          swift_corelibs_libdispatch_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          swift_corelibs_xctest_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+          swift_corelibs_foundation_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_corelibs_libdispatch_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_corelibs_xctest_revision=refs/tags/${{ inputs.swift_tag }}
           swift_crypto_revision=refs/tags/2.4.0
-          swift_driver_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          swift_experimental_string_processing_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+          swift_driver_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_experimental_string_processing_revision=refs/tags/${{ inputs.swift_tag }}
           swift_installer_scripts_revision=refs/heads/main
-          swift_llbuild_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          swift_package_manager_revision=refs/tags/${{ github.event.inputs.swift_tag }}
-          swift_syntax_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+          swift_llbuild_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_package_manager_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_syntax_revision=refs/tags/${{ inputs.swift_tag }}
           swift_system_revision=refs/tags/1.1.1
-          swift_tools_support_core_revision=refs/tags/${{ github.event.inputs.swift_tag }}
+          swift_tools_support_core_revision=refs/tags/${{ inputs.swift_tag }}
           curl_revision=refs/tags/curl-8_4_0
           libxml2_revision=refs/tags/v2.11.5
           yams_revision=refs/tags/5.0.4
@@ -130,7 +157,7 @@ jobs:
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o - | sed -E 's,[[:space:]]+$,,' > stable.xml
           fi
 
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.debug_info }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.debug_info }}" == "true" ]]; then
             echo debug_info=true >> ${GITHUB_OUTPUT}
             echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
             echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
@@ -146,16 +173,16 @@ jobs:
             echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
           fi
 
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.signed }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.signed }}" == "true" ]]; then
             # FIXME(compnerd) enable this when requested
             echo signed=false >> ${GITHUB_OUTPUT}
           else
             echo signed=false >> ${GITHUB_OUTPUT}
           fi
 
-          echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
-          if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
-            echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
+          echo swift_version=${{ inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
+          if [[ -n "${{ inputs.swift_tag }}" ]] ; then
+            echo swift_tag=${{ inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
           else
             if [[ "$branch_name" == "main" ]] ; then
               echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
