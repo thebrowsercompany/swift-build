@@ -54,3 +54,19 @@ manually in the repo reference item, so for the 5.10 release it should look like
 
 You can look at the `default.xml` file in the prior release branch to see which repos need to follow
 custom conventions instead of using the default release branch name.
+
+## Release workflow update
+
+THe release-swift-toolchain-schedule workflow needs to be updated once a new release branch is
+created, to ensure that new releases are being built continously automatically for it.
+You can do that by updating the `release-switch-toolchain-schedule.yml` file, and add a new
+job that invokes the `swift-toolchain.yml` workflow for the specified release branch.
+For instance, for a 5.10 release, you can add the following entry to the `jobs` section
+of the `release-swift-toolchain-schedule.yml` file:
+
+```
+  build-release-5_10:
+    uses: compnerd/swift-build/.github/workflows/swift-toolchain.yml@release/5.10
+    secrets:
+      ...
+```
