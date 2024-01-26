@@ -412,11 +412,75 @@ jobs:
           name: icu-${{ matrix.arch }}-69.1
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
 
-  build_tools:
+  cmark_gfm:
     needs: [context]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['amd64', 'arm64']
+
     steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-cmark
+          ref: ${{ needs.context.outputs.swift_cmark_revision }}
+          path: ${{ github.workspace }}/SourceCache/cmark-gfm
+          show-progress: false
+
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Setup sccache
+        uses: compnerd/ccache-action@sccache-0.7.4
+        with:
+          max-size: 1M
+          key: sccache-windows-${{ matrix.arch }}-cmark-gfm
+          variant: sccache
+
+      - name: Configure cmark-gfm
+        run: >
+          cmake -B ${{ github.workspace }}/BinaryCache/cmark-gfm-0.29.0.gfm.13 `
+                -D BUILD_SHARED_LIBS=NO `
+                -D BUILD_TESTING=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
+                -D CMAKE_C_COMPILER_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_MT=mt `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr `
+                -D CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP=YES `
+                -S ${{ github.workspace }}/SourceCache/cmark-gfm `
+                -G Ninja
+      - name: Build cmark-gfm
+        run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-0.29.0.gfm.13
+      - name: Install cmark-gfm
+        run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-0.29.0.gfm.13 --target install
+      - name: Adjust Layout
+        run: |
+          Copy-Item -Path "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake/cmark-gfm.cmake" -Destination "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake/cmark-gfm-config.cmake"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cmark-gfm-${{ matrix.arch }}-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
+
+  build_tools:
+    needs: [context, cmark_gfm]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-amd64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
+
       - uses: actions/checkout@v4
         with:
           repository: apple/llvm-project
@@ -450,6 +514,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
+                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
                 -D LLVM_ENABLE_ASSERTIONS=NO `
@@ -509,8 +574,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols.exe
 
   compilers:
+    needs: [context, build_tools, cmark_gfm]
     runs-on: ${{ needs.context.outputs.compilers_build_runner }}
-    needs: [context, build_tools]
 
     env:
       # Must be a full version string from https://www.nuget.org/packages/pythonarm64
@@ -533,18 +598,16 @@ jobs:
         with:
           name: build-tools
           path: ${{ github.workspace }}/BinaryCache/0/bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-${{ matrix.arch }}-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - uses: actions/checkout@v4
         with:
           repository: apple/llvm-project
           ref: ${{ needs.context.outputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-cmark
-          ref: ${{ needs.context.outputs.swift_cmark_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-cmark
           show-progress: false
       - uses: actions/checkout@v4
         with:
@@ -668,7 +731,6 @@ jobs:
                 -D LLDB_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe `
                 -D LLVM_CONFIG_PATH=${{ github.workspace }}/BinaryCache/0/bin/llvm-config.exe `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
-                -D LLVM_EXTERNAL_CMARK_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift-cmark `
                 -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
                 -D LLVM_TABLEGEN=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe `
                 -D LLVM_USE_HOST_TOOLS=NO `
@@ -691,6 +753,7 @@ jobs:
                 -D SWIFT_PATH_TO_SWIFT_SDK="${SDKROOT}" `
                 -D CLANG_VENDOR=compnerd.org `
                 -D CLANG_VENDOR_UTI=org.compnerd.dt `
+                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake `
                 -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
                 -D LLVM_PARALLEL_LINK_JOBS=8 `
