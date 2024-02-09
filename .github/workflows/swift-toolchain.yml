@@ -1,4 +1,4 @@
-name: swift-toolchain
+name: Development Snapshot
 
 on:
   schedule:
@@ -2512,30 +2512,12 @@ jobs:
           name: installer-arm64
           path: ${{ github.workspace }}/tmp/arm64
 
-      - uses: actions/create-release@v1
+      - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        id: create_release
-        with:
-          draft: false
-          prerelease: false
-          release_name: ${{ needs.context.outputs.swift_tag }}
-          tag_name: ${{ needs.context.outputs.swift_tag }}
-
-      - uses: actions/upload-release-asset@v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_content_type: application/octet-stream
-          asset_name: installer-amd64.exe
-          asset_path: ${{ github.workspace }}/tmp/amd64/installer.exe
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-
-      - uses: actions/upload-release-asset@v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_content_type: application/octet-stream
-          asset_name: installer-arm64.exe
-          asset_path: ${{ github.workspace }}/tmp/arm64/installer.exe
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+        run: |
+          gh release create ${{ needs.context.outputs.swift_tag }} -t ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }}
+          cd ${{ github.workspace }}/tmp/amd64
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer.exe%#%installer-amd64.exe -R ${{ needs.context.outputs.swift_tag }}
+          cd ${{ github.workspace }}/tmp/arm64
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer.exe%#%installer-arm64.exe -R ${{ needs.context.outputs.swift_tag }}
