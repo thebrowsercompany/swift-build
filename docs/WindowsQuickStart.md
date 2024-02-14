@@ -110,6 +110,25 @@ will perform a build and package of the toolchain.
 S:\SourceCache\swift\utils\build.cmd
 ```
 
+### Building for local debugging and testing
+
+Additional `-DebugInfo` build script flag is required to build to build the toolchain with
+debug information. For example, the following script invocation
+will build the toolchain with PDB debug information, and will also skip the
+installer packaging, which is rarely needed for local development.
+
+```
+S:\SourceCache\swift\utils\build.cmd -DebugInfo -SkipPackaging
+```
+
+The `-Test` flag can be used to build the tests for a toolchain component. For instance,
+the following script invocation will ensure that the test targets for all components
+that support testing are built:
+
+```
+S:\SourceCache\swift\utils\build.cmd -DebugInfo -SkipPackaging -Test '*'
+```
+
 ## Using the Toolchain
 
 ### Environment Setup
