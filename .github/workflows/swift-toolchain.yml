@@ -54,6 +54,7 @@ on:
         required: true
       PASSPHRASE:
         required: true
+  pull_request:
 
 env:
   SCCACHE_DIRECT: yes
@@ -197,8 +198,21 @@ jobs:
             fi
           fi
 
-          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
+          compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}
+          # Automatically add suffixes.
+          if [[ "$windows_build_runner" =~ "cirun-" ]]; then
+            windows_build_runner=${windows_build_runner}--${{github.run_id}}
+          fi
+          if [[ "$compilers_build_runner" =~ "cirun-" ]]; then
+            compilers_build_runner=${compilers_build_runner}--${{github.run_id}}
+          fi
+          #echo windows_build_runner=$windows_build_runner >> ${GITHUB_OUTPUT}
+          #echo compilers_build_runner=$compilers_build_runner >> ${GITHUB_OUTPUT}
+          #echo windows_build_runner=cirun-win11-x64-8--${{github.run_id}} >> ${GITHUB_OUTPUT}
+          #echo compilers_build_runner=cirun-win11-x64-64--${{github.run_id}} >> ${GITHUB_OUTPUT}
+          echo windows_build_runner=LogicalCores64 >> ${GITHUB_OUTPUT}
+          echo compilers_build_runner=LogicalCores64 >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         with:
