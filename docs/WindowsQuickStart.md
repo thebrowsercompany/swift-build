@@ -1,17 +1,20 @@
 # Building the toolchain on Windows
 
 Visual Studio 2022 is required to build Swift on Windows; any edition is fine.
-Visual Studio 2017 should be possible to use, though it may require some
-additional work to repair the build.  Visual Studio 2019 can be used to build,
+Visual Studio 2017 can work, though it may require some additional work to
+repair the build.  Visual Studio 2019 can be used to build,
 though some of the automation will need to be adjusted for paths.
 
 ## Preflight
 
 ### Visual Studio
 
-Installing Visual Studio can be done manually or in an unattended manner.  The
-following snippet installs the necessary components of Visual Studio 2022 in an
-automated fashion.
+Installing Visual Studio can be done manually or in an unattended manner.
+
+The GUI installer can be downloaded [here](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community&channel=Release&version=VS2022&source=VSLandingPage&cid=3600&passive=false) for further customisation.
+
+The following snippet installs the necessary components of Visual Studio 2022 in
+an automated fashion.
 
 ```cmd
 curl.exe -sOL https://aka.ms/vs/17/release/vs_community.exe
@@ -30,6 +33,10 @@ del /q vs_community.exe
 ```
 
 ### Enable Symbolic Links Support
+
+Symbolic links basically work as shortcuts within your file system. They point to
+another existing file or directory, creating a convenient reference which is
+used in some of the repos.
 
 Grant your user the `SeCreateSymbolicLinkPrivilege` rights.  This can be done by
 applying a Group Policy Object to the system.  Run `gpedit.msc` and navigate to
