@@ -2490,23 +2490,9 @@ jobs:
       - name: SourceKit Validation
         id: sourcekit-validation
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
-        continue-on-error: true
         run: |
-          $diagnosticOutput = $( $output = & Get-Content ${{ github.workspace }}/tests/sourcekit-lsp-initialization-message | sourcekit-lsp.exe ) 2>&1
-          if (-not ($diagnosticOutput -Match "Succeeded") -or -not ($diagnosticOutput -Match "InitializeResult")) {
-            Write-Host "sourcekit-lsp failed to initialize"
-            Write-Host $diagnosticOutput
-            echo "failed=true" >> $GITHUB_OUTPUT
-          } else {
-            echo "failed=false" >> $GITHUB_OUTPUT
-          }
-      
-      - name: SourceKit Validation Check
-        run: |
-          if (${{ steps.sourcekit-validation.outputs.failed == 'true' }}) {
-            Write-Host "sourcekit-lsp failed to initialize"
-            exit 1
-          }
+          $SourcekitLspPath = (Resolve-Path sourcekit-lsp.exe).Path
+          powershell.exe -File ${{ github.workspace }}/tests/sourcekit-lsp/initialization-test.ps1 -PathToSourcekitLsp $SourcekitLspPath
 
   snapshot:
     runs-on: ubuntu-latest
