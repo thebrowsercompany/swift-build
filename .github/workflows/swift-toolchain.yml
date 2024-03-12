@@ -610,8 +610,7 @@ jobs:
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
           host_arch: amd64
-          toolset_version: 14.37.32822
-          components: 'Microsoft.VisualStudio.Component.VC.14.37.17.7.x86.x64;Microsoft.VisualStudio.Component.VC.14.37.17.7.ARM64'
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
       - name: Install Swift Toolchain
@@ -621,23 +620,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-amd64.exe
           release-tag-name: '20231016.0'
-
-      - name: Workaround MSVC#10444970
-        if: matrix.arch == 'arm64'
-        run: |
-          $clangTooling = "${{ github.workspace }}/SourceCache/llvm-project/clang/lib/Tooling/Inclusions/Stdlib/CMakeLists.txt"
-          Set-Content $clangTooling @"
-          $(Get-Content -Raw $clangTooling)
-          set_source_files_properties(StandardLibrary.cpp PROPERTIES
-            COMPILE_FLAGS "/Od /Gw /Oi /Oy /Gw /Ob2 /Ot /GF")
-          "@
-
-          $clangCodeGen = "${{ github.workspace }}/SourceCache/llvm-project/clang/lib/CodeGen/CMakeLists.txt"
-          Set-Content $clangCodeGen @"
-          $(Get-Content -Raw $clangCodeGen)
-          set_source_files_properties(CGBuiltin.cpp PROPERTIES
-            COMPILE_FLAGS "/Od /Gw /Oi /Oy /Gw /Ob2 /Ot /GF")
-          "@
 
       - name: Setup sccache
         uses: compnerd/ccache-action@sccache-0.7.4
