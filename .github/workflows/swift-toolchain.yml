@@ -795,12 +795,22 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/1/**/*.pdb
 
-      - uses: microsoft/action-publish-symbols@v2.1.6
+      - name: Upload PDBs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
         if: ${{ needs.context.outputs.debug_info }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
+
+      - name: Upload DLLs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ needs.context.outputs.debug_info }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/1
+          searchPattern: '**/*.dll'
 
   zlib:
     needs: [context]
