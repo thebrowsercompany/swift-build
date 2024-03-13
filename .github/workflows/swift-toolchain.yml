@@ -81,6 +81,7 @@ on:
 
 env:
   SCCACHE_DIRECT: yes
+  ANDROID_API_LEVEL: 28
 
 jobs:
   context:
@@ -115,6 +116,7 @@ jobs:
       swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
       yams_revision: ${{ steps.context.outputs.yams_revision }}
       zlib_revision: ${{ steps.context.outputs.zlib_revision }}
+      ANDROID_API_LEVEL: ${{ steps.context.outputs.ANDROID_API_LEVEL }}
       CMAKE_C_FLAGS: ${{ steps.context.outputs.CMAKE_C_FLAGS }}
       CMAKE_CXX_FLAGS: ${{ steps.context.outputs.CMAKE_CXX_FLAGS }}
       CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.CMAKE_EXE_LINKER_FLAGS }}
@@ -228,6 +230,8 @@ jobs:
           echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
           echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
 
+          echo ANDROID_API_LEVEL=${{ env.ANDROID_API_LEVEL }} >> ${GITHUB_OUTPUT}
+
       - uses: actions/upload-artifact@v4
         with:
           name: stable.xml
@@ -241,7 +245,64 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ['amd64', 'arm64', 'x86']
+        include:
+          - arch: amd64
+            cc: cl
+            cflags: ${{ needs.context.outputs.CMAKE_C_FLAGS }}
+            cxx: cl
+            cxxflags: ${{ needs.context.outputs.CMAKE_C_FLAGS }}
+            os: Windows
+            extra_flags: 
+
+          - arch: arm64
+            cc: cl
+            cflags: ${{ needs.context.outputs.CMAKE_C_FLAGS }}
+            cxx: cl
+            cxxflags: ${{ needs.context.outputs.CMAKE_C_FLAGS }}
+            os: Windows
+            extra_flags: 
+
+          - arch: x86
+            cc: cl
+            cflags: ${{ needs.context.outputs.CMAKE_C_FLAGS }}
+            cxx: cl
+            cxxflags: ${{ needs.context.outputs.CMAKE_C_FLAGS }}
+            os: Windows
+            extra_flags: 
+
+          - arch: arm64
+            cc: clang
+            cflags: -ffunction-sections -fdata-sections -g
+            cxx: clang++
+            cxxflags: -ffunction-sections -fdata-sections -g
+            os: Android
+            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=arm64-v8a
+
+          - arch: armv7
+            cc: clang
+            cflags: -ffunction-sections -fdata-sections -g
+            cxx: clang++
+            cxxflags: -ffunction-sections -fdata-sections -g
+            os: Android
+            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+
+          - arch: i686
+            cc: clang
+            cflags: -ffunction-sections -fdata-sections -g
+            cxx: clang++
+            cxxflags: -ffunction-sections -fdata-sections -g
+            os: Android
+            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86
+
+          - arch: x86_64
+            cc: clang
+            cflags: -ffunction-sections -fdata-sections -g
+            cxx: clang++
+            cxxflags: -ffunction-sections -fdata-sections -g
+            os: Android
+            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86_64
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} SQLite3
 
     steps:
       - uses: actions/checkout@v4
@@ -259,6 +320,7 @@ jobs:
         run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\SQLite\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\sqlite-3.43.2\CMakeLists.txt
 
       - uses: compnerd/gha-setup-vsdevenv@main
+        if: matrix.os == 'Windows'
         with:
           host_arch: amd64
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
@@ -268,7 +330,7 @@ jobs:
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
-          key: windows-${{ matrix.arch }}-sqlite
+          key: ${{ matrix.os }}-${{ matrix.arch }}-sqlite
           variant: sccache
           append-timestamp: false
 
@@ -277,14 +339,15 @@ jobs:
           cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
                 -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/sqlite-3.43.2
       - name: Build SQLite
@@ -294,7 +357,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sqlite-${{ matrix.arch }}-3.43.2
+          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-3.43.2
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
 
   icu_tools:
@@ -1483,7 +1546,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: sqlite-${{ matrix.arch }}-3.43.2
+          name: sqlite-windows-${{ matrix.arch }}-3.43.2
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
       - name: Download Compilers
         uses: actions/download-artifact@v4
