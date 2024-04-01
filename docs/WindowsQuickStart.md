@@ -7,6 +7,12 @@ though some of the automation will need to be adjusted for paths.
 
 ## Preflight
 
+> [!IMPORTANT]
+> The following commands must be run in the Windows Command Prompt launched from
+the start menu. They wil not work if run in Windows Powershell or if run in a
+Windows Command Prompt launched from inside an existing installation of Visual
+Studio.
+
 ### Visual Studio
 
 Installing Visual Studio can be done manually or in an unattended manner.  The
@@ -31,11 +37,14 @@ del /q vs_community.exe
 
 ### Enable Symbolic Links Support
 
+> [!INFO] This step only needs to be completed if your User is not an Administrator, as
+> Adminstrators already have permission to create symbolic links.
+
 Grant your user the `SeCreateSymbolicLinkPrivilege` rights.  This can be done by
 applying a Group Policy Object to the system.  Run `gpedit.msc` and navigate to
 
 ~~~
-Computer Configuration\Windows Settings\Security Settings\Local Policies\User Rights Assignment
+Computer Configuration > Windows Settings > Security Settings > Local Policies > User Rights Assignment
 ~~~
 
 In the `Create symbolic links` entry, add your user.  You will need to restart
