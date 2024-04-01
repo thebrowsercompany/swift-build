@@ -37,8 +37,8 @@ del /q vs_community.exe
 
 ### Enable Symbolic Links Support
 
-> [!INFO] This step only needs to be completed if your User is not an Administrator, as
-> Adminstrators already have permission to create symbolic links.
+> [!NOTE]
+> This step only needs to be completed if your User is not an Administrator, as Adminstrators already have permission to create symbolic links.
 
 Grant your user the `SeCreateSymbolicLinkPrivilege` rights.  This can be done by
 applying a Group Policy Object to the system.  Run `gpedit.msc` and navigate to
