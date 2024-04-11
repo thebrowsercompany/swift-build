@@ -2120,7 +2120,6 @@ jobs:
 
   debugging_tools:
     name: Debugging Tools
-    environment: "kendal/testing"
     needs: [context, compilers, devtools, sdk]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
     env:
@@ -2134,7 +2133,7 @@ jobs:
             cpu: x86_64
             triple: x86_64-unknown-windows-msvc
 
-          # TODO(125): Fix the arm64 build and uncomment this.
+          # TODO(thebrowsercompany/swift-build#125): Fix the arm64 build and uncomment this.
           # - arch: arm64
           #   cpu: aarch64
           #   triple: aarch64-unknown-windows-msvc
@@ -2152,10 +2151,10 @@ jobs:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      - name: Download cmark-gfm-${{ matrix.arch }}
+      - name: Download cmark-gfm-amd64
         uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-${{ matrix.arch }}-0.29.0.gfm.13
+          name: cmark-gfm-amd64-0.29.0.gfm.13
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - name: Download ${{ matrix.arch }} Windows Runtime
@@ -2196,7 +2195,7 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
-      # TODO(50): Workaround a file layout bug in the Windows SDK.
+      # TODO(thebrowsercompany/swift-build#50): Workaround a file layout bug in the Windows SDK.
       - name: Patch SDK file layout
         run: |
           $env:SDKROOT="${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
@@ -2240,7 +2239,7 @@ jobs:
     steps:
       - name: Download Debugging Tools
         uses: actions/download-artifact@v4
-        # TODO(125): Fix the arm64 build and uncomment this.
+        # TODO(thebrowsercompany/swift-build#125): Fix the arm64 build and uncomment this.
         if: matrix.arch == 'amd64'
         with:
           name: debugging_tools-${{ matrix.arch }}
