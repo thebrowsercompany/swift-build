@@ -1,0 +1,207 @@
+# Uploads metrics describing a Swift toolchain release's binary sizes.
+#
+# Examples:
+#
+#  # Target a specific toolchain release:
+#  gh workflow run release-binary-sizes -f toolchain_version=${TOOLCHAIN_VERSION} -f environment_label=${USER}
+
+name: Release - Swift Toolchain Binary Sizes
+
+# TODO(kendal): Simplify this workflow with an initial, context step to control how data is 
+# labeled when uploaded, and whether the upload should happen at all based on whether
+# the workflow is triggered by workflow_dispatch, pull_request, or release:
+
+on:
+  # TODO(kendal): Add on.releases[created, edited] after manual testing on previous toolchain releases
+  
+  workflow_dispatch:
+    inputs:
+      toolchain_version:
+        description: 'Use this swift toolchain release version'
+        required: false
+        type: string
+        default: '' # See env.SWIFT_TOOLCHAIN_VERSION
+      environment_label:
+        description: 'Tag the uploaded data with this value. This helps with filtering'
+        required: false
+        type: string
+        default: 'debug'
+
+env:
+  SOURCE_ROOT: ${{ github.workspace }}/source
+  BUILD_ROOT: ${{ github.workspace }}/build
+
+  SWIFT_TOOLCHAIN_VERSION: ${{ github.events.inputs.toolchain_version || github.ref_name }}
+  ENVIRONMENT_LABEL: ${{ github.events.inputs.environment_label || 'ci' }}
+
+  # Bloaty vars
+  BLOATY_CACHE_KEY: bloaty
+  BLOATY_CACHE_PATH: cache/bin/bloaty
+
+jobs:
+  bloaty:
+    name: Build Bloaty
+    runs-on: windows-latest
+
+    steps:
+      - name: Check the cache for bloaty
+        id: cache
+        uses: actions/cache@v4
+        with:
+          key: ${{ env.BLOATY_CACHE_KEY }}
+          path: ${{ env.BLOATY_CACHE_PATH }}
+
+      - name: Checkout google/bloaty
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: google/bloaty
+          ref: refs/heads/main
+          path: ${{ env.SOURCE_ROOT }}/bloaty
+          show-progress: false
+
+      # This step installs Ninja.
+      - name: Setup VS dev environment.
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
+          arch: amd64
+
+      - name: Configure bloaty
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cmake -B ${{ env.BUILD_ROOT }}/bloaty -S ${{ env.SOURCE_ROOT }}/bloaty -G Ninja
+
+      - name: Build bloaty
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cmake --build ${{ env.BUILD_ROOT }}/bloaty
+
+      - name: Add bloaty to the cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          New-Item -Path ${{ env.BLOATY_CACHE_PATH }} -ItemType Directory -Force | Out-Null
+          Copy-Item ${{ env.BUILD_ROOT }}/bloaty/bloaty.exe -Destination ${{ env.BLOATY_CACHE_PATH }}
+
+  binary_size_data:
+    name: Generate Swift toolchain binary size data
+    needs: [bloaty]
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      # required to make OIDC work
+      id-token: write
+
+    env:
+      BLOATY_OPTIONS_FILE: ${{ github.workspace }}/bloaty.textproto
+
+    strategy:
+      matrix:
+        toolchain_arch: [amd64]
+
+    steps:
+      - name: Checkout swift-build
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Get bloaty from the cache
+        uses: actions/cache/restore@v3
+        with:
+          key: ${{ env.BLOATY_CACHE_KEY }}
+          path: ${{ env.BLOATY_CACHE_PATH }}
+
+      - name: Add bloaty to path
+        run: echo ${{ env.BLOATY_CACHE_PATH }} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Swift toolchain
+        uses: compnerd/gha-setup-swift@main
+        with:
+          github-repo: thebrowsercompany/swift-build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-${{ matrix.toolchain_arch }}.exe
+          release-tag-name: ${{ env.SWIFT_TOOLCHAIN_VERSION }}
+
+      - name: Store Swift Toolchain root in environment variable
+        run: |
+          # Locate the toolchain installation <root> by walking up from
+          # '<root>/Toolchains/<toolchain-version>/usr/bin/swift.exe'.
+          $SwiftPath=$(Get-Command swift).Source
+          $SwiftInstallRoot=${SwiftPath} | Split-Path | Split-Path | Split-Path | Split-Path | Split-Path
+          echo "SWIFT_INSTALL_ROOT=${SwiftInstallRoot}" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # For scripts/python/binary_sizes
+      - name: Install Python dependencies
+        run: |
+          pip install google-cloud-bigquery
+          pip install google-auth-oathlib
+          pip install pandas
+
+      # For the options file schema, see https://github.com/google/bloaty/blob/main/src/bloaty.proto.
+      - name: Generate Bloaty options file
+        run: |
+          New-Item -Path ${{ env.BLOATY_OPTIONS_FILE }}
+
+          # Generate the list of input files.
+          # Each input filename must be an absolute path.
+          # Unix-style path separators are required.
+          # The textproto output must be ascii encoded.
+          Get-ChildItem -Recurse -Name -Path ${{ env.SWIFT_INSTALL_ROOT }} -Include "*.dll","*.exe" | `
+            %{ echo "filename: `"${{ env.SWIFT_INSTALL_ROOT }}\$_`"" } | `
+            %{ $_ -replace '\\','/' } | `
+            Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+
+          echo "sort_by: SORTBY_FILESIZE" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+
+          # At the time of witing, these are the only data sources supported by
+          # bloaty's PE/COFF format.
+          echo "data_source: `"inputfiles`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+          echo "data_source: `"segments`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+
+      - name: Show bloaty options file
+        run: Get-Content -Path ${{ env.BLOATY_OPTIONS_FILE }}
+
+      - name: Run bloaty
+        # TODO(google/bloaty/issues/375): Bloaty accepts -n 0 but not max_rows_per_level: 0 in its config.
+        run: bloaty -c ${{ env.BLOATY_OPTIONS_FILE }} -w -n 0 --csv | Out-File ${{ github.workspace }}/binary_sizes.csv -Encoding utf8
+
+      - name: Generate BigQuery table data
+        run: |
+          $Script="./scripts/python/binary_sizes/bigquery_generate_table_data.py"
+          python ${Script} ${{ github.workspace }}/binary_sizes.csv ${{ github.workspace }}/table_data.csv `
+            --toolchain_version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
+            --strip_inputfiles_prefix=${{ env.SWIFT_INSTALL_ROOT }} `
+            --environment="${{ env.ENVIRONMENT_LABEL }}"
+
+      - name: Show BigQuery table data to upload
+        run: Get-Content -Path ${{ github.workspace }}/table_data.csv
+
+      - name: Authenticate to AWS
+        # configure-aws-credentials v4.0.1 release
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a
+        with:
+          role-to-assume: ${{ secrets.SWIFT_TOOLCHAIN_UPLOADER_ROLE_ARN }}
+          aws-region: us-east-2
+          role-session-name: SwiftToolchainMetricsUploader
+
+      - name: Get Service account credentials
+        uses: ./.github/actions/get-ssm-parameter
+        with:
+          ssm-parameter: "/shared/secrets/GITHUB_ACTIONS_BQ_DATA_UPLOAD"
+          filepath: ${{ github.workspace }}/.google_application_credentials
+
+      - name: Setup Google application default credentials
+        run: echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/.google_application_credentials" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload to BigQuery
+        continue-on-error: true
+        run: |
+          $Script="./scripts/python/binary_sizes/bigquery_load_csv.py"
+          python ${Script} ${{ github.workspace }}/table_data.csv
+
+      # TODO(kendal): This should be done by get-ssm-parameter's post step but it uses the node package 'child_process'
+      # which can't run powershell commands or find the powershell exectuable. Debug and remove.
+      - name: Cleanup credentials
+        run: Remove-Item ${{ github.workspace }}/.google_application_credentials
+
+
