@@ -662,7 +662,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Install Swift Toolchain
-        uses: compnerd/gha-setup-swift@8f43ccc3e8bac89829862af09de9567c807c1c12
+        uses: compnerd/gha-setup-swift@main
         with:
           github-repo: thebrowsercompany/swift-build
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -2124,8 +2124,6 @@ jobs:
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
     env:
       TOOLCHAIN_PATH: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
-      # Where to store new binaries.
-      DEBUGGING_TOOLS_DIR: ${{ github.workspace }}/BuildRoot-DebuggingTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr
 
     strategy:
       fail-fast: false
@@ -2220,13 +2218,13 @@ jobs:
       - name: Copy swift-inspect executable
         id: copy-swift-inspect-exe
         run: |
-          New-Item -Path ${env:DEBUGGING_TOOLS_DIR} -ItemType Directory -Force | Out-Null
-          Copy-Item ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect/x86_64-unknown-windows-msvc/release/swift-inspect.exe -Destination ${env:DEBUGGING_TOOLS_DIR}
+          New-Item -Path ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect -ItemType Directory -Force | Out-Null
+          Copy-Item ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect/x86_64-unknown-windows-msvc/release/swift-inspect.exe -Destination ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect
 
       - uses: actions/upload-artifact@v4
         with:
           name: debugging_tools-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot-DebuggingTools/Library
+          path: ${{ github.workspace }}/BuildRoot-DebuggingTools
 
   package_tools:
     name: Package Tools
@@ -2245,7 +2243,7 @@ jobs:
         if: matrix.arch == 'amd64'
         with:
           name: debugging_tools-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library
+          path: ${{ github.workspace }}/BuildRoot/DebuggingTools
 
       - name: Download Compilers
         uses: actions/download-artifact@v4
@@ -2328,7 +2326,7 @@ jobs:
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:INCLUDE_SWIFT_INSPECT=${{ matrix.arch == 'amd64' && true || false }} `
-              -p:SWIFT_INSPECT_BUILD=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+              -p:SWIFT_INSPECT_BUILD=${{ github.workspace }}/BuildRoot/DebuggingTools/swift-inspect `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/dbg.wixproj
