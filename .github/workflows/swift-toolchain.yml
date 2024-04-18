@@ -662,7 +662,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Install Swift Toolchain
-        uses: compnerd/gha-setup-swift@main
+        uses: compnerd/gha-setup-swift@8f43ccc3e8bac89829862af09de9567c807c1c12
         with:
           github-repo: thebrowsercompany/swift-build
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -2133,7 +2133,7 @@ jobs:
             cpu: x86_64
             triple: x86_64-unknown-windows-msvc
 
-          # TODO(thebrowsercompany/swift-build#125): Fix the arm64 build and uncomment this.
+          # TODO(thebrowsercompany/swift-build#125): Fix the layout of SDK files so we can cross-compile to arm64 
           # - arch: arm64
           #   cpu: aarch64
           #   triple: aarch64-unknown-windows-msvc
@@ -2142,13 +2142,13 @@ jobs:
       - name: Download compilers
         uses: actions/download-artifact@v4
         with:
-          name: compilers-${{ matrix.arch }}
+          name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download devtools
         uses: actions/download-artifact@v4
         with:
-          name: devtools-${{ matrix.arch }}
+          name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download cmark-gfm-amd64
@@ -2213,13 +2213,13 @@ jobs:
         run: |
           $env:SDKROOT="${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
           # TODO(kendal): Figure out why Powershell won't execute this command when it's split into multiple lines.
-          swift build --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${env:SDKROOT}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-I${env:SDKROOT}/usr/lib/swift" -Xbuild-tools-swiftc="-L${env:SDKROOT}/usr/lib/swift/windows" -Xcc="-I${env:SDKROOT}/usr/lib/swift" -Xlinker="-L${env:SDKROOT}/usr/lib/swift/windows" -debug-info-format="none" -Xcc="-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib"
+          swift build --triple=${{ matrix.triple }} --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${env:SDKROOT}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-I${env:SDKROOT}/usr/lib/swift" -Xbuild-tools-swiftc="-L${env:SDKROOT}/usr/lib/swift/windows" -Xcc="-I${env:SDKROOT}/usr/lib/swift" -Xlinker="-L${env:SDKROOT}/usr/lib/swift/windows" -debug-info-format="none" -Xcc="-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib"
 
       - name: Copy swift-inspect executable
         id: copy-swift-inspect-exe
         run: |
           New-Item -Path ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect -ItemType Directory -Force | Out-Null
-          Copy-Item ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect/x86_64-unknown-windows-msvc/release/swift-inspect.exe -Destination ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect
+          Copy-Item ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect/${{ matrix.triple }}/release/swift-inspect.exe -Destination ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect
 
       - uses: actions/upload-artifact@v4
         with:
