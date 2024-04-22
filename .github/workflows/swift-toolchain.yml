@@ -1894,6 +1894,12 @@ jobs:
       - name: Build swift-certificates
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-certificates
 
+      - name: extract swift-syntax
+        run: |
+          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
+          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
+          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
+
       - name: Configure swift-package-manager
         run: |
           # Workaround CMake 3.20 issue
@@ -1930,6 +1936,7 @@ jobs:
                 -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `
                 -D SwiftCrypto_DIR=${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules `
                 -D SwiftDriver_DIR=${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules `
+                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
                 -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
                 -D Yams_DIR=${{ github.workspace }}/BinaryCache/yams/cmake/modules
@@ -1962,12 +1969,6 @@ jobs:
                 -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake
       - name: Build Markdown
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-markdown
-
-      - name: extract swift-syntax
-        run: |
-          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
-          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
-          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
 
       - name: Configure Format
         run: |
