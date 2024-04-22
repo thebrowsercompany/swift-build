@@ -83,24 +83,36 @@ jobs:
           Copy-Item ${{ env.BUILD_ROOT }}/bloaty/bloaty.exe -Destination ${{ env.BLOATY_CACHE_PATH }}
 
   binary_size_data:
-    name: Compute toolchain binary size data
+    name: Generate Swift toolchain binary size data
     needs: [bloaty]
     runs-on: windows-latest
+    permissions:
+      contents: read
+      # required to make OIDC work
+      id-token: write
+
     env:
       BLOATY_OPTIONS_FILE: ${{ github.workspace }}/bloaty.textproto
+      SWIFT_TOOLCHAIN_VERSION: ${{ github.event.inputs.toolchain_version || github.ref_name }}
+      ENVIRONMENT_LABEL: ${{ github.event.inputs.environment_label || 'ci' }}
 
     strategy:
       matrix:
         toolchain_arch: [amd64]
 
     steps:
+      - name: Checkout swift-build
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
       - name: Get bloaty from the cache
         uses: actions/cache/restore@v3
         with:
           key: ${{ env.BLOATY_CACHE_KEY }}
           path: ${{ env.BLOATY_CACHE_PATH }}
 
-      - name: Install bloaty
+      - name: Add bloaty to path
         run: echo ${{ env.BLOATY_CACHE_PATH }} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Swift toolchain
@@ -111,75 +123,54 @@ jobs:
           release-asset-name: installer-${{ matrix.toolchain_arch }}.exe
           release-tag-name: ${{ env.SWIFT_TOOLCHAIN_VERSION }}
 
-      # For the options file schema, see https://github.com/google/bloaty/blob/main/src/bloaty.proto.
-      - name: Generate bloaty options file
-        run: |
-          New-Item -Path ${{ env.BLOATY_OPTIONS_FILE }}
-
-          # Generate the list of input files.
-          # Each input filename must be an absolute path.
-          # Unix-style path separators are required.
-          Get-ChildItem -Recurse -Name -Path ${SwiftInstallRoot} -Include "*.dll","*.exe" | `
-            %{ echo "filename: `"${SwiftInstallRoot}\$_`"" } | `
-            %{ $_ -replace '\\','/' } | `
-            # Text protos must be ascii encoded.
-            Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-
-          # Sort for consistent output.
-          echo "sort_by: SORTBY_FILESIZE" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-
-          # Specify which data sources to use.
-          echo "data_source: `"inputfiles`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-          echo "data_source: `"segments`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-
-      - name: Show bloaty options file
-        run: Get-Content -Path ${{ env.BLOATY_OPTIONS_FILE }}
-
-      - name: Run bloaty
-        # TODO(google/bloaty/issues/375): Bloaty accepts -n 0 but not max_rows_per_level: 0 in its config.
-        run: bloaty -c ${{ env.BLOATY_OPTIONS_FILE }} -w -n 0 --csv | Out-File ${{ env.BINARY_SIZES_PATH }} -Encoding utf8
-
-      - name: Upload binary size data
-        uses: actions/upload-artifact@v4
-        with:
-          name: binary_size_data-${{ matrix.toolchain_arch }}
-          path: ${{ env.BINARY_SIZES_PATH }}
-          overwrite: true
-
-      - name: Checkout swift-build
-        uses: actions/checkout@v4
-        with:
-          path: ${{ env.SOURCE_ROOT }}/swift-build
-          show-progress: false
-
-      - name: Download binary size data
-        uses: actions/download-artifact@v4
-        with:
-          name: binary_size_data-${{ matrix.toolchain_arch }}
-          path: ${{ env.BINARY_SIZES_PATH }}
-
-      - name: Install Python dependencies
-        run: |
-          pip install google-cloud-bigquery
-          pip install google-auth-oathlib
-          pip install pandas
-
-      - name: Generate BigQuery table data
+      - name: Store Swift Toolchain root in environment variable
         run: |
           # Locate the toolchain installation <root> by walking up from
           # '<root>/Toolchains/<toolchain-version>/usr/bin/swift.exe'.
           $SwiftPath=$(Get-Command swift).Source
           $SwiftInstallRoot=${SwiftPath} | Split-Path | Split-Path | Split-Path | Split-Path | Split-Path
+          echo "SWIFT_INSTALL_ROOT=${SwiftInstallRoot}" | Out-File -FilePath $env:GITHUB_ENV -Append
+      # For scripts/python/binary_sizes
+      - name: Install Python dependencies
+        run: |
+          pip install google-cloud-bigquery
+          pip install google-auth-oathlib
+          pip install pandas
+      # For the options file schema, see https://github.com/google/bloaty/blob/main/src/bloaty.proto.
+      - name: Generate Bloaty options file
+        run: |
+          New-Item -Path ${{ env.BLOATY_OPTIONS_FILE }}
+          # Generate the list of input files.
+          # Each input filename must be an absolute path.
+          # Unix-style path separators are required.
+          # The textproto output must be ascii encoded.
+          Get-ChildItem -Recurse -Name -Path ${{ env.SWIFT_INSTALL_ROOT }} -Include "*.dll","*.exe" | `
+            %{ echo "filename: `"${{ env.SWIFT_INSTALL_ROOT }}\$_`"" } | `
+            %{ $_ -replace '\\','/' } | `
+            Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+          echo "sort_by: SORTBY_FILESIZE" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+          # At the time of witing, these are the only data sources supported by
+          # bloaty's PE/COFF format.
+          echo "data_source: `"inputfiles`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+          echo "data_source: `"segments`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
+      - name: Show bloaty options file
+        run: Get-Content -Path ${{ env.BLOATY_OPTIONS_FILE }}
 
-          $Script="${{ env.SOURCE_ROOT }}/swift-build/scripts/python/binary_sizes/generate_bigquery_table_data.py"
-          python ${Script} ${{ env.BINARY_SIZES_PATH }} `
-            ${{ github.workspace }}/bq_table_data.csv `
-            --toolchain_version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
-            --strip_inputfiles_prefix=${SwiftInstallRoot}
-            --environment=ci
+      - name: Run bloaty
+        # TODO(google/bloaty/issues/375): Bloaty accepts -n 0 but not max_rows_per_level: 0 in its config.
+        run: bloaty -c ${{ env.BLOATY_OPTIONS_FILE }} -w -n 0 --csv | Out-File ${{ github.workspace }}/binary_sizes.csv -Encoding utf8
 
-      - name: Show csv data to upload
-        run: Get-Content -Path ${{ github.workspace }}/bq_table_data.csv
+      - name: Generate BigQuery table data
+        run: |
+          $CreationTime=$(gh release view ${{ env.SWIFT_TOOLCHAIN_VERSION }} --json createdAt --jq '.[]')
+          $Script="./scripts/python/binary_sizes/bigquery_generate_table_data.py"
+          python ${Script} ${{ github.workspace }}/binary_sizes.csv ${{ github.workspace }}/table_data.csv `
+            --toolchain-version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
+            --strip-inputfiles-prefix=${{ env.SWIFT_INSTALL_ROOT }} `
+            --environment="${{ env.ENVIRONMENT_LABEL }}" `
+            --creation-time="$CreationTime"
+      - name: Show BigQuery table data to upload
+        run: Get-Content -Path ${{ github.workspace }}/table_data.csv
 
       - name: Authenticate to AWS
         # configure-aws-credentials v4.0.1 release
@@ -189,13 +180,21 @@ jobs:
           aws-region: us-east-2
           role-session-name: SwiftToolchainMetricsUploader
 
-      - name: Get BigQuery Service Account Credentials
+      - name: Get Service account credentials
         uses: ./.github/actions/get-ssm-parameter
         with:
           ssm-parameter: "/shared/secrets/GITHUB_ACTIONS_BQ_DATA_UPLOAD"
-          env-variable-name: "GOOGLE_APPLICATION_CREDENTIALS"
+          filepath: ${{ github.workspace }}/.google_application_credentials
+
+      - name: Setup Google application default credentials
+        run: echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/.google_application_credentials" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload to BigQuery
+        continue-on-error: true
         run: |
-          $Script="${{ env.SOURCE_ROOT }}/swift-build/scripts/python/binary_sizes/upload_csv_to_bigquery.py
-          python ${Script} ${{ github.workspace }}/bq_table_data.csv
+          $Script="./scripts/python/binary_sizes/bigquery_load_csv.py"
+          python ${Script} ${{ github.workspace }}/table_data.csv
+      # TODO(kendal): This should be done by get-ssm-parameter's post step but it uses the node package 'child_process'
+      # which can't run powershell commands or find the powershell exectuable. Debug and remove.
+      - name: Cleanup credentials
+        run: Remove-Item ${{ github.workspace }}/.google_application_credentials
