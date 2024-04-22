@@ -51,4 +51,8 @@ def main():
                       schema=BQ_SCHEMA,
                       csv_file=csv_file)
    
+<<<<<<< HEAD
+=======
+
+>>>>>>> 60caa56d6c1ccb2f070df45e73856dc29ea6cf44
 main()
