@@ -7,13 +7,13 @@
 
 name: Release - Swift Toolchain Binary Sizes
 
-# TODO(kendal): Simplify this workflow with an initial, context step to control how data is 
+# TODO(kendal): Simplify this workflow with an initial, context step to control how data is
 # labeled when uploaded, and whether the upload should happen at all based on whether
 # the workflow is triggered by workflow_dispatch, pull_request, or release:
 
 on:
   # TODO(kendal): Add on.releases[created, edited] after manual testing on previous toolchain releases
-  
+
   # TOOD(kendal): Delete before merging after all PR comments are resolved.
   pull_request:
 
@@ -169,11 +169,13 @@ jobs:
 
       - name: Generate BigQuery table data
         run: |
+          $CreationTime=$(gh release view ${{ env.SWIFT_TOOLCHAIN_VERSION }} --json createdAt --jq '.[]')
           $Script="./scripts/python/binary_sizes/bigquery_generate_table_data.py"
           python ${Script} ${{ github.workspace }}/binary_sizes.csv ${{ github.workspace }}/table_data.csv `
-            --toolchain_version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
-            --strip_inputfiles_prefix=${{ env.SWIFT_INSTALL_ROOT }} `
-            --environment="${{ env.ENVIRONMENT_LABEL }}"
+            --toolchain-version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
+            --strip-inputfiles-prefix=${{ env.SWIFT_INSTALL_ROOT }} `
+            --environment="${{ env.ENVIRONMENT_LABEL }}" `
+            --creation-time="$CreationTime"
 
       - name: Show BigQuery table data to upload
         run: Get-Content -Path ${{ github.workspace }}/table_data.csv

@@ -7,6 +7,7 @@
 import argparse
 import os
 import pandas as pd
+from datetime import datetime
 from bigquery_schema import BQ_SCHEMA
 
 def strip_column_prefix(csv_data, column_name, prefix):
@@ -25,14 +26,19 @@ def main():
     parser.add_argument('output_csv', type=str, help='Where to write the generated csv file')
 
     req_group = parser.add_argument_group('required flags', 'Additional properties that help slice and group data in BigQuery')
-    req_group.add_argument('--toolchain_version', type=str, help='The toolchain version that corresponds to the input data')
+    req_group.add_argument('--toolchain-version', type=str, help='The toolchain version that corresponds to the input data')
 
     opt_group = parser.add_argument_group('optional flags')
+    opt_group.add_argument('--creation-time', type=str, help='timestamp when the release was created formatted as YYYY-MM-DD')
     opt_group.add_argument('--environment', type=str, default='debug', help='The name of the environment where this data was generated')
-    opt_group.add_argument('--strip_inputfiles_prefix', type=str, help='A prefix to strip from the inputfiles column')
+    opt_group.add_argument('--strip-inputfiles-prefix', type=str, help='A prefix to strip from the inputfiles column')
     args = parser.parse_args()
 
     csv_data = pd.read_csv(args.bloaty_csv_output)
+
+    creation_time = args.creation_time
+    if len(creation_time) == 0:
+        creation_time = datetime.now().replace(microsecond=0).isoformat()
 
     if args.strip_inputfiles_prefix:
         strip_inputfiles_prefix = os.path.abspath(args.strip_inputfiles_prefix) + os.sep
@@ -41,6 +47,7 @@ def main():
     add_column(csv_data, 'environment', args.environment)
     add_column(csv_data, 'target_os', 'windows')
     add_column(csv_data, 'target_arch', 'amd64')
+    add_column(csv_data, 'creation_time', creation_time)
     rename_column(csv_data, 'inputfiles', 'filename')
     rename_column(csv_data, 'segments', 'segment')
 
