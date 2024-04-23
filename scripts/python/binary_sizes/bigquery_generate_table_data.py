@@ -10,7 +10,7 @@ import pandas as pd
 from datetime import datetime
 from bigquery_schema import BQ_SCHEMA
 
-def strip_column_prefix(csv_data, column_name, prefix):
+def strip_prefix_from_column_values(csv_data, column_name, prefix):
     csv_data[column_name] = csv_data[column_name].apply(lambda x: x[len(prefix):])
 
 def add_column(csv_data, column_name, column_value):
@@ -42,7 +42,7 @@ def main():
 
     if args.strip_inputfiles_prefix:
         strip_inputfiles_prefix = os.path.abspath(args.strip_inputfiles_prefix) + os.sep
-        strip_column_prefix(csv_data, 'inputfiles', strip_inputfiles_prefix)
+        strip_prefix_from_column_values(csv_data, 'inputfiles', strip_inputfiles_prefix)
     add_column(csv_data, 'toolchain_version', args.toolchain_version)
     add_column(csv_data, 'environment', args.environment)
     add_column(csv_data, 'target_os', 'windows')
