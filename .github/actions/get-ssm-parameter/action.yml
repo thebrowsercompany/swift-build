@@ -22,14 +22,6 @@ runs:
         echo "::error ::Please specify either env-variable-name or filepath as an input."
         exit 1
 
-    - name: Fetch parameter to environment (non-windows)
-      if: runner.os != 'Windows' && inputs.env-variable-name != ''
-      shell: bash
-      run: |
-        PARAMETER_VALUE="$(aws ssm get-parameter --with-decryption --name ${{ inputs.ssm-parameter }} | jq -r '.Parameter.Value')"
-        echo "::add-mask::$PARAMETER_VALUE"
-        echo "${{ inputs.env-variable-name }}=$PARAMETER_VALUE" >> "$GITHUB_ENV"
-
     - name: Fetch parameter to environment (Windows)
       if: runner.os == 'Windows' && inputs.env-variable-name != ''
       shell: pwsh
@@ -38,30 +30,9 @@ runs:
         echo "::add-mask::$PARAMETER_VALUE"
         echo "${{ inputs.env-variable-name }}=$PARAMETER_VALUE" >> "$env:GITHUB_ENV"
 
-    - name: Fetch parameter to file (non-Windows)
-      shell: bash
-      if: runner.os != 'Windows' && inputs.filepath != ''
-      run: |
-        aws ssm get-parameter --with-decryption --name ${{ inputs.ssm-parameter }} | jq -r '.Parameter.Value' > "${{ inputs.filepath }}"
-
     - name: Fetch parameter to file (Windows)
       if: runner.os == 'Windows' && inputs.filepath != ''
       shell: pwsh
       run: |
         $paramValue = (aws ssm get-parameter --with-decryption --name ${{ inputs.ssm-parameter }} | ConvertFrom-Json).Parameter.Value
         Set-Content -Path ${{ inputs.filepath }} -Value $paramValue
-
-    # TODO(kjharland): powershell[.exe] nor pwsh[.exe] work here. Debug.
-    # - name: Setup cleanup for file export (Windows)
-    #   uses: ./.github/actions/with-post-step
-    #   if: runner.os == 'Windows' && inputs.filepath != ''
-    #   with:
-    #     main: echo "Setting up cleanup for ${{ inputs.filepath }}"
-    #     post: powershell.exe -Command {Remove-Item "${{ inputs.filepath }}"}
-
-    - name: Setup cleanup for file export (Non-Windows)
-      uses: ./.github/actions/with-post-step
-      if: runner.os != 'Windows' && inputs.filepath != ''
-      with:
-        main: echo "Setting up cleanup for ${{ inputs.filepath }}"
-        post: rm "${{ inputs.filepath }}"
