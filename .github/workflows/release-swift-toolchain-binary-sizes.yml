@@ -10,7 +10,6 @@
 #
 name: Release - Swift Toolchain Binary Sizes
 
-# TODO(thebrowsercompany/swift-build/issues/128): Convert the bloaty steps into a reusable workflow.
 # TODO(thebrowsercompany/swift-build/issues/129): Support arm64 releases.
 # TODO(kendal): Use on.releases.[created, edited] when the table schema is stablized.
 
@@ -32,58 +31,9 @@ env:
   SOURCE_ROOT: ${{ github.workspace }}/source
   BUILD_ROOT: ${{ github.workspace }}/build
 
-  # Bloaty vars
-  BLOATY_CACHE_KEY: bloaty
-  BLOATY_CACHE_PATH: cache/bin/bloaty
-
 jobs:
-  bloaty:
-    name: Build Bloaty
-    runs-on: windows-latest
-
-    steps:
-      - name: Check the cache for bloaty
-        id: cache
-        uses: actions/cache@v4
-        with:
-          key: ${{ env.BLOATY_CACHE_KEY }}
-          path: ${{ env.BLOATY_CACHE_PATH }}
-
-      - name: Checkout google/bloaty
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: google/bloaty
-          ref: refs/heads/main
-          path: ${{ env.SOURCE_ROOT }}/bloaty
-          show-progress: false
-
-      # This step installs Ninja.
-      - name: Setup VS dev environment.
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: compnerd/gha-setup-vsdevenv@main
-        with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
-          arch: amd64
-
-      - name: Configure bloaty
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cmake -B ${{ env.BUILD_ROOT }}/bloaty -S ${{ env.SOURCE_ROOT }}/bloaty -G Ninja
-
-      - name: Build bloaty
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cmake --build ${{ env.BUILD_ROOT }}/bloaty
-
-      - name: Add bloaty to the cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          New-Item -Path ${{ env.BLOATY_CACHE_PATH }} -ItemType Directory -Force | Out-Null
-          Copy-Item ${{ env.BUILD_ROOT }}/bloaty/bloaty.exe -Destination ${{ env.BLOATY_CACHE_PATH }}
-
   binary_size_data:
     name: Generate Swift toolchain binary size data
-    needs: [bloaty]
     runs-on: windows-latest
     permissions:
       contents: read
@@ -104,15 +54,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           show-progress: false
-
-      - name: Get bloaty from the cache
-        uses: actions/cache/restore@v3
-        with:
-          key: ${{ env.BLOATY_CACHE_KEY }}
-          path: ${{ env.BLOATY_CACHE_PATH }}
-
-      - name: Add bloaty to path
-        run: echo ${{ env.BLOATY_CACHE_PATH }} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Swift toolchain
         uses: compnerd/gha-setup-swift@main
@@ -161,9 +102,17 @@ jobs:
       - name: Show bloaty options file
         run: Get-Content -Path ${{ env.BLOATY_OPTIONS_FILE }}
 
-      - name: Run bloaty
-        # TODO(google/bloaty/issues/375): Bloaty accepts -n 0 but not max_rows_per_level: 0 in its config.
-        run: bloaty -c ${{ env.BLOATY_OPTIONS_FILE }} -w -n 0 --csv | Out-File ${{ github.workspace }}/binary_sizes.csv -Encoding utf8
+      - name: Run google/bloaty
+        uses: thebrowsercompany/gha-google-bloaty@v1
+        with:
+          bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
+          # TODO(google/bloaty/issues/375): Bloaty accepts -n 0 but not max_rows_per_level: 0 in its config.
+          bloaty-args: -c ${{ env.BLOATY_OPTIONS_FILE }} -w -n 0 --csv
+          bloaty-output-file: ${{ github.workspace }}/binary_sizes.csv
+          cache-bloaty: 'true'
+          # Normally the cache key includes `bloaty-version`. This ensures that all workflow runs
+          # use a single cache even if bloaty is updated, consuming minimal space.
+          cache-bloaty-key: google-bloaty
 
       - name: Generate BigQuery table data
         run: |
@@ -201,9 +150,6 @@ jobs:
           $Script="./scripts/python/binary_sizes/bigquery_load_csv.py"
           python ${Script} ${{ github.workspace }}/table_data.csv
 
-      # TODO(kendal): This should be done by get-ssm-parameter's post step but it uses the node package 'child_process'
-      # which can't run powershell commands or find the powershell exectuable. Debug and remove.
+      # TODO(kendal): Do this as a post-step in get-ssm-parameter.
       - name: Cleanup credentials
         run: Remove-Item ${{ github.workspace }}/.google_application_credentials
-
-
