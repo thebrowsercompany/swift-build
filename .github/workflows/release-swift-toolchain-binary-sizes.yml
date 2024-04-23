@@ -127,19 +127,14 @@ jobs:
       - name: Show BigQuery table data to upload
         run: Get-Content -Path ${{ github.workspace }}/table_data.csv
 
-      - name: Authenticate to AWS
+      - name: Get service account credentials
         # configure-aws-credentials v4.0.1 release
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a
+        uses: thebrowsercompany/gha-aws-ssm-get-parameter@main
         with:
-          role-to-assume: ${{ secrets.SWIFT_TOOLCHAIN_UPLOADER_ROLE_ARN }}
-          aws-region: us-east-2
-          role-session-name: SwiftToolchainMetricsUploader
-
-      - name: Get Service account credentials
-        uses: ./.github/actions/get-ssm-parameter
-        with:
-          ssm-parameter: "/shared/secrets/GITHUB_ACTIONS_BQ_DATA_UPLOAD"
-          filepath: ${{ github.workspace }}/.google_application_credentials
+          aws-role-to-assume: ${{ secrets.SWIFT_TOOLCHAIN_UPLOADER_ROLE_ARN }}
+          aws-role-session-name: SwiftToolchainMetricsUploader
+          aws-ssm-parameter: "/shared/secrets/GITHUB_ACTIONS_BQ_DATA_UPLOAD"
+          save-to-filepath: ${{ github.workspace }}/.google_application_credentials
 
       - name: Setup Google application default credentials
         run: echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/.google_application_credentials" | Out-File -FilePath $env:GITHUB_ENV -Append
