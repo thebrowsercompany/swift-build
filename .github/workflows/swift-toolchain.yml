@@ -2152,7 +2152,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 8783700382
 
-      - name: Download host Windows Runtime
+      - name: Download host Windows runtime
         uses: actions/download-artifact@v4
         with:
           name: windows-sdk-amd64
@@ -2194,6 +2194,7 @@ jobs:
           mv ${{ env.SDKROOT }}/usr/lib/swift/windows/FoundationNetworking.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
 
       - name: Download target ${{ matrix.arch }} Windows SDK
+        # Only necessary when cross-compiling
         if: ${{ matrix.arch != 'amd64' }}
         uses: actions/download-artifact@v4
         with:
@@ -2203,9 +2204,11 @@ jobs:
           run-id: 8783700382
 
       - name: Patch the SDK to workaround https://github.com/thebrowsercompany/swift-build#50
+        # Only necessary when cross-compiling
         if: ${{ matrix.arch != 'amd64' }}
         run: |
-          # We don't need to copy the headers again. Just the libraries.
+          # We already copied these above.
+          # Remove them to prevent 'module defined more than once' errors.
           rm -Force -Recurse ${{ env.SDKROOT }}/usr/lib/swift/dispatch
           rm -Force -Recurse ${{ env.SDKROOT }}/usr/lib/swift/os
           rm -Force -Recurse ${{ env.SDKROOT }}/usr/lib/swift/Block
@@ -2232,7 +2235,7 @@ jobs:
 
       - name: Build swift-inspect
         shell: cmd
-        run: swift build -vv --triple=${{ matrix.triple }} --product=swift-inspect --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${{ env.SDKROOT }}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-L${{ env.SDKROOT }}/usr/lib/swift/windows"  -Xbuild-tools-swiftc="-I${{ env.SDKROOT }}/usr/lib/swift -use-ld=lld" -Xcc="-I${{ env.SDKROOT }}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib" -Xswiftc="-use-ld=lld"
+        run: swift build -vv --triple=${{ matrix.triple }} --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${{ env.SDKROOT }}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-L${{ env.SDKROOT }}/usr/lib/swift/windows"  -Xbuild-tools-swiftc="-I${{ env.SDKROOT }}/usr/lib/swift -use-ld=lld" -Xcc="-I${{ env.SDKROOT }}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib" -Xswiftc="-use-ld=lld"
 
       - name: Copy swift-inspect executable
         id: copy-swift-inspect-exe
