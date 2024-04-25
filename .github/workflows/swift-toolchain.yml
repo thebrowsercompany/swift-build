@@ -2185,7 +2185,7 @@ jobs:
           mv ${{ env.SDKROOT }}/usr/lib/swift/dispatch ${{ env.SDKROOT }}/usr/include/
           mv ${{ env.SDKROOT }}/usr/lib/swift/os ${{ env.SDKROOT }}/usr/include/
           mv ${{ env.SDKROOT }}/usr/lib/swift/Block ${{ env.SDKROOT }}/usr/include/
-          
+
           mv ${{ env.SDKROOT }}/usr/lib/swift/windows/BlocksRuntime.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
           mv ${{ env.SDKROOT }}/usr/lib/swift/windows/dispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
           mv ${{ env.SDKROOT }}/usr/lib/swift/windows/swiftDispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
@@ -2234,14 +2234,21 @@ jobs:
         run: Copy-Item ${{ github.workspace }}/BuildRoot/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ env.TOOLCHAIN_PATH }}
 
       - name: Build swift-inspect
+        id: swift_inspect
         shell: cmd
-        run: swift build -vv --triple=${{ matrix.triple }} --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${{ env.SDKROOT }}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-L${{ env.SDKROOT }}/usr/lib/swift/windows"  -Xbuild-tools-swiftc="-I${{ env.SDKROOT }}/usr/lib/swift -use-ld=lld" -Xcc="-I${{ env.SDKROOT }}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib" -Xswiftc="-use-ld=lld"
+        run: |
+          set SCRATCH_PATH="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect"
+          set BUILD_TYPE="release"
+
+          swift build --triple=${{ matrix.triple }} --scratch-path="%SCRATCH_PATH%" --c="%BUILD_TYPE%" --sdk="${{ env.SDKROOT }}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -Xbuild-tools-swiftc="-L${{ env.SDKROOT }}/usr/lib/swift/windows"  -Xbuild-tools-swiftc="-I${{ env.SDKROOT }}/usr/lib/swift -use-ld=lld" -Xcc="-I${{ env.SDKROOT }}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib" -Xswiftc="-use-ld=lld"
+
+          echo "swift_inspect=%SCRATCH_PATH%\%BUILD_TYPE%\swift-inspect.exe" >> "%GITHUB_OUTPUT%"
 
       - name: Copy swift-inspect executable
         id: copy-swift-inspect-exe
         run: |
           New-Item -Path ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect -ItemType Directory -Force | Out-Null
-          Copy-Item ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect/${{ matrix.triple }}/release/swift-inspect.exe -Destination ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect
+          Copy-Item ${{ steps.swift_inspect.outputs.swift_inspect }} -Destination ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect
 
       - uses: actions/upload-artifact@v4
         with:
