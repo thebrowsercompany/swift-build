@@ -1,0 +1,128 @@
+# Uploads a toolchain release's binary size metrics to DataDog.
+#
+# To target a specific Swift Toolchain Release, run:
+#
+#     $TOOLCHAIN_VERSION="..."
+#     gh workflow run "Release - Swift Toolchain Binary Sizes" `
+#       -f toolchain_version=${TOOLCHAIN_VERSION} `
+#       -f environment_label=${USER} `
+#       -R github.com/thebrowsercompany/swift-build `
+#
+name: Release - Swift Toolchain Binary Sizes
+
+# TODO(thebrowsercompany/swift-build/issues/129): Support arm64 releases.
+# TODO(kendal): Use on.releases.[created, edited] when the table schema is stable.
+
+on:
+  workflow_dispatch:
+    inputs:
+      toolchain_version:
+        description: 'Use this swift toolchain release version'
+        required: false
+        type: string
+        default: '' # See env.SWIFT_TOOLCHAIN_VERSION
+      environment_label:
+        description: 'Tag the uploaded data with this value. This helps with filtering'
+        required: false
+        type: string
+        default: ''
+
+env:
+  SOURCE_ROOT: ${{ github.workspace }}/source
+  BUILD_ROOT: ${{ github.workspace }}/build
+
+jobs:
+  binary_size_data:
+    name: Generate Swift toolchain binary size data
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      # required to make OIDC work
+      id-token: write
+
+    env:
+      BLOATY_OPTIONS_FILE: ${{ github.workspace }}/bloaty.textproto
+      SWIFT_TOOLCHAIN_VERSION: ${{ github.event.inputs.toolchain_version || github.ref_name }}
+      ENVIRONMENT_LABEL: ${{ github.event.inputs.environment_label || 'ci' }}
+
+    strategy:
+      matrix:
+        toolchain_arch: [amd64]
+
+    steps:
+      - name: Checkout swift-build
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Get service account credentials
+        # configure-aws-credentials v4.0.1 release
+        uses: thebrowsercompany/gha-aws-ssm-get-parameter@v1
+        with:
+          aws-role-to-assume: ${{ secrets.SWIFT_TOOLCHAIN_UPLOADER_ROLE_ARN }}
+          aws-role-session-name: SwiftToolchainMetricsUploader
+          aws-ssm-parameter: "/shared/secrets/GITHUB_ACTIONS_BQ_DATA_UPLOAD"
+          save-to-filepath: ${{ github.workspace }}/.google_application_credentials
+
+      - name: Setup Google application default credentials
+        run: echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/.google_application_credentials" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install Swift toolchain
+        uses: compnerd/gha-setup-swift@main
+        with:
+          github-repo: thebrowsercompany/swift-build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-${{ matrix.toolchain_arch }}.exe
+          release-tag-name: ${{ env.SWIFT_TOOLCHAIN_VERSION }}
+
+      - name: Store Swift Toolchain root in environment variable
+        run: |
+          # Locate the toolchain installation <root> by walking up from
+          # '<root>/Toolchains/<toolchain-version>/usr/bin/swift.exe'.
+          $SwiftPath=$(Get-Command swift).Source
+          $SwiftInstallRoot=$(Resolve-Path -LiteralPath $SwiftPath\..\..\..\..\..)
+          echo "SWIFT_INSTALL_ROOT=${SwiftInstallRoot}" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # For scripts/python/binary_sizes
+      - name: Install Python dependencies
+        run: |
+          pip install google-cloud-bigquery
+          pip install google-auth-oathlib
+          pip install pandas
+
+      - name: Run google/bloaty
+        uses: thebrowsercompany/gha-google-bloaty@v1.1.1
+        with:
+          bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
+          bloaty-args: -w -n 0 -d inputfiles,segments -s file --csv
+          bloaty-input-files: |
+            ${{ env.SWIFT_INSTALL_ROOT }}/**/*.dll
+            ${{ env.SWIFT_INSTALL_ROOT }}/**/*.exe
+          bloaty-output-file: ${{ github.workspace }}/binary_sizes.csv
+          cache-bloaty: 'true'
+          # Normally the cache key includes `bloaty-version`. This ensures that all workflow runs
+          # use a single cache even if bloaty is updated, consuming minimal space.
+          cache-bloaty-key: google-bloaty
+
+      - name: Generate BigQuery table data
+        run: |
+          $CreationTime=$(gh release view ${{ env.SWIFT_TOOLCHAIN_VERSION }} --json createdAt --jq '.[]')
+          $Script="./scripts/python/binary_sizes/bigquery_generate_table_data.py"
+          python ${Script} ${{ github.workspace }}/binary_sizes.csv ${{ github.workspace }}/table_data.csv `
+            --toolchain-version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
+            --strip-inputfiles-prefix=${{ env.SWIFT_INSTALL_ROOT }} `
+            --environment="${{ env.ENVIRONMENT_LABEL }}" `
+            --creation-time="$CreationTime"
+
+      - name: Show BigQuery table data to upload
+        run: Get-Content -Path ${{ github.workspace }}/table_data.csv
+
+      - name: Upload to BigQuery
+        continue-on-error: true
+        run: |
+          $Script="./scripts/python/binary_sizes/bigquery_load_csv.py"
+          python ${Script} ${{ github.workspace }}/table_data.csv
+
+      # TODO(thebrowsercompany/gha-aws-ssm-get-parameter/issues/1): Do this as a post-step in gha-aws-ssm-get-parameter.
+      - name: Cleanup credentials
+        run: Remove-Item ${{ github.workspace }}/.google_application_credentials
