@@ -2123,22 +2123,20 @@ jobs:
     name: Debugging Tools
     needs: [context] #, compilers, devtools, sdk]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
-    env:
-      TOOLCHAIN_PATH: ${{ github.workspace }}/BuildRoot/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: amd64
-            cpu: x86_64
-            triple: x86_64-unknown-windows-msvc
+        #   - arch: amd64
+        #     cpu: x86_64
+        #     triple: x86_64-unknown-windows-msvc
           - arch: arm64
             cpu: aarch64
             triple: aarch64-unknown-windows-msvc
 
     steps:
-      - name: Download compilers
+      - name: Download host compilers
         uses: actions/download-artifact@v4
         with:
           name: compilers-amd64
@@ -2146,7 +2144,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 8783700382
 
-      - name: Download devtools
+      - name: Download host devtools
         uses: actions/download-artifact@v4
         with:
           name: devtools-amd64
@@ -2154,10 +2152,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 8783700382
 
-      # Note: We don't need to download cmark-gfm because it's packaged inside
-      # compilers-*
-
-      - name: Download amd64 Windows SDK
+      - name: Download host Windows SDK
         uses: actions/download-artifact@v4
         with:
           name: windows-sdk-amd64
@@ -2165,8 +2160,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 8783700382
 
-      - name: Download ${{ matrix.arch }} Windows SDK
-        # This is only needed when cross compiling.
+      - name: Download target ${{ matrix.arch }} Windows SDK
         if: ${{ matrix.arch != 'amd64' }}
         uses: actions/download-artifact@v4
         with:
@@ -2194,6 +2188,8 @@ jobs:
           echo "$ToolchainPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           echo "$RTLPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      # Note: We didn't need to explicitly download cmark-gfm above because it's packaged inside
+      # compilers-${{ matrix.arch }}.
       - name: Setup cmark-gfm
         run: Copy-Item ${{ github.workspace }}/BuildRoot/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll $env:TOOLCHAIN_PATH
 
@@ -2203,8 +2199,7 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
-      # TODO(thebrowsercompany/swift-build#50): Workaround a file layout bug in the Windows SDK.
-      - name: Patch SDK file layout
+      - name: Patch the SDK to workaround https://github.com/thebrowsercompany/swift-build#50
         run: |
           mv ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
           mv ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
@@ -2219,7 +2214,7 @@ jobs:
       - name: Build swift-inspect
         run: |
           # TODO(kendal): Figure out why Powershell won't execute this command when it's split into multiple lines.
-          swift build --triple=${{ matrix.triple }} --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${env:SDKROOT}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-I${env:SDKROOT}/usr/lib/swift" -Xbuild-tools-swiftc="-L${env:SDKROOT}/usr/lib/swift/windows" -Xcc="-I${env:SDKROOT}/usr/lib/swift" -Xlinker="-L${env:SDKROOT}/usr/lib/swift/windows" -debug-info-format="none" -Xcc="-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib"
+          swift build -vv --triple=${{ matrix.triple }} --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${env:SDKROOT}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-I${env:SDKROOT}/usr/lib/swift" -Xbuild-tools-swiftc="-L${env:SDKROOT}/usr/lib/swift/windows" -Xcc="-I${env:SDKROOT}/usr/lib/swift" -Xlinker="-L${env:SDKROOT}/usr/lib/swift/windows" -debug-info-format="none" -Xcc="-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib"
 
       - name: Copy swift-inspect executable
         id: copy-swift-inspect-exe
