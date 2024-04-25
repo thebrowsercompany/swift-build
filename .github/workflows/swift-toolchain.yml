@@ -2156,7 +2156,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-sdk-amd64
-          path: ${{ github.workspace }}/BuildRoot/
+          path: ${{ github.workspace }}/BinaryCache/
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 8783700382
 
@@ -2181,41 +2181,41 @@ jobs:
         run: |
           $SdkRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Developer/SDKs/Windows.sdk"
           $ToolchainPath = cygpath -w "${{ github.workspace }}/BuildRoot/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin"
-          $RTLPath = cygpath -w "${{ github.workspace }}/BuildRoot/Developer/SDKs/Windows.sdk/usr/bin"
+          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
 
           echo "SDKROOT=${SdkRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "TOOLCHAIN_PATH=${ToolchainPath}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "AR=${ToolchainPath}\llvm-ar.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "$ToolchainPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "$RTLPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "${ToolchainPath}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "${RTLPath}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Patch missing link program
         run: |
-          echo "int main() { return 0; }" | Out-File -FilePath ${env:TOOLCHAIN_PATH}\link.c -Encoding utf8
-          gcc ${env:TOOLCHAIN_PATH}\link.c -o ${env:TOOLCHAIN_PATH}\link.exe
+          echo "int main() { return 0; }" | Out-File -FilePath ${{ env.TOOLCHAIN_PATH }}\link.c -Encoding utf8
+          gcc ${{ env.TOOLCHAIN_PATH }}\link.c -o ${{ env.TOOLCHAIN_PATH }}\link.exe
 
       # Note: We didn't need to explicitly download cmark-gfm above because it's packaged inside
       # compilers-${{ matrix.arch }}.
       - name: Setup cmark-gfm
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll $env:TOOLCHAIN_PATH
+        run: Copy-Item ${{ github.workspace }}/BuildRoot/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ env.TOOLCHAIN_PATH }}
 
-      # - uses: compnerd/gha-setup-vsdevenv@main
-      #   with:
-      #     host_arch: amd64
-      #     components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-      #     arch: ${{ matrix.arch }}
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
 
       - name: Patch the SDK to workaround https://github.com/thebrowsercompany/swift-build#50
         run: |
-          mv ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/dispatch ${{ env.SDKROOT }}/usr/include/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/os ${{ env.SDKROOT }}/usr/include/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/Block ${{ env.SDKROOT }}/usr/include/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/BlocksRuntime.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/dispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/swiftDispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/Foundation.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/FoundationXML.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/FoundationNetworking.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
       - name: Build swift-inspect
         shell: cmd
