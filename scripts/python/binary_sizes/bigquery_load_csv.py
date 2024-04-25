@@ -5,7 +5,7 @@
 # credentials file at the path identified in the environment variable
 # GOOGLE_APPLICATION_CREDENTIALS. To authenticate as a User, run:
 # `gcloud auth application-default login`.
-# 
+#
 # For more infomaration on application default credentials, see
 # https://cloud.google.com/docs/authentication/application-default-credentials
 
@@ -33,7 +33,7 @@ def bigquery_load_csv(client, dataset_id, table_id, csv_file, schema):
     load_job = client.load_table_from_file(csv_file,
                                            table_ref,
                                            job_config=job_config)
-  
+
   print(f"Starting job {load_job.job_id}")
   load_job.result()  # Wait for table load to complete.
   print(f"Job finished. Loaded {load_job.output_rows} rows to {dataset_id}:{table_id}.")
@@ -50,5 +50,5 @@ def main():
                       table_id=BQ_TABLE,
                       schema=BQ_SCHEMA,
                       csv_file=csv_file)
-   
+
 main()

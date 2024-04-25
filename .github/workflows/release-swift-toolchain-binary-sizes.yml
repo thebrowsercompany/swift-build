@@ -90,36 +90,14 @@ jobs:
           pip install google-auth-oathlib
           pip install pandas
 
-      # For the options file schema, see https://github.com/google/bloaty/blob/main/src/bloaty.proto.
-      - name: Generate Bloaty options file
-        run: |
-          New-Item -Path ${{ env.BLOATY_OPTIONS_FILE }}
-
-          # Generate the list of input files.
-          # Each input filename must be an absolute path.
-          # Unix-style path separators are required.
-          # The textproto output must be ascii encoded.
-          Get-ChildItem -Recurse -Name -Path ${{ env.SWIFT_INSTALL_ROOT }} -Include "*.dll","*.exe" | `
-            %{ echo "filename: `"${{ env.SWIFT_INSTALL_ROOT }}\$_`"" } | `
-            %{ $_ -replace '\\','/' } | `
-            Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-
-          echo "sort_by: SORTBY_FILESIZE" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-
-          # At the time of witing, these are the only data sources supported by
-          # bloaty's PE/COFF format.
-          echo "data_source: `"inputfiles`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-          echo "data_source: `"segments`"" | Out-File ${{ env.BLOATY_OPTIONS_FILE }} -Append -Encoding ascii
-
-      - name: Show bloaty options file
-        run: Get-Content -Path ${{ env.BLOATY_OPTIONS_FILE }}
-
       - name: Run google/bloaty
-        uses: thebrowsercompany/gha-google-bloaty@v1
+        uses: thebrowsercompany/gha-google-bloaty@v1.1.0
         with:
           bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
-          # TODO(google/bloaty/issues/375): Bloaty accepts -n 0 but not max_rows_per_level: 0 in its config.
-          bloaty-args: -c ${{ env.BLOATY_OPTIONS_FILE }} -w -n 0 --csv
+          bloaty-args: -w -n 0 -d inputfiles,segments -s file --csv
+          bloaty-input-files: |
+            ${{ env.SWIFT_INSTALL_ROOT }}/**/*.dll
+            ${{ env.SWIFT_INSTALL_ROOT }}/**/*.exe
           bloaty-output-file: ${{ github.workspace }}/binary_sizes.csv
           cache-bloaty: 'true'
           # Normally the cache key includes `bloaty-version`. This ensures that all workflow runs
