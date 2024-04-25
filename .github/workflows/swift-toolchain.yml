@@ -2185,8 +2185,14 @@ jobs:
 
           echo "SDKROOT=${SdkRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "TOOLCHAIN_PATH=${ToolchainPath}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "AR=${ToolchainPath}\llvm-ar.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "$ToolchainPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           echo "$RTLPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Patch missing link program
+        run: |
+          echo "int main() { return 0; }" | Out-File -FilePath ${env:TOOLCHAIN_PATH}\link.c -Encoding utf8
+          gcc ${env:TOOLCHAIN_PATH}\link.c -o ${env:TOOLCHAIN_PATH}\link.exe
 
       # Note: We didn't need to explicitly download cmark-gfm above because it's packaged inside
       # compilers-${{ matrix.arch }}.
@@ -2214,7 +2220,7 @@ jobs:
       - name: Build swift-inspect
         run: |
           # TODO(kendal): Figure out why Powershell won't execute this command when it's split into multiple lines.
-          swift build -vv --triple=${{ matrix.triple }} --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${env:SDKROOT}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-I${env:SDKROOT}/usr/lib/swift" -Xbuild-tools-swiftc="-L${env:SDKROOT}/usr/lib/swift/windows" -Xcc="-I${env:SDKROOT}/usr/lib/swift" -Xlinker="-L${env:SDKROOT}/usr/lib/swift/windows" -debug-info-format="none" -Xcc="-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib"
+          swift build -vv --triple=${{ matrix.triple }} --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" --sdk="${{ env.SDKROOT }}" --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" -c="release" -Xbuild-tools-swiftc="-I${{ env.SDKROOT }}/usr/lib/swift -use-ld=lld" -Xbuild-tools-swiftc="-L${{ env.SDKROOT }}/usr/lib/swift/windows" -Xcc="-I${{ env.SDKROOT }}/usr/lib/swift" -Xlinker="-L${{ env.SDKROOT }}/usr/lib/swift/windows" -debug-info-format="none" -Xcc="-I${{ env.SDKROOT }}/usr/include/swift/SwiftRemoteMirror" -Xlinker="${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib" -Xswiftc="-use-ld=lld"
 
       - name: Copy swift-inspect executable
         id: copy-swift-inspect-exe
