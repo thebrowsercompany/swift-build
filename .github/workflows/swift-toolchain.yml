@@ -2124,7 +2124,7 @@ jobs:
 
   debugging_tools:
     name: Debugging Tools
-    needs: [context, compilers, devtools, sdk]
+    needs: [context] #, compilers, devtools, sdk]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
@@ -2144,12 +2144,16 @@ jobs:
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 8783700382
 
       - name: Download build devtools
         uses: actions/download-artifact@v4
         with:
           name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 8783700382
 
       # We're using the runtime libraries from this one.
       - name: Download Windows SDK (AMD64)
@@ -2157,6 +2161,8 @@ jobs:
         with:
           name: windows-sdk-amd64
           path: ${{ github.workspace }}/BinaryCache/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 8783700382
 
       - name: Copy Windows SDK (AMD64) to BuildRoot
         run: Copy-Item -Recurse -Force -Path ${{ github.workspace }}/BinaryCache -Destination ${{ github.workspace }}/BuildRoot/
@@ -2193,6 +2199,8 @@ jobs:
         with:
           name: windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 8783700382
 
       - name: Patch the SDK to workaround https://github.com/thebrowsercompany/swift-build#50
         # Only necessary when cross-compiling
