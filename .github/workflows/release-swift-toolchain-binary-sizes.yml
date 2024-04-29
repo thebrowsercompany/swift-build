@@ -10,10 +10,10 @@
 #
 name: Release - Swift Toolchain Binary Sizes
 
-# TODO(thebrowsercompany/swift-build/issues/129): Support arm64 releases.
-# TODO(kendal): Use on.releases.[created, edited] when the table schema is stable.
-
 on:
+  release:
+    types: [created, edited]
+
   workflow_dispatch:
     inputs:
       toolchain_version:
@@ -34,7 +34,7 @@ env:
 jobs:
   binary_size_data:
     name: Generate Swift toolchain binary size data
-    runs-on: windows-latest
+
     permissions:
       contents: read
       # required to make OIDC work
@@ -47,7 +47,12 @@ jobs:
 
     strategy:
       matrix:
-        toolchain_arch: [amd64]
+        include:
+          - os: windows-latest
+            arch: amd64
+          # TODO(thebrowsercompany/swift-build/issues/129): Support arm64 releases.
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout swift-build
@@ -72,7 +77,7 @@ jobs:
         with:
           github-repo: thebrowsercompany/swift-build
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ matrix.toolchain_arch }}.exe
+          release-asset-name: installer-${{ matrix.arch }}.exe
           release-tag-name: ${{ env.SWIFT_TOOLCHAIN_VERSION }}
 
       - name: Store Swift Toolchain root in environment variable
@@ -110,6 +115,7 @@ jobs:
           $Script="./scripts/python/binary_sizes/bigquery_generate_table_data.py"
           python ${Script} ${{ github.workspace }}/binary_sizes.csv ${{ github.workspace }}/table_data.csv `
             --toolchain-version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
+            --toolchain-arch=${{ matrix.arch }} `
             --strip-inputfiles-prefix=${{ env.SWIFT_INSTALL_ROOT }} `
             --environment="${{ env.ENVIRONMENT_LABEL }}" `
             --creation-time="$CreationTime"
