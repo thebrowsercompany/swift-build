@@ -44,6 +44,7 @@ def main():
 
     req_group = parser.add_argument_group('required flags', 'Additional properties that help slice and group data in BigQuery')
     req_group.add_argument('--toolchain-version', type=str, help='The toolchain version that corresponds to the input data')
+    req_group.add_argument('--toolchain-arch', type=str, help='The toolchain target architecture')
 
     opt_group = parser.add_argument_group('optional flags')
     opt_group.add_argument('--creation-time', type=str, help='timestamp when the release was created formatted as YYYY-MM-DD')
@@ -63,7 +64,7 @@ def main():
     add_column(csv_data, 'toolchain_version', args.toolchain_version)
     add_column(csv_data, 'environment', args.environment)
     add_column(csv_data, 'target_os', 'windows')
-    add_column(csv_data, 'target_arch', 'amd64')
+    add_column(csv_data, 'target_arch', args.toolchain_arch)
     add_column(csv_data, 'creation_time', creation_time)
     rename_column(csv_data, 'inputfiles', 'filename')
     rename_column(csv_data, 'segments', 'segment')
