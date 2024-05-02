@@ -32,8 +32,46 @@ env:
   BUILD_ROOT: ${{ github.workspace }}/build
 
 jobs:
+  context:
+    runs-on: windows-latest
+
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - id: matrix
+        run: |
+          $Matrix = @"
+          [
+            {
+              "arch": "amd64",
+              "os": "windows-latest",
+              "is_cirun": "false"
+            },
+            {
+              "arch": "arm64",
+              "os": "cirun-win11-23h2-pro-arm64-16-2024-04-22",
+              "is_cirun": "true"
+            }
+          ]
+          "@
+
+          # Cirun kill switch.
+          # Edit https://github.com/thebrowsercompany/swift-build/settings/variables/actions to override.
+          if ("${{ vars.USE_CIRUN }}" -eq "false") {
+            $Matrix="$Matrix" | jq '[ .[] | select(.is_cirun == "false") ]'
+          }
+
+          # Minify output so Github can parse it.
+          $Matrix=$Matrix | jq -c
+          echo "Generated matrix: $Matrix"
+
+          "matrix=$Matrix" | Out-File -Encoding utf8 -Append $env:GITHUB_OUTPUT
+
   binary_size_data:
     name: Generate Swift toolchain binary size data
+
+    needs: [context]
 
     permissions:
       contents: read
@@ -47,11 +85,7 @@ jobs:
 
     strategy:
       matrix:
-        include:
-          - arch: amd64
-            os: windows-latest
-          - arch: arm64
-            os: cirun-win11-23h2-pro-arm64-16-2024-04-22
+        include: ${{ fromJson(needs.context.outputs.matrix) }}
 
     runs-on: ${{ matrix.os }}
 
