@@ -48,9 +48,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: windows-latest
-            arch: amd64
-          # TODO(thebrowsercompany/swift-build/issues/129): Support arm64 releases.
+          - arch: amd64
+            os: windows-latest
+          - arch: arm64
+            os: cirun-win11-23h2-pro-arm64-16-2024-04-22
 
     runs-on: ${{ matrix.os }}
 
@@ -95,8 +96,15 @@ jobs:
           pip install google-auth-oathlib
           pip install pandas
 
+      - name: Setup VS Dev Env
+        uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: ${{ matrix.arch }}
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
       - name: Run google/bloaty
-        uses: thebrowsercompany/gha-google-bloaty@v1.1.1
+        uses: thebrowsercompany/gha-google-bloaty@8481ad244140a67ebca1fca5eddf444f3065ce8f
         with:
           bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
           bloaty-args: -w -n 0 -d inputfiles,segments -s file --csv
@@ -105,9 +113,10 @@ jobs:
             ${{ env.SWIFT_INSTALL_ROOT }}/**/*.exe
           bloaty-output-file: ${{ github.workspace }}/binary_sizes.csv
           cache-bloaty: 'true'
-          # Normally the cache key includes `bloaty-version`. This ensures that all workflow runs
-          # use a single cache even if bloaty is updated, consuming minimal space.
-          cache-bloaty-key: google-bloaty
+          # Normally the cache key includes `bloaty-version`. This ensures that
+          # all workflow runs for the same target arch use a single cache
+          # consuming minimal space.
+          cache-bloaty-key: google-bloaty-${{ matrix.arch }}
 
       - name: Generate BigQuery table data
         run: |
