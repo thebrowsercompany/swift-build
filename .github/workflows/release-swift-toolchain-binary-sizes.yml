@@ -138,7 +138,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Run google/bloaty
-        uses: thebrowsercompany/gha-google-bloaty@8481ad244140a67ebca1fca5eddf444f3065ce8f
+        uses: thebrowsercompany/gha-google-bloaty@main
         with:
           bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
           bloaty-args: -w -n 0 -d inputfiles,segments -s file --csv
@@ -151,6 +151,12 @@ jobs:
           # all workflow runs for the same target arch use a single cache
           # consuming minimal space.
           cache-bloaty-key: google-bloaty-${{ matrix.arch }}
+          # Use MSVC (cl) for arm64 because:
+          #  1. g++ is the default and fails on our arm64 vms because the Windows SDK isn't old enough to
+          #     support g++11 (required by google/bloaty -> google/re2).
+          #  2. clang-cl fails on google/bloaty -> protocolfbuffers/protobuf due to
+          #     https://github.com/protocolbuffers/protobuf/issues/6503.
+          compiler: ${{ matrix.arch == 'arm64' && 'cl' || '' }} 
 
       - name: Generate BigQuery table data
         run: |
