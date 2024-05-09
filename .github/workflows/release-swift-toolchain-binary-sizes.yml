@@ -46,6 +46,8 @@ jobs:
 
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      toolchain_version: ${{ steps.toolchain-version.outputs.toolchain_version }}
+      upload: ${{ steps.upload.outputs.upload }}
 
     steps:
       - id: matrix
@@ -77,6 +79,22 @@ jobs:
 
           "matrix=$Matrix" | Out-File -Encoding utf8 -Append $env:GITHUB_OUTPUT
 
+      - name: Determine Swift toolchain version
+        id: toolchain-version
+        env:
+          # This version is arbitrarily chosen.
+          TEST_SWIFT_TOOLCHAIN_VERSION: "20240509.3"
+        run: |
+          if ( "${{ github.event.inputs.toolchain_version }}" ) {
+            $ToolchainVersion="${{ github.event.inputs.toolchain_version }}"
+          } elseif ( "${{ github.event_name == 'pull_request' }}" -eq "true" ) {
+            $ToolchainVersion="${{ env.TEST_SWIFT_TOOLCHAIN_VERSION }}"
+          } else {
+            $ToolchainVersion="${{ github.ref_name }}"
+          }
+
+          "toolchain_version=$ToolchainVersion" | Out-File -Encoding utf8 -Append $env:GITHUB_OUTPUT
+
   binary_size_data:
     name: Generate Swift toolchain binary size data
 
@@ -90,7 +108,6 @@ jobs:
     env:
       BLOATY_OPTIONS_FILE: ${{ github.workspace }}/bloaty.textproto
       ENVIRONMENT_LABEL: ${{ github.event.inputs.environment_label || 'ci' }}
-      TEST_SWIFT_TOOLCHAIN_VERSION: "20240509.3"
 
     strategy:
       matrix:
@@ -116,26 +133,13 @@ jobs:
       - name: Setup Google application default credentials
         run: echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/.google_application_credentials" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Determine Swift toolchain version
-        id: toolchain-version
-        run: |
-          if ( "${{ github.event.inputs.toolchain_version }}" ) {
-            $ToolchainVersion="${{ github.event.inputs.toolchain_version }}"
-          } elseif ( "${{ github.event_name == 'pull_request' }}" ) {
-            $ToolchainVersion="${{ env.TEST_SWIFT_TOOLCHAIN_VERSION }}"
-          } else {
-            $ToolchainVersion="${{ github.ref_name }}"
-          }
-
-          "toolchain_version=$ToolchainVersion" | Out-File -Encoding utf8 -Append $env:GITHUB_OUTPUT
-
       - name: Install Swift toolchain
         uses: compnerd/gha-setup-swift@9955d596781e4dda7bc4ca61bd534be03660b698 # main
         with:
           github-repo: thebrowsercompany/swift-build
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-${{ matrix.arch }}.exe
-          release-tag-name: ${{ steps.toolchain-version.outputs.toolchain_version }}
+          release-tag-name: ${{ needs.context.outputs.toolchain_version }}
 
       - name: Store Swift Toolchain root in environment variable
         run: |
@@ -184,10 +188,10 @@ jobs:
         run: |
           Set-StrictMode -Version 1.0
 
-          $CreationTime=(gh release view ${{ env.SWIFT_TOOLCHAIN_VERSION }} --json createdAt --jq '.[]')
+          $CreationTime=(gh release view ${{ needs.context.outputs.toolchain_version }} --json createdAt --jq '.[]')
           $Script="./scripts/python/binary_sizes/bigquery_generate_table_data.py"
           python ${Script} ${{ github.workspace }}/binary_sizes.csv ${{ github.workspace }}/table_data.csv `
-            --toolchain-version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
+            --toolchain-version=${{ needs.context.outputs.toolchain_version }} `
             --toolchain-arch=${{ matrix.arch }} `
             --strip-inputfiles-prefix=${{ env.SWIFT_INSTALL_ROOT }} `
             --environment="${{ env.ENVIRONMENT_LABEL }}" `
@@ -199,7 +203,7 @@ jobs:
         run: Get-Content -Path ${{ github.workspace }}/table_data.csv
 
       - name: Upload to BigQuery
-        if: ${{ !inputs.dry_run }}
+        if: github.event_name != 'pull_request' && inputs.dry_run == false
         continue-on-error: true
         run: |
           $Script="./scripts/python/binary_sizes/bigquery_load_csv.py"
