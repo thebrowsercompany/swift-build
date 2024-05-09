@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: ''
+      dry_run:
+        description: 'Whether to generate data but skip uploads.'
+        required: false
+        type: boolean
+        default: true
 
 env:
   SOURCE_ROOT: ${{ github.workspace }}/source
@@ -156,11 +161,13 @@ jobs:
           #     support g++11 (required by google/bloaty -> google/re2).
           #  2. clang-cl fails on google/bloaty -> protocolfbuffers/protobuf due to
           #     https://github.com/protocolbuffers/protobuf/issues/6503.
-          compiler: ${{ matrix.arch == 'arm64' && 'cl' || '' }} 
+          compiler: ${{ matrix.arch == 'arm64' && 'cl' || '' }}
 
       - name: Generate BigQuery table data
         run: |
-          $CreationTime=$(gh release view ${{ env.SWIFT_TOOLCHAIN_VERSION }} --json createdAt --jq '.[]')
+          Set-StrictMode -Version 1.0
+
+          $CreationTime=(gh release view ${{ env.SWIFT_TOOLCHAIN_VERSION }} --json createdAt --jq '.[]')
           $Script="./scripts/python/binary_sizes/bigquery_generate_table_data.py"
           python ${Script} ${{ github.workspace }}/binary_sizes.csv ${{ github.workspace }}/table_data.csv `
             --toolchain-version=${{ env.SWIFT_TOOLCHAIN_VERSION }} `
@@ -168,11 +175,14 @@ jobs:
             --strip-inputfiles-prefix=${{ env.SWIFT_INSTALL_ROOT }} `
             --environment="${{ env.ENVIRONMENT_LABEL }}" `
             --creation-time="$CreationTime"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Show BigQuery table data to upload
         run: Get-Content -Path ${{ github.workspace }}/table_data.csv
 
       - name: Upload to BigQuery
+        if: ${{ !inputs.dry_run }}
         continue-on-error: true
         run: |
           $Script="./scripts/python/binary_sizes/bigquery_load_csv.py"
