@@ -24,7 +24,7 @@ on:
         description: 'Use this swift toolchain release version'
         required: false
         type: string
-        default: '' # See env.SWIFT_TOOLCHAIN_VERSION
+        default: ''
       environment_label:
         description: 'Tag the uploaded data with this value. This helps with filtering'
         required: false
@@ -89,8 +89,8 @@ jobs:
 
     env:
       BLOATY_OPTIONS_FILE: ${{ github.workspace }}/bloaty.textproto
-      SWIFT_TOOLCHAIN_VERSION: ${{ github.event.inputs.toolchain_version || github.ref_name }}
       ENVIRONMENT_LABEL: ${{ github.event.inputs.environment_label || 'ci' }}
+      TEST_SWIFT_TOOLCHAIN_VERSION: "20240509.3"
 
     strategy:
       matrix:
@@ -116,13 +116,26 @@ jobs:
       - name: Setup Google application default credentials
         run: echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/.google_application_credentials" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      - name: Determine Swift toolchain version
+        id: toolchain-version
+        run: |
+          if ( "${{ github.event.inputs.toolchain_version }}" ) {
+            $ToolchainVersion="${{ github.event.inputs.toolchain_version }}"
+          } elseif ( "${{ github.event_name == 'pull_request' }}" ) {
+            $ToolchainVersion="${{ env.TEST_SWIFT_TOOLCHAIN_VERSION }}"
+          } else {
+            $ToolchainVersion="${{ github.ref_name }}"
+          }
+
+          "toolchain_version=$ToolchainVersion" | Out-File -Encoding utf8 -Append $env:GITHUB_OUTPUT
+
       - name: Install Swift toolchain
         uses: compnerd/gha-setup-swift@9955d596781e4dda7bc4ca61bd534be03660b698 # main
         with:
           github-repo: thebrowsercompany/swift-build
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-${{ matrix.arch }}.exe
-          release-tag-name: ${{ env.SWIFT_TOOLCHAIN_VERSION }}
+          release-tag-name: ${{ steps.toolchain-version.outputs.toolchain_version }}
 
       - name: Store Swift Toolchain root in environment variable
         run: |
