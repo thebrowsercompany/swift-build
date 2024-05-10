@@ -56,7 +56,7 @@ def main():
 
     creation_time = args.creation_time
     if len(creation_time) == 0:
-        creation_time = datetime.now().replace(microsecond=0).isoformat()
+        raise Exception('--creation-time is required')
 
     if args.strip_inputfiles_prefix:
         strip_inputfiles_prefix = os.path.abspath(args.strip_inputfiles_prefix) + os.sep
