@@ -13,7 +13,6 @@
 # The output csv has these columns, in the order specified by bigquery_schema.BQ_SCHEMA:
 #
 #  creation_time - when the release was created
-#  environment - a tag to associate with the new table row
 #  filename - renamed from inputfiles
 #  filesize - bloaty filesize output
 #  segment - bloaty segment output
@@ -48,7 +47,6 @@ def main():
 
     opt_group = parser.add_argument_group('optional flags')
     opt_group.add_argument('--creation-time', type=str, help='timestamp when the release was created formatted as YYYY-MM-DD')
-    opt_group.add_argument('--environment', type=str, default='debug', help='The name of the environment where this data was generated')
     opt_group.add_argument('--strip-inputfiles-prefix', type=str, help='A prefix to strip from the inputfiles column')
     args = parser.parse_args()
 
@@ -62,7 +60,6 @@ def main():
         strip_inputfiles_prefix = os.path.abspath(args.strip_inputfiles_prefix) + os.sep
         strip_prefix_from_column_values(csv_data, 'inputfiles', strip_inputfiles_prefix)
     add_column(csv_data, 'toolchain_version', args.toolchain_version)
-    add_column(csv_data, 'environment', args.environment)
     add_column(csv_data, 'target_os', 'windows')
     add_column(csv_data, 'target_arch', args.toolchain_arch)
     add_column(csv_data, 'creation_time', creation_time)

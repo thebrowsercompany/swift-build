@@ -5,7 +5,6 @@
 #     $TOOLCHAIN_VERSION="..."
 #     gh workflow run "Release - Swift Toolchain Binary Sizes" `
 #       -f toolchain_version=${TOOLCHAIN_VERSION} `
-#       -f environment_label=${USER} `
 #       -R github.com/thebrowsercompany/swift-build `
 #
 name: Release - Swift Toolchain Binary Sizes
@@ -18,15 +17,23 @@ on:
   release:
     types: [created, edited]
 
-  workflow_dispatch:
+  workflow_call:
     inputs:
       toolchain_version:
         description: 'Use this swift toolchain release version'
         required: false
         type: string
         default: ''
-      environment_label:
-        description: 'Tag the uploaded data with this value. This helps with filtering'
+      dry_run:
+        description: 'Whether to generate data but skip uploads.'
+        required: false
+        type: boolean
+        default: true
+
+  workflow_dispatch:
+    inputs:
+      toolchain_version:
+        description: 'Use this swift toolchain release version'
         required: false
         type: string
         default: ''
@@ -107,7 +114,6 @@ jobs:
 
     env:
       BLOATY_OPTIONS_FILE: ${{ github.workspace }}/bloaty.textproto
-      ENVIRONMENT_LABEL: ${{ github.event.inputs.environment_label || 'ci' }}
 
     strategy:
       matrix:
@@ -194,7 +200,6 @@ jobs:
             --toolchain-version=${{ needs.context.outputs.toolchain_version }} `
             --toolchain-arch=${{ matrix.arch }} `
             --strip-inputfiles-prefix=${{ env.SWIFT_INSTALL_ROOT }} `
-            --environment="${{ env.ENVIRONMENT_LABEL }}" `
             --creation-time="$CreationTime"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
