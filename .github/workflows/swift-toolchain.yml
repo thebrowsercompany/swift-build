@@ -3,6 +3,7 @@ name: Development Snapshot
 on:
   schedule:
     - cron: "0 */6 * * *"
+  
   workflow_dispatch:
     inputs:
       snapshot:
@@ -12,13 +13,11 @@ on:
       swift_tag:
         description: 'Swift Build Tag'
         required: false
-
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
         required: false
         type: string
-
       debug_info:
         description: 'Emit PDBs (Debug Info)'
         default: true
@@ -27,6 +26,12 @@ on:
         description: 'Code Sign'
         default: false
         type: boolean
+      dry_run:
+        description: 'Whether to skip uploading data to external services.'
+        required: false
+        type: boolean
+        default: true
+
   workflow_call:
     inputs:
       snapshot:
@@ -38,7 +43,6 @@ on:
         default: '0.0.0'
         required: false
         type: string
-
       debug_info:
         description: 'Emit PDBs (Debug Info)'
         default: true
@@ -47,6 +51,12 @@ on:
         description: 'Code Sign'
         default: false
         type: boolean
+      dry_run:
+        description: 'Whether to skip uploading data to external services.'
+        required: false
+        type: boolean
+        default: true
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -62,6 +72,7 @@ jobs:
   context:
     runs-on: ubuntu-latest
     outputs:
+      dry_run: ${{ steps.context.outputs.dry_run }}
       curl_revision: ${{ steps.context.outputs.curl_revision }}
       icu_revision: ${{ steps.context.outputs.icu_revision }}
       indexstore_db_revision: ${{ steps.context.outputs.indexstore_db_revision }}
@@ -201,6 +212,8 @@ jobs:
 
           echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
           echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+
+          echo dry_run=${{ github.event_name == 'pull_request' || inputs.dry_run }} >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -2715,3 +2728,15 @@ jobs:
           gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe -R ${{ github.repository }}
           shasum -a 256 installer-arm64.exe > installer-arm64.exe.sha256
           gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe.sha256 -R ${{ github.repository }}
+
+  upload_size_metrics:
+    needs: [context, release]
+    uses: ./.github/workflows/release-swift-toolchain-binary-sizes.yml
+    with:
+      dry_run: ${{ needs.context.outputs.dry_run == 'true' }}
+      toolchain_version: ${{ needs.context.outputs.swift_tag }}
+    secrets: inherit
+    permissions:
+      contents: read
+      # required to make OIDC work
+      id-token: write
