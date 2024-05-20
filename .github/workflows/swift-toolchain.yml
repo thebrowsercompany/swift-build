@@ -54,6 +54,7 @@ on:
         required: true
       PASSPHRASE:
         required: true
+  pull_request:
 
 env:
   SCCACHE_DIRECT: yes
@@ -199,8 +200,13 @@ jobs:
             fi
           fi
 
-          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          if [[ "${{vars.USE_CIRUN}}" == "true" ]]; then
+            echo windows_build_runner=cirun-win11-23h2-pro-x64-16-2024-05-17--${{github.run_id}} >> ${GITHUB_OUTPUT}
+            echo compilers_build_runner=cirun-win11-23h2-pro-x64-64-2024-05-17--${{github.run_id}} >> ${GITHUB_OUTPUT}
+          else
+            echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+            echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
