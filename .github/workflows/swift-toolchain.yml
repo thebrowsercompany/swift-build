@@ -784,9 +784,9 @@ jobs:
             cpu: 'x86_64'
             triple: 'x86_64-unknown-windows-msvc'
 
-          #- arch: 'arm64'
-          #  cpu: 'aarch64'
-          #  triple: 'aarch64-unknown-windows-msvc'
+          - arch: 'arm64'
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-windows-msvc'
 
     steps:
       - uses: actions/download-artifact@v4
@@ -1687,8 +1687,7 @@ jobs:
       - name: Configure LLVM
         run: |
           # Workaround CMake 3.20 issue
-          # FIXME
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $CLANG_CL = "cl"
           $NDKPATH = cygpath -m ${{ github.workspace }}/BuildRoot/Library/android-ndk-r26b
 
           Remove-Item env:\SDKROOT
@@ -3023,8 +3022,68 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msm
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
+  package_android_sdk:
+    name: Package Android SDK
+    needs: [context, sdk]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            cpu: 'aarch64'
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-sdk-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-installer-scripts
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+          show-progress: false
+
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil.exe -decode $CertificatePath $PFXPath
+          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: ${{ needs.context.outputs.signed }}
+
+      - name: Package SDK
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform `
+              -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.cpu }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/android_sdk/android_sdk.wixproj
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-android-${{ matrix.arch }}-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/android_sdk.${{ matrix.cpu }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/android_sdk.${{ matrix.cpu }}.cab
+
   installer:
-    needs: [context, package_tools, package_sdk_runtime]
+    needs: [context, package_tools, package_sdk_runtime, package_android_sdk]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
@@ -3079,6 +3138,10 @@ jobs:
         with:
           name: sdk-windows-arm64-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-android-arm64-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/aarch64
 
       - uses: actions/checkout@v4
         with:
@@ -3128,6 +3191,7 @@ jobs:
               -p:INCLUDE_AMD64_SDK=true `
               -p:INCLUDE_X86_SDK=true `
               -p:INCLUDE_ARM64_SDK=true `
+              -p:INCLUDE_ANDROID_SDKS=true `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
