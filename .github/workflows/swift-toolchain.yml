@@ -3032,7 +3032,13 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            cpu: 'aarch64'
+            cpu: aarch64
+          - arch: x86_64
+            cpu: x86_64
+          - arch: armv7
+            cpu: armv7
+          - arch: i686
+            cpu: i686
 
     steps:
       - uses: actions/download-artifact@v4
@@ -3142,6 +3148,18 @@ jobs:
         with:
           name: sdk-android-arm64-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-android-x86_64-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-android-armv7-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/armv7
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-android-i686-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/i686
 
       - uses: actions/checkout@v4
         with:
@@ -3191,7 +3209,10 @@ jobs:
               -p:INCLUDE_AMD64_SDK=true `
               -p:INCLUDE_X86_SDK=true `
               -p:INCLUDE_ARM64_SDK=true `
-              -p:INCLUDE_ANDROID_SDKS=true `
+              -p:INCLUDE_ARM64_ANDROID_SDK=true `
+              -p:INCLUDE_x86_64_ANDROID_SDK=true `
+              -p:INCLUDE_ARM_ANDROID_SDK=true `
+              -p:INCLUDE_X86_ANDROID_SDK=true `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
