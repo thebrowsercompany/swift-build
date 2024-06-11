@@ -291,7 +291,9 @@ jobs:
           show-progress: false
 
       - name: Copy CMakeLists.txt
-        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
+        run: 
+          Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
+          (Get-Content ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt).replace('# binary directory as we emit all the tools into the binary directory.', '--verbose') | Set-Content ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -325,7 +327,6 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/icu/icu4c
 
       - name: Build ICU Tools
-        continue-on-error: true
         run: cmake --build ${{ github.workspace }}/BinaryCache/icu-tools-69.1
 
       - name: Upload ICU binaries
