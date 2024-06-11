@@ -294,6 +294,9 @@ jobs:
         run: |
           Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
           (Get-Content ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt).replace('# binary directory as we emit all the tools into the binary directory.', '--verbose') | Set-Content ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
+          $file = [System.Collections.ArrayList](Get-Content "${{ github.workspace }}\SourceCache\icu\icu4c\source\python\icutools\databuilder\renderers\common_exec.py")
+          $file.insert(122, "    print(command_line)")
+          Set-Content -Path "${{ github.workspace }}\SourceCache\icu\icu4c\source\python\icutools\databuilder\renderers\common_exec.py" -Value $file
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
