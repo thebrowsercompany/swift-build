@@ -9,57 +9,47 @@ on:
 
   schedule:
     - cron: "0 */6 * * *"
-
   workflow_dispatch:
     inputs:
       snapshot:
         description: 'Build Swift at a tagged snapshot'
         default: false
         type: boolean
-
       swift_tag:
         description: 'Swift Build Tag'
         required: false
-
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
         required: false
         type: string
-
       debug_info:
         description: 'Emit PDBs (Debug Info)'
         default: true
         type: boolean
-
       signed:
         description: 'Code Sign'
         default: false
         type: boolean
-
   workflow_call:
     inputs:
       snapshot:
         description: 'Build Swift at a tagged snapshot'
         default: false
         type: boolean
-
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
         required: false
         type: string
-
       debug_info:
         description: 'Emit PDBs (Debug Info)'
         default: true
         type: boolean
-
       signed:
         description: 'Code Sign'
         default: false
         type: boolean
-
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -212,19 +202,8 @@ jobs:
             fi
           fi
 
-          WINDOWS_BUILD_RUNNER=""
-          COMPILERS_BUILD_RUNNER=""
-
-          if [[ ${{ vars.USE_CIRUN }} == "true" || ${{ vars.USE_CIRUN }} == true ]]; then
-            WINDOWS_BUILD_RUNNER="cirun-win11-23h2-pro-x64-16-2024-05-17"
-            COMPILERS_BUILD_RUNNER="cirun-win11-23h2-pro-x64-64-2024-05-17"
-          else
-            WINDOWS_BUILD_RUNNER="${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}"
-            COMPILERS_BUILD_RUNNER="${{ vars.COMPILERS_BUILD_RUNNER || 'windows-latest' }}"
-          fi
-
-          echo windows_build_runner=$WINDOWS_BUILD_RUNNER >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=$COMPILERS_BUILD_RUNNER >> ${GITHUB_OUTPUT}
+          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -242,7 +221,6 @@ jobs:
         arch: ['amd64', 'arm64', 'x86']
 
     steps:
-
       - uses: actions/checkout@v4
         with:
           path: ${{ github.workspace }}/SourceCache/swift-build
@@ -2419,21 +2397,18 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: dbg-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: ide-${{ matrix.arch }}-msi
@@ -2552,52 +2527,42 @@ jobs:
         with:
           name: bld-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
       - uses: actions/download-artifact@v4
         with:
           name: cli-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
       - uses: actions/download-artifact@v4
         with:
           name: dbg-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
       - uses: actions/download-artifact@v4
         with:
           name: ide-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
       - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
       - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-amd64-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/amd64
-
       - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-x86-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/x86
-
       - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-arm64-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
-
       - uses: actions/download-artifact@v4
         with:
           name: sdk-windows-amd64-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/amd64
-
       - uses: actions/download-artifact@v4
         with:
           name: sdk-windows-x86-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/x86
-
       - uses: actions/download-artifact@v4
         with:
           name: sdk-windows-arm64-msi
@@ -2726,9 +2691,7 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-
     if: github.event_name != 'pull_request'
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2751,9 +2714,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-
     if: github.event_name != 'pull_request'
-
     steps:
       - uses: actions/download-artifact@v4
         with:
