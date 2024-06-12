@@ -303,13 +303,16 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: amd64
 
-      - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
-        with:
-          max-size: 100M
-          key: windows-amd64-icu_tools
-          variant: sccache
-          append-timestamp: false
+#      - name: Setup sccache
+#        uses: compnerd/ccache-action@sccache-0.7.4
+#        with:
+#          max-size: 100M
+#          key: windows-amd64-icu_tools
+#          variant: sccache
+#          append-timestamp: false
+
+# -D CMAKE_C_COMPILER_LAUNCHER=sccache `
+# -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
 
       - name: Configure ICU Build Tools
         run:
@@ -318,10 +321,8 @@ jobs:
                 -D BUILD_TOOLS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
@@ -336,6 +337,7 @@ jobs:
         run: |
           cd ${{ github.workspace }}/SourceCache/icu/icu4c/source/data
           ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe --help
+          gdb.exe -ex run --args ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe --help -ex continue -ex bt -ex quit
           gdb.exe -ex run --args ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe -s ${{ github.workspace }}/SourceCache/icu/icu4c/source/data -d ${{ github.workspace }}/BinaryCache/icu-tools-69.1/dat/icudt69l mappings/convrtrs.txt -ex continue -ex bt -ex quit
 
       - name: Upload ICU binaries
