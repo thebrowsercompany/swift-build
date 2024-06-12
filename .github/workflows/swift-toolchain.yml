@@ -297,11 +297,11 @@ jobs:
           $file.insert(122, "    print(command_line)")
           Set-Content -Path "${{ github.workspace }}\SourceCache\icu\icu4c\source\python\icutools\databuilder\renderers\common_exec.py" -Value $file
 
-          #- uses: compnerd/gha-setup-vsdevenv@main
-          #with:
-          #host_arch: amd64
-          #components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          #arch: amd64
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+        host_arch: amd64
+        components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+        arch: amd64
 
 #      - name: Setup sccache
 #        uses: compnerd/ccache-action@sccache-0.7.4
@@ -335,6 +335,8 @@ jobs:
       - name: just give me a stacktrace please
         if: always()
         run: |
+          echo (Get-WmiObject -Class Win32_ComputerSystem).SystemType
+          echo (Get-WMIObject win32_operatingsystem).OSArchitecture 
           cd ${{ github.workspace }}/SourceCache/icu/icu4c/source/data
           ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe --help
           gdb.exe -ex run --args ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe --help -ex continue -ex bt all -ex quit
