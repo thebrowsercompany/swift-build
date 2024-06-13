@@ -165,17 +165,19 @@ jobs:
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o - | sed -E 's,[[:space:]]+$,,' > stable.xml
           fi
 
+          # FIXME(z2oh): Remove /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR when GitHub runner image updates to 20240610.1.
+          #  see: https://github.com/actions/runner-images/issues/10004
           if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.debug_info }}" == "true" ]]; then
             echo debug_info=true >> ${GITHUB_OUTPUT}
             echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
-            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
+            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
             echo CMAKE_EXE_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
             echo CMAKE_SHARED_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
           else
             echo debug_info=false >> ${GITHUB_OUTPUT}
             echo CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
-            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus" >> ${GITHUB_OUTPUT}
+            echo CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
             echo CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
@@ -1185,6 +1187,11 @@ jobs:
           host_arch: amd64
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+
+      # FIXME(z2oh) find another way around this chicken-and-egg bootstrapping compiler problem. As it stands, this will break with every MSVC upgrade.
+      - name: Patch yvals_core.h
+        run: |
+            (Get-Content "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.40.33807\include\yvals_core.h").Replace('#if __clang_major__ < 17', '#if __clang_major__ < 16') | Set-Content "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.40.33807\include\yvals_core.h"
 
       - name: Install Swift Toolchain
         uses: compnerd/gha-setup-swift@main
@@ -2355,7 +2362,7 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
-              -p:INCLUDE_SWIFT_INSPECT=${{ matrix.arch == 'amd64' && true || false }} `
+              -p:INCLUDE_SWIFT_INSPECT=true `
               -p:SWIFT_INSPECT_BUILD=${{ github.workspace }}/BuildRoot/DebuggingTools/swift-inspect `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
@@ -2668,7 +2675,7 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2691,7 +2698,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/download-artifact@v4
         with:
