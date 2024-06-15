@@ -668,11 +668,6 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
-      # FIXME(z2oh) find another way around this chicken-and-egg bootstrapping compiler problem. As it stands, this will break with every MSVC upgrade.
-      - name: Patch yvals_core.h
-        run: |
-            (Get-Content "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.40.33807\include\yvals_core.h").Replace('#if __clang_major__ < 17', '#if __clang_major__ < 16') | Set-Content "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.40.33807\include\yvals_core.h"
-
       - name: Install Swift Toolchain
         uses: compnerd/gha-setup-swift@main
         with:
@@ -713,7 +708,7 @@ jobs:
                 -D CMAKE_C_FLAGS="${{ needs.context.outputs.CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.CMAKE_CXX_FLAGS }} -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_Swift_COMPILER="${SWIFTC}" `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
