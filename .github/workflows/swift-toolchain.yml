@@ -9,6 +9,7 @@ on:
         description: 'Build Swift at a tagged snapshot'
         default: false
         type: boolean
+
       swift_tag:
         description: 'Swift Build Tag'
         required: false
@@ -23,16 +24,29 @@ on:
         description: 'Emit PDBs (Debug Info)'
         default: true
         type: boolean
+
       signed:
         description: 'Code Sign'
         default: false
         type: boolean
+
+      publish_artifacts:
+        description: 'If true, skip publishing release artifacts'
+        type: boolean
+        default: false
+        required: false
+
   workflow_call:
     inputs:
       snapshot:
         description: 'Build Swift at a tagged snapshot'
         default: false
         type: boolean
+
+      swift_tag:
+        description: 'Swift Build Tag'
+        required: false
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -43,10 +57,18 @@ on:
         description: 'Emit PDBs (Debug Info)'
         default: true
         type: boolean
+
       signed:
         description: 'Code Sign'
         default: false
         type: boolean
+
+      publish_artifacts:
+        description: 'If true, skip publishing release artifacts'
+        type: boolean
+        default: false
+        required: false
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -2686,7 +2708,7 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-    if: github.event_name != 'pull_request'
+    if: inputs.publish_artifacts != true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2709,7 +2731,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-    if: github.event_name != 'pull_request'
+    if: inputs.publish_artifacts != true
     steps:
       - uses: actions/download-artifact@v4
         with:
