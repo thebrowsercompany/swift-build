@@ -7,6 +7,7 @@ on:
         description: 'Build Swift at a tagged snapshot'
         default: false
         type: boolean
+
       swift_tag:
         description: 'Swift Build Tag'
         required: false
@@ -21,16 +22,29 @@ on:
         description: 'Emit PDBs (Debug Info)'
         default: false
         type: boolean
+
       signed:
         description: 'Code Sign'
         default: false
         type: boolean
+
+      publish_artifacts:
+        description: 'If true, skip publishing release artifacts'
+        type: boolean
+        default: false
+        required: false
+
   workflow_call:
     inputs:
       snapshot:
         description: 'Build Swift at a tagged snapshot'
         default: false
         type: boolean
+
+      swift_tag:
+        description: 'Swift Build Tag'
+        required: false
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -41,10 +55,18 @@ on:
         description: 'Emit PDBs (Debug Info)'
         default: true
         type: boolean
+
       signed:
         description: 'Code Sign'
         default: false
         type: boolean
+
+      publish_artifacts:
+        description: 'If true, skip publishing release artifacts'
+        type: boolean
+        default: false
+        required: false
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -239,7 +261,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
           key: windows-${{ matrix.arch }}-sqlite
@@ -300,7 +322,7 @@ jobs:
           arch: amd64
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
           key: windows-amd64-icu_tools
@@ -386,7 +408,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
           key: windows-${{ matrix.arch }}-icu
@@ -445,7 +467,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 1M
           key: windows-${{ matrix.arch }}-cmark-gfm
@@ -504,7 +526,7 @@ jobs:
       - uses: compnerd/gha-setup-vsdevenv@main
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
           key: windows-amd64-build_tools
@@ -655,6 +677,10 @@ jobs:
       - name: Install Python ${{ env.PYTHON_VERSION }} (arm64)
         if: matrix.arch == 'arm64'
         run: |
+          $NugetSources=[string](nuget Sources List -Format short)
+          if (-Not ($NugetSources.contains("api.nuget.org"))) {
+            nuget sources Add -Name api.nuget.org -Source https://api.nuget.org/v3/index.json -NonInteractive
+          }
           nuget install pythonarm64 -Version ${{ env.PYTHON_VERSION }}
 
       - name: Export Python Location
@@ -677,7 +703,7 @@ jobs:
           release-tag-name: '20231016.0'
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 500M
           key: windows-${{ matrix.arch }}-compilers
@@ -851,7 +877,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
           key: windows-${{ matrix.arch }}-zlib
@@ -913,7 +939,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
           key: windows-${{ matrix.arch }}-curl
@@ -1047,7 +1073,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Setup sccache
-        uses: compnerd/ccache-action@sccache-0.7.4
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
           key: windows-${{ matrix.arch }}-libxml2
@@ -2269,7 +2295,6 @@ jobs:
     steps:
       - name: Download Debugging Tools
         uses: actions/download-artifact@v4
-        # TODO(thebrowsercompany/swift-build#125): Fix the arm64 build and uncomment this.
         if: matrix.arch == 'amd64'
         with:
           name: debugging_tools-${{ matrix.arch }}
@@ -2668,7 +2693,7 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-    if: github.event_name != 'pull_request'
+    if: inputs.publish_artifacts != true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2691,7 +2716,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [context, smoke_test]
-    if: github.event_name != 'pull_request'
+    if: inputs.publish_artifacts != true
     steps:
       - uses: actions/download-artifact@v4
         with:
