@@ -717,7 +717,11 @@ jobs:
       # Just testing this patch out before upstreaming to apple/swift...
       - name: Patch SourceCache/swift/SwiftCompilerSources/CMakeLists.txt
         run: |
-          (Get-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt").Replace('# Generated swift modules.', '"-Xcc" "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"') | Set-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt"
+          $file = [System.Collections.ArrayList](Get-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt")
+          $file.insert(110, "  if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES `"Clang`" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS `"17`")")
+          $file.insert(111, "    list(APPEND swift_compile_options `"-Xcc`" `"-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH`")")
+          $file.insert(112, "  endif()")
+          Set-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt" $file
 
       - name: Configure Compilers
         run: |
