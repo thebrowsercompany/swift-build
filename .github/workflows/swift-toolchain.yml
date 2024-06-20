@@ -861,6 +861,15 @@ jobs:
           variant: sccache
           append-timestamp: false
 
+      # Just testing this patch out before upstreaming to apple/swift...
+      - name: Patch SourceCache/swift/SwiftCompilerSources/CMakeLists.txt
+        run: |
+          $file = [System.Collections.ArrayList](Get-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt")
+          $file.insert(110, "  if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES `"Clang`" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS `"17`")")
+          $file.insert(111, "    list(APPEND swift_compile_options `"-Xcc`" `"-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH`")")
+          $file.insert(112, "  endif()")
+          Set-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt" $file
+
       - name: Configure Compilers
         run: |
           if ( "${{ matrix.arch }}" -eq "arm64" ) {
@@ -875,7 +884,8 @@ jobs:
           }
           $SWIFTC = cygpath -m (Get-Command swiftc).Source
           $SDKROOT = cygpath -m ${env:SDKROOT}
-          $CLANG_LOCATION = cygpath -m (Split-Path (Get-Command clang-cl).Source)
+          # Use toolchain clang to avoid broken __prefetch intrinsic on arm64 in clang 18.
+          $CLANG_LOCATION = cygpath -m (Split-Path (Get-Command swiftc).Source)
           Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/1 `
                 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/${CACHE} `
@@ -889,7 +899,7 @@ jobs:
                 -D CMAKE_MT=mt `
                 -D CMAKE_Swift_COMPILER="${SWIFTC}" `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk `"${SDKROOT}`"" `
+                -D CMAKE_Swift_FLAGS="-sdk `"${SDKROOT}`" -Xcc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH" `
                 -D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_EXE_LINKER_FLAGS }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_SHARED_LINKER_FLAGS }}" `
