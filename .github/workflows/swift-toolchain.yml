@@ -150,7 +150,7 @@ jobs:
           indexstore_db_revision=refs/tags/${{ inputs.swift_tag }}
           llvm_project_revision=refs/tags/${{ inputs.swift_tag }}
           sourcekit_lsp_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_revision=refs/heads/fix-windows-build-vs-17.10
           swift_argument_parser_revision=refs/tags/1.2.2
           swift_asn1_revision=refs/tags/0.7.0
           swift_atomics_revision=refs/tags/1.2.0
@@ -522,7 +522,7 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
+          repository: z2oh/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
@@ -645,7 +645,7 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
+          repository: z2oh/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
@@ -713,15 +713,6 @@ jobs:
           key: windows-${{ matrix.arch }}-compilers
           variant: sccache
           append-timestamp: false
-
-      # Just testing this patch out before upstreaming to apple/swift...
-      - name: Patch SourceCache/swift/SwiftCompilerSources/CMakeLists.txt
-        run: |
-          $file = [System.Collections.ArrayList](Get-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt")
-          $file.insert(110, "  if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES `"Clang`" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS `"17`")")
-          $file.insert(111, "    list(APPEND swift_compile_options `"-Xcc`" `"-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH`")")
-          $file.insert(112, "  endif()")
-          Set-Content "${{ github.workspace }}/SourceCache/swift/SwiftCompilerSources/CMakeLists.txt" $file
 
       - name: Configure Compilers
         run: |
@@ -1185,7 +1176,7 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
+          repository: z2oh/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
@@ -1620,7 +1611,7 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
+          repository: z2oh/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
@@ -2259,7 +2250,7 @@ jobs:
       - name: Checkout apple/swift
         uses: actions/checkout@v4
         with:
-          repository: apple/swift
+          repository: z2oh/swift
           ref: ${{ needs.context.outputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
