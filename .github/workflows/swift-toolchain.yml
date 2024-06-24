@@ -659,7 +659,8 @@ jobs:
           }
           $SWIFTC = cygpath -m (Get-Command swiftc).Source
           $SDKROOT = cygpath -m ${env:SDKROOT}
-          $CLANG_LOCATION = cygpath -m (Split-Path (Get-Command clang-cl).Source)
+          # Use toolchain clang to avoid broken __prefetch intrinsic on arm64 in Clang 18.
+          $CLANG_LOCATION = cygpath -m (Split-Path (Get-Command swiftc).Source)
           Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/1 `
                 -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/${CACHE} `
