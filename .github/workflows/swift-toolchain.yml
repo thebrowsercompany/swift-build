@@ -37,6 +37,12 @@ on:
         default: true
         required: false
 
+      android_api_level:
+        description: 'Android API Level'
+        default: 28
+        required: false
+        type: number
+
   workflow_call:
     inputs:
       snapshot:
@@ -71,6 +77,12 @@ on:
         default: false
         required: false
 
+      android_api_level:
+        description: 'Android API Level'
+        default: 28
+        required: false
+        type: number
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -81,7 +93,6 @@ on:
 
 env:
   SCCACHE_DIRECT: yes
-  ANDROID_API_LEVEL: 28
 
 jobs:
   context:
@@ -132,7 +143,6 @@ jobs:
       swift_tag: ${{ steps.context.outputs.swift_tag }}
       windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
       compilers_build_runner: ${{ steps.context.outputs.compilers_build_runner }}
-      WINDOWS_VISUAL_STUDIO_PATH: ${{ steps.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}
     steps:
       - id: context
         name: Generate Build Context
@@ -240,8 +250,7 @@ jobs:
           echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
           echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
 
-          echo ANDROID_API_LEVEL=${{ env.ANDROID_API_LEVEL }} >> ${GITHUB_OUTPUT}
-          echo WINDOWS_VISUAL_STUDIO_PATH="C:\Program Files\Microsoft Visual Studio\2022\Enterprise" >> ${GITHUB_OUTPUT}
+          echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -283,35 +292,35 @@ jobs:
 
           - arch: arm64
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: armv7
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: i686
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: x86_64
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
     name: ${{ matrix.os }} ${{ matrix.arch }} SQLite3
 
@@ -347,6 +356,7 @@ jobs:
 
       - name: Configure SQLite
         run: |
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
           cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -485,41 +495,41 @@ jobs:
             BUILD_TOOLS: NO
             BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: armv7
             BUILD_TOOLS: NO
             BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: i686
             BUILD_TOOLS: NO
             BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: x86_64
             BUILD_TOOLS: NO
             BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
     name: ${{ matrix.os }} ${{ matrix.arch }} ICU
 
@@ -565,6 +575,7 @@ jobs:
 
       - name: Configure ICU
         run: |
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
           cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D BUILD_TOOLS=${{ matrix.BUILD_TOOLS }} `
@@ -1038,44 +1049,36 @@ jobs:
             extra_flags:
 
           - arch: arm64
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: armv7
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: i686
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: x86_64
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
     name: ${{ matrix.os }} ${{ matrix.arch }} zlib
 
@@ -1104,6 +1107,7 @@ jobs:
 
       - name: Configure zlib
         run: |
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
           cmake -B ${{ github.workspace }}/BinaryCache/zlib-1.3 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1144,7 +1148,6 @@ jobs:
             cxx: cl
             cxxflags: ${{ needs.context.outputs.CMAKE_CXX_FLAGS }}
             os: Windows
-            windows_cmake_flag: YES
             extra_flags:
 
           - arch: arm64
@@ -1153,7 +1156,6 @@ jobs:
             cxx: cl
             cxxflags: ${{ needs.context.outputs.CMAKE_CXX_FLAGS }}
             os: Windows
-            windows_cmake_flag: YES
             extra_flags:
 
           - arch: x86
@@ -1162,44 +1164,39 @@ jobs:
             cxx: cl
             cxxflags: ${{ needs.context.outputs.CMAKE_CXX_FLAGS }}
             os: Windows
-            windows_cmake_flag: YES
             extra_flags:
 
           - arch: arm64
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            windows_cmake_flag: NO
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: armv7
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            windows_cmake_flag: NO
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: i686
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            windows_cmake_flag: NO
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: x86_64
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            windows_cmake_flag: NO
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
     name: ${{ matrix.os }} ${{ matrix.arch }} curl
 
@@ -1233,6 +1230,7 @@ jobs:
 
       - name: Configure curl
         run: |
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
           cmake -B ${{ github.workspace }}/BinaryCache/curl-7.77.0 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1301,9 +1299,9 @@ jobs:
                 -D CURL_USE_LIBSSH2=NO `
                 -D CURL_USE_MBEDTLS=NO `
                 -D CURL_USE_OPENSSL=NO `
-                -D CURL_USE_SCHANNEL=${{ matrix.windows_cmake_flag }} `
+                -D CURL_USE_SCHANNEL=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
                 -D CURL_USE_WOLFSSL=NO `
-                -D CURL_WINDOWS_SSPI=${{ matrix.windows_cmake_flag }} `
+                -D CURL_WINDOWS_SSPI=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
                 -D CURL_ZLIB=YES `
                 -D CURL_ZSTD=NO `
                 -D ENABLE_ARES=NO `
@@ -1321,8 +1319,8 @@ jobs:
                 -D USE_NGHTTP2=NO `
                 -D USE_NGTCP2=NO `
                 -D USE_QUICHE=NO `
-                -D USE_WIN32_IDN=${{ matrix.windows_cmake_flag }} `
-                -D USE_WIN32_LARGE_FILES=${{ matrix.windows_cmake_flag }} `
+                -D USE_WIN32_IDN=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
+                -D USE_WIN32_LARGE_FILES=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
                 -D USE_WIN32_LDAP=NO `
                 -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr  `
                 -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/zlibstatic.lib
@@ -1370,35 +1368,35 @@ jobs:
 
           - arch: arm64
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: armv7
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: i686
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: x86_64
             cc: clang
-            cflags: -ffunction-sections -fdata-sections -g
+            cflags: ${{ needs.context.outputs.CMAKE_ANDROID_C_FLAGS }}
             cxx: clang++
-            cxxflags: -ffunction-sections -fdata-sections -g
+            cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_POSITION_INDEPENDENT_CODE=YES -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
     name: ${{ matrix.os }} ${{ matrix.arch }} libxml2
 
@@ -1427,6 +1425,7 @@ jobs:
 
       - name: Configure libxml2
         run: |
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
           cmake -B ${{ github.workspace }}/BinaryCache/libxml2-2.11.5 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1520,9 +1519,9 @@ jobs:
             cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -D CMAKE_SYSTEM_PROCESSOR=aarch64 -D LLVM_HOST_TRIPLE=aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DLLVM_HOST_TRIPLE=aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
             linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -D CMAKE_ANDROID_NDK=$NDKPATH -D SWIFT_ANDROID_NDK_PATH=$NDKPATH -D SWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -D LLVM_ENABLE_LIBCXX=YES -D SWIFT_USE_LINKER=lld -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -D CMAKE_ANDROID_NDK=$NDKPATH -D SWIFT_ANDROID_NDK_PATH=$NDKPATH -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: armv7
             cpu: armv7
@@ -1534,9 +1533,9 @@ jobs:
             cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker armv7a-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -D CMAKE_SYSTEM_PROCESSOR=armv7-a -D LLVM_HOST_TRIPLE=armv7a-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=armv7-a -DLLVM_HOST_TRIPLE=armv7a-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}
             linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -D CMAKE_ANDROID_NDK=$NDKPATH -D SWIFT_ANDROID_NDK_PATH=$NDKPATH -D SWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -D LLVM_ENABLE_LIBCXX=YES -D SWIFT_USE_LINKER=lld -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_NDK=$NDKPATH -DSWIFT_ANDROID_NDK_PATH=$NDKPATH -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: i686
             cpu: i686
@@ -1548,9 +1547,9 @@ jobs:
             cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -D CMAKE_SYSTEM_PROCESSOR=i686 -D LLVM_HOST_TRIPLE=i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=i686 -DLLVM_HOST_TRIPLE=i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
             linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -D CMAKE_ANDROID_NDK=$NDKPATH -D SWIFT_ANDROID_NDK_PATH=$NDKPATH -D SWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -D LLVM_ENABLE_LIBCXX=YES -D SWIFT_USE_LINKER=lld -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_NDK=$NDKPATH -DSWIFT_ANDROID_NDK_PATH=$NDKPATH -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
           - arch: x86_64
             cpu: 'x86_64'
@@ -1562,9 +1561,9 @@ jobs:
             cxxflags: ${{ needs.context.outputs.CMAKE_ANDROID_CXX_FLAGS }}
             swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -D CMAKE_SYSTEM_PROCESSOR=x86_64 -D LLVM_HOST_TRIPLE=x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=x86_64 -DLLVM_HOST_TRIPLE=x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
             linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.CMAKE_ANDROID_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -D CMAKE_ANDROID_NDK=$NDKPATH -D SWIFT_ANDROID_NDK_PATH=$NDKPATH -D SWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -D LLVM_ENABLE_LIBCXX=YES -D SWIFT_USE_LINKER=lld -D CMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -D CMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=${{ needs.context.outputs.WINDOWS_VISUAL_STUDIO_PATH }}\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+            extra_flags: -DCMAKE_ANDROID_NDK=$NDKPATH -DSWIFT_ANDROID_NDK_PATH=$NDKPATH -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64 "-DCMAKE_MAKE_PROGRAM=$NINJA_PATH"
 
     name: ${{ matrix.os }} ${{ matrix.arch }} SDK
 
@@ -1668,11 +1667,10 @@ jobs:
           }
 
           Expand-Archive -Path $env:TEMP\android-ndk-r26b-windows.zip -DestinationPath ${{ github.workspace }}\BuildRoot\Library -Force
-          dir ${{ github.workspace }}\BuildRoot\Library
-          dir ${{ github.workspace }}\BuildRoot\Library\android-ndk-r26b
 
       - name: Configure LLVM
         run: |
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
           $CLANG_CL = "cl"
           $NDKPATH = cygpath -m ${{ github.workspace }}/BuildRoot/Library/android-ndk-r26b
 
@@ -1699,6 +1697,7 @@ jobs:
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
           $NDKPATH = cygpath -m ${{ github.workspace }}/BuildRoot/Library/android-ndk-r26b
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
 
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
@@ -1734,6 +1733,7 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
+                -D SWIFT_ENABLE_VOLATILE=YES `
                 -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
@@ -1753,6 +1753,7 @@ jobs:
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
           $NDKPATH = cygpath -m ${{ github.workspace }}/BuildRoot/Library/android-ndk-r26b
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
 
           $WIN_OVERLAY_PATH = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
           $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") { "-vfsoverlay ${WIN_OVERLAY_PATH} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules" } else { "" }
@@ -1796,6 +1797,7 @@ jobs:
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
           $NDKPATH = cygpath -m ${{ github.workspace }}/BuildRoot/Library/android-ndk-r26b
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
 
           $WIN_OVERLAY_PATH = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
           $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") { "-vfsoverlay ${WIN_OVERLAY_PATH} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules" } else { "" }
@@ -1863,6 +1865,7 @@ jobs:
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
           $NDKPATH = cygpath -m ${{ github.workspace }}/BuildRoot/Library/android-ndk-r26b
+          $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
 
           $WIN_OVERLAY_PATH = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
           $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") { "-vfsoverlay ${WIN_OVERLAY_PATH} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules" } else { "" }
