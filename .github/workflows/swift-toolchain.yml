@@ -1,8 +1,6 @@
 name: Development Snapshot
 
 on:
-  schedule:
-    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       snapshot:
@@ -30,6 +28,17 @@ on:
         description: 'Code Sign'
         default: false
         type: boolean
+
+      default_runner:
+        description: 'The default runner to use for jobs in this workflow'
+        default: 'windows-latest'
+        required: false
+        type: string
+
+      compilers_runner:
+        description: 'The runner to use for building the compilers in this workflow. If unset, uses default_runner'
+        type: string
+        required: false
 
       publish_artifacts:
         description: 'If true, publish release artifacts'
@@ -64,6 +73,17 @@ on:
         description: 'Code Sign'
         default: false
         type: boolean
+
+      default_runner:
+        description: 'The default runner to use for jobs in this workflow'
+        default: 'windows-latest'
+        required: false
+        type: string
+
+      compilers_runner:
+        description: 'The runner to use for building the compilers in this workflow. If unset, uses default_runner'
+        type: string
+        required: false
 
       publish_artifacts:
         description: 'If true, publish release artifacts'
@@ -225,8 +245,8 @@ jobs:
             fi
           fi
 
-          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_build_runner=${{ inputs.default_runner }} >> ${GITHUB_OUTPUT}
+          echo compilers_build_runner=${{ inputs.compilers_runner || inputs.default_runner }} >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         with:
