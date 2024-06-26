@@ -40,7 +40,7 @@ on:
       android_api_level:
         description: 'Android API Level'
         default: 28
-        required: false
+        required: true
         type: number
 
   workflow_call:
@@ -132,11 +132,11 @@ jobs:
       WINDOWS_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
       WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
       WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
-      CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
       ANDROID_CMAKE_C_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}
       ANDROID_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
       ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
       debug_info: ${{ steps.context.outputs.debug_info }}
       signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
@@ -212,6 +212,8 @@ jobs:
             echo debug_info=true >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
@@ -219,13 +221,12 @@ jobs:
             echo debug_info=false >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
           fi
-
-          echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
-          echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
           echo ANDROID_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
           echo ANDROID_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
 
@@ -1701,8 +1702,8 @@ jobs:
       - name: Configure Swift Standard Library
         run: |
           # Workaround CMake 3.20 issue
-          # FIXME
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
           $NDKPATH = cygpath -m ${{ github.workspace }}/BuildRoot/Library/android-ndk-r26b
           $NINJA_PATH = "$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -nologo -latest -property installationPath)\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
@@ -1753,7 +1754,7 @@ jobs:
       - name: Install Swift Standard Library
         run: |
           Remove-Item env:\SDKROOT
-          cmake --build ${{ github.workspace }}/BinaryCache/swift --target install -v
+          cmake --build ${{ github.workspace }}/BinaryCache/swift --target install
 
       - name: Configure libdispatch
         run: |
