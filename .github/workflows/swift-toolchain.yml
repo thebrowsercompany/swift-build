@@ -2868,6 +2868,15 @@ jobs:
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: ${{ needs.context.outputs.signed }}
 
+      - name: Install WixToolset.Sdk
+        run: |
+          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
+            if ([string]::IsNullOrEmpty((Get-PackageSource | %{ $_.Location } | Select-String -Pattern api.nuget.org))) {
+              Register-PackageSource -Name NuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+            }
+            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
+          }
+
       - name: Package Build Tools
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -2997,6 +3006,15 @@ jobs:
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: ${{ needs.context.outputs.signed }}
 
+      - name: Install WixToolset.Sdk
+        run: |
+          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
+            if ([string]::IsNullOrEmpty((Get-PackageSource | %{ $_.Location } | Select-String -Pattern api.nuget.org))) {
+              Register-PackageSource -Name NuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+            }
+            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
+          }
+
       - name: Package SDK
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -3089,6 +3107,15 @@ jobs:
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: ${{ needs.context.outputs.signed }}
+
+      - name: Install WixToolset.Sdk
+        run: |
+          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
+            if ([string]::IsNullOrEmpty((Get-PackageSource | %{ $_.Location } | Select-String -Pattern api.nuget.org))) {
+              Register-PackageSource -Name NuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+            }
+            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
+          }
 
       - name: Package SDK
         run: |
