@@ -591,6 +591,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Setup sccache
+        if: matrix.os != 'Android'
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
@@ -612,10 +613,10 @@ jobs:
                 -D BUILD_DATA=${{ matrix.BUILD_DATA }} `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
+                -D CMAKE_C_COMPILER_LAUNCHER=${{ matrix.os == 'Windows' && 'sccache' || '' }} `
                 -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=${{ matrix.os == 'Windows' && 'sccache' || '' }} `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
