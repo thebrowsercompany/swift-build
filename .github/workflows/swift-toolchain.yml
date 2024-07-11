@@ -863,6 +863,11 @@ jobs:
           release-asset-name: installer-amd64.exe
           release-tag-name: '20231016.0'
 
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26b
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
@@ -872,6 +877,8 @@ jobs:
           append-timestamp: false
 
       - name: Configure Compilers
+        env:
+          NDKPATH: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           if ( "${{ matrix.arch }}" -eq "arm64" ) {
             $CMAKE_SYSTEM_NAME="-D CMAKE_SYSTEM_NAME=Windows"
