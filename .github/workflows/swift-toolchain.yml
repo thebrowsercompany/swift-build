@@ -3,19 +3,20 @@ name: Development Snapshot
 on:
   workflow_dispatch:
     inputs:
-      snapshot:
-        description: 'Build Swift at a tagged snapshot'
-        default: false
-        type: boolean
-
-      swift_tag:
-        description: 'Swift Build Tag'
-        required: false
-        type: string
-
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
+        required: false
+        type: string
+
+      android_api_level:
+        description: 'Android API Level'
+        default: 28
+        required: false
+        type: number
+
+      swift_tag:
+        description: 'Swift Build Tag'
         required: false
         type: string
 
@@ -34,28 +35,23 @@ on:
         type: boolean
         default: true
         required: false
-
-      android_api_level:
-        description: 'Android API Level'
-        default: 28
-        required: true
-        type: number
 
   workflow_call:
     inputs:
-      snapshot:
-        description: 'Build Swift at a tagged snapshot'
-        default: false
-        type: boolean
-
-      swift_tag:
-        description: 'Swift Build Tag'
-        required: false
-        type: string
-
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
+        required: false
+        type: string
+
+      android_api_level:
+        description: 'Android API Level'
+        default: 28
+        required: false
+        type: number
+
+      swift_tag:
+        description: 'Swift Build Tag'
         required: false
         type: string
 
@@ -74,12 +70,6 @@ on:
         type: boolean
         default: true
         required: false
-
-      android_api_level:
-        description: 'Android API Level'
-        default: 28
-        required: true
-        type: number
 
     secrets:
       SYMBOL_SERVER_PAT:
@@ -160,7 +150,7 @@ jobs:
           repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
-          if [[ "${{ inputs.snapshot }}" == "true" ]] ; then
+          if [[ "${{ inputs.swift_tag }}" != "" ]] ; then
             tee -a "${GITHUB_OUTPUT}" <<-EOF
           indexstore_db_revision=refs/tags/${{ inputs.swift_tag }}
           llvm_project_revision=refs/tags/${{ inputs.swift_tag }}
