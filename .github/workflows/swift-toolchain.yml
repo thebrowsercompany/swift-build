@@ -613,27 +613,16 @@ jobs:
       # See https://github.com/actions/runner-images/blob/win22/20240514.3/images/windows/Windows2022-Readme.md
       - name: Install VS Build Tools v14.39.33519
         run: |
-          # Start-Process is required because setup.exe is non-blocking when run on GHA.
-          # -RedirectStandardOutput and -RedirectStandardError are required because output is not shown when run on GHA.
-          Start-Process `
-            -Wait `
-            -PassThru `
-            -RedirectStandardError ${{ github.workspace}}/setup.exe.stderr.txt `
-            -RedirectStandardOutput ${{ github.workspace }}/setup.exe.stdout.txt `
-            -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\installer\setup.exe" `
-            -ArgumentList "modify", `
-              "--quiet", `
-              "--force", `
-              "--installPath", "`"C:\Program Files\Microsoft Visual Studio\2022\Enterprise`"" `
-              "--add", "Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64", `
-              "--add", "Microsoft.VisualStudio.Component.VC.14.39.17.9.ARM64", `
-              "--add", "Microsoft.VisualStudio.Component.VC.14.39.17.9.ATL", `
-              "--add", "Microsoft.VisualStudio.Component.VC.14.39.17.9.ATL.ARM64"
-
-          echo "-- setup.exe stdout:"
-          cat ${{ github.workspace }}/setup.exe.stdout.txt
-          echo "-- setup.exe stderr:"
-          cat ${{ github.workspace }}/setup.exe.stderr.txt
+          & "C:\Program Files (x86)\Microsoft Visual Studio\installer\setup.exe" `
+            modify `
+            --quiet `
+            --force `
+            --installPath "C:\Program Files\Microsoft Visual Studio\2022\Enterprise" `
+            --add Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64 `
+            --add Microsoft.VisualStudio.Component.VC.14.39.17.9.ARM64 `
+            --add Microsoft.VisualStudio.Component.VC.14.39.17.9.ATL `
+            --add Microsoft.VisualStudio.Component.VC.14.39.17.9.ATL.ARM64 `
+            2>&1 | Out-String
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
