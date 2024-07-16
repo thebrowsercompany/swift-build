@@ -105,6 +105,8 @@ jobs:
       swift_driver_revision: ${{ steps.context.outputs.swift_driver_revision }}
       swift_experimental_string_processing_revision: ${{ steps.context.outputs.swift_experimental_string_processing_revision }}
       swift_format_revision: ${{ steps.context.outputs.swift_format_revision }}
+      swift_foundation_revision: ${{ steps.context.outputs.swift_foundation_revision }}
+      swift_foundation_icu_revision: ${{ steps.context.outputs.swift_foundation_icu_revision }}
       swift_installer_scripts_revision: ${{ steps.context.outputs.swift_installer_scripts_revision }}
       swift_llbuild_revision: ${{ steps.context.outputs.swift_llbuild_revision }}
       swift_markdown_revision: ${{ steps.context.outputs.swift_markdown_revision }}
@@ -169,6 +171,8 @@ jobs:
           swift_driver_revision=refs/tags/${{ inputs.swift_tag }}
           swift_experimental_string_processing_revision=refs/tags/${{ inputs.swift_tag }}
           swift_format_revision=refs/heads/main
+          swift_foundation_revison=refs/heads/main
+          swift_foundation_icu_revision=refs/tags/0.0.8
           swift_installer_scripts_revision=refs/heads/main
           swift_llbuild_revision=refs/tags/${{ inputs.swift_tag }}
           swift_markdown_revision=refs/tags/${{ inputs.swift_tag }}
@@ -376,6 +380,7 @@ jobs:
           name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-3.43.2
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
 
+  # TODO(compnerd): remove this once android migrates to swift-foundation
   icu_tools:
     needs: [context]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
@@ -447,6 +452,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/icu-tools-69.1/pkgdata.exe
             ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genccode.exe
 
+  # TODO(compnerd): remove this once android migrates to swift-foundation
   icu:
     needs: [context, icu_tools]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
@@ -455,36 +461,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: amd64
-            BUILD_TOOLS: NO
-            BUILD_DATA: YES
-            cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: arm64
-            BUILD_TOOLS: NO
-            BUILD_DATA: YES
-            cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: x86
-            BUILD_TOOLS: YES
-            BUILD_DATA: YES
-            cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
           - arch: arm64
             BUILD_TOOLS: NO
             BUILD_DATA: NO
@@ -1593,6 +1569,7 @@ jobs:
 
     steps:
       - uses: actions/download-artifact@v4
+        if: matrix.os == 'Android'
         with:
           name: icu-${{ matrix.os }}-${{ matrix.arch }}-69.1
           path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
@@ -1653,6 +1630,27 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os == 'Windows'
+        with:
+          repository: apple/swift-foundation
+          ref: ${{ needs.context.outputs.swift_foundation_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation
+          show-progress: false
+      - uses: actions/checkout@v4
+        if: matrix.os == 'Windows'
+        with:
+          repository: apple/swift-foundation-icu
+          ref: ${{ needs.context.outputs.swift_foundation_icu_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
+          show-progress: false
+      - uses: actions/checkout@v4
+        if: matrix.os == 'Windows'
+        with:
+          repository: apple/swift-collections
+          ref: ${{ needs.context.outputs.swift_collections_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4
         if: matrix.os == 'Android'
         with:
           repository: apple/swift-corelibs-foundation
@@ -1672,6 +1670,7 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
 
+      # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
           host_arch: amd64
@@ -1686,6 +1685,12 @@ jobs:
           release-asset-name: installer-amd64.exe
           release-tag-name: '20231016.0'
 
+      # FIXME(compnerd): workaround CMake 3.30 issue
+      - uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.29'
+
+      # NOTE(compnerd): we execute unconditionally as we reference outputs
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
@@ -1831,9 +1836,21 @@ jobs:
 
           $zlib_lib = if ("${{ matrix.os }}" -eq "Windows") { "zlibstatic.lib" } else { "libz.a" }
           $xml_lib = if ("${{ matrix.os }}" -eq "Windows") { "libxml2s.lib" } else { "libxml2.a" }
-          $icu_data_lib_release = if ("${{ matrix.os }}" -eq "Windows") { "sicudt69.lib" } else { "libicudt69.a" }
-          $icu_i18n_lib_release = if ("${{ matrix.os }}" -eq "Windows") { "sicuuc69.lib" } else { "libicuin69.a" }
-          $icu_lib_release = if ("${{ matrix.os }}" -eq "Windows") { "sicuin69.lib" } else { "libicuuc69.a" }
+
+          $SWIFT_FOUNDATION_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-foundation
+          $SWIFT_FOUNDATION_ICU_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-foundation-icu
+          $SWIFT_COLLECTIONS_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-collections
+
+          $ICU_FLAGS = if ("${{ matrix.os }}" -eq "Android") {
+            "-D","ICU_DATA_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicudt69.a",
+            "-D","ICU_I18N_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicuin69.a",
+            "-D","ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr",
+            "-D","ICU_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include",
+            "-D","ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicuuc69.a"
+          } else {
+            @()
+          }
+
           $build_tools = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" }
 
           Remove-Item env:\SDKROOT
@@ -1869,11 +1886,10 @@ jobs:
                 -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr/lib/cmake/CURL `
                 -D FOUNDATION_BUILD_TOOLS=${build_tools} `
                 -D ENABLE_TESTING=NO `
-                -D ICU_DATA_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/$icu_data_lib_release `
-                -D ICU_I18N_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/$icu_i18n_lib_release `
-                -D ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
-                -D ICU_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include `
-                -D ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/$icu_lib_release `
+                @ICU_FLAGS `
+                -D _SwiftFoundation_SourceDIR=$SWIFT_FOUNDATION_SOURCE_DIR `
+                -D _SwiftFoundationICU_SourceDIR=$SWIFT_FOUNDATION_ICU_SOURCE_DIR `
+                -D _SwiftCollections_SourceDIR=$SWIFT_COLLECTIONS_SOURCE_DIR `
                 -D LIBXML2_DEFINITIONS="${DEFINITION_FLAG}LIBXML_STATIC" `
                 -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/include/libxml2 `
                 -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/lib/$xml_lib `
@@ -2147,15 +2163,22 @@ jobs:
 
       - run: |
           $env:SDKROOT="${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
-          mv ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+
+          Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/_foundation_unicode ${env:SDKROOT}/usr/include
+          Move-Item ${env:SDKROOT}/usr/lib/swift/_FoundationCShims ${env:SDKROOT}/usr/include
+
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/_FoundationICU.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
       - name: Configure swift-argument-parser
         run: |
@@ -2694,24 +2717,40 @@ jobs:
             triple: aarch64-unknown-windows-msvc
 
     steps:
-      - name: Download build compilers
+      - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
           name: compilers-amd64
-          path: ${{ github.workspace }}/BuildRoot/
+          path: ${{ github.workspace }}/BuildRoot/Library
 
-      - name: Download build devtools
+      - name: Download Devtools
         uses: actions/download-artifact@v4
         with:
           name: devtools-amd64
-          path: ${{ github.workspace }}/BuildRoot/
+          path: ${{ github.workspace }}/BuildRoot/Library
 
-      # We're using the runtime libraries from this one.
-      - name: Download Windows SDK (AMD64)
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-amd64
-          path: ${{ github.workspace }}/BinaryCache/
+          path: ${{ github.workspace }}/BinaryCache
+      - name: Download SDK
+        uses: actions/download-artifact@v4
+        with:
+          name: Windows-sdk-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-amd64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
+
+      - name: cmark-gfm Setup
+        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
+
+      - uses: actions/download-artifact@v4
+        if: matrix.arch == 'arm64'
+        with:
+          name: cmark-gfm-arm64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - name: Copy Windows SDK (AMD64) to BuildRoot
         run: Copy-Item -Recurse -Force -Path ${{ github.workspace }}/BinaryCache/* -Destination ${{ github.workspace }}/BuildRoot/
@@ -2719,52 +2758,33 @@ jobs:
       - name: Update environment variables
         run: |
           $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Developer/SDKs/Windows.sdk"
-          $ToolchainPath = cygpath -w "${{ github.workspace }}/BuildRoot/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin"
-          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "TOOLCHAIN_PATH=${ToolchainPath}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "AR=${ToolchainPath}\llvm-ar.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $ToolchainPath = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin"
           echo "${ToolchainPath}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "AR=${ToolchainPath}\llvm-ar.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
           echo "${RTLPath}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Patch the SDK to workaround https://github.com/thebrowsercompany/swift-build#50
-        run: |
-          mv ${{ env.SDKROOT }}/usr/lib/swift/dispatch ${{ env.SDKROOT }}/usr/include/
-          mv ${{ env.SDKROOT }}/usr/lib/swift/os ${{ env.SDKROOT }}/usr/include/
-          mv ${{ env.SDKROOT }}/usr/lib/swift/Block ${{ env.SDKROOT }}/usr/include/
+      - run: |
+          $env:SDKROOT="${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
 
-          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/BlocksRuntime.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
-          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/dispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
-          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/swiftDispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
-          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/Foundation.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
-          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/FoundationXML.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
-          mv ${{ env.SDKROOT }}/usr/lib/swift/windows/FoundationNetworking.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/_foundation_unicode ${env:SDKROOT}/usr/include
+          Move-Item ${env:SDKROOT}/usr/lib/swift/_FoundationCShims ${env:SDKROOT}/usr/include
 
-      - name: Download ${{ matrix.arch }} Windows SDK
-        # Only necessary when cross-compiling
-        if: ${{ matrix.arch != 'amd64' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: Windows-sdk-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/
-
-      - name: Patch the SDK to workaround https://github.com/thebrowsercompany/swift-build#50
-        # Only necessary when cross-compiling
-        if: ${{ matrix.arch != 'amd64' }}
-        run: |
-          # We already copied these above.
-          # Remove them to prevent 'module defined more than once' errors.
-          rm -Force -Recurse ${{ env.SDKROOT }}/usr/lib/swift/dispatch
-          rm -Force -Recurse ${{ env.SDKROOT }}/usr/lib/swift/os
-          rm -Force -Recurse ${{ env.SDKROOT }}/usr/lib/swift/Block
-
-          mv -Force ${{ env.SDKROOT }}/usr/lib/swift/windows/BlocksRuntime.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv -Force ${{ env.SDKROOT }}/usr/lib/swift/windows/dispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv -Force ${{ env.SDKROOT }}/usr/lib/swift/windows/swiftDispatch.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv -Force ${{ env.SDKROOT }}/usr/lib/swift/windows/Foundation.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv -Force ${{ env.SDKROOT }}/usr/lib/swift/windows/FoundationXML.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          mv -Force ${{ env.SDKROOT }}/usr/lib/swift/windows/FoundationNetworking.lib ${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/_FoundationICU.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
       - name: Checkout apple/swift
         uses: actions/checkout@v4
@@ -2774,11 +2794,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
-      # Note: We didn't need to explicitly download cmark-gfm above because it's packaged inside
-      # compilers-${{ matrix.arch }}.
-      - name: Setup cmark-gfm
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ env.TOOLCHAIN_PATH }}
-
       - name: Build swift-inspect
         id: swift_inspect
         shell: cmd
@@ -2786,14 +2801,15 @@ jobs:
           swift build ^
               --triple=${{ matrix.triple }} ^
               --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" ^
-              --sdk="${{ env.SDKROOT }}" ^
+              --sdk="%SDKROOT%" ^
               --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" ^
               -c="release" ^
-              -Xbuild-tools-swiftc="-L${{ env.SDKROOT }}/usr/lib/swift/windows" ^
-              -Xbuild-tools-swiftc="-I${{ env.SDKROOT }}/usr/lib/swift -use-ld=lld" ^
-              -Xcc="-I${{ env.SDKROOT }}/usr/include/swift/SwiftRemoteMirror" ^
-              -Xlinker="${{ env.SDKROOT }}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib" ^
-              -Xswiftc="-use-ld=lld"
+              -Xbuild-tools-swiftc="-L%SDKROOT%/usr/lib/swift/windows" ^
+              -Xbuild-tools-swiftc="-I%SDKROOT%/usr/lib/swift" ^
+              -Xbuild-tools-swiftc="-use-ld=lld" ^
+              -Xcc="-I%SDKROOT%/usr/include/swift/SwiftRemoteMirror" ^
+              -Xswiftc="-use-ld=lld" ^
+              -Xlinker="%SDKROOT%/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib"
 
       - name: Copy swift-inspect executable
         run: |
@@ -2961,7 +2977,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.cab
 
   package_sdk_runtime:
-    name: Package SDK & Runtime
+    name: Package Windows SDK & Runtime
     needs: [context, sdk]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
@@ -3061,7 +3077,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_android_sdk:
-    name: Package Android SDK
+    name: Package Android SDK & Runtime
     needs: [context, sdk]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
@@ -3071,12 +3087,12 @@ jobs:
         include:
           - arch: arm64
             cpu: aarch64
-          - arch: x86_64
-            cpu: x86_64
           - arch: armv7
             cpu: armv7
           - arch: i686
             cpu: i686
+          - arch: x86_64
+            cpu: x86_64
 
     steps:
       - uses: actions/download-artifact@v4
