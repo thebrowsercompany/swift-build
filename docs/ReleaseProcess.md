@@ -16,7 +16,7 @@ github action. The repo tool checks
 out the Swift repos from the manifest provided in the XML file. These lines
 specify the Swift version passed to the Github action:
 
-```cmd
+```yaml
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -28,7 +28,7 @@ Instead of the the '0.0.0', the default should be changed to the version that's
 used by the release branch. For instance, for the 5.10 Swift release the default
 should be set to '5.10.0':
 
-```cmd
+```yaml
       swift_version:
         description: 'Swift Version'
         default: '5.10.0'
@@ -64,7 +64,7 @@ job that invokes the `swift-toolchain.yml` workflow for the specified release br
 For instance, for a 5.10 release, you can add the following entry to the `jobs` section
 of the `release-swift-toolchain-schedule.yml` file:
 
-```
+```yaml
   build-release-5_10:
     uses: compnerd/swift-build/.github/workflows/swift-toolchain.yml@release/5.10
     secrets:
