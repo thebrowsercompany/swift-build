@@ -2727,13 +2727,11 @@ jobs:
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-
       - name: Download Devtools
         uses: actions/download-artifact@v4
         with:
           name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-amd64
@@ -2757,12 +2755,9 @@ jobs:
           name: cmark-gfm-arm64-0.29.0.gfm.13
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
 
-      - name: Copy Windows SDK (AMD64) to BuildRoot
-        run: Copy-Item -Recurse -Force -Path ${{ github.workspace }}/BinaryCache/* -Destination ${{ github.workspace }}/BuildRoot/
-
       - name: Update environment variables
         run: |
-          $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Developer/SDKs/Windows.sdk"
+          $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           $ToolchainPath = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin"
@@ -2773,8 +2768,6 @@ jobs:
           echo "${RTLPath}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - run: |
-          $env:SDKROOT="${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
-
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
@@ -2790,6 +2783,7 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/_FoundationICU.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
+
 
       - name: Checkout apple/swift
         uses: actions/checkout@v4
