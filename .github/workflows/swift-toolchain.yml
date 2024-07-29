@@ -2727,28 +2727,11 @@ jobs:
         with:
           name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-sdk-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
-          name: cmark-gfm-amd64-0.29.0.gfm.13
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
-
-      - uses: actions/download-artifact@v4
-        if: matrix.arch == 'arm64'
-        with:
-          name: cmark-gfm-arm64-0.29.0.gfm.13
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - name: Update environment variables
         run: |
@@ -2779,6 +2762,23 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-sdk-amd64
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-amd64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
+
+      - name: cmark-gfm Setup
+        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
+
+      - uses: actions/download-artifact@v4
+        if: matrix.arch == 'arm64'
+        with:
+          name: cmark-gfm-arm64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - name: Checkout apple/swift
         uses: actions/checkout@v4
