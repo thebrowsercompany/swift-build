@@ -146,7 +146,7 @@ S:\SourceCache\swift\utils\build.cmd -DebugInfo -SkipPackaging -Test '*'
 The `-EnableCaching` flag can be used to speed up the build. The
 requirement is that `sccache` is installed and available on the shell
 path. Sccache is available from
-(here)[https://github.com/mozilla/sccache/releases]. Note that it will
+[here](https://github.com/mozilla/sccache/releases). Note that it will
 help speed up the build of the C/C++ code but not the Swift code as
 `sccache` doesn't currently support Swift.
 
