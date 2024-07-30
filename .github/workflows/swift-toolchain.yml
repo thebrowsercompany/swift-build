@@ -2749,14 +2749,15 @@ jobs:
         with:
           name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-sdk-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-sdk-amd64
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
@@ -2801,35 +2802,32 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
-          dir ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform
-          dir ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/
-          mkdir "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          dir "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/BlocksRuntime.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/Foundation.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/FoundationEssentials.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/FoundationInternationalization.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/FoundationNetworking.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/FoundationXML.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/_FoundationICU.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/dispatch.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftCRT.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftCore.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftDispatch.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftDistributed.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftObservation.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftRegexBuilder.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftRemoteMirror.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftSwiftOnoneSupport.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftSynchronization.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swiftWinSDK.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swift_Builtin_float.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swift_Concurrency.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swift_Differentiation.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swift_RegexParser.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swift_StringProcessing.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/HostPlatforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/swift_Volatile.dll  "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          echo $ENV:PATH
+          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
+          mkdir $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/BlocksRuntime.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/Foundation.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/FoundationEssentials.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/FoundationInternationalization.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/FoundationNetworking.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/FoundationXML.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/_FoundationICU.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/dispatch.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftCRT.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftCore.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftDispatch.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftDistributed.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftObservation.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftRegexBuilder.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftRemoteMirror.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftSwiftOnoneSupport.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftSynchronization.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swiftWinSDK.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swift_Builtin_float.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swift_Concurrency.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swift_Differentiation.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swift_RegexParser.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swift_StringProcessing.dll  $RTLPath
+          Move-Item ${env:SDKROOT}/usr/bin/swift_Volatile.dll  $RTLPath
 
       - name: Checkout apple/swift
         uses: actions/checkout@v4
