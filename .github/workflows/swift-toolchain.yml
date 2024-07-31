@@ -311,6 +311,50 @@ jobs:
           name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
+  ds2_tools:
+    runs-on: ${{ inputs.default_build_runner }}
+
+    name: ds2 Build Tools
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: compnerd/ds2
+          ref: ${{ inputs.ds2_revision }}
+          path: ${{ github.workspace }}/SourceCache/ds2
+          show-progress: false
+
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: amd64
+
+      - name: Install Flex and Bison Tools
+        run: choco install winflexbison3
+
+      - name: Configure RegsGen2
+        run: |
+          cmake -B ${{ github.workspace }}/BinaryCache/RegsGen2 `
+                -S ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2 `
+                -C ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_MT=mt `
+                -G Ninja
+
+      - name: Build RegsGen2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/RegsGen2 --config Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-regsgen2
+          path: |
+            ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
+
   cmark_gfm:
     runs-on: ${{ inputs.default_build_runner }}
 
