@@ -355,6 +355,105 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
 
+  ds2:
+    needs: [ds2_tools]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            os: Android
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+
+          - arch: armv7
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            os: Android
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+
+          - arch: i686
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            os: Android
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
+
+          - arch: x86_64
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            os: Android
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} ds2
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: compnerd/ds2
+          ref: ${{ inputs.ds2_revision }}
+          path: ${{ github.workspace }}/SourceCache/ds2
+          show-progress: false
+
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Install Flex and Bison Tools
+        run: choco install winflexbison3
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-regsgen2
+          path: ${{ github.workspace }}/BinaryCache/RegsGen2
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26b
+
+      - name: Configure DS2
+        run: |
+          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
+          cmake -B ${{ github.workspace }}/BinaryCache/ds2 `
+                -S ${{ github.workspace }}/SourceCache/ds2 `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
+                -D CMAKE_MT=mt `
+                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
+                -D DS2_REGSGEN2=${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BinaryCache/Library/Developer `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                -D CMAKE_ANDROID_NDK=$NDKPATH `
+                ${{ matrix.extra_flags }} `
+                -G Ninja
+
+      - name: Build DS2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ds2
+
+      - name: Install DS2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ds2 --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ds2-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer
+
   cmark_gfm:
     runs-on: ${{ inputs.default_build_runner }}
 
