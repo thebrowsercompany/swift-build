@@ -3492,7 +3492,7 @@ jobs:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     name: Package Android SDK & Runtime
-    needs: [stdlib, sdk]
+    needs: [stdlib, ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -3517,6 +3517,11 @@ jobs:
         with:
           name: Android-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ds2-Android-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library/Android/${{ matrix.cpu }}-unknown-linux-android
 
       - uses: actions/checkout@v4
         with:
