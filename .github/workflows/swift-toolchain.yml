@@ -2732,10 +2732,6 @@ jobs:
         with:
           name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-sdk-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
@@ -2784,6 +2780,36 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
+      # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-sdk-amd64
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+
+      - name: Move host libs to the host architecture directory
+        if: matrix.arch == 'arm64'
+        run: |
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/_FoundationICU.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+
+      - name: Move host runtime DLLs to the runtime binary directory.
+        run: |
+          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/dispatch -Recurse -Force
+          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/os -Recurse -Force
+          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/Block -Recurse -Force
+          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/_foundation_unicode -Recurse -Force
+          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/_FoundationCShims -Recurse -Force
+
+          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
+          mkdir $RTLPath
+          Get-ChildItem -Path ${env:SDKROOT}/usr/bin -Filter "*.dll" | Move-Item -Destination $RTLPath
 
       - name: Checkout apple/swift
         uses: actions/checkout@v4
