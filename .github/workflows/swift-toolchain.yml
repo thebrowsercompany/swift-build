@@ -327,8 +327,15 @@ jobs:
           Get-ChildItem -Path $env:SDKROOT -Recurse | Select-Object FullName | Format-Table -Wrap
           dir "$env:SDKROOT\..\..\.."
           dir "$env:SDKROOT\..\..\..\Developer"
-          Get-ChildItem -Path "$env:SDKROOT\..\..\..\Developer" -Recurse | Select-Object FullName | Format-Table -Wrap
-          C:\Users\runner\AppData\Local\Programs\Swift\Runtimes\0.0.0\usr\bin\plutil.exe -- "C:\Users\runner\AppData\Local\Programs\Swift\Platforms\0.0.0\Windows.platform\Info.plist"
+
+      - name: Update SDKROOT and run swift build
+        run: |
+          # Remove trailing backslash from SDKROOT
+          $SDKROOT = $env:SDKROOT.TrimEnd('\')
+          echo "Updated SDKROOT: $SDKROOT"
+          
+          # Set the updated SDKROOT for this step and future steps
+          echo "SDKROOT=$SDKROOT" >> $env:GITHUB_ENV
 
       - uses: actions/checkout@v4
         with:
