@@ -87,7 +87,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       curl_revision: ${{ steps.context.outputs.curl_revision }}
-      icu_revision: ${{ steps.context.outputs.icu_revision }}
       indexstore_db_revision: ${{ steps.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ steps.context.outputs.libxml2_revision }}
       llvm_project_revision: ${{ steps.context.outputs.llvm_project_revision }}
@@ -186,7 +185,6 @@ jobs:
           libxml2_revision=refs/tags/v2.11.5
           yams_revision=refs/tags/5.0.6
           zlib_revision=refs/tags/v1.3.1
-          icu_revision=refs/heads/maint/maint-69
           EOF
           else
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch | \
@@ -378,206 +376,6 @@ jobs:
         with:
           name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-3.46.0
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.46.0/usr
-
-  # TODO(compnerd): remove this once android migrates to swift-foundation
-  icu_tools:
-    needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
-          show-progress: false
-
-      - uses: actions/checkout@v4
-        with:
-          repository: unicode-org/icu
-          ref: ${{ needs.context.outputs.icu_revision }}
-          path: ${{ github.workspace }}/SourceCache/icu
-          show-progress: false
-
-      - name: Copy CMakeLists.txt
-        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
-
-      - uses: compnerd/gha-setup-vsdevenv@main
-        with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: amd64
-
-      - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
-        with:
-          max-size: 100M
-          key: windows-amd64-icu_tools
-          variant: sccache
-          append-timestamp: false
-
-      - name: Configure ICU Build Tools
-        run:
-          cmake -B ${{ github.workspace }}/BinaryCache/icu-tools-69.1 `
-                -D BUILD_SHARED_LIBS=NO `
-                -D BUILD_TOOLS=YES `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/icu/icu4c
-
-      - name: Build ICU Tools
-        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-tools-69.1
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: icu-tools-69.1
-          path: |
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genbrk.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencfu.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gendict.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genrb.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gensprep.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/icupkg.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/makeconv.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/pkgdata.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genccode.exe
-
-  # TODO(compnerd): remove this once android migrates to swift-foundation
-  icu:
-    needs: [context, icu_tools]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
-
-          - arch: armv7
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
-
-          - arch: i686
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
-
-          - arch: x86_64
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
-
-    name: ${{ matrix.os }} ${{ matrix.arch }} ICU
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: icu-tools-69.1
-          path: ${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin
-
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
-          show-progress: false
-
-      - uses: actions/checkout@v4
-        with:
-          repository: unicode-org/icu
-          ref: ${{ needs.context.outputs.icu_revision }}
-          path: ${{ github.workspace }}/SourceCache/icu
-          show-progress: false
-
-      - name: Copy CMakeLists.txt
-        run: |
-          Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
-          Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake -destination ${{ github.workspace }}\SourceCache\icu\icu4c\icupkg.inc.cmake
-
-      - uses: compnerd/gha-setup-vsdevenv@main
-        with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
-
-      - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
-        with:
-          max-size: 200M
-          key: ${{ matrix.os }}-${{ matrix.arch }}-icu
-          variant: sccache
-          append-timestamp: false
-
-      - uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26b
-
-      - name: Configure ICU
-        run: |
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
-                -D BUILD_SHARED_LIBS=NO `
-                -D BUILD_TOOLS=${{ matrix.BUILD_TOOLS }} `
-                -D BUILD_DATA=${{ matrix.BUILD_DATA }} `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
-                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D ICU_TOOLS_DIR=${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin `
-                -D CMAKE_ANDROID_NDK=$NDKPATH `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/icu/icu4c
-      - name: Build ICU
-        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1
-      - name: Install ICU
-        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1 --target install
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: icu-${{ matrix.os }}-${{ matrix.arch }}-69.1
-          path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
 
   cmark_gfm:
     needs: [context]
@@ -1453,7 +1251,7 @@ jobs:
 
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
-    needs: [context, icu, libxml2, curl, zlib, compilers, cmark_gfm]
+    needs: [context, libxml2, curl, zlib, compilers, cmark_gfm]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
@@ -1562,11 +1360,6 @@ jobs:
 
     steps:
       - uses: actions/download-artifact@v4
-        if: matrix.os == 'Android'
-        with:
-          name: icu-${{ matrix.os }}-${{ matrix.arch }}-69.1
-          path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
-      - uses: actions/download-artifact@v4
         with:
           name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-2.11.5
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
@@ -1616,6 +1409,13 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os == 'Android'
+        with:
+          repository: hyp/swift-corelibs-foundation
+          ref: eng/recore-android-build
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          show-progress: false
+      - uses: actions/checkout@v4
         if: matrix.os == 'Windows'
         with:
           repository: apple/swift-corelibs-foundation
@@ -1623,32 +1423,22 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
           show-progress: false
       - uses: actions/checkout@v4
-        if: matrix.os == 'Windows'
         with:
           repository: apple/swift-foundation
           ref: ${{ needs.context.outputs.swift_foundation_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-foundation
           show-progress: false
       - uses: actions/checkout@v4
-        if: matrix.os == 'Windows'
         with:
           repository: apple/swift-foundation-icu
           ref: ${{ needs.context.outputs.swift_foundation_icu_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
           show-progress: false
       - uses: actions/checkout@v4
-        if: matrix.os == 'Windows'
         with:
           repository: apple/swift-collections
           ref: ${{ needs.context.outputs.swift_collections_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-collections
-          show-progress: false
-      - uses: actions/checkout@v4
-        if: matrix.os == 'Android'
-        with:
-          repository: hyp/swift-corelibs-foundation
-          ref: 6bf677693eb23030eb3646c9b121c665f40aa8b0
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
           show-progress: false
       - uses: actions/checkout@v4
         with:
@@ -1834,16 +1624,6 @@ jobs:
           $SWIFT_FOUNDATION_ICU_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-foundation-icu
           $SWIFT_COLLECTIONS_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-collections
 
-          $ICU_FLAGS = if ("${{ matrix.os }}" -eq "Android") {
-            "-D","ICU_DATA_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicudt69.a",
-            "-D","ICU_I18N_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicuin69.a",
-            "-D","ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr",
-            "-D","ICU_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include",
-            "-D","ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicuuc69.a"
-          } else {
-            @()
-          }
-
           $build_tools = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" }
 
           Remove-Item env:\SDKROOT
@@ -1879,7 +1659,6 @@ jobs:
                 -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr/lib/cmake/CURL `
                 -D FOUNDATION_BUILD_TOOLS=${build_tools} `
                 -D ENABLE_TESTING=NO `
-                @ICU_FLAGS `
                 -D _SwiftFoundation_SourceDIR=$SWIFT_FOUNDATION_SOURCE_DIR `
                 -D _SwiftFoundationICU_SourceDIR=$SWIFT_FOUNDATION_ICU_SOURCE_DIR `
                 -D _SwiftCollections_SourceDIR=$SWIFT_COLLECTIONS_SOURCE_DIR `
