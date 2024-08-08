@@ -104,10 +104,15 @@ set PYTHONUTF8=1
 
 Subsequently, you can update all the repositories using `"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync`.
 
-If you wish to sync to a point that is known to build successfull, you can use the smart sync option:
+If you wish to sync to a point that is known to build successfully, you can use the smart sync option:
 
 ```
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -s
+```
+
+You may also sync to specific toolchain versions by providing `repo` with the corresponding manifest file. Download `swift-build/stable.xml` at some revision, then sync with
+```
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -m path\to\stable.xml
 ```
 
 > [!NOTE]

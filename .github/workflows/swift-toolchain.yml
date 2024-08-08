@@ -22,7 +22,7 @@ on:
 
       debug_info:
         description: 'Emit PDBs (Debug Info)'
-        default: false
+        default: true
         type: boolean
 
       signed:
@@ -34,6 +34,17 @@ on:
         description: 'Create Release'
         type: boolean
         default: true
+        required: false
+
+      default_runner:
+        description: 'Build runner'
+        default: 'windows-latest'
+        required: false
+        type: string
+
+      compilers_runner:
+        description: 'Build runner for `compilers` job'
+        type: string
         required: false
 
   workflow_call:
@@ -69,6 +80,17 @@ on:
         description: 'Create Release'
         type: boolean
         default: true
+        required: false
+
+      default_runner:
+        description: 'Build runner'
+        default: 'windows-latest'
+        required: false
+        type: string
+
+      compilers_runner:
+        description: 'Build runner for `compilers` job'
+        type: string
         required: false
 
     secrets:
@@ -238,8 +260,8 @@ jobs:
             fi
           fi
 
-          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_build_runner=${{ inputs.default_runner }} >> ${GITHUB_OUTPUT}
+          echo compilers_build_runner=${{ inputs.compilers_runner || inputs.default_runner }} >> ${GITHUB_OUTPUT}
 
           echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
 
@@ -719,8 +741,8 @@ jobs:
                 -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake `
                 -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
-                -D LLVM_PARALLEL_LINK_JOBS=2 `
-                -D SWIFT_PARALLEL_LINK_JOBS=2 `
+                -D LLVM_PARALLEL_LINK_JOBS=8 `
+                -D SWIFT_PARALLEL_LINK_JOBS=8 `
                 -D LLVM_APPEND_VC_REV=NO `
                 -D LLVM_VERSION_SUFFIX="" `
                 -D LLDB_PYTHON_EXE_RELATIVE_PATH=python.exe `
@@ -2753,21 +2775,18 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: dbg-${{ matrix.arch }}-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: ide-${{ matrix.arch }}-msi
@@ -2976,7 +2995,6 @@ jobs:
         with:
           name: ide-${{ matrix.arch }}-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
       - uses: actions/download-artifact@v4
         with:
           name: rtl-windows-${{ matrix.arch }}-msi
@@ -2993,7 +3011,6 @@ jobs:
         with:
           name: rtl-windows-arm64-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
-
       - uses: actions/download-artifact@v4
         with:
           name: sdk-windows-amd64-msi
@@ -3043,6 +3060,14 @@ jobs:
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: ${{ needs.context.outputs.signed }}
+
+      # TODO(issues/154): Preload WixToolset.Sdk on Azure images so we can remove this step.
+      - name: Install WixToolset.Sdk
+        run: |
+          if ([string]::IsNullOrEmpty((Get-PackageSource | %{ $_.Location } | Select-String -Pattern api.nuget.org))) {
+            Register-PackageSource -Name NuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+          }
+          Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
