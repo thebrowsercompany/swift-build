@@ -3328,6 +3328,10 @@ jobs:
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tests
+
       - uses: actions/download-artifact@v4
         with:
           name: installer-amd64
@@ -3379,6 +3383,13 @@ jobs:
 
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
+
+      - name: SourceKit Validation
+        id: sourcekit-validation
+        working-directory: ${{ github.workspace }}/SourceCache/swift-win32
+        run: |
+          $SourcekitLspPath = (Resolve-Path sourcekit-lsp.exe).Path
+          powershell.exe -File ${{ github.workspace }}/tests/sourcekit-lsp/initialization-test.ps1 -PathToSourcekitLsp $SourcekitLspPath
 
   snapshot:
     runs-on: ubuntu-latest
