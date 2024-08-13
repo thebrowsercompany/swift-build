@@ -3176,8 +3176,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          branch_version_string=${{ inputs.swift_version || '0.0.0' }}
+          if [[ $branch_version_string == "0.0.0" ]]; then
+            latest="true"
+          else
+            latest="false"
+          fi
           # Create Release
-          gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }}
+          gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }} --latest=${latest}
 
           # AMD64
           cd ${{ github.workspace }}/tmp/amd64
