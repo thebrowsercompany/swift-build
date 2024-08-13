@@ -1487,9 +1487,145 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.dll'
 
+  macros:
+    needs: [context, compilers, cmark_gfm, stdlib]
+    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: 'amd64'
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-windows-msvc'
+
+          - arch: 'arm64'
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-windows-msvc'
+
+    name: Windows ${{ matrix.arch }} Macros
+
+    steps:
+      - name: Download Compilers
+        uses: actions/download-artifact@v4
+        with:
+          name: compilers-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library
+      - name: Download swift-syntax
+        uses: actions/download-artifact@v4
+        with:
+          name: swift-syntax-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift-syntax
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        if: matrix.arch == 'arm64'
+        with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-vfs-overlay-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift/stdlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-amd64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr
+
+      - name: cmark-gfm Setup
+        run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
+
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift
+          ref: ${{ needs.context.outputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-foundation
+          ref: ${{ needs.context.outputs.swift_foundation_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation
+          show-progress: false
+
+      # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - run: |
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: extract swift-syntax
+        run: |
+          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
+          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
+          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
+
+      - name: Configure Foundation Macros
+        run: |
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
+          cmake -B ${{ github.workspace }}/BinaryCache/swift-foundation-macros `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ needs.context.otuputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-foundation/Sources/FoundationMacros `
+                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
+      - name: Build Foundation Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+
+      - name: Install Foundation Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros --target install
+
+      - name: Upload macros
+        uses: actions/upload-artifact@v4
+        with:
+          name: macros-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Upload PDBs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ needs.context.outputs.debug_info }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          searchPattern: '**/*.pdb'
+
+      - name: Upload DLLs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ needs.context.outputs.debug_info }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          searchPattern: '**/*.dll'
+
+      - name: Upload EXEs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ needs.context.outputs.debug_info }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          searchPattern: '**/*.exe'
+
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
-    needs: [context, libxml2, curl, zlib, compilers, cmark_gfm, stdlib]
+    needs: [context, libxml2, curl, zlib, compilers, cmark_gfm, stdlib, macros]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
@@ -1602,36 +1738,37 @@ jobs:
         with:
           name: zlib-${{ matrix.os }}-${{ matrix.arch }}-1.3
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
+
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
           name: compilers-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: cmark-gfm-amd64-0.29.0.gfm.13
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
-
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.os }}-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
-
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         if: matrix.os == 'Windows'
         with:
           name: windows-vfs-overlay-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-
-      - uses: actions/checkout@v4
+          path: ${{ github.workspace }}/BinaryCache/swift/stdlib
+      - uses: actions/download-artifact@v4
         with:
-          repository: apple/swift-syntax
-          ref: ${{ needs.context.outputs.swift_syntax_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-syntax
-          show-progress: false
+          name: macros-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-amd64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr
+
+      - name: cmark-gfm Setup
+        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
+
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-corelibs-libdispatch
@@ -1676,16 +1813,13 @@ jobs:
           ref: ${{ needs.context.outputs.swift_corelibs_xctest_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
           show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-experimental-string-processing
-          ref: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
-          show-progress: false
 
       - run: |
           $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          $SDKRoot = cygpath -w ${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk
+          echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -1717,7 +1851,6 @@ jobs:
 
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
-          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/libdispatch `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1747,7 +1880,6 @@ jobs:
                 -D ENABLE_SWIFT=YES
       - name: Build libdispatch
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/libdispatch
 
       - name: Configure Foundation
@@ -1771,7 +1903,6 @@ jobs:
 
           $build_tools = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" }
 
-          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/foundation `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD" `
@@ -1803,6 +1934,7 @@ jobs:
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
                 -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr/lib/cmake/CURL `
                 -D FOUNDATION_BUILD_TOOLS=${build_tools} `
+                -D Foundation_MACRO=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
                 -D ENABLE_TESTING=NO `
                 -D _SwiftFoundation_SourceDIR=$SWIFT_FOUNDATION_SOURCE_DIR `
                 -D _SwiftFoundationICU_SourceDIR=$SWIFT_FOUNDATION_ICU_SOURCE_DIR `
@@ -1814,7 +1946,6 @@ jobs:
                 -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/$zlib_lib
       - name: Build foundation
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/foundation
 
       # TODO(compnerd) correctly version XCTest
@@ -1830,7 +1961,6 @@ jobs:
 
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
-          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/xctest `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1860,20 +1990,16 @@ jobs:
                 -D ENABLE_TESTING=NO
       - name: Build xctest
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
       - name: Install xctest
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/xctest --target install
       - name: Install foundation
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/foundation --target install
       - name: Install libdispatch
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/libdispatch --target install
 
       - uses: actions/setup-python@v5
@@ -1952,7 +2078,7 @@ jobs:
         with:
           name: Windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - name: Downlaod swift-syntax
+      - name: Download swift-syntax
         uses: actions/download-artifact@v4
         with:
           name: swift-syntax-${{ matrix.arch }}
@@ -2761,7 +2887,7 @@ jobs:
 
   package_tools:
     name: Package Tools
-    needs: [context, compilers, debugging_tools, devtools]
+    needs: [context, compilers, macros, debugging_tools, devtools]
     runs-on: ${{ needs.context.outputs.windows_build_runner }}
 
     strategy:
@@ -2786,6 +2912,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: devtools-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Download Macros
+        uses: actions/download-artifact@v4
+        with:
+          name: macros-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download cmark-gfm
