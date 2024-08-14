@@ -2400,30 +2400,28 @@ jobs:
           name: installer-arm64
           path: ${{ github.workspace }}/tmp/arm64
 
-      - uses: actions/create-release@v1
+      - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        id: create_release
-        with:
-          draft: false
-          prerelease: false
-          release_name: ${{ needs.context.outputs.swift_tag }}
-          tag_name: ${{ needs.context.outputs.swift_tag }}
+        run: |
+          # Create Release
+          gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }} --latest=false
 
-      - uses: actions/upload-release-asset@v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_content_type: application/octet-stream
-          asset_name: installer-amd64.exe
-          asset_path: ${{ github.workspace }}/tmp/amd64/installer.exe
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          # AMD64
+          cd ${{ github.workspace }}/tmp/amd64
 
-      - uses: actions/upload-release-asset@v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_content_type: application/octet-stream
-          asset_name: installer-arm64.exe
-          asset_path: ${{ github.workspace }}/tmp/arm64/installer.exe
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          mv installer.exe installer-amd64.exe
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe -R ${{ github.repository }}
+
+          shasum -a 256 installer-amd64.exe > installer-amd64.exe.sha256
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe.sha256 -R ${{ github.repository }}
+
+          # ARM64
+          cd ${{ github.workspace }}/tmp/arm64
+
+          mv installer.exe installer-arm64.exe
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe -R ${{ github.repository }}
+
+          shasum -a 256 installer-arm64.exe > installer-arm64.exe.sha256
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe.sha256 -R ${{ github.repository }}
+
