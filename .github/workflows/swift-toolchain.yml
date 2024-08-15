@@ -132,7 +132,7 @@ jobs:
       signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
-      windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
+      default_build_runner: ${{ steps.context.outputs.windows_build_runner }}
       compilers_build_runner: ${{ steps.context.outputs.compilers_build_runner }}
     steps:
       - id: context
@@ -255,7 +255,7 @@ jobs:
 
   sqlite:
     needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -331,7 +331,7 @@ jobs:
 
   cmark_gfm:
     needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -387,7 +387,7 @@ jobs:
 
   build_tools:
     needs: [context, cmark_gfm]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     steps:
       - uses: actions/download-artifact@v4
@@ -746,7 +746,7 @@ jobs:
 
   zlib:
     needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -869,7 +869,7 @@ jobs:
 
   curl:
     needs: [context, zlib]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1074,7 +1074,7 @@ jobs:
 
   libxml2:
     needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1203,7 +1203,7 @@ jobs:
 
   stdlib:
     needs: [context, compilers, cmark_gfm]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1489,7 +1489,7 @@ jobs:
 
   macros:
     needs: [context, compilers, cmark_gfm, stdlib]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1626,7 +1626,7 @@ jobs:
   sdk:
     continue-on-error: ${{ matrix.arch != 'amd64' }}
     needs: [context, libxml2, curl, zlib, compilers, cmark_gfm, stdlib, macros]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -2045,7 +2045,7 @@ jobs:
 
   devtools:
     needs: [context, sqlite, compilers, stdlib, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -2746,7 +2746,7 @@ jobs:
   debugging_tools:
     name: Debugging Tools
     needs: [context, compilers, devtools, stdlib, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -2888,7 +2888,7 @@ jobs:
   package_tools:
     name: Package Tools
     needs: [context, compilers, macros, debugging_tools, devtools]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.main_build_runner }}
 
     strategy:
       fail-fast: false
@@ -3048,7 +3048,7 @@ jobs:
   package_sdk_runtime:
     name: Package Windows SDK & Runtime
     needs: [context, stdlib, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -3148,7 +3148,7 @@ jobs:
   package_android_sdk:
     name: Package Android SDK & Runtime
     needs: [context, stdlib, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -3222,7 +3222,7 @@ jobs:
 
   installer:
     needs: [context, package_tools, package_sdk_runtime, package_android_sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -3356,7 +3356,7 @@ jobs:
 
   smoke_test:
     needs: [context, installer]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
 
     steps:
       - uses: actions/download-artifact@v4
