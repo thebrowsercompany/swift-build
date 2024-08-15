@@ -1,0 +1,381 @@
+name: Development Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      swift_version:
+        description: 'Swift Version'
+        default: '0.0.0'
+        required: false
+        type: string
+
+      android_api_level:
+        description: 'Android API Level'
+        default: 28
+        required: false
+        type: number
+
+      swift_tag:
+        description: 'Swift Build Tag'
+        required: false
+        type: string
+
+      debug_info:
+        description: 'Emit PDBs (Debug Info)'
+        default: false
+        type: boolean
+
+      signed:
+        description: 'Code Sign'
+        default: false
+        type: boolean
+
+      create_release:
+        description: 'Create Release'
+        type: boolean
+        default: true
+        required: false
+
+  workflow_call:
+    inputs:
+      swift_version:
+        description: 'Swift Version'
+        default: '0.0.0'
+        required: false
+        type: string
+
+      android_api_level:
+        description: 'Android API Level'
+        default: 28
+        required: false
+        type: number
+
+      swift_tag:
+        description: 'Swift Build Tag'
+        required: false
+        type: string
+
+      debug_info:
+        description: 'Emit PDBs (Debug Info)'
+        default: true
+        type: boolean
+
+      signed:
+        description: 'Code Sign'
+        default: false
+        type: boolean
+
+      create_release:
+        description: 'Create Release'
+        type: boolean
+        default: true
+        required: false
+
+    secrets:
+      SYMBOL_SERVER_PAT:
+        required: true
+      CERTIFICATE:
+        required: true
+      PASSPHRASE:
+        required: true
+
+env:
+  SCCACHE_DIRECT: yes
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    outputs:
+      curl_revision: ${{ steps.context.outputs.curl_revision }}
+      indexstore_db_revision: ${{ steps.context.outputs.indexstore_db_revision }}
+      libxml2_revision: ${{ steps.context.outputs.libxml2_revision }}
+      llvm_project_revision: ${{ steps.context.outputs.llvm_project_revision }}
+      sourcekit_lsp_revision: ${{ steps.context.outputs.sourcekit_lsp_revision }}
+      swift_argument_parser_revision: ${{ steps.context.outputs.swift_argument_parser_revision }}
+      swift_asn1_revision: ${{ steps.context.outputs.swift_asn1_revision }}
+      swift_atomics_revision: ${{ steps.context.outputs.swift_atomics_revision }}
+      swift_certificates_revision: ${{ steps.context.outputs.swift_certificates_revision }}
+      swift_cmark_revision: ${{ steps.context.outputs.swift_cmark_revision }}
+      swift_collections_revision: ${{ steps.context.outputs.swift_collections_revision }}
+      swift_corelibs_foundation_revision: ${{ steps.context.outputs.swift_corelibs_foundation_revision }}
+      swift_corelibs_libdispatch_revision: ${{ steps.context.outputs.swift_corelibs_libdispatch_revision }}
+      swift_corelibs_xctest_revision: ${{ steps.context.outputs.swift_corelibs_xctest_revision }}
+      swift_crypto_revision: ${{ steps.context.outputs.swift_crypto_revision }}
+      swift_driver_revision: ${{ steps.context.outputs.swift_driver_revision }}
+      swift_experimental_string_processing_revision: ${{ steps.context.outputs.swift_experimental_string_processing_revision }}
+      swift_format_revision: ${{ steps.context.outputs.swift_format_revision }}
+      swift_foundation_revision: ${{ steps.context.outputs.swift_foundation_revision }}
+      swift_foundation_icu_revision: ${{ steps.context.outputs.swift_foundation_icu_revision }}
+      swift_installer_scripts_revision: ${{ steps.context.outputs.swift_installer_scripts_revision }}
+      swift_llbuild_revision: ${{ steps.context.outputs.swift_llbuild_revision }}
+      swift_markdown_revision: ${{ steps.context.outputs.swift_markdown_revision }}
+      swift_package_manager_revision: ${{ steps.context.outputs.swift_package_manager_revision }}
+      swift_revision: ${{ steps.context.outputs.swift_revision }}
+      swift_syntax_revision: ${{ steps.context.outputs.swift_syntax_revision }}
+      swift_system_revision: ${{ steps.context.outputs.swift_system_revision }}
+      swift_toolchain_sqlite_revision: ${{ steps.context.outputs.swift_toolchain_sqlite_revision }}
+      swift_toolchain_sqlite_version: ${{ steps.context.outputs.swift_toolchain_sqlite_version }}
+      swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
+      yams_revision: ${{ steps.context.outputs.yams_revision }}
+      zlib_revision: ${{ steps.context.outputs.zlib_revision }}
+      ANDROID_API_LEVEL: ${{ steps.context.outputs.ANDROID_API_LEVEL }}
+      WINDOWS_CMAKE_C_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+      WINDOWS_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+      WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
+      WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_CMAKE_C_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+      ANDROID_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+      ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
+      ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
+      debug_info: ${{ steps.context.outputs.debug_info }}
+      signed: ${{ steps.context.outputs.signed }}
+      swift_version: ${{ steps.context.outputs.swift_version }}
+      swift_tag: ${{ steps.context.outputs.swift_tag }}
+      windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
+      compilers_build_runner: ${{ steps.context.outputs.compilers_build_runner }}
+    steps:
+      - id: context
+        name: Generate Build Context
+        run: |
+          # TODO(compnerd) can we make this more silent?
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update -yq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
+
+          # Which branch is this workflow based on
+          branch_version_string=${{ inputs.swift_version || '0.0.0' }}
+          if [[ $branch_version_string == *.* ]]; then
+            branch_name=$(echo ${branch_version_string} | awk -F. '{ ver=$1"."$2; print (ver == "0.0") ? "main" : "release/"ver }')
+          else
+            branch_name="release/$branch_version_string"
+          fi
+
+          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
+          repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
+
+          if [[ "${{ inputs.swift_tag }}" != "" ]] ; then
+            tee -a "${GITHUB_OUTPUT}" <<-EOF
+          indexstore_db_revision=refs/tags/${{ inputs.swift_tag }}
+          llvm_project_revision=refs/tags/${{ inputs.swift_tag }}
+          sourcekit_lsp_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_argument_parser_revision=refs/tags/1.4.0
+          swift_asn1_revision=refs/tags/0.7.0
+          swift_atomics_revision=refs/tags/1.2.0
+          swift_certificates_revision=refs/tags/0.1.0
+          swift_cmark_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_collections_revision=refs/tags/1.1.2
+          swift_corelibs_foundation_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_corelibs_libdispatch_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_corelibs_xctest_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_crypto_revision=refs/tags/3.0.0
+          swift_driver_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_experimental_string_processing_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_format_revision=refs/heads/main
+          swift_foundation_revison=refs/heads/main
+          swift_foundation_icu_revision=refs/tags/0.0.8
+          swift_installer_scripts_revision=refs/heads/main
+          swift_llbuild_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_markdown_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_package_manager_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_syntax_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_system_revision=refs/tags/1.3.0
+          swift_toolchain_sqlite_revision=refs/tags/main
+          swift_toolchain_sqlite_version=3.46.0
+          swift_tools_support_core_revision=refs/tags/${{ inputs.swift_tag }}
+          curl_revision=refs/tags/curl-8_5_0
+          libxml2_revision=refs/tags/v2.11.5
+          yams_revision=refs/tags/5.0.6
+          zlib_revision=refs/tags/v1.3.1
+          EOF
+          else
+            repo manifest -r --suppress-upstream-revision --suppress-dest-branch | \
+                  xmllint --xpath "//project/@name | //project/@revision" - | \
+                  xargs -n2 | \
+                  awk -F'[= ]' '{
+                    split($2, repo, "/");
+                    gsub(/-/, "_", repo[2]);
+                    print tolower(repo[2]) "_revision=" $4
+                  }' | tee -a "${GITHUB_OUTPUT}"
+            repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o - | sed -E 's,[[:space:]]+$,,' > stable.xml
+          fi
+
+          # FIXME(z2oh): Remove /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR when GitHub runner image updates to 20240610.1.
+          #  see: https://github.com/actions/runner-images/issues/10004
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.debug_info }}" == "true" ]]; then
+            echo debug_info=true >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
+            echo CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+          else
+            echo debug_info=false >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
+            echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
+            echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+          fi
+          echo ANDROID_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
+          echo ANDROID_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
+
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.signed }}" == "true" ]]; then
+            # FIXME(compnerd) enable this when requested
+            echo signed=false >> ${GITHUB_OUTPUT}
+          else
+            echo signed=false >> ${GITHUB_OUTPUT}
+          fi
+
+          echo swift_version=${{ inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
+          if [[ -n "${{ inputs.swift_tag }}" ]] ; then
+            echo swift_tag=${{ inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
+          else
+            if [[ "$branch_name" == "main" ]] ; then
+              echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            else
+              echo swift_tag=swift-"$branch_version_string"-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+            fi
+          fi
+
+          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+
+          echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stable.xml
+          path: stable.xml
+          if-no-files-found: ignore
+
+  windows-build:
+    needs: [context]
+    name: Windows Swift Toolchains Build
+    uses: ./.github/workflows/swift-toolchain.yml
+    with:
+      curl_revision: ${{ needs.context.outputs.curl_revision }}
+      indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
+      libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
+      llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
+      sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
+      swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
+      swift_asn1_revision: ${{ needs.context.outputs.swift_asn1_revision }}
+      swift_atomics_revision: ${{ needs.context.outputs.swift_atomics_revision }}
+      swift_certificates_revision: ${{ needs.context.outputs.swift_certificates_revision }}
+      swift_cmark_revision: ${{ needs.context.outputs.swift_cmark_revision }}
+      swift_collections_revision: ${{ needs.context.outputs.swift_collections_revision }}
+      swift_corelibs_foundation_revision: ${{ needs.context.outputs.swift_corelibs_foundation_revision }}
+      swift_corelibs_libdispatch_revision: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
+      swift_corelibs_xctest_revision: ${{ needs.context.outputs.swift_corelibs_xctest_revision }}
+      swift_crypto_revision: ${{ needs.context.outputs.swift_crypto_revision }}
+      swift_driver_revision: ${{ needs.context.outputs.swift_driver_revision }}
+      swift_experimental_string_processing_revision: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+      swift_format_revision: ${{ needs.context.outputs.swift_format_revision }}
+      swift_foundation_revision: ${{ needs.context.outputs.swift_foundation_revision }}
+      swift_foundation_icu_revision: ${{ needs.context.outputs.swift_foundation_icu_revision }}
+      swift_installer_scripts_revision: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+      swift_llbuild_revision: ${{ needs.context.outputs.swift_llbuild_revision }}
+      swift_markdown_revision: ${{ needs.context.outputs.swift_markdown_revision }}
+      swift_package_manager_revision: ${{ needs.context.outputs.swift_package_manager_revision }}
+      swift_revision: ${{ needs.context.outputs.swift_revision }}
+      swift_syntax_revision: ${{ needs.context.outputs.swift_syntax_revision }}
+      swift_system_revision: ${{ needs.context.outputs.swift_system_revision }}
+      swift_toolchain_sqlite_revision: ${{ needs.context.outputs.swift_toolchain_sqlite_revision }}
+      swift_toolchain_sqlite_version: ${{ needs.context.outputs.swift_toolchain_sqlite_version }}
+      swift_tools_support_core_revision: ${{ needs.context.outputs.swift_tools_support_core_revision }}
+      yams_revision: ${{ needs.context.outputs.yams_revision }}
+      zlib_revision: ${{ needs.context.outputs.zlib_revision }}
+      ANDROID_API_LEVEL: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+      WINDOWS_CMAKE_C_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+      WINDOWS_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+      WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
+      WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_CMAKE_C_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+      ANDROID_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+      ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
+      ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      CMAKE_Swift_FLAGS: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+      debug_info: ${{ needs.context.outputs.debug_info }}
+      signed: ${{ needs.context.outputs.signed }}
+      swift_version: ${{ needs.context.outputs.swift_version }}
+      swift_tag: ${{ needs.context.outputs.swift_tag }}
+      default_build_runner: ${{ needs.context.outputs.windows_build_runner }}
+      compilers_build_runner: ${{ needs.context.outputs.compilers_build_runner }}
+    secrets:
+      SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
+      CERTIFICATE: ${{ secrets.CERTIFICATE }}
+      PASSPHRASE: ${{ secrets.PASSPHRASE }}
+
+  snapshot:
+    runs-on: ubuntu-latest
+    needs: [context, windows-build]
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/heads/main
+          show-progress: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: stable.xml
+
+      - run: |
+          git config --global user.name 'github-action[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          if ! git diff --exit-code ; then
+            git add stable.xml
+            git commit -m "repo: update stable revision snapshot ${{ needs.context.outputs.swift_tag }}"
+            git push origin HEAD:main
+          fi
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [context, windows-build]
+    if: inputs.create_release == true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer-amd64
+          path: ${{ github.workspace }}/tmp/amd64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer-arm64
+          path: ${{ github.workspace }}/tmp/arm64
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch_version_string=${{ inputs.swift_version || '0.0.0' }}
+          if [[ $branch_version_string == "0.0.0" ]]; then
+            latest="true"
+          else
+            latest="false"
+          fi
+          # Create Release
+          gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }} --latest=${latest}
+
+          # AMD64
+          cd ${{ github.workspace }}/tmp/amd64
+
+          mv installer.exe installer-amd64.exe
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe -R ${{ github.repository }}
+
+          shasum -a 256 installer-amd64.exe > installer-amd64.exe.sha256
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe.sha256 -R ${{ github.repository }}
+
+          # ARM64
+          cd ${{ github.workspace }}/tmp/arm64
+
+          mv installer.exe installer-arm64.exe
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe -R ${{ github.repository }}
+
+          shasum -a 256 installer-arm64.exe > installer-arm64.exe.sha256
+          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe.sha256 -R ${{ github.repository }}
