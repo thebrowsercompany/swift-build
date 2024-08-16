@@ -3026,7 +3026,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.cab
 
-  package_sdk_runtime:
+  package_windows_sdk_runtime:
     name: Package Windows SDK & Runtime
     needs: [stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -3043,6 +3043,10 @@ jobs:
             platform: x86
 
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ matrix.arch }}
@@ -3126,7 +3130,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msm
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
-  package_android_sdk:
+  package_android_sdk_runtime:
     name: Package Android SDK & Runtime
     needs: [stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -3202,7 +3206,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/android_sdk.${{ matrix.cpu }}.cab
 
   installer:
-    needs: [package_tools, package_sdk_runtime, package_android_sdk]
+    needs: [package_tools, package_windows_sdk_runtime, package_android_sdk_runtime]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
