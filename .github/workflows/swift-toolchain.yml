@@ -111,6 +111,10 @@ on:
         required: true
         type: string
 
+      swift_testing_revision:
+        required: true
+        type: string
+
       swift_toolchain_sqlite_revision:
         required: true
         type: string
@@ -1506,6 +1510,12 @@ jobs:
           ref: ${{ inputs.swift_foundation_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-foundation
           show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-testing
+          ref: ${{ inputs.swift_testing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-testing
+          show-progress: false
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@main
@@ -1544,8 +1554,29 @@ jobs:
       - name: Build Foundation Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros
 
+      - name: Configure Testing Macros
+        run: |
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
+          cmake -B ${{ github.workspace }}/BinaryCache/swift-testing-macros `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-testing/Sources/TestingMacros `
+                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
+      - name: Build Testing Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-testing-macros
+
       - name: Install Foundation Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros --target install
+      - name: Install Testing Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-testing-macros --target install
 
       - name: Upload macros
         uses: actions/upload-artifact@v4
@@ -1700,6 +1731,11 @@ jobs:
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BinaryCache/Library
+      - name: Download swift-syntax
+        uses: actions/download-artifact@v4
+        with:
+          name: swift-syntax-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.os }}-stdlib-${{ matrix.arch }}
@@ -1776,6 +1812,12 @@ jobs:
           repository: swiftlang/swift-corelibs-xctest
           ref: ${{ inputs.swift_corelibs_xctest_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-testing
+          ref: ${{ inputs.swift_testing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-testing
           show-progress: false
 
       - run: |
@@ -1973,6 +2015,53 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
+      - name: extract swift-syntax
+        run: |
+          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
+          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
+          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
+
+      - name: Configure Testing
+        run: |
+          # Workaround CMake 3.20 issue
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
+          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
+
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") {
+            "-vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
+          } else {
+            ""
+          }
+
+          $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
+
+          cmake -B ${{ github.workspace }}/BinaryCache/testing `
+                -D BUILD_SHARED_LIBS=YES `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_BUILD_WITH_INSTALL_RPATH=YES `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
+                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
+                ${{ matrix.linker_flags }} `
+                ${{ matrix.extra_flags }} `
+                -D CMAKE_ANDROID_NDK=${NDKPATH} `
+                -D SWIFT_ANDROID_NDK_PATH=${NDKPATH} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-testing `
+                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules `
+                -D SwiftTesting_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/SwiftTesting.dll
+      - name: Build Testing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/testing
+
+      - name: Install Testing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/testing --target install
       - name: Install xctest
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/xctest --target install
