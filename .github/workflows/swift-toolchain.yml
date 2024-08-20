@@ -1815,11 +1815,6 @@ jobs:
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BinaryCache/Library
-      - name: Download swift-syntax
-        uses: actions/download-artifact@v4
-        with:
-          name: swift-syntax-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.os }}-stdlib-${{ matrix.arch }}
@@ -2099,12 +2094,6 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
-      - name: extract swift-syntax
-        run: |
-          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
-          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
-          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
-
       - name: Configure Testing
         run: |
           # Workaround CMake 3.20 issue
@@ -2142,7 +2131,6 @@ jobs:
                 -D SWIFT_ANDROID_NDK_PATH=${NDKPATH} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-testing `
-                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules `
                 -D SwiftTesting_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/TestingMacros.dll
       - name: Build Testing
         run: |
