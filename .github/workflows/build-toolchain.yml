@@ -36,17 +36,6 @@ on:
         default: true
         required: false
 
-      windows_default_runner:
-        description: 'Build runner'
-        default: 'windows-latest'
-        required: false
-        type: string
-
-      windows_compilers_runner:
-        description: 'Build runner for `compilers` job'
-        type: string
-        required: false
-
   workflow_call:
     inputs:
       swift_version:
@@ -84,7 +73,6 @@ on:
 
       windows_default_runner:
         description: 'Build runner'
-        default: 'windows-latest'
         required: false
         type: string
 
@@ -267,8 +255,8 @@ jobs:
             fi
           fi
 
-          echo windows_build_runner=${{ inputs.windows_default_runner }} >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=${{ inputs.windows_compilers_runner || inputs.windows_default_runner }} >> ${GITHUB_OUTPUT}
+          echo windows_build_runner=${{ inputs.windows_default_runner || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo compilers_build_runner=${{ inputs.windows_compilers_runner || inputs.windows_default_runner || vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
 
           echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
 
