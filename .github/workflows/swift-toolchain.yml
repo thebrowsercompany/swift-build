@@ -2117,6 +2117,9 @@ jobs:
             ""
           }
 
+          # Workaround the issue of not using the new Swift driver , that forces us to disable the CMP0157 policy.
+          (Get-Content -Path "${{ github.workspace }}\SourceCache\swift-testing\CMakeLists.txt") -replace 'cmake_policy\(SET CMP0157 NEW\)', 'cmake_policy(SET CMP0157 OLD)' | Set-Content -Path "${{ github.workspace }}\SourceCache\swift-testing\CMakeLists.txt"
+
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
           cmake -B ${{ github.workspace }}/BinaryCache/testing `
