@@ -1,0 +1,27 @@
+name: Upload Directory
+description: Uploads a directory as a tar artifact, preserving permissions and symlinks.
+
+inputs:
+  name:
+    description: 'The name of the artifact to create.'
+    required: true
+  path:
+    description: 'The path to the file or directory to upload.'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create Tar Archive
+      shell: pwsh
+      id: create-tar
+      run: |
+        $TempDir = New-TemporaryFile | % { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
+        $TarFile = Join-Path $TempDir "${{ inputs.name }}.tar.gz"
+        echo "tar-file=$TarFile" >> $env:GITHUB_OUTPUT
+        tar -czf $TarFile -C "${{ inputs.path }}" .
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ steps.create-tar.outputs.tar-file }}
