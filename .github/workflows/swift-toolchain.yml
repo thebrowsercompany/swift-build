@@ -1893,17 +1893,9 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
           show-progress: false
       - uses: actions/checkout@v4
-        if: matrix.os != 'Android'
         with:
           repository: swiftlang/swift-testing
           ref: ${{ inputs.swift_testing_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-testing
-          show-progress: false
-      - uses: actions/checkout@v4
-        if: matrix.os == 'Android'
-        with:
-          repository: swiftlang/swift-testing
-          ref: main-next
           path: ${{ github.workspace }}/SourceCache/swift-testing
           show-progress: false
 
@@ -2236,15 +2228,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-stdlib-amd64
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
           name: Windows-sdk-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-sdk-amd64
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
@@ -2266,7 +2250,7 @@ jobs:
         if: matrix.arch == 'arm64'
         with:
           name: cmark-gfm-arm64-0.29.0.gfm.13
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - uses: actions/checkout@v4
         with:
@@ -2395,6 +2379,16 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
+      # Download host libraries for the windows amd64 host, after moving the target libraries to the target-specific directory.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-sdk-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+
       - name: Configure swift-argument-parser
         run: |
           # Workaround CMake 3.20 issue
@@ -2416,7 +2410,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2446,7 +2440,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2475,7 +2469,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2504,7 +2498,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2533,7 +2527,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2566,7 +2560,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2596,7 +2590,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2629,7 +2623,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2657,7 +2651,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2678,7 +2672,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2716,7 +2710,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2751,17 +2745,20 @@ jobs:
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-markdown `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake
+                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake
       - name: Build Markdown
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-markdown
 
@@ -2781,7 +2778,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2815,7 +2812,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2845,7 +2842,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2942,6 +2939,11 @@ jobs:
         with:
           name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download stdlib
+        uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
@@ -2991,6 +2993,10 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
       # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-amd64
