@@ -1,0 +1,34 @@
+name: Download Directory
+description: Downloads a tar artifact and extracts it to a directory, preserving permissions and symlinks.
+
+inputs:
+  name:
+    description: 'The name of the artifact to download.'
+    required: true
+  path:
+    description: 'The path to extract the artifact to.'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create Temporary Directory
+      shell: pwsh
+      id: create-temp-dir
+      run: |
+        $TempDir = New-TemporaryFile | % { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
+        echo "temp-dir=$TempDir" >> $env:GITHUB_OUTPUT
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ steps.create-temp-dir.outputs.temp-dir }}
+
+    - name: Extract Tar Archive
+      shell: pwsh
+      id: extract-tar
+      run: |
+        New-Item -ItemType Directory -Path "${{ inputs.path }}" -Force | Out-Null
+        $TarFile = Join-Path "${{ steps.create-temp-dir.outputs.temp-dir }}" "${{ inputs.name }}.tar.gz"
+        tar -xzf $TarFile -C ${{ inputs.path }}
