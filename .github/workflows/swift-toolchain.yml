@@ -19,6 +19,10 @@ on:
         required: true
         type: string
 
+      target_matrix:
+        required: true
+        type: string
+
       curl_revision:
         required: true
         type: string
@@ -156,6 +160,10 @@ on:
         type: string
 
       zlib_revision:
+        required: true
+        type: string
+
+      zlib_version:
         required: true
         type: string
 
@@ -954,69 +962,11 @@ jobs:
           searchPattern: '**/*.exe'
 
   zlib:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            cc: cl
-            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: arm64
-            cc: cl
-            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: x86
-            cc: cl
-            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: arm64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
-
-          - arch: armv7
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
-
-          - arch: i686
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
-
-          - arch: x86_64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+      matrix: ${{ fromJSON(inputs.target_matrix) }}
 
     name: ${{ matrix.os }} ${{ matrix.arch }} zlib
 
@@ -1034,9 +984,11 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - uses: seanmiddleditch/gha-setup-ninja@master
+        if: inputs.build_os == 'Darwin'
+
       - name: Compute workspace hash
         id: workspace_hash
-        shell: pwsh
         run: |
           $stringAsStream = [System.IO.MemoryStream]::new()
           $writer = [System.IO.StreamWriter]::new($stringAsStream)
@@ -1060,8 +1012,11 @@ jobs:
 
       - name: Configure zlib
         run: |
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/zlib-1.3 `
+          $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
+          if ( "${{ inputs.build_os }}" -eq "Windows" ) {
+            $NDKPATH = cygpath -m $NDKPATH
+          }
+          cmake -B ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }} `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.cc }} `
@@ -1071,7 +1026,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_ANDROID_NDK=$NDKPATH `
                 -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
@@ -1080,14 +1035,14 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/zlib `
                 -D SKIP_INSTALL_FILES=YES
       - name: Build zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.3
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
       - name: Install zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-1.3 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }} --target install
 
       - uses: actions/upload-artifact@v4
         with:
-          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-1.3
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
+          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   curl:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -1167,8 +1122,8 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-1.3
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
+          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -1294,8 +1249,8 @@ jobs:
                 -D USE_WIN32_IDN=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
                 -D USE_WIN32_LARGE_FILES=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
                 -D USE_WIN32_LDAP=NO `
-                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr  `
-                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/zlibstatic.lib `
+                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr  `
+                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/zlibstatic.lib `
                 -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
                 -D CMAKE_ANDROID_NDK=$NDKPATH
       - name: Build curl
@@ -2008,8 +1963,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr
       - uses: actions/download-artifact@v4
         with:
-          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-1.3
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
+          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
       - name: Download Compilers
         uses: actions/download-artifact@v4
@@ -2231,8 +2186,8 @@ jobs:
                 -D LIBXML2_DEFINITIONS="${DEFINITION_FLAG}LIBXML_STATIC" `
                 -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/include/libxml2 `
                 -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/lib/$LIBXML `
-                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr `
-                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/$LIBZ `
+                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr `
+                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/$LIBZ `
                 -D SwiftFoundation_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
       - name: Build foundation
         run: |
