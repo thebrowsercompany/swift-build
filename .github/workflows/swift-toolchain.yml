@@ -27,6 +27,10 @@ on:
         required: true
         type: string
 
+      curl_version:
+        required: true
+        type: string
+
       ds2_revision:
         required: true
         type: string
@@ -1045,70 +1049,12 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   curl:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
     needs: [zlib]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            cc: cl
-            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: arm64
-            cc: cl
-            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: x86
-            cc: cl
-            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags:
-
-          - arch: arm64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
-
-          - arch: armv7
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
-
-          - arch: i686
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
-
-          - arch: x86_64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+      matrix: ${{ fromJSON(inputs.target_matrix) }}
 
     name: ${{ matrix.os }} ${{ matrix.arch }} curl
 
@@ -1131,9 +1077,11 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - uses: seanmiddleditch/gha-setup-ninja@master
+        if: inputs.build_os == 'Darwin'
+
       - name: Compute workspace hash
         id: workspace_hash
-        shell: pwsh
         run: |
           $stringAsStream = [System.IO.MemoryStream]::new()
           $writer = [System.IO.StreamWriter]::new($stringAsStream)
@@ -1157,8 +1105,11 @@ jobs:
 
       - name: Configure curl
         run: |
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/curl-8.9.1 `
+          $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
+          if ( "${{ inputs.build_os }}" -eq "Windows" ) {
+            $NDKPATH = cygpath -m $NDKPATH
+          }
+          cmake -B ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }} `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.cc }} `
@@ -1168,7 +1119,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ matrix.extra_flags }} `
                 -G Ninja `
@@ -1254,14 +1205,14 @@ jobs:
                 -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
                 -D CMAKE_ANDROID_NDK=$NDKPATH
       - name: Build curl
-        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-8.9.1
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }}
       - name: Install curl
-        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-8.9.1 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }} --target install
 
       - uses: actions/upload-artifact@v4
         with:
-          name: curl-${{ matrix.os }}-${{ matrix.arch }}-8.9.1
-          path: ${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr
+          name: curl-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -1959,8 +1910,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
       - uses: actions/download-artifact@v4
         with:
-          name: curl-${{ matrix.os }}-${{ matrix.arch }}-8.9.1
-          path: ${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr
+          name: curl-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
       - uses: actions/download-artifact@v4
         with:
           name: zlib-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.zlib_version }}
@@ -2176,7 +2127,7 @@ jobs:
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-foundation `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
-                -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr/lib/cmake/CURL `
+                -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr/lib/cmake/CURL `
                 -D FOUNDATION_BUILD_TOOLS=${build_tools} `
                 -D Foundation_MACRO=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
                 -D ENABLE_TESTING=NO `
