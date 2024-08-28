@@ -106,6 +106,7 @@ jobs:
       swift_atomics_revision: ${{ steps.context.outputs.swift_atomics_revision }}
       swift_certificates_revision: ${{ steps.context.outputs.swift_certificates_revision }}
       swift_cmark_revision: ${{ steps.context.outputs.swift_cmark_revision }}
+      swift_cmark_version: ${{ steps.context.outputs.swift_cmark_version }}
       swift_collections_revision: ${{ steps.context.outputs.swift_collections_revision }}
       swift_corelibs_foundation_revision: ${{ steps.context.outputs.swift_corelibs_foundation_revision }}
       swift_corelibs_libdispatch_revision: ${{ steps.context.outputs.swift_corelibs_libdispatch_revision }}
@@ -134,6 +135,8 @@ jobs:
       WINDOWS_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
       WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
       WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
+      DARWIN_CMAKE_C_FLAGS: ${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}
+      DARWIN_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_C_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}
       ANDROID_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
@@ -144,7 +147,10 @@ jobs:
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
       windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
-      compilers_build_runner: ${{ steps.context.outputs.compilers_build_runner }}
+      windows_compilers_runner: ${{ steps.context.outputs.windows_compilers_runner }}
+      mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
+      windows_host_matrix: ${{ steps.setup-matrix.outputs.windows_host_matrix }}
+      darwin_host_matrix: ${{ steps.setup-matrix.outputs.darwin_host_matrix }}
     steps:
       - id: context
         name: Generate Build Context
@@ -212,6 +218,7 @@ jobs:
           fi
 
           echo swift_toolchain_sqlite_version=3.46.0 >> ${GITHUB_OUTPUT}
+          echo swift_cmark_version=0.29.0.gfm.13 >> ${GITHUB_OUTPUT}
 
           # FIXME(z2oh): Remove /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR when GitHub runner image updates to 20240610.1.
           #  see: https://github.com/actions/runner-images/issues/10004
@@ -219,6 +226,8 @@ jobs:
             echo debug_info=true >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
+            echo DARWIN_CMAKE_C_FLAGS="-g" >> ${GITHUB_OUTPUT}
+            echo DARWIN_CMAKE_CXX_FLAGS="-g" >> ${GITHUB_OUTPUT}
             echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
             echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
@@ -228,6 +237,8 @@ jobs:
             echo debug_info=false >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
+            echo DARWIN_CMAKE_C_FLAGS="" >> ${GITHUB_OUTPUT}
+            echo DARWIN_CMAKE_CXX_FLAGS="" >> ${GITHUB_OUTPUT}
             echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
             echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
@@ -256,7 +267,9 @@ jobs:
           fi
 
           echo windows_build_runner=${{ inputs.windows_default_runner || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=${{ inputs.windows_compilers_runner || inputs.windows_default_runner || vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_compilers_runner=${{ inputs.windows_compilers_runner || inputs.windows_default_runner || vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          # TODO: Make the mac runner configurable.
+          echo mac_build_runner=macos-latest >> ${GITHUB_OUTPUT}
 
           echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
 
@@ -266,11 +279,62 @@ jobs:
           path: stable.xml
           if-no-files-found: ignore
 
+      - name: Setup matrix
+        id: setup-matrix
+        env:
+          WINDOWS_HOST_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "amd64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                },
+                {
+                  "arch": "arm64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                }
+              ]
+            }
+          DARWIN_HOST_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "x86_64",
+                  "os": "Darwin",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
+                },
+                {
+                  "arch": "aarch64",
+                  "os": "Darwin",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
+                }
+              ]
+            }
+        run: |
+          echo "windows_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "darwin_host_matrix=$(jq -r -c '.' <<< ${DARWIN_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+
   windows-build:
     needs: [context]
     name: Windows Swift Toolchains Build
     uses: ./.github/workflows/swift-toolchain.yml
     with:
+      build_os: Windows
+      build_arch: amd64
       curl_revision: ${{ needs.context.outputs.curl_revision }}
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
@@ -281,6 +345,7 @@ jobs:
       swift_atomics_revision: ${{ needs.context.outputs.swift_atomics_revision }}
       swift_certificates_revision: ${{ needs.context.outputs.swift_certificates_revision }}
       swift_cmark_revision: ${{ needs.context.outputs.swift_cmark_revision }}
+      swift_cmark_version: ${{ needs.context.outputs.swift_cmark_version }}
       swift_collections_revision: ${{ needs.context.outputs.swift_collections_revision }}
       swift_corelibs_foundation_revision: ${{ needs.context.outputs.swift_corelibs_foundation_revision }}
       swift_corelibs_libdispatch_revision: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
@@ -319,7 +384,73 @@ jobs:
       swift_version: ${{ needs.context.outputs.swift_version }}
       swift_tag: ${{ needs.context.outputs.swift_tag }}
       default_build_runner: ${{ needs.context.outputs.windows_build_runner }}
-      compilers_build_runner: ${{ needs.context.outputs.compilers_build_runner }}
+      compilers_build_runner: ${{ needs.context.outputs.windows_compilers_runner }}
+      host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
+    secrets:
+      SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
+      CERTIFICATE: ${{ secrets.CERTIFICATE }}
+      PASSPHRASE: ${{ secrets.PASSPHRASE }}
+
+  mac-build:
+    # TODO: Enable the mac build.
+    if: false
+    needs: [context]
+    name: macOS Swift Toolchains Build
+    uses: ./.github/workflows/swift-toolchain.yml
+    with:
+      build_os: Darwin
+      build_arch: aarch64
+      curl_revision: ${{ needs.context.outputs.curl_revision }}
+      indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
+      libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
+      llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
+      sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
+      swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
+      swift_asn1_revision: ${{ needs.context.outputs.swift_asn1_revision }}
+      swift_atomics_revision: ${{ needs.context.outputs.swift_atomics_revision }}
+      swift_certificates_revision: ${{ needs.context.outputs.swift_certificates_revision }}
+      swift_cmark_revision: ${{ needs.context.outputs.swift_cmark_revision }}
+      swift_cmark_version: ${{ needs.context.outputs.swift_cmark_version }}
+      swift_collections_revision: ${{ needs.context.outputs.swift_collections_revision }}
+      swift_corelibs_foundation_revision: ${{ needs.context.outputs.swift_corelibs_foundation_revision }}
+      swift_corelibs_libdispatch_revision: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
+      swift_corelibs_xctest_revision: ${{ needs.context.outputs.swift_corelibs_xctest_revision }}
+      swift_crypto_revision: ${{ needs.context.outputs.swift_crypto_revision }}
+      swift_driver_revision: ${{ needs.context.outputs.swift_driver_revision }}
+      swift_experimental_string_processing_revision: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+      swift_format_revision: ${{ needs.context.outputs.swift_format_revision }}
+      swift_foundation_revision: ${{ needs.context.outputs.swift_foundation_revision }}
+      swift_foundation_icu_revision: ${{ needs.context.outputs.swift_foundation_icu_revision }}
+      swift_installer_scripts_revision: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+      swift_llbuild_revision: ${{ needs.context.outputs.swift_llbuild_revision }}
+      swift_markdown_revision: ${{ needs.context.outputs.swift_markdown_revision }}
+      swift_package_manager_revision: ${{ needs.context.outputs.swift_package_manager_revision }}
+      swift_revision: ${{ needs.context.outputs.swift_revision }}
+      swift_syntax_revision: ${{ needs.context.outputs.swift_syntax_revision }}
+      swift_system_revision: ${{ needs.context.outputs.swift_system_revision }}
+      swift_testing_revision: ${{ needs.context.outputs.swift_testing_revision }}
+      swift_toolchain_sqlite_revision: ${{ needs.context.outputs.swift_toolchain_sqlite_revision }}
+      swift_toolchain_sqlite_version: ${{ needs.context.outputs.swift_toolchain_sqlite_version }}
+      swift_tools_support_core_revision: ${{ needs.context.outputs.swift_tools_support_core_revision }}
+      yams_revision: ${{ needs.context.outputs.yams_revision }}
+      zlib_revision: ${{ needs.context.outputs.zlib_revision }}
+      ANDROID_API_LEVEL: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+      WINDOWS_CMAKE_C_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+      WINDOWS_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+      WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
+      WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_CMAKE_C_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+      ANDROID_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+      ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
+      ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      CMAKE_Swift_FLAGS: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+      debug_info: ${{ needs.context.outputs.debug_info }}
+      signed: ${{ needs.context.outputs.signed }}
+      swift_version: ${{ needs.context.outputs.swift_version }}
+      swift_tag: ${{ needs.context.outputs.swift_tag }}
+      default_build_runner: ${{ needs.context.outputs.mac_build_runner }}
+      compilers_build_runner: ${{ needs.context.outputs.mac_build_runner }}
+      host_matrix: ${{ needs.context.outputs.darwin_host_matrix }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
