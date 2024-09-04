@@ -152,7 +152,9 @@ jobs:
       windows_compilers_runner: ${{ steps.context.outputs.windows_compilers_runner }}
       mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
       windows_host_matrix: ${{ steps.setup-matrix.outputs.windows_host_matrix }}
+      windows_build_matrix: ${{ steps.setup-matrix.outputs.windows_build_matrix }}
       darwin_host_matrix: ${{ steps.setup-matrix.outputs.darwin_host_matrix }}
+      darwin_build_matrix: ${{ steps.setup-matrix.outputs.darwin_build_matrix }}
     steps:
       - id: context
         name: Generate Build Context
@@ -307,6 +309,19 @@ jobs:
                 }
               ]
             }
+          WINDOWS_BUILD_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "amd64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                }
+              ]
+            }
           DARWIN_HOST_MATRIX: >-
             {
               "include": [
@@ -328,9 +343,24 @@ jobs:
                 }
               ]
             }
+          DARWIN_BUILD_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "aarch64",
+                  "os": "Darwin",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
+                }
+              ]
+            }
         run: |
           echo "windows_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_host_matrix=$(jq -r -c '.' <<< ${DARWIN_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "darwin_build_matrix=$(jq -r -c '.' <<< ${DARWIN_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
 
   windows-build:
     needs: [context]
@@ -339,6 +369,8 @@ jobs:
     with:
       build_os: Windows
       build_arch: amd64
+      build_matrix: ${{ needs.context.outputs.windows_build_matrix }}
+      host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
       ds2_revision: ${{ needs.context.outputs.ds2_revision }}
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
@@ -391,7 +423,6 @@ jobs:
       swift_tag: ${{ needs.context.outputs.swift_tag }}
       default_build_runner: ${{ needs.context.outputs.windows_build_runner }}
       compilers_build_runner: ${{ needs.context.outputs.windows_compilers_runner }}
-      host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
@@ -406,6 +437,8 @@ jobs:
     with:
       build_os: Darwin
       build_arch: aarch64
+      build_matrix: ${{ needs.context.outputs.darwin_build_matrix }}
+      host_matrix: ${{ needs.context.outputs.darwin_host_matrix }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
       ds2_revision: ${{ needs.context.outputs.ds2_revision }}
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
@@ -458,7 +491,6 @@ jobs:
       swift_tag: ${{ needs.context.outputs.swift_tag }}
       default_build_runner: ${{ needs.context.outputs.mac_build_runner }}
       compilers_build_runner: ${{ needs.context.outputs.mac_build_runner }}
-      host_matrix: ${{ needs.context.outputs.darwin_host_matrix }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}

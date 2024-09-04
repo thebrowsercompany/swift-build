@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+      build_matrix:
+        required: true
+        type: string
+
       host_matrix:
         required: true
         type: string
@@ -541,17 +545,19 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
   build_tools:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
-    name: Windows amd64 Compiler Build Tools
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Compiler Build Tools
 
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
@@ -569,9 +575,11 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
 
+      - uses: seanmiddleditch/gha-setup-ninja@master
+        if: inputs.build_os == 'Darwin'
+
       - name: Compute workspace hash
         id: workspace_hash
-        shell: pwsh
         run: |
           $stringAsStream = [System.IO.MemoryStream]::new()
           $writer = [System.IO.StreamWriter]::new($stringAsStream)
@@ -585,19 +593,19 @@ jobs:
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
-          key: ${{ steps.workspace_hash.outputs.hash }}-windows-amd64-build_tools
+          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-build_tools
           variant: sccache
 
       - name: Configure Tools
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/0 `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
                 -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_MT=mt `
                 -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
                 -G Ninja `
@@ -644,19 +652,33 @@ jobs:
       - name: Build swift-compatibility-symbols
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target swift-compatibility-symbols
 
+      - name: Export binary paths
+        id: export-binary-paths
+        run: |
+          $Suffix = if ( "${{ matrix.os }}" -eq "Windows" ) { ".exe" } else { "" }
+          echo "llvm_tblgen=${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "clang_tblgen=${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "lldb_tblgen=${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "llvm_config=${{ github.workspace }}/BinaryCache/0/bin/llvm-config${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "clang_pseudo_gen=${{ github.workspace }}/BinaryCache/0/bin/clang-pseudo-gen${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "clang_tidy_confusable_chars_gen=${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "swift_def_to_strings_converter=${{ github.workspace }}/BinaryCache/0/bin/swift-def-to-strings-converter${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "swift_serialize_diagnostics=${{ github.workspace }}/BinaryCache/0/bin/swift-serialize-diagnostics${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "swift_compatibility_symbols=${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols${Suffix}" >> $env:GITHUB_OUTPUT
+
       - uses: actions/upload-artifact@v4
         with:
-          name: build-tools
+          name: build-tools-${{ matrix.os }}
           path: |
-            ${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/llvm-config.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/clang-pseudo-gen.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/swift-def-to-strings-converter.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/swift-serialize-diagnostics.exe
-            ${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols.exe
+            ${{ steps.export-binary-paths.outputs.llvm_tblgen }}
+            ${{ steps.export-binary-paths.outputs.clang_tblgen }}
+            ${{ steps.export-binary-paths.outputs.lldb_tblgen }}
+            ${{ steps.export-binary-paths.outputs.llvm_config }}
+            ${{ steps.export-binary-paths.outputs.clang_pseudo_gen }}
+            ${{ steps.export-binary-paths.outputs.clang_tidy_confusable_chars_gen }}
+            ${{ steps.export-binary-paths.outputs.swift_def_to_strings_converter }}
+            ${{ steps.export-binary-paths.outputs.swift_serialize_diagnostics }}
+            ${{ steps.export-binary-paths.outputs.swift_compatibility_symbols }}
 
   compilers:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -685,7 +707,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: build-tools
+          name: build-tools-Windows
           path: ${{ github.workspace }}/BinaryCache/0/bin
       - uses: actions/download-artifact@v4
         with:
