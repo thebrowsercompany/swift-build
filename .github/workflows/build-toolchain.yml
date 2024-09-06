@@ -97,8 +97,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       curl_revision: ${{ steps.context.outputs.curl_revision }}
+      curl_version: ${{ steps.context.outputs.curl_version }}
+      ds2_revision: ${{ steps.context.outputs.ds2_revision }}
       indexstore_db_revision: ${{ steps.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ steps.context.outputs.libxml2_revision }}
+      libxml2_version: ${{ steps.context.outputs.libxml2_version }}
       llvm_project_revision: ${{ steps.context.outputs.llvm_project_revision }}
       sourcekit_lsp_revision: ${{ steps.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ steps.context.outputs.swift_argument_parser_revision }}
@@ -130,6 +133,7 @@ jobs:
       swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
       yams_revision: ${{ steps.context.outputs.yams_revision }}
       zlib_revision: ${{ steps.context.outputs.zlib_revision }}
+      zlib_version: ${{ steps.context.outputs.zlib_version }}
       ANDROID_API_LEVEL: ${{ steps.context.outputs.ANDROID_API_LEVEL }}
       WINDOWS_CMAKE_C_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
       WINDOWS_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
@@ -141,6 +145,7 @@ jobs:
       ANDROID_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
       ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_NDK_VERSION: ${{ steps.context.outputs.ANDROID_NDK_VERSION }}
       CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
       debug_info: ${{ steps.context.outputs.debug_info }}
       signed: ${{ steps.context.outputs.signed }}
@@ -150,7 +155,11 @@ jobs:
       windows_compilers_runner: ${{ steps.context.outputs.windows_compilers_runner }}
       mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
       windows_host_matrix: ${{ steps.setup-matrix.outputs.windows_host_matrix }}
+      windows_build_matrix: ${{ steps.setup-matrix.outputs.windows_build_matrix }}
+      windows_target_matrix: ${{ steps.setup-matrix.outputs.windows_target_matrix }}
       darwin_host_matrix: ${{ steps.setup-matrix.outputs.darwin_host_matrix }}
+      darwin_build_matrix: ${{ steps.setup-matrix.outputs.darwin_build_matrix }}
+      darwin_target_matrix: ${{ steps.setup-matrix.outputs.darwin_target_matrix }}
     steps:
       - id: context
         name: Generate Build Context
@@ -201,6 +210,7 @@ jobs:
           swift_toolchain_sqlite_revision=refs/tags/main
           swift_tools_support_core_revision=refs/tags/${{ inputs.swift_tag }}
           curl_revision=refs/tags/curl-8_5_0
+          ds2_revision=refs/tags/nightly-2024-08-10
           libxml2_revision=refs/tags/v2.11.5
           yams_revision=refs/tags/5.0.6
           zlib_revision=refs/tags/v1.3.1
@@ -217,8 +227,11 @@ jobs:
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o - | sed -E 's,[[:space:]]+$,,' > stable.xml
           fi
 
+          echo libxml2_version=2.11.5 >> ${GITHUB_OUTPUT}
+          echo curl_version=8.9.1 >> ${GITHUB_OUTPUT}
           echo swift_toolchain_sqlite_version=3.46.0 >> ${GITHUB_OUTPUT}
           echo swift_cmark_version=0.29.0.gfm.13 >> ${GITHUB_OUTPUT}
+          echo zlib_version=1.3 >> ${GITHUB_OUTPUT}
 
           # FIXME(z2oh): Remove /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR when GitHub runner image updates to 20240610.1.
           #  see: https://github.com/actions/runner-images/issues/10004
@@ -272,6 +285,7 @@ jobs:
           echo mac_build_runner=macos-latest >> ${GITHUB_OUTPUT}
 
           echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
+          echo ANDROID_NDK_VERSION=r26b >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -303,6 +317,87 @@ jobs:
                 }
               ]
             }
+          WINDOWS_BUILD_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "amd64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                }
+              ]
+            }
+          WINDOWS_TARGET_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "amd64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": ""
+                },
+                {
+                  "arch": "arm64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": ""
+                },
+                {
+                  "arch": "x86",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": ""
+                },
+                {
+                  "arch": "arm64",
+                  "os": "Android",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a"
+                },
+                {
+                  "arch": "armv7",
+                  "os": "Android",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a"
+                },
+                {
+                  "arch": "i686",
+                  "os": "Android",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86"
+                },
+                {
+                  "arch": "x86_64",
+                  "os": "Android",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64"
+                }
+              ]
+            }
           DARWIN_HOST_MATRIX: >-
             {
               "include": [
@@ -324,9 +419,49 @@ jobs:
                 }
               ]
             }
+          DARWIN_BUILD_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "aarch64",
+                  "os": "Darwin",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
+                }
+              ]
+            }
+          DARWIN_TARGET_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "x86_64",
+                  "os": "Darwin",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": ""
+                },
+                {
+                  "arch": "aarch64",
+                  "os": "Darwin",
+                  "cc": "clang",
+                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cxx": "clang++",
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
+                  "extra_flags": ""
+                }
+              ]
+            }
         run: |
           echo "windows_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_host_matrix=$(jq -r -c '.' <<< ${DARWIN_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "darwin_build_matrix=$(jq -r -c '.' <<< ${DARWIN_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "darwin_target_matrix=$(jq -r -c '.' <<< ${DARWIN_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
 
   windows-build:
     needs: [context]
@@ -335,9 +470,15 @@ jobs:
     with:
       build_os: Windows
       build_arch: amd64
+      build_matrix: ${{ needs.context.outputs.windows_build_matrix }}
+      host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
+      target_matrix: ${{ needs.context.outputs.windows_target_matrix }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
+      curl_version: ${{ needs.context.outputs.curl_version }}
+      ds2_revision: ${{ needs.context.outputs.ds2_revision }}
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
+      libxml2_version: ${{ needs.context.outputs.libxml2_version }}
       llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
       sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
@@ -369,6 +510,7 @@ jobs:
       swift_tools_support_core_revision: ${{ needs.context.outputs.swift_tools_support_core_revision }}
       yams_revision: ${{ needs.context.outputs.yams_revision }}
       zlib_revision: ${{ needs.context.outputs.zlib_revision }}
+      zlib_version: ${{ needs.context.outputs.zlib_version }}
       ANDROID_API_LEVEL: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
       WINDOWS_CMAKE_C_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
       WINDOWS_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
@@ -378,14 +520,14 @@ jobs:
       ANDROID_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
       ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_NDK_VERSION: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
       CMAKE_Swift_FLAGS: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
-      debug_info: ${{ needs.context.outputs.debug_info }}
-      signed: ${{ needs.context.outputs.signed }}
+      debug_info: ${{ fromJSON(needs.context.outputs.debug_info) }}
+      signed: ${{ fromJSON(needs.context.outputs.signed) }}
       swift_version: ${{ needs.context.outputs.swift_version }}
       swift_tag: ${{ needs.context.outputs.swift_tag }}
       default_build_runner: ${{ needs.context.outputs.windows_build_runner }}
       compilers_build_runner: ${{ needs.context.outputs.windows_compilers_runner }}
-      host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
@@ -400,9 +542,15 @@ jobs:
     with:
       build_os: Darwin
       build_arch: aarch64
+      build_matrix: ${{ needs.context.outputs.darwin_build_matrix }}
+      host_matrix: ${{ needs.context.outputs.darwin_host_matrix }}
+      target_matrix: ${{ needs.context.outputs.darwin_target_matrix }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
+      curl_version: ${{ needs.context.outputs.curl_version }}
+      ds2_revision: ${{ needs.context.outputs.ds2_revision }}
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
+      libxml2_version: ${{ needs.context.outputs.libxml2_version }}
       llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
       sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
@@ -434,6 +582,7 @@ jobs:
       swift_tools_support_core_revision: ${{ needs.context.outputs.swift_tools_support_core_revision }}
       yams_revision: ${{ needs.context.outputs.yams_revision }}
       zlib_revision: ${{ needs.context.outputs.zlib_revision }}
+      zlib_version: ${{ needs.context.outputs.zlib_version }}
       ANDROID_API_LEVEL: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
       WINDOWS_CMAKE_C_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
       WINDOWS_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
@@ -443,14 +592,14 @@ jobs:
       ANDROID_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
       ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_NDK_VERSION: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
       CMAKE_Swift_FLAGS: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
-      debug_info: ${{ needs.context.outputs.debug_info }}
-      signed: ${{ needs.context.outputs.signed }}
+      debug_info: ${{ fromJSON(needs.context.outputs.debug_info) }}
+      signed: ${{ fromJSON(needs.context.outputs.signed) }}
       swift_version: ${{ needs.context.outputs.swift_version }}
       swift_tag: ${{ needs.context.outputs.swift_tag }}
       default_build_runner: ${{ needs.context.outputs.mac_build_runner }}
       compilers_build_runner: ${{ needs.context.outputs.mac_build_runner }}
-      host_matrix: ${{ needs.context.outputs.darwin_host_matrix }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
