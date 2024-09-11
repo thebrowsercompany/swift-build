@@ -24,7 +24,7 @@ import argparse
 import os
 import pandas as pd
 from datetime import datetime
-from bigquery_schema import BQ_SCHEMA
+from bigquery_schema import BQ_SCHEMA                                                                                                                                    
 
 def strip_prefix_from_column_values(csv_data, column_name, prefix):
     csv_data[column_name] = csv_data[column_name].apply(lambda x: x[len(prefix):])
