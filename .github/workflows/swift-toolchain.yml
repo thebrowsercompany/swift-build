@@ -51,6 +51,10 @@ on:
         required: true
         type: string
 
+      mimalloc_revision:
+        required: true
+        type: string
+
       sourcekit_lsp_revision:
         required: true
         type: string
@@ -3193,6 +3197,41 @@ jobs:
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
+      - uses: actions/checkout@v4
+        if: matrix.arch == 'amd64'
+        with:
+          repository: microsoft/mimalloc
+          ref: ${{ inputs.mimalloc_revision }}
+          path: ${{ github.workspace }}/SourceCache/mimalloc
+
+      - name: Build and apply mimalloc
+        if: matrix.arch == 'amd64'
+        run: |
+          # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
+          msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release
+          $ToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-x64\Release\mimalloc-override.dll" `
+            -Destination "$ToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-x64\Release\mimalloc-redirect.dll" `
+            -Destination "$ToolchainBin"
+          $MimallocExecutables = @("swift.exe",
+                                   "swiftc.exe",
+                                   "swift-driver.exe",
+                                   "swift-frontend.exe",
+                                   "clang.exe",
+                                   "clang++.exe",
+                                   "clang-cl.exe",
+                                   "lld.exe",
+                                   "lld-link.exe",
+                                   "ld.lld.exe",
+                                   "ld64.lld.exe")
+          foreach ($Exe in $MimallocExecutables) {
+            # Binary-patch in place
+            ${{ github.workspace }}\SourceCache\mimalloc\bin\minject -f -i -v "$ToolchainBin\$Exe"
+            # Log the import table
+            ${{ github.workspace }}\SourceCache\mimalloc\bin\minject -l "$ToolchainBin\$Exe"
+          }
+
       - name: Package Build Tools
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -3203,6 +3242,7 @@ jobs:
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:ENABLE_MIMALLOC=true `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/bld.wixproj
