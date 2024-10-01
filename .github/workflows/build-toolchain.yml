@@ -103,6 +103,7 @@ jobs:
       libxml2_revision: ${{ steps.context.outputs.libxml2_revision }}
       libxml2_version: ${{ steps.context.outputs.libxml2_version }}
       llvm_project_revision: ${{ steps.context.outputs.llvm_project_revision }}
+      mimalloc_revision: ${{ steps.context.outputs.mimalloc_revision }}
       sourcekit_lsp_revision: ${{ steps.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ steps.context.outputs.swift_argument_parser_revision }}
       swift_asn1_revision: ${{ steps.context.outputs.swift_asn1_revision }}
@@ -183,6 +184,7 @@ jobs:
             tee -a "${GITHUB_OUTPUT}" <<-EOF
           indexstore_db_revision=refs/tags/${{ inputs.swift_tag }}
           llvm_project_revision=refs/tags/${{ inputs.swift_tag }}
+          mimalloc_revision=refs/tags/v2.1.7
           sourcekit_lsp_revision=refs/tags/${{ inputs.swift_tag }}
           swift_revision=refs/tags/${{ inputs.swift_tag }}
           swift_argument_parser_revision=refs/tags/1.4.0
@@ -303,7 +305,7 @@ jobs:
                   "arch": "amd64",
                   "os": "Windows",
                   "cc": "cl",
-                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
                 },
@@ -311,7 +313,7 @@ jobs:
                   "arch": "arm64",
                   "os": "Windows",
                   "cc": "cl",
-                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
                 }
@@ -324,7 +326,7 @@ jobs:
                   "arch": "amd64",
                   "os": "Windows",
                   "cc": "cl",
-                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
                 }
@@ -337,7 +339,7 @@ jobs:
                   "arch": "amd64",
                   "os": "Windows",
                   "cc": "cl",
-                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
                   "extra_flags": ""
@@ -346,7 +348,7 @@ jobs:
                   "arch": "arm64",
                   "os": "Windows",
                   "cc": "cl",
-                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
                   "extra_flags": ""
@@ -355,7 +357,7 @@ jobs:
                   "arch": "x86",
                   "os": "Windows",
                   "cc": "cl",
-                  "ccflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
                   "extra_flags": ""
@@ -364,7 +366,7 @@ jobs:
                   "arch": "arm64",
                   "os": "Android",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a"
@@ -373,7 +375,7 @@ jobs:
                   "arch": "armv7",
                   "os": "Android",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a"
@@ -382,7 +384,7 @@ jobs:
                   "arch": "i686",
                   "os": "Android",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86"
@@ -391,7 +393,7 @@ jobs:
                   "arch": "x86_64",
                   "os": "Android",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64"
@@ -405,7 +407,7 @@ jobs:
                   "arch": "x86_64",
                   "os": "Darwin",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
                 },
@@ -413,7 +415,7 @@ jobs:
                   "arch": "aarch64",
                   "os": "Darwin",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
                 }
@@ -426,7 +428,7 @@ jobs:
                   "arch": "aarch64",
                   "os": "Darwin",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
                 }
@@ -439,7 +441,7 @@ jobs:
                   "arch": "x86_64",
                   "os": "Darwin",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
                   "extra_flags": ""
@@ -448,7 +450,7 @@ jobs:
                   "arch": "aarch64",
                   "os": "Darwin",
                   "cc": "clang",
-                  "ccflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
+                  "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
                   "extra_flags": ""
@@ -480,6 +482,7 @@ jobs:
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
       libxml2_version: ${{ needs.context.outputs.libxml2_version }}
       llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
+      mimalloc_revision: ${{ needs.context.outputs.mimalloc_revision }}
       sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
       swift_asn1_revision: ${{ needs.context.outputs.swift_asn1_revision }}
@@ -552,6 +555,7 @@ jobs:
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
       libxml2_version: ${{ needs.context.outputs.libxml2_version }}
       llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
+      mimalloc_revision: ${{ needs.context.outputs.mimalloc_revision }}
       sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
       swift_asn1_revision: ${{ needs.context.outputs.swift_asn1_revision }}
