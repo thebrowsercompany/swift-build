@@ -1,75 +1,204 @@
-name: swift-toolchain
+name: Swift Toolchain Build
 
 on:
-  workflow_dispatch:
-    inputs:
-      swift_version:
-        description: 'Swift Version'
-        default: '6.0.0'
-        required: false
-        type: string
-
-      android_api_level:
-        description: 'Android API Level'
-        default: 28
-        required: false
-        type: number
-
-      swift_tag:
-        description: 'Swift Build Tag'
-        required: false
-        type: string
-
-      debug_info:
-        description: 'Emit PDBs (Debug Info)'
-        default: false
-        type: boolean
-
-      signed:
-        description: 'Code Sign'
-        default: false
-        type: boolean
-
-      create_release:
-        description: 'Create Release'
-        type: boolean
-        default: true
-        required: false
-
   workflow_call:
     inputs:
-      swift_version:
-        description: 'Swift Version'
-        default: '0.0.0'
-        required: false
+      curl_revision:
+        required: true
         type: string
 
-      android_api_level:
-        description: 'Android API Level'
-        default: 28
-        required: false
-        type: number
+      indexstore_db_revision:
+        required: true
+        type: string
 
-      swift_tag:
-        description: 'Swift Build Tag'
-        required: false
+      libxml2_revision:
+        required: true
+        type: string
+
+      llvm_project_revision:
+        required: true
+        type: string
+
+      sourcekit_lsp_revision:
+        required: true
+        type: string
+
+      swift_argument_parser_revision:
+        required: true
+        type: string
+
+      swift_asn1_revision:
+        required: true
+        type: string
+
+      swift_atomics_revision:
+        required: true
+        type: string
+
+      swift_certificates_revision:
+        required: true
+        type: string
+
+      swift_cmark_revision:
+        required: true
+        type: string
+
+      swift_collections_revision:
+        required: true
+        type: string
+
+      swift_corelibs_foundation_revision:
+        required: true
+        type: string
+
+      swift_corelibs_libdispatch_revision:
+        required: true
+        type: string
+
+      swift_corelibs_xctest_revision:
+        required: true
+        type: string
+
+      swift_crypto_revision:
+        required: true
+        type: string
+
+      swift_driver_revision:
+        required: true
+        type: string
+
+      swift_experimental_string_processing_revision:
+        required: true
+        type: string
+
+      swift_format_revision:
+        required: true
+        type: string
+
+      swift_foundation_revision:
+        required: true
+        type: string
+
+      swift_foundation_icu_revision:
+        required: true
+        type: string
+
+      swift_installer_scripts_revision:
+        required: true
+        type: string
+
+      swift_llbuild_revision:
+        required: true
+        type: string
+
+      swift_markdown_revision:
+        required: true
+        type: string
+
+      swift_package_manager_revision:
+        required: true
+        type: string
+
+      swift_revision:
+        required: true
+        type: string
+
+      swift_syntax_revision:
+        required: true
+        type: string
+
+      swift_system_revision:
+        required: true
+        type: string
+
+      swift_testing_revision:
+        required: true
+        type: string
+
+      swift_toolchain_sqlite_revision:
+        required: true
+        type: string
+
+      swift_toolchain_sqlite_version:
+        required: true
+        type: string
+
+      swift_tools_support_core_revision:
+        required: true
+        type: string
+
+      yams_revision:
+        required: true
+        type: string
+
+      zlib_revision:
+        required: true
+        type: string
+
+      ANDROID_API_LEVEL:
+        required: true
+        type: string
+
+      WINDOWS_CMAKE_C_FLAGS:
+        required: true
+        type: string
+
+      WINDOWS_CMAKE_CXX_FLAGS:
+        required: true
+        type: string
+
+      WINDOWS_CMAKE_EXE_LINKER_FLAGS:
+        required: true
+        type: string
+
+      WINDOWS_CMAKE_SHARED_LINKER_FLAGS:
+        required: true
+        type: string
+
+      ANDROID_CMAKE_C_FLAGS:
+        required: true
+        type: string
+
+      ANDROID_CMAKE_CXX_FLAGS:
+        required: true
+        type: string
+
+      ANDROID_CMAKE_EXE_LINKER_FLAGS:
+        required: true
+        type: string
+
+      ANDROID_CMAKE_SHARED_LINKER_FLAGS:
+        required: true
+        type: string
+
+      CMAKE_Swift_FLAGS:
+        required: true
         type: string
 
       debug_info:
-        description: 'Emit PDBs (Debug Info)'
-        default: true
-        type: boolean
+        required: true
+        type: string
 
       signed:
-        description: 'Code Sign'
-        default: false
-        type: boolean
+        required: true
+        type: string
 
-      create_release:
-        description: 'Create Release'
-        type: boolean
-        default: true
-        required: false
+      swift_version:
+        required: true
+        type: string
+
+      swift_tag:
+        required: true
+        type: string
+
+      default_build_runner:
+        required: true
+        type: string
+
+      compilers_build_runner:
+        required: true
+        type: string
+
 
     secrets:
       SYMBOL_SERVER_PAT:
@@ -83,177 +212,8 @@ env:
   SCCACHE_DIRECT: yes
 
 jobs:
-  context:
-    runs-on: ubuntu-latest
-    outputs:
-      curl_revision: ${{ steps.context.outputs.curl_revision }}
-      icu_revision: ${{ steps.context.outputs.icu_revision }}
-      indexstore_db_revision: ${{ steps.context.outputs.indexstore_db_revision }}
-      libxml2_revision: ${{ steps.context.outputs.libxml2_revision }}
-      llvm_project_revision: ${{ steps.context.outputs.llvm_project_revision }}
-      sourcekit_lsp_revision: ${{ steps.context.outputs.sourcekit_lsp_revision }}
-      swift_argument_parser_revision: ${{ steps.context.outputs.swift_argument_parser_revision }}
-      swift_asn1_revision: ${{ steps.context.outputs.swift_asn1_revision }}
-      swift_atomics_revision: ${{ steps.context.outputs.swift_atomics_revision }}
-      swift_certificates_revision: ${{ steps.context.outputs.swift_certificates_revision }}
-      swift_cmark_revision: ${{ steps.context.outputs.swift_cmark_revision }}
-      swift_collections_revision: ${{ steps.context.outputs.swift_collections_revision }}
-      swift_corelibs_foundation_revision: ${{ steps.context.outputs.swift_corelibs_foundation_revision }}
-      swift_corelibs_libdispatch_revision: ${{ steps.context.outputs.swift_corelibs_libdispatch_revision }}
-      swift_corelibs_xctest_revision: ${{ steps.context.outputs.swift_corelibs_xctest_revision }}
-      swift_crypto_revision: ${{ steps.context.outputs.swift_crypto_revision }}
-      swift_driver_revision: ${{ steps.context.outputs.swift_driver_revision }}
-      swift_experimental_string_processing_revision: ${{ steps.context.outputs.swift_experimental_string_processing_revision }}
-      swift_format_revision: ${{ steps.context.outputs.swift_format_revision }}
-      swift_foundation_revision: ${{ steps.context.outputs.swift_foundation_revision }}
-      swift_foundation_icu_revision: ${{ steps.context.outputs.swift_foundation_icu_revision }}
-      swift_installer_scripts_revision: ${{ steps.context.outputs.swift_installer_scripts_revision }}
-      swift_llbuild_revision: ${{ steps.context.outputs.swift_llbuild_revision }}
-      swift_markdown_revision: ${{ steps.context.outputs.swift_markdown_revision }}
-      swift_package_manager_revision: ${{ steps.context.outputs.swift_package_manager_revision }}
-      swift_revision: ${{ steps.context.outputs.swift_revision }}
-      swift_syntax_revision: ${{ steps.context.outputs.swift_syntax_revision }}
-      swift_system_revision: ${{ steps.context.outputs.swift_system_revision }}
-      swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
-      yams_revision: ${{ steps.context.outputs.yams_revision }}
-      zlib_revision: ${{ steps.context.outputs.zlib_revision }}
-      ANDROID_API_LEVEL: ${{ steps.context.outputs.ANDROID_API_LEVEL }}
-      WINDOWS_CMAKE_C_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
-      WINDOWS_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-      WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
-      WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
-      ANDROID_CMAKE_C_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-      ANDROID_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-      ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
-      ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
-      CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
-      debug_info: ${{ steps.context.outputs.debug_info }}
-      signed: ${{ steps.context.outputs.signed }}
-      swift_version: ${{ steps.context.outputs.swift_version }}
-      swift_tag: ${{ steps.context.outputs.swift_tag }}
-      windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
-      compilers_build_runner: ${{ steps.context.outputs.compilers_build_runner }}
-    steps:
-      - id: context
-        name: Generate Build Context
-        run: |
-          # TODO(compnerd) can we make this more silent?
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update -yq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
-
-          # Which branch is this workflow based on
-          branch_version_string=${{ inputs.swift_version || '0.0.0' }}
-          if [[ $branch_version_string == *.* ]]; then
-            branch_name=$(echo ${branch_version_string} | awk -F. '{ ver=$1"."$2; print (ver == "0.0") ? "main" : "release/"ver }')
-          else
-            branch_name="release/$branch_version_string"
-          fi
-
-          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
-          repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
-
-          if [[ "${{ inputs.swift_tag }}" != "" ]] ; then
-            tee -a "${GITHUB_OUTPUT}" <<-EOF
-          indexstore_db_revision=refs/tags/${{ inputs.swift_tag }}
-          llvm_project_revision=refs/tags/${{ inputs.swift_tag }}
-          sourcekit_lsp_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_argument_parser_revision=refs/tags/1.4.0
-          swift_asn1_revision=refs/tags/0.7.0
-          swift_atomics_revision=refs/tags/1.2.0
-          swift_certificates_revision=refs/tags/0.1.0
-          swift_cmark_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_collections_revision=refs/tags/1.1.2
-          swift_corelibs_foundation_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_corelibs_libdispatch_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_corelibs_xctest_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_crypto_revision=refs/tags/3.0.0
-          swift_driver_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_experimental_string_processing_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_format_revision=refs/heads/main
-          swift_foundation_revison=refs/heads/main
-          swift_foundation_icu_revision=refs/tags/0.0.8
-          swift_installer_scripts_revision=refs/heads/main
-          swift_llbuild_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_markdown_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_package_manager_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_syntax_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_system_revision=refs/tags/1.3.0
-          swift_tools_support_core_revision=refs/tags/${{ inputs.swift_tag }}
-          curl_revision=refs/tags/curl-8_5_0
-          libxml2_revision=refs/tags/v2.11.5
-          yams_revision=refs/tags/5.0.6
-          zlib_revision=refs/tags/v1.3.1
-          icu_revision=refs/heads/maint/maint-69
-          EOF
-          else
-            repo manifest -r --suppress-upstream-revision --suppress-dest-branch | \
-                  xmllint --xpath "//project/@name | //project/@revision" - | \
-                  xargs -n2 | \
-                  awk -F'[= ]' '{
-                    split($2, repo, "/");
-                    gsub(/-/, "_", repo[2]);
-                    print tolower(repo[2]) "_revision=" $4
-                  }' | tee -a "${GITHUB_OUTPUT}"
-            repo manifest -r --suppress-upstream-revision --suppress-dest-branch -o - | sed -E 's,[[:space:]]+$,,' > stable.xml
-          fi
-
-          # FIXME(z2oh): Remove /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR when GitHub runner image updates to 20240610.1.
-          #  see: https://github.com/actions/runner-images/issues/10004
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.debug_info }}" == "true" ]]; then
-            echo debug_info=true >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Z7 /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
-            echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
-            echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
-            echo CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
-          else
-            echo debug_info=false >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_CXX_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor /Zc:__cplusplus /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR" >> ${GITHUB_OUTPUT}
-            echo ANDROID_CMAKE_C_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
-            echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
-            echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
-            echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
-          fi
-          echo ANDROID_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
-          echo ANDROID_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
-
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.signed }}" == "true" ]]; then
-            # FIXME(compnerd) enable this when requested
-            echo signed=false >> ${GITHUB_OUTPUT}
-          else
-            echo signed=false >> ${GITHUB_OUTPUT}
-          fi
-
-          echo swift_version=${{ inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
-          if [[ -n "${{ inputs.swift_tag }}" ]] ; then
-            echo swift_tag=${{ inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
-          else
-            if [[ "$branch_name" == "main" ]] ; then
-              echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
-            else
-              echo swift_tag=swift-"$branch_version_string"-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
-            fi
-          fi
-
-          echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-
-          echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: stable.xml
-          path: stable.xml
-          if-no-files-found: ignore
-
   sqlite:
-    needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -261,59 +221,17 @@ jobs:
         include:
           - arch: amd64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
-            extra_flags: 
 
           - arch: arm64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
-            extra_flags: 
-
-          - arch: x86
-            cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
-            cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            os: Windows
-            extra_flags: 
-
-          - arch: arm64
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
-
-          - arch: armv7
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
-
-          - arch: i686
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
-
-          - arch: x86_64
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
 
     name: ${{ matrix.os }} ${{ matrix.arch }} SQLite3
 
@@ -323,14 +241,12 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-build
           show-progress: false
 
-      - name: download sqlite
-        run: |
-          curl.exe -sL "https://sqlite.org/2023/sqlite-amalgamation-3430200.zip" -o $env:TEMP\sqlite-amalgamation-3430200.zip
-          New-Item -ItemType Directory -Path ${{ github.workspace }}\SourceCache\sqlite-3.43.2
-          unzip.exe -j -o $env:TEMP\sqlite-amalgamation-3430200.zip -d ${{ github.workspace }}\SourceCache\sqlite-3.43.2
-
-      - name: Copy CMakeLists.txt
-        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-build\cmake\SQLite\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\sqlite-3.43.2\CMakeLists.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-toolchain-sqlite
+          ref: ${{ inputs.swift_toolchain_sqlite_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+          show-progress: false
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -338,23 +254,28 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
-          key: ${{ matrix.os }}-${{ matrix.arch }}-sqlite
+          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sqlite
           variant: sccache
-          append-timestamp: false
-
-      - uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26b
 
       - name: Configure SQLite
         run: |
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 `
+          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }} `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.cc }} `
@@ -364,236 +285,35 @@ jobs:
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D CMAKE_ANDROID_NDK=$NDKPATH `
-                ${{ matrix.extra_flags }} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/sqlite-3.43.2
+                -S ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
       - name: Build SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.43.2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
       - name: Install SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-3.43.2 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }} --target install
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-3.43.2
-          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
-
-  # TODO(compnerd): remove this once android migrates to swift-foundation
-  icu_tools:
-    needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
-          show-progress: false
-
-      - uses: actions/checkout@v4
-        with:
-          repository: unicode-org/icu
-          ref: ${{ needs.context.outputs.icu_revision }}
-          path: ${{ github.workspace }}/SourceCache/icu
-          show-progress: false
-
-      - name: Copy CMakeLists.txt
-        run: Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
-
-      - uses: compnerd/gha-setup-vsdevenv@main
-        with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: amd64
-
-      - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
-        with:
-          max-size: 100M
-          key: windows-amd64-icu_tools
-          variant: sccache
-          append-timestamp: false
-
-      - name: Configure ICU Build Tools
-        run:
-          cmake -B ${{ github.workspace }}/BinaryCache/icu-tools-69.1 `
-                -D BUILD_SHARED_LIBS=NO `
-                -D BUILD_TOOLS=YES `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/icu/icu4c
-
-      - name: Build ICU Tools
-        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-tools-69.1
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: icu-tools-69.1
-          path: |
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genbrk.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencfu.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gencnval.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gendict.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genrb.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/gensprep.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/icupkg.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/makeconv.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/pkgdata.exe
-            ${{ github.workspace }}/BinaryCache/icu-tools-69.1/genccode.exe
-
-  # TODO(compnerd): remove this once android migrates to swift-foundation
-  icu:
-    needs: [context, icu_tools]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
-
-          - arch: armv7
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
-
-          - arch: i686
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
-
-          - arch: x86_64
-            BUILD_TOOLS: NO
-            BUILD_DATA: NO
-            cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
-
-    name: ${{ matrix.os }} ${{ matrix.arch }} ICU
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: icu-tools-69.1
-          path: ${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin
-
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
-          show-progress: false
-
-      - uses: actions/checkout@v4
-        with:
-          repository: unicode-org/icu
-          ref: ${{ needs.context.outputs.icu_revision }}
-          path: ${{ github.workspace }}/SourceCache/icu
-          show-progress: false
-
-      - name: Copy CMakeLists.txt
-        run: |
-          Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\CMakeLists.txt -destination ${{ github.workspace }}\SourceCache\icu\icu4c\CMakeLists.txt
-          Copy-Item ${{ github.workspace }}\SourceCache\swift-installer-scripts\shared\ICU\icupkg.inc.cmake -destination ${{ github.workspace }}\SourceCache\icu\icu4c\icupkg.inc.cmake
-
-      - uses: compnerd/gha-setup-vsdevenv@main
-        with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
-
-      - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
-        with:
-          max-size: 200M
-          key: ${{ matrix.os }}-${{ matrix.arch }}-icu
-          variant: sccache
-          append-timestamp: false
-
-      - uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26b
-
-      - name: Configure ICU
-        run: |
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/icu-69.1 `
-                -D BUILD_SHARED_LIBS=NO `
-                -D BUILD_TOOLS=${{ matrix.BUILD_TOOLS }} `
-                -D BUILD_DATA=${{ matrix.BUILD_DATA }} `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr `
-                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D ICU_TOOLS_DIR=${{ github.workspace }}/BinaryCache/icu-tools-69.1/usr/bin `
-                -D CMAKE_ANDROID_NDK=$NDKPATH `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/icu/icu4c
-      - name: Build ICU
-        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1
-      - name: Install ICU
-        run: cmake --build ${{ github.workspace }}/BinaryCache/icu-69.1 --target install
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: icu-${{ matrix.os }}-${{ matrix.arch }}-69.1
-          path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
+          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   cmark_gfm:
-    needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
       matrix:
         arch: ['amd64', 'arm64']
 
+    name: Windows ${{ matrix.arch }} CMark GFM
+
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-cmark
-          ref: ${{ needs.context.outputs.swift_cmark_revision }}
+          repository: swiftlang/swift-cmark
+          ref: ${{ inputs.swift_cmark_revision }}
           path: ${{ github.workspace }}/SourceCache/cmark-gfm
           show-progress: false
 
@@ -603,13 +323,24 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 1M
-          key: windows-${{ matrix.arch }}-cmark-gfm
+          key: ${{ steps.workspace_hash.outputs.hash }}-windows-${{ matrix.arch }}-cmark-gfm
           variant: sccache
-          append-timestamp: false
 
       - name: Configure cmark-gfm
         run: >
@@ -619,10 +350,10 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_COMPILER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_COMPILER_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr `
                 -D CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP=YES `
@@ -638,8 +369,10 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
 
   build_tools:
-    needs: [context, cmark_gfm]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [cmark_gfm]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    name: Windows amd64 Compiler Build Tools
 
     steps:
       - uses: actions/download-artifact@v4
@@ -649,26 +382,37 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/llvm-project
-          ref: ${{ needs.context.outputs.llvm_project_revision }}
+          repository: swiftlang/llvm-project
+          ref: ${{ inputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
-          ref: ${{ needs.context.outputs.swift_revision }}
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
       - uses: compnerd/gha-setup-vsdevenv@main
 
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
-          key: windows-amd64-build_tools
+          key: ${{ steps.workspace_hash.outputs.hash }}-windows-amd64-build_tools
           variant: sccache
-          append-timestamp: false
 
       - name: Configure Tools
         run: |
@@ -676,10 +420,10 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake `
                 -G Ninja `
@@ -741,8 +485,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/0/bin/swift-compatibility-symbols.exe
 
   compilers:
-    needs: [context, build_tools, cmark_gfm]
-    runs-on: ${{ needs.context.outputs.compilers_build_runner }}
+    needs: [build_tools, cmark_gfm]
+    runs-on: ${{ inputs.compilers_build_runner }}
 
     env:
       # Must be a full version string from https://www.nuget.org/packages/pythonarm64
@@ -760,6 +504,8 @@ jobs:
             cpu: 'aarch64'
             triple: 'aarch64-unknown-windows-msvc'
 
+    name: Windows ${{ matrix.arch }} Toolchain
+
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -772,32 +518,32 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/llvm-project
-          ref: ${{ needs.context.outputs.llvm_project_revision }}
+          repository: swiftlang/llvm-project
+          ref: ${{ inputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
-          ref: ${{ needs.context.outputs.swift_revision }}
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-experimental-string-processing
-          ref: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ inputs.swift_experimental_string_processing_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-syntax
-          ref: ${{ needs.context.outputs.swift_syntax_revision }}
+          repository: swiftlang/swift-syntax
+          ref: ${{ inputs.swift_syntax_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-syntax
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-corelibs-libdispatch
-          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
+          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
 
@@ -844,13 +590,24 @@ jobs:
         with:
           ndk-version: r26b
 
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 500M
-          key: windows-${{ matrix.arch }}-compilers
+          key: ${{ steps.workspace_hash.outputs.hash }}-windows-${{ matrix.arch }}-compilers
           variant: sccache
-          append-timestamp: false
 
       - name: Configure Compilers
         env:
@@ -876,17 +633,17 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }} -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }} -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_Swift_COMPILER="${SWIFTC}" `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
                 -D CMAKE_Swift_FLAGS="-sdk `"${SDKROOT}`" -Xcc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH" `
-                -D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" `
+                -D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
-                -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}" `
+                -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}" `
                 ${CMAKE_SYSTEM_NAME} `
                 ${CMAKE_SYSTEM_PROCESSOR} `
                 -G Ninja `
@@ -965,7 +722,7 @@ jobs:
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
       - uses: actions/upload-artifact@v4
-        if: false # ${{ needs.context.outputs.debug_info }}
+        if: false # ${{ inputs.debug_info }}
         with:
           name: compilers-${{ matrix.arch }}-debug-info
           path: |
@@ -973,7 +730,7 @@ jobs:
 
       - name: Upload PDBs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info }}
+        if: ${{ inputs.debug_info }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -982,7 +739,7 @@ jobs:
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info }}
+        if: ${{ inputs.debug_info }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -991,7 +748,7 @@ jobs:
 
       - name: Upload EXEs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info }}
+        if: ${{ inputs.debug_info }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -999,8 +756,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   zlib:
-    needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1008,59 +764,59 @@ jobs:
         include:
           - arch: amd64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: arm64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: x86
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: arm64
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
 
           - arch: armv7
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
 
           - arch: i686
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
 
           - arch: x86_64
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
 
     name: ${{ matrix.os }} ${{ matrix.arch }} zlib
 
@@ -1068,7 +824,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: madler/zlib
-          ref: ${{ needs.context.outputs.zlib_revision }}
+          ref: ${{ inputs.zlib_revision }}
           path: ${{ github.workspace }}/SourceCache/zlib
           show-progress: false
 
@@ -1078,13 +834,24 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
-          key: ${{ matrix.os }}-${{ matrix.arch }}-zlib
+          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-zlib
           variant: sccache
-          append-timestamp: false
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -1123,8 +890,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
 
   curl:
-    needs: [context, zlib]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [zlib]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1132,59 +899,59 @@ jobs:
         include:
           - arch: amd64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: arm64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: x86
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: arm64
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
 
           - arch: armv7
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
 
           - arch: i686
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
 
           - arch: x86_64
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
 
     name: ${{ matrix.os }} ${{ matrix.arch }} curl
 
@@ -1192,7 +959,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: curl/curl
-          ref: ${{ needs.context.outputs.curl_revision }}
+          ref: ${{ inputs.curl_revision }}
           path: ${{ github.workspace }}/SourceCache/curl
           show-progress: false
 
@@ -1207,13 +974,24 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
-          key: ${{ matrix.os }}-${{ matrix.arch }}-curl
+          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-curl
           variant: sccache
-          append-timestamp: false
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -1223,7 +1001,7 @@ jobs:
       - name: Configure curl
         run: |
           $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/curl-7.77.0 `
+          cmake -B ${{ github.workspace }}/BinaryCache/curl-8.9.1 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.cc }} `
@@ -1233,7 +1011,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ matrix.extra_flags }} `
                 -G Ninja `
@@ -1319,18 +1097,17 @@ jobs:
                 -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
                 -D CMAKE_ANDROID_NDK=$NDKPATH
       - name: Build curl
-        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-7.77.0
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-8.9.1
       - name: Install curl
-        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-7.77.0 --target install
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-8.9.1 --target install
 
       - uses: actions/upload-artifact@v4
         with:
-          name: curl-${{ matrix.os }}-${{ matrix.arch }}-7.77.0
-          path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
+          name: curl-${{ matrix.os }}-${{ matrix.arch }}-8.9.1
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr
 
   libxml2:
-    needs: [context]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1338,59 +1115,59 @@ jobs:
         include:
           - arch: amd64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: arm64
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: x86
             cc: cl
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: cl
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
             os: Windows
             extra_flags:
 
           - arch: arm64
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
 
           - arch: armv7
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
 
           - arch: i686
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
 
           - arch: x86_64
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
 
     name: ${{ matrix.os }} ${{ matrix.arch }} libxml2
 
@@ -1398,7 +1175,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: gnome/libxml2
-          ref: ${{ needs.context.outputs.libxml2_revision }}
+          ref: ${{ inputs.libxml2_revision }}
           path: ${{ github.workspace }}/SourceCache/libxml2
           show-progress: false
 
@@ -1408,13 +1185,24 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Setup sccache
         uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
         with:
           max-size: 100M
-          key: ${{ matrix.os }}-${{ matrix.arch }}-libxml2
+          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-libxml2
           variant: sccache
-          append-timestamp: false
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -1458,10 +1246,9 @@ jobs:
           name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-2.11.5
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
 
-  sdk:
-    continue-on-error: ${{ matrix.arch != 'amd64' }}
-    needs: [context, icu, libxml2, curl, zlib, compilers, cmark_gfm]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+  stdlib:
+    needs: [compilers, cmark_gfm]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -1472,13 +1259,13 @@ jobs:
             triple: 'x86_64-unknown-windows-msvc'
             triple_no_api_level: 'x86_64-unknown-windows-msvc'
             cc: '$CLANG_CL'
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: '$CLANG_CL'
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            swiftflags: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            swiftflags: ${{ inputs.CMAKE_Swift_FLAGS }}
             os: Windows
             llvm_flags:
-            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
             extra_flags:
 
           - arch: arm64
@@ -1486,13 +1273,13 @@ jobs:
             triple: 'aarch64-unknown-windows-msvc'
             triple_no_api_level: 'aarch64-unknown-windows-msvc'
             cc: '$CLANG_CL'
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: '$CLANG_CL'
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            swiftflags: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            swiftflags: ${{ inputs.CMAKE_Swift_FLAGS }}
             os: Windows
             llvm_flags:
-            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
             extra_flags: 
 
           - arch: x86
@@ -1500,91 +1287,74 @@ jobs:
             triple: 'i686-unknown-windows-msvc'
             triple_no_api_level: 'i686-unknown-windows-msvc'
             cc: '$CLANG_CL'
-            cflags: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
             cxx: '$CLANG_CL'
-            cxxflags: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
-            swiftflags: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            swiftflags: ${{ inputs.CMAKE_Swift_FLAGS }}
             os: Windows
             llvm_flags:
-            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
             extra_flags: 
 
           - arch: arm64
             cpu: 'aarch64'
-            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
             triple_no_api_level: aarch64-unknown-linux-android
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DLLVM_HOST_TRIPLE=aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
-            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DLLVM_HOST_TRIPLE=aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
 
           - arch: armv7
             cpu: armv7
-            triple: 'armv7a-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            triple: 'armv7a-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
             triple_no_api_level: armv7-unknown-linux-androideabi
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker armv7a-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker armv7a-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=armv7-a -DLLVM_HOST_TRIPLE=armv7a-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}
-            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=armv7-a -DLLVM_HOST_TRIPLE=armv7a-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
 
           - arch: i686
             cpu: i686
-            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
             triple_no_api_level: i686-unknown-linux-android
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=i686 -DLLVM_HOST_TRIPLE=i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
-            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=i686 -DLLVM_HOST_TRIPLE=i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
 
           - arch: x86_64
             cpu: 'x86_64'
-            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
             triple_no_api_level: x86_64-unknown-linux-android
             cc: clang
-            cflags: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
-            cxxflags: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
-            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
-            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=x86_64 -DLLVM_HOST_TRIPLE=x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}
-            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
-            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ needs.context.outputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+            llvm_flags: -DCMAKE_SYSTEM_PROCESSOR=x86_64 -DLLVM_HOST_TRIPLE=x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
 
-    name: ${{ matrix.os }} ${{ matrix.arch }} SDK
+    name: ${{ matrix.os }} ${{ matrix.arch }} Standard Library
 
     steps:
-      - uses: actions/download-artifact@v4
-        if: matrix.os == 'Android'
-        with:
-          name: icu-${{ matrix.os }}-${{ matrix.arch }}-69.1
-          path: ${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr
-      - uses: actions/download-artifact@v4
-        with:
-          name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-2.11.5
-          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
-      - uses: actions/download-artifact@v4
-        with:
-          name: curl-${{ matrix.os }}-${{ matrix.arch }}-7.77.0
-          path: ${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr
-      - uses: actions/download-artifact@v4
-        with:
-          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-1.3
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
@@ -1600,83 +1370,33 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/llvm-project
-          ref: ${{ needs.context.outputs.llvm_project_revision }}
+          repository: swiftlang/llvm-project
+          ref: ${{ inputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
-          ref: ${{ needs.context.outputs.swift_revision }}
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-syntax
-          ref: ${{ needs.context.outputs.swift_syntax_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-syntax
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
           repository: apple/swift-corelibs-libdispatch
-          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
+          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
       - uses: actions/checkout@v4
-        if: matrix.os == 'Windows'
         with:
-          repository: apple/swift-corelibs-foundation
-          ref: ${{ needs.context.outputs.swift_corelibs_foundation_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
-          show-progress: false
-      - uses: actions/checkout@v4
-        if: matrix.os == 'Windows'
-        with:
-          repository: apple/swift-foundation
-          ref: ${{ needs.context.outputs.swift_foundation_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-foundation
-          show-progress: false
-      - uses: actions/checkout@v4
-        if: matrix.os == 'Windows'
-        with:
-          repository: apple/swift-foundation-icu
-          ref: ${{ needs.context.outputs.swift_foundation_icu_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
-          show-progress: false
-      - uses: actions/checkout@v4
-        if: matrix.os == 'Windows'
-        with:
-          repository: apple/swift-collections
-          ref: ${{ needs.context.outputs.swift_collections_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-collections
-          show-progress: false
-      - uses: actions/checkout@v4
-        if: matrix.os == 'Android'
-        with:
-          repository: hyp/swift-corelibs-foundation
-          ref: 6bf677693eb23030eb3646c9b121c665f40aa8b0
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-corelibs-xctest
-          ref: ${{ needs.context.outputs.swift_corelibs_xctest_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
-          show-progress: false
-      - uses: actions/checkout@v4
-        with:
-          repository: apple/swift-experimental-string-processing
-          ref: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ inputs.swift_experimental_string_processing_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
 
-      # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
-      - uses: compnerd/gha-setup-vsdevenv@main
-        with:
-          host_arch: amd64
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
-
+      # NOTE(compnerd) While we do not have ABI stability on Windows yet, we use
+      # Swift in the compiler, which requires that we have the Swift runtime. As
+      # we have not yet built the runtime, this requires that we use the runtime
+      # from the previous build.
       - name: Install Swift Toolchain
         uses: compnerd/gha-setup-swift@main
         with:
@@ -1685,15 +1405,12 @@ jobs:
           release-asset-name: installer-amd64.exe
           release-tag-name: '20231016.0'
 
-      # workaround CMake 3.30 issue
-      - uses: jwlawson/actions-setup-cmake@v2
+      # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
+      - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          cmake-version: '3.29'
-
-      # FIXME(compnerd): workaround CMake 3.30 issue
-      - uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: '3.29'
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
 
       # NOTE(compnerd): we execute unconditionally as we reference outputs
       - uses: nttld/setup-ndk@v1
@@ -1703,10 +1420,10 @@ jobs:
 
       - name: Configure LLVM
         run: |
+          # NOTE: used by `matrix.cc`
           $CLANG_CL = "cl"
           $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
 
-          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/llvm `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.cc }} `
@@ -1718,21 +1435,25 @@ jobs:
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ matrix.llvm_flags }} `
                 ${{ matrix.extra_flags }} `
-                -D CMAKE_ANDROID_NDK=$NDKPATH `
-                -D SWIFT_ANDROID_NDK_PATH=$NDKPATH `
+                -D CMAKE_ANDROID_NDK=${NDKPATH} `
+                -D SWIFT_ANDROID_NDK_PATH=${NDKPATH} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
                 -D LLVM_ENABLE_ASSERTIONS=YES
 
       - name: Configure Swift Standard Library
         run: |
-          # Workaround CMake 3.20 issue
+          # NOTE: used by `matrix.cc`
           $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
 
           $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
           $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
 
-          $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
+          $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") {
+            "armv7-a"
+          } else {
+            "${{ matrix.cpu }}"
+          }
 
           Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/swift `
@@ -1756,8 +1477,8 @@ jobs:
                 -D MSVC_CXX_ARCHITECTURE_ID=${{ matrix.arch }} `
                 ${{ matrix.linker_flags }} `
                 ${{ matrix.extra_flags }} `
-                -D CMAKE_ANDROID_NDK=$NDKPATH `
-                -D SWIFT_ANDROID_NDK_PATH=$NDKPATH `
+                -D CMAKE_ANDROID_NDK=${NDKPATH} `
+                -D SWIFT_ANDROID_NDK_PATH=${NDKPATH} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift `
                 -D LLVM_DIR=${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm `
@@ -1782,19 +1503,453 @@ jobs:
           Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/swift --target install
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'Windows'
+        with:
+          name: windows-vfs-overlay-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+
+      - name: Upload PDBs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '**/*.pdb'
+
+      - name: Upload DLLs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '**/*.dll'
+
+  macros:
+    needs: [compilers, cmark_gfm, stdlib]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: 'amd64'
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-windows-msvc'
+
+          - arch: 'arm64'
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-windows-msvc'
+
+    name: Windows ${{ matrix.arch }} Macros
+
+    steps:
+      - name: Download Compilers
+        uses: actions/download-artifact@v4
+        with:
+          name: compilers-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library
+      - name: Download swift-syntax
+        uses: actions/download-artifact@v4
+        with:
+          name: swift-syntax-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift-syntax
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        if: matrix.arch == 'arm64'
+        with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-vfs-overlay-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift/stdlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-amd64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr
+
+      - name: cmark-gfm Setup
+        run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
+
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-foundation
+          ref: ${{ inputs.swift_foundation_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-testing
+          ref: ${{ inputs.swift_testing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-testing
+          show-progress: false
+
+      # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - run: |
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: extract swift-syntax
+        run: |
+          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
+          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
+          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
+
+      - name: Configure Foundation Macros
+        run: |
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
+          cmake -B ${{ github.workspace }}/BinaryCache/swift-foundation-macros `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-foundation/Sources/FoundationMacros `
+                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
+      - name: Build Foundation Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+
+      - name: Configure Testing Macros
+        run: |
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
+          cmake -B ${{ github.workspace }}/BinaryCache/swift-testing-macros `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-testing/Sources/TestingMacros `
+                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
+      - name: Build Testing Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-testing-macros
+
+      - name: Install Foundation Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros --target install
+      - name: Install Testing Macros
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-testing-macros --target install
+
+      - name: Upload macros
+        uses: actions/upload-artifact@v4
+        with:
+          name: macros-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Upload PDBs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ inputs.debug_info }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          searchPattern: '**/*.pdb'
+
+      - name: Upload DLLs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ inputs.debug_info }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          searchPattern: '**/*.dll'
+
+      - name: Upload EXEs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ inputs.debug_info }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          searchPattern: '**/*.exe'
+
+  sdk:
+    needs: [libxml2, curl, zlib, compilers, cmark_gfm, stdlib, macros]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-windows-msvc'
+            triple_no_api_level: 'x86_64-unknown-windows-msvc'
+            cc: '$CLANG_CL'
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
+            cxx: '$CLANG_CL'
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            swiftflags: ${{ inputs.CMAKE_Swift_FLAGS }}
+            os: Windows
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags:
+
+          - arch: arm64
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-windows-msvc'
+            triple_no_api_level: 'aarch64-unknown-windows-msvc'
+            cc: '$CLANG_CL'
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
+            cxx: '$CLANG_CL'
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            swiftflags: ${{ inputs.CMAKE_Swift_FLAGS }}
+            os: Windows
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags:
+
+          - arch: x86
+            cpu: 'i686'
+            triple: 'i686-unknown-windows-msvc'
+            triple_no_api_level: 'i686-unknown-windows-msvc'
+            cc: '$CLANG_CL'
+            cflags: ${{ inputs.WINDOWS_CMAKE_C_FLAGS }}
+            cxx: '$CLANG_CL'
+            cxxflags: ${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}
+            swiftflags: ${{ inputs.CMAKE_Swift_FLAGS }}
+            os: Windows
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags:
+
+          - arch: arm64
+            cpu: 'aarch64'
+            triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            triple_no_api_level: aarch64-unknown-linux-android
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            os: Android
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+
+          - arch: armv7
+            cpu: armv7
+            triple: 'armv7a-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
+            triple_no_api_level: armv7-unknown-linux-androideabi
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker armv7a-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            os: Android
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+
+          - arch: i686
+            cpu: i686
+            triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            triple_no_api_level: i686-unknown-linux-android
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            os: Android
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
+
+          - arch: x86_64
+            cpu: 'x86_64'
+            triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            triple_no_api_level: x86_64-unknown-linux-android
+            cc: clang
+            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
+            cxx: clang++
+            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
+            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
+            os: Android
+            linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
+            extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} SDK
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-2.11.5
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: curl-${{ matrix.os }}-${{ matrix.arch }}-8.9.1
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-1.3
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr
+
+      - name: Download Compilers
+        uses: actions/download-artifact@v4
+        with:
+          name: compilers-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        if: matrix.os == 'Windows'
+        with:
+          name: windows-vfs-overlay-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift/stdlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: macros-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmark-gfm-amd64-0.29.0.gfm.13
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr
+
+      - name: cmark-gfm Setup
+        run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
+
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-corelibs-libdispatch
+          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          show-progress: false
+      - uses: actions/checkout@v4
+        if: matrix.os != 'Android'
+        with:
+          repository: apple/swift-corelibs-foundation
+          ref: ${{ inputs.swift_corelibs_foundation_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          show-progress: false
+      - uses: actions/checkout@v4
+        if: matrix.os == 'Android'
+        with:
+          repository: hyp/swift-corelibs-foundation
+          ref: eng/recore-android-build
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          show-progress: false
+      - uses: actions/checkout@v4
+        if: matrix.os != 'Android'
+        with:
+          repository: apple/swift-foundation
+          ref: ${{ inputs.swift_foundation_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation
+          show-progress: false
+      - uses: actions/checkout@v4
+        if: matrix.os == 'Android'
+        with:
+          repository: hyp/swift-foundation
+          ref: android-wmo-merged
+          path: ${{ github.workspace }}/SourceCache/swift-foundation
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-foundation-icu
+          ref: ${{ inputs.swift_foundation_icu_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-collections
+          ref: ${{ inputs.swift_collections_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-corelibs-xctest
+          ref: ${{ inputs.swift_corelibs_xctest_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-testing
+          ref: ${{ inputs.swift_testing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-testing
+          show-progress: false
+
+      - run: |
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          $SDKRoot = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
+          echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - name: Install Swift Toolchain
+        uses: compnerd/gha-setup-swift@main
+        with:
+          github-repo: thebrowsercompany/swift-build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-amd64.exe
+          release-tag-name: '20231016.0'
+
+      # FIXME(compnerd): workaround CMake 3.30 issue
+      # FIXME(compnerd): workaround CMake 3.29-3.30 issue
+      - uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.28'
+
+      # NOTE(compnerd): we execute unconditionally as we reference outputs
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26b
+
       - name: Configure libdispatch
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
           $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
 
-          $WIN_OVERLAY_PATH = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") { "-vfsoverlay ${WIN_OVERLAY_PATH} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules" } else { "" }
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") {
+            "-vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
+          } else {
+            ""
+          }
 
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
-          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/libdispatch `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1808,7 +1963,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
@@ -1824,41 +1979,35 @@ jobs:
                 -D ENABLE_SWIFT=YES
       - name: Build libdispatch
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/libdispatch
 
       - name: Configure Foundation
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          $WIN_OVERLAY_PATH = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") { "-vfsoverlay ${WIN_OVERLAY_PATH} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules" } else { "" }
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
-          $DEFINITION_FLAG = if ("${{ matrix.os }}" -eq "Windows") { "/D" } else { "-D" }
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
-          $zlib_lib = if ("${{ matrix.os }}" -eq "Windows") { "zlibstatic.lib" } else { "libz.a" }
-          $xml_lib = if ("${{ matrix.os }}" -eq "Windows") { "libxml2s.lib" } else { "libxml2.a" }
+          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
+
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") {
+            "-vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
+          } else {
+            ""
+          }
+
+          $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
+
+          $DEFINITION_FLAG = if ("${{ matrix.os }}" -eq "Windows") { "/D" } else { "-D" }
+          $LIBZ = if ("${{ matrix.os }}" -eq "Windows") { "zlibstatic.lib" } else { "libz.a" }
+          $LIBXML = if ("${{ matrix.os }}" -eq "Windows") { "libxml2s.lib" } else { "libxml2.a" }
 
           $SWIFT_FOUNDATION_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-foundation
           $SWIFT_FOUNDATION_ICU_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-foundation-icu
           $SWIFT_COLLECTIONS_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-collections
 
-          $ICU_FLAGS = if ("${{ matrix.os }}" -eq "Android") {
-            "-D","ICU_DATA_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicudt69.a",
-            "-D","ICU_I18N_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicuin69.a",
-            "-D","ICU_ROOT=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr",
-            "-D","ICU_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/include",
-            "-D","ICU_UC_LIBRARY_RELEASE=${{ github.workspace }}/BuildRoot/Library/icu-69.1/usr/lib/libicuuc69.a"
-          } else {
-            @()
-          }
-
           $build_tools = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" }
 
-          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/foundation `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL="/MD" `
@@ -1870,12 +2019,12 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_EXE_LINKER_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" `
+                -D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" `
                 -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
@@ -1888,37 +2037,41 @@ jobs:
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-foundation `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
-                -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-7.77.0/usr/lib/cmake/CURL `
+                -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-8.9.1/usr/lib/cmake/CURL `
                 -D FOUNDATION_BUILD_TOOLS=${build_tools} `
+                -D Foundation_MACRO=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
                 -D ENABLE_TESTING=NO `
-                @ICU_FLAGS `
                 -D _SwiftFoundation_SourceDIR=$SWIFT_FOUNDATION_SOURCE_DIR `
                 -D _SwiftFoundationICU_SourceDIR=$SWIFT_FOUNDATION_ICU_SOURCE_DIR `
                 -D _SwiftCollections_SourceDIR=$SWIFT_COLLECTIONS_SOURCE_DIR `
                 -D LIBXML2_DEFINITIONS="${DEFINITION_FLAG}LIBXML_STATIC" `
                 -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/include/libxml2 `
-                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/lib/$xml_lib `
+                -D LIBXML2_LIBRARY=${{ github.workspace }}/BuildRoot/Library/libxml2-2.11.5/usr/lib/$LIBXML `
                 -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr `
-                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/$zlib_lib
+                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-1.3/usr/lib/$LIBZ `
+                -D SwiftFoundation_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
       - name: Build foundation
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/foundation
 
       # TODO(compnerd) correctly version XCTest
       - name: Configure xctest
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
           $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
 
-          $WIN_OVERLAY_PATH = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") { "-vfsoverlay ${WIN_OVERLAY_PATH} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules" } else { "" }
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") {
+            "-vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
+          } else {
+            ""
+          }
 
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
-          Remove-Item env:\SDKROOT
           cmake -B ${{ github.workspace }}/BinaryCache/xctest `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -1933,7 +2086,7 @@ jobs:
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
@@ -1948,20 +2101,64 @@ jobs:
                 -D ENABLE_TESTING=NO
       - name: Build xctest
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
+      - name: Configure Testing
+        run: |
+          # Workaround CMake 3.20 issue
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
+          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
+
+          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
+          $OVERLAY_FLAGS = if ("${{ matrix.os }}" -eq "Windows") {
+            "-vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
+          } else {
+            ""
+          }
+
+          # Workaround the issue of not using the new Swift driver , that forces us to disable the CMP0157 policy.
+          (Get-Content -Path "${{ github.workspace }}\SourceCache\swift-testing\CMakeLists.txt") -replace 'cmake_policy\(SET CMP0157 NEW\)', 'cmake_policy(SET CMP0157 OLD)' | Set-Content -Path "${{ github.workspace }}\SourceCache\swift-testing\CMakeLists.txt"
+
+          $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
+
+          cmake -B ${{ github.workspace }}/BinaryCache/testing `
+                -D BUILD_SHARED_LIBS=YES `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_BUILD_WITH_INSTALL_RPATH=YES `
+                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
+                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
+                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
+                ${{ matrix.linker_flags }} `
+                ${{ matrix.extra_flags }} `
+                -D CMAKE_ANDROID_NDK=${NDKPATH} `
+                -D SWIFT_ANDROID_NDK_PATH=${NDKPATH} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-testing `
+                -D SwiftTesting_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/TestingMacros.dll
+      - name: Build Testing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/testing
+
+      - name: Install Testing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/testing --target install
       - name: Install xctest
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/xctest --target install
       - name: Install foundation
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/foundation --target install
       - name: Install libdispatch
         run: |
-          Remove-Item env:\SDKROOT
           cmake --build ${{ github.workspace }}/BinaryCache/libdispatch --target install
 
       - uses: actions/setup-python@v5
@@ -1989,7 +2186,7 @@ jobs:
 
       - name: Upload PDBs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info && matrix.os == 'Windows' }}
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -1998,7 +2195,7 @@ jobs:
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info && matrix.os == 'Windows' }}
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -2006,8 +2203,8 @@ jobs:
           searchPattern: '**/*.dll'
 
   devtools:
-    needs: [context, sqlite, compilers, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [sqlite, compilers, stdlib, sdk]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -2021,144 +2218,152 @@ jobs:
             cpu: 'aarch64'
             triple: 'aarch64-unknown-windows-msvc'
 
+    name: Windows ${{ matrix.arch }} Developer Tools
+
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: sqlite-Windows-${{ matrix.arch }}-3.43.2
-          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr
+          name: sqlite-Windows-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
+          path: ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
           name: compilers-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-amd64
-          path: ${{ github.workspace }}/BinaryCache
-      - name: Download SDK
-        uses: actions/download-artifact@v4
+          name: Windows-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - name: Downlaod swift-syntax
-        uses: actions/download-artifact@v4
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: macros-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library
+      - uses: actions/download-artifact@v4
         with:
           name: swift-syntax-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: actions/download-artifact@v4
         with:
           name: cmark-gfm-amd64-0.29.0.gfm.13
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
+        run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
 
       - uses: actions/download-artifact@v4
         if: matrix.arch == 'arm64'
         with:
           name: cmark-gfm-arm64-0.29.0.gfm.13
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/indexstore-db
-          ref: ${{ needs.context.outputs.indexstore_db_revision }}
+          repository: swiftlang/indexstore-db
+          ref: ${{ inputs.indexstore_db_revision }}
           path: ${{ github.workspace }}/SourceCache/indexstore-db
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/sourcekit-lsp
-          ref: ${{ needs.context.outputs.sourcekit_lsp_revision }}
+          repository: swiftlang/sourcekit-lsp
+          ref: ${{ inputs.sourcekit_lsp_revision }}
           path: ${{ github.workspace }}/SourceCache/sourcekit-lsp
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-argument-parser
-          ref: ${{ needs.context.outputs.swift_argument_parser_revision }}
+          ref: ${{ inputs.swift_argument_parser_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-argument-parser
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-asn1
-          ref: ${{ needs.context.outputs.swift_asn1_revision }}
+          ref: ${{ inputs.swift_asn1_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-asn1
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-certificates
-          ref: ${{ needs.context.outputs.swift_certificates_revision }}
+          ref: ${{ inputs.swift_certificates_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-certificates
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-collections
-          ref: ${{ needs.context.outputs.swift_collections_revision }}
+          ref: ${{ inputs.swift_collections_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-collections
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-crypto
-          ref: ${{ needs.context.outputs.swift_crypto_revision }}
+          ref: ${{ inputs.swift_crypto_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-crypto
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-driver
-          ref: ${{ needs.context.outputs.swift_driver_revision }}
+          repository: swiftlang/swift-driver
+          ref: ${{ inputs.swift_driver_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-driver
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-format
-          ref: ${{ needs.context.outputs.swift_format_revision }}
+          repository: swiftlang/swift-format
+          ref: ${{ inputs.swift_format_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-format
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-llbuild
-          ref: ${{ needs.context.outputs.swift_llbuild_revision }}
+          repository: swiftlang/swift-llbuild
+          ref: ${{ inputs.swift_llbuild_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-llbuild
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-markdown
-          ref: ${{ needs.context.outputs.swift_markdown_revision }}
+          repository: swiftlang/swift-markdown
+          ref: ${{ inputs.swift_markdown_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-markdown
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-package-manager
-          ref: ${{ needs.context.outputs.swift_package_manager_revision }}
+          repository: swiftlang/swift-package-manager
+          ref: ${{ inputs.swift_package_manager_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-package-manager
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-system
-          ref: ${{ needs.context.outputs.swift_system_revision }}
+          ref: ${{ inputs.swift_system_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-system
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-tools-support-core
-          ref: ${{ needs.context.outputs.swift_tools_support_core_revision }}
+          repository: swiftlang/swift-tools-support-core
+          ref: ${{ inputs.swift_tools_support_core_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-tools-support-core
           show-progress: false
       - uses: actions/checkout@v4
         with:
           repository: jpsim/Yams
-          ref: ${{ needs.context.outputs.yams_revision }}
+          ref: ${{ inputs.yams_revision }}
           path: ${{ github.workspace }}/SourceCache/Yams
           show-progress: false
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift
-          ref: ${{ needs.context.outputs.swift_revision }}
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
       - run: |
-          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          $SDKRoot = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
+          echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
@@ -2167,8 +2372,6 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - run: |
-          $env:SDKROOT="${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
-
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
@@ -2185,11 +2388,21 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
           Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/
 
+      # Download host libraries for the windows amd64 host, after moving the target libraries to the target-specific directory.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-sdk-amd64
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+
       - name: Configure swift-argument-parser
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-argument-parser `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2197,16 +2410,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2218,8 +2431,8 @@ jobs:
       - name: Configure swift-collections
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-collections `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2227,16 +2440,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2248,7 +2461,7 @@ jobs:
       - name: Configure swift-crypto
         run: |
           # Workaround CMake 3.20 issue
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-crypto `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2256,16 +2469,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2277,7 +2490,7 @@ jobs:
       - name: Configure Yams
         run: |
           # Workaround CMake 3.20 issue
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/yams `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2285,16 +2498,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2306,7 +2519,7 @@ jobs:
       - name: Configure swift-llbuild
         run: |
           # Workaround CMake 3.20 issue
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-llbuild `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2314,32 +2527,32 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=cl `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-llbuild `
                 -D LLBUILD_SUPPORT_BINDINGS=Swift `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include
       - name: Build swift-llbuild
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild
 
       - name: Configure swift-system
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-system `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2347,16 +2560,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2368,8 +2581,8 @@ jobs:
       - name: Configure swift-tools-support-core
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-tools-support-core `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2377,32 +2590,32 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-tools-support-core `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include
       - name: Build swift-tools-support-core
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core
 
       - name: Configure swift-driver
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-driver `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2410,16 +2623,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2428,8 +2641,8 @@ jobs:
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include `
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include `
                 -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
                 -D Yams_DIR=${{ github.workspace }}/BinaryCache/yams/cmake/modules
       - name: Build swift-driver
@@ -2438,8 +2651,8 @@ jobs:
       - name: Configure swift-asn1
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-asn1 `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2447,7 +2660,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2459,8 +2672,8 @@ jobs:
       - name: Configure swift-certificates
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-certificates `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2468,7 +2681,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2488,8 +2701,8 @@ jobs:
       - name: Configure swift-package-manager
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-package-manager `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2497,16 +2710,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2514,8 +2727,8 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/swift-package-manager `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
-                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/include `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BuildRoot/Library/sqlite-3.43.2/usr/lib/SQLite3.lib `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include `
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
                 -D SwiftASN1_DIR=${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules `
                 -D SwiftCertificates_DIR=${{ github.workspace }}/BinaryCache/swift-certificates/cmake/modules `
                 -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `
@@ -2531,54 +2744,57 @@ jobs:
       - name: Configure Markdown
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-markdown `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-markdown `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake
+                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake
       - name: Build Markdown
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-markdown
 
       - name: Configure Format
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-format `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-format `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake `
+                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-0.29.0.gfm.13/usr/lib/cmake `
                 -D SwiftMarkdown_DIR=${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules `
                 -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
       - name: Build swift-format
@@ -2587,8 +2803,8 @@ jobs:
       - name: Configure IndexStoreDB
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/indexstore-db `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2596,16 +2812,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }} -Xclang -fno-split-cold-code" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }} -Xclang -fno-split-cold-code -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/include -I ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/include/Block" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }} -I${env:SDKROOT}/usr/include -I${env:SDKROOT}/usr/include/Block" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2617,8 +2833,8 @@ jobs:
       - name: Configure SourceKit-LSP
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/sourcekit-lsp `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2626,16 +2842,16 @@ jobs:
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }} -Xclang -fno-split-cold-code" `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }} -Xclang -fno-split-cold-code" `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
                 -D CMAKE_MT=mt `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot-DevTools/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
@@ -2675,11 +2891,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: devtools-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot-DevTools/Library
+          path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Upload PDBs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info }}
+        if: ${{ inputs.debug_info }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -2688,7 +2904,7 @@ jobs:
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info }}
+        if: ${{ inputs.debug_info }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -2697,18 +2913,16 @@ jobs:
 
       - name: Upload EXEs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ needs.context.outputs.debug_info }}
+        if: ${{ inputs.debug_info }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.exe'
 
-
   debugging_tools:
-    name: Debugging Tools
-    needs: [context, compilers, devtools, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [compilers, devtools, stdlib, sdk]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -2721,6 +2935,8 @@ jobs:
             cpu: aarch64
             triple: aarch64-unknown-windows-msvc
 
+    name: Windows ${{ matrix.arch }} Debugging Tools
+
     steps:
       - name: Download Compilers
         uses: actions/download-artifact@v4
@@ -2732,6 +2948,11 @@ jobs:
         with:
           name: devtools-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download stdlib
+        uses: actions/download-artifact@v4
+        with:
+          name: Windows-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
@@ -2783,6 +3004,10 @@ jobs:
       # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-stdlib-amd64
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-sdk-amd64
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
 
@@ -2811,11 +3036,10 @@ jobs:
           mkdir $RTLPath
           Get-ChildItem -Path ${env:SDKROOT}/usr/bin -Filter "*.dll" | Move-Item -Destination $RTLPath
 
-      - name: Checkout apple/swift
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          repository: apple/swift
-          ref: ${{ needs.context.outputs.swift_revision }}
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
@@ -2849,8 +3073,8 @@ jobs:
 
   package_tools:
     name: Package Tools
-    needs: [context, compilers, debugging_tools, devtools]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [compilers, macros, debugging_tools, devtools]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -2876,6 +3100,12 @@ jobs:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
+      - name: Download Macros
+        uses: actions/download-artifact@v4
+        with:
+          name: macros-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library
+
       - name: Download cmark-gfm
         uses: actions/download-artifact@v4
         with:
@@ -2887,8 +3117,8 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ inputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
@@ -2904,7 +3134,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: ${{ needs.context.outputs.signed }}
+        if: ${{ inputs.signed }}
 
       - name: Install WixToolset.Sdk
         run: |
@@ -2920,13 +3150,13 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/bld.wixproj
 
       - name: Package CLI Tools
@@ -2934,13 +3164,13 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/cli.wixproj
 
       - name: Package Debugging Tools
@@ -2948,7 +3178,7 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
@@ -2956,7 +3186,7 @@ jobs:
               -p:INCLUDE_SWIFT_INSPECT=true `
               -p:SWIFT_INSPECT_BUILD=${{ github.workspace }}/BuildRoot/DebuggingTools/swift-inspect `
               -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/dbg.wixproj
 
       - name: Package IDE Tools
@@ -2964,13 +3194,13 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:DEVTOOLS_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/ide.wixproj
 
       - uses: actions/upload-artifact@v4
@@ -3001,10 +3231,10 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.cab
 
-  package_sdk_runtime:
+  package_windows_sdk_runtime:
     name: Package Windows SDK & Runtime
-    needs: [context, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [stdlib, sdk]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -3020,13 +3250,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ inputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
@@ -3042,7 +3276,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: ${{ needs.context.outputs.signed }}
+        if: ${{ inputs.signed }}
 
       - name: Install WixToolset.Sdk
         run: |
@@ -3058,12 +3292,12 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk/sdk.wixproj
 
@@ -3072,12 +3306,12 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:VCRedistDir="${env:VCToolsRedistDir}\${env:VSCMD_ARG_TGT_ARCH}\Microsoft.VC143.CRT\" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
@@ -3101,10 +3335,10 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msm
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
-  package_android_sdk:
+  package_android_sdk_runtime:
     name: Package Android SDK & Runtime
-    needs: [context, sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [stdlib, sdk]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -3122,13 +3356,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          name: Android-stdlib-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
           name: Android-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-installer-scripts
-          ref: 633843b00fc8024dd86674fe43373ae4fd0f2229
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ inputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
@@ -3144,7 +3382,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: ${{ needs.context.outputs.signed }}
+        if: ${{ inputs.signed }}
 
       - name: Install WixToolset.Sdk
         run: |
@@ -3160,12 +3398,12 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.cpu }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/android_sdk/android_sdk.wixproj
 
@@ -3177,8 +3415,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/android_sdk.${{ matrix.cpu }}.cab
 
   installer:
-    needs: [context, package_tools, package_sdk_runtime, package_android_sdk]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [package_tools, package_windows_sdk_runtime, package_android_sdk_runtime]
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -3251,8 +3489,8 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: apple/swift-installer-scripts
-          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ inputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
@@ -3268,7 +3506,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: ${{ needs.context.outputs.signed }}
+        if: ${{ inputs.signed }}
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
@@ -3277,11 +3515,11 @@ jobs:
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
+              -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
       - name: Build installer bundle
@@ -3290,7 +3528,7 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
-              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:BundleFlavor=offline `
@@ -3302,7 +3540,7 @@ jobs:
               -p:ANDROID_INCLUDE_ARM_SDK=true `
               -p:ANDROID_INCLUDE_X86_SDK=true `
               -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:ProductVersion=${{ needs.context.outputs.swift_version }}-${{ needs.context.outputs.swift_tag }} `
+              -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - uses: actions/upload-artifact@v4
@@ -3311,8 +3549,8 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
   smoke_test:
-    needs: [context, installer]
-    runs-on: ${{ needs.context.outputs.windows_build_runner }}
+    needs: [installer]
+    runs-on: ${{ inputs.default_build_runner }}
 
     steps:
       - uses: actions/download-artifact@v4
@@ -3366,66 +3604,3 @@ jobs:
 
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
-
-  snapshot:
-    runs-on: ubuntu-latest
-    needs: [context, smoke_test]
-    if: github.event_name == 'schedule'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: release/6.0
-          show-progress: false
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: stable.xml
-
-      - run: |
-          git config --global user.name 'github-action[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          if ! git diff --exit-code ; then
-            git add stable.xml
-            git commit -m "repo: update stable revision snapshot ${{ needs.context.outputs.swift_tag }}"
-            git push origin HEAD:release/6.0
-          fi
-
-  release:
-    runs-on: ubuntu-latest
-    needs: [context, smoke_test]
-    if: inputs.create_release == true
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: installer-amd64
-          path: ${{ github.workspace }}/tmp/amd64
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: installer-arm64
-          path: ${{ github.workspace }}/tmp/arm64
-
-      - name: Create Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Create Release
-          gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }}
-
-          # AMD64
-          cd ${{ github.workspace }}/tmp/amd64
-
-          mv installer.exe installer-amd64.exe
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe -R ${{ github.repository }}
-
-          shasum -a 256 installer-amd64.exe > installer-amd64.exe.sha256
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe.sha256 -R ${{ github.repository }}
-
-          # ARM64
-          cd ${{ github.workspace }}/tmp/arm64
-
-          mv installer.exe installer-arm64.exe
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe -R ${{ github.repository }}
-
-          shasum -a 256 installer-arm64.exe > installer-arm64.exe.sha256
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe.sha256 -R ${{ github.repository }}
