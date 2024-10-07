@@ -323,10 +323,9 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
       - name: Build SQLite
@@ -548,11 +547,10 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr `
                 -D CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP=YES `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} `
+                ${{ matrix.extra_flags }} `
                 -S ${{ github.workspace }}/SourceCache/cmark-gfm `
                 -G Ninja
       - name: Build cmark-gfm
@@ -626,7 +624,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
+                ${{ matrix.extra_flags }} `
                 -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
@@ -699,6 +697,123 @@ jobs:
             ${{ steps.export-binary-paths.outputs.swift_def_to_strings_converter }}
             ${{ steps.export-binary-paths.outputs.swift_serialize_diagnostics }}
             ${{ steps.export-binary-paths.outputs.swift_compatibility_symbols }}
+
+  early_swift_driver:
+    # TODO: Build this on Windows too.
+    if: inputs.build_os == 'Darwin'
+    needs: [sqlite]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Early Swift Driver
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-llbuild
+          ref: ${{ inputs.swift_llbuild_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-llbuild
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-tools-support-core
+          ref: ${{ inputs.swift_tools_support_core_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-tools-support-core
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: apple/swift-argument-parser
+          ref: ${{ inputs.swift_argument_parser_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-argument-parser
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: jpsim/Yams
+          ref: ${{ inputs.yams_revision }}
+          path: ${{ github.workspace }}/SourceCache/Yams
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-driver
+          ref: ${{ inputs.swift_driver_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-driver
+          show-progress: false
+
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: ${{ inputs.build_arch }}
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - uses: seanmiddleditch/gha-setup-ninja@master
+        if: inputs.build_os == 'Darwin'
+
+      - name: Install Swift Toolchain (Mac)
+        if: inputs.build_os == 'Darwin'
+        uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.0.1-release
+          tag: 6.0.1-RELEASE
+
+      - name: Build early swift-driver
+        run: |
+          swift build `
+                --configuration release `
+                --arch ${{ matrix.arch }} `
+                --package-path ${{ github.workspace }}/SourceCache/swift-driver `
+                --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
+
+      - name: Create installable package
+        run: |
+          if ("${{ matrix.os }}" -eq "Darwin") {
+              $PlatformName = "macosx"
+              $ExeSuffix = ""
+              $Cpu = "${{ matrix.arch }}"
+              $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "${Cpu}-apple-macosx" "release"
+          } else {
+              $PlatformName = "windows"
+              $ExeSuffix = ".exe"
+              if ("${{ matrix.arch }}" -eq "ARM64") {
+                $Cpu = "aarch64"
+              } else {
+                $Cpu = "x86_64"
+              }
+              $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "${Cpu}-unknown-windows-msvc" "release"
+          }
+
+          # The Swift compiler expects a specific folder name for the early swift-driver build.
+          # TODO: Make this configurable upstream so we don't have to hardcode it here.
+          $InstallFolderName = "earlyswiftdriver-${PlatformName}-${Cpu}"
+          $InstallBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" $InstallFolderName "release" "bin"
+
+          # Create the target folder.
+          New-Item -ItemType Directory -Path $InstallBinDir -Force
+
+          # Copy binaries.
+          $SwiftBinaries = @("swift-driver", "swift-help")
+          foreach ($bin in $SwiftBinaries) {
+              $binName = "${bin}${ExeSuffix}"
+              $binPath = Join-Path $InstallBinDir $binName
+              Copy-Item -Path "${SourceBinDir}/${binName}" -Destination $binPath -Force
+          }
+
+          # Create an archive to preserve permissions.
+          tar -czf "${{ github.workspace }}/BinaryCache/early-swift-driver.tar.gz" `
+              -C "${{ github.workspace }}/BinaryCache" `
+              $InstallFolderName
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: early-swift-driver-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/early-swift-driver.tar.gz
 
   compilers:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -1037,7 +1152,6 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_ANDROID_NDK=$NDKPATH `
@@ -1126,7 +1240,6 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ matrix.extra_flags }} `
@@ -1287,7 +1400,6 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_MT=mt `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ matrix.extra_flags }} `

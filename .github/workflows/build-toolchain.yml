@@ -147,7 +147,8 @@ jobs:
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
       ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
       ANDROID_NDK_VERSION: ${{ steps.context.outputs.ANDROID_NDK_VERSION }}
-      CMAKE_Swift_FLAGS: ${{ steps.context.outputs.CMAKE_Swift_FLAGS }}
+      WINDOWS_CMAKE_Swift_FLAGS: ${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}
+      DARWIN_CMAKE_Swift_FLAGS: ${{ steps.context.outputs.DARWIN_CMAKE_Swift_FLAGS }}
       debug_info: ${{ steps.context.outputs.debug_info }}
       signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
@@ -247,7 +248,8 @@ jobs:
             echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections -g" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="-incremental:no -debug -opt:ref -opt:icf" >> ${GITHUB_OUTPUT}
-            echo CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_Swift_FLAGS="-g -debug-info-format=codeview -Xlinker -debug -Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+            echo DARWIN_CMAKE_Swift_FLAGS="-g" >> ${GITHUB_OUTPUT}
           else
             echo debug_info=false >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_C_FLAGS="/GS- /Gw /Gy /Oi /Oy /Zc:inline /Zc:preprocessor" >> ${GITHUB_OUTPUT}
@@ -258,7 +260,8 @@ jobs:
             echo ANDROID_CMAKE_CXX_FLAGS="-ffunction-sections -fdata-sections" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
             echo WINDOWS_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
-            echo CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+            echo WINDOWS_CMAKE_Swift_FLAGS="-Xlinker -incremental:no -Xlinker -opt:ref -Xlinker -opt:icf" >> ${GITHUB_OUTPUT}
+            echo DARWIN_CMAKE_Swift_FLAGS="" >> ${GITHUB_OUTPUT}
           fi
           echo ANDROID_CMAKE_EXE_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
           echo ANDROID_CMAKE_SHARED_LINKER_FLAGS="" >> ${GITHUB_OUTPUT}
@@ -303,19 +306,25 @@ jobs:
               "include": [
                 {
                   "arch": "amd64",
+                  "compiler_target": "x86_64-unknown-windows-msvc",
                   "os": "Windows",
                   "cc": "cl",
                   "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
-                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=AMD64 -D CMAKE_MT=mt"
                 },
                 {
                   "arch": "arm64",
+                  "compiler_target": "aarch64-unknown-windows-msvc",
                   "os": "Windows",
                   "cc": "cl",
                   "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
-                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=ARM64 -D CMAKE_MT=mt"
                 }
               ]
             }
@@ -328,7 +337,9 @@ jobs:
                   "cc": "cl",
                   "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
-                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=AMD64 -D CMAKE_MT=mt"
                 }
               ]
             }
@@ -342,7 +353,8 @@ jobs:
                   "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
-                  "extra_flags": ""
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=AMD64 -D CMAKE_MT=mt"
                 },
                 {
                   "arch": "arm64",
@@ -351,7 +363,8 @@ jobs:
                   "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
-                  "extra_flags": ""
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=ARM64 -D CMAKE_MT=mt"
                 },
                 {
                   "arch": "x86",
@@ -360,7 +373,8 @@ jobs:
                   "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
                   "cxx": "cl",
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
-                  "extra_flags": ""
+                  "swiftflags": "",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=X86 -D CMAKE_MT=mt"
                 },
                 {
                   "arch": "arm64",
@@ -369,6 +383,7 @@ jobs:
                   "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a"
                 },
                 {
@@ -378,6 +393,7 @@ jobs:
                   "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a"
                 },
                 {
@@ -387,6 +403,7 @@ jobs:
                   "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86"
                 },
                 {
@@ -396,6 +413,7 @@ jobs:
                   "cflags": "${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "",
                   "extra_flags": "-DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64"
                 }
               ]
@@ -405,19 +423,25 @@ jobs:
               "include": [
                 {
                   "arch": "x86_64",
+                  "compiler_target": "x86_64-apple-macosx10.15",
                   "os": "Darwin",
                   "cc": "clang",
                   "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
-                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.DARWIN_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=x86_64 -D CMAKE_OSX_DEPLOYMENT_TARGET=\"10.15\" -D CMAKE_OSX_ARCHITECTURES=x86_64"
                 },
                 {
-                  "arch": "aarch64",
+                  "arch": "arm64",
+                  "compiler_target": "arm64-apple-macosx10.15",
                   "os": "Darwin",
                   "cc": "clang",
                   "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
-                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
+                  "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.DARWIN_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=arm64 -D CMAKE_OSX_DEPLOYMENT_TARGET=\"10.15\" -D CMAKE_OSX_ARCHITECTURES=arm64"
                 }
               ]
             }
@@ -425,12 +449,14 @@ jobs:
             {
               "include": [
                 {
-                  "arch": "aarch64",
+                  "arch": "arm64",
                   "os": "Darwin",
                   "cc": "clang",
                   "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}"
+                  "swiftflags": "${{ steps.context.outputs.DARWIN_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=arm64 -D CMAKE_OSX_DEPLOYMENT_TARGET=\"10.15\" -D CMAKE_OSX_ARCHITECTURES=arm64"
                 }
               ]
             }
@@ -444,16 +470,18 @@ jobs:
                   "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
-                  "extra_flags": ""
+                  "swiftflags": "${{ steps.context.outputs.DARWIN_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=x86_64 -D CMAKE_OSX_DEPLOYMENT_TARGET=\"10.15\" -D CMAKE_OSX_ARCHITECTURES=x86_64"
                 },
                 {
-                  "arch": "aarch64",
+                  "arch": "arm64",
                   "os": "Darwin",
                   "cc": "clang",
                   "cflags": "${{ steps.context.outputs.DARWIN_CMAKE_C_FLAGS }}",
                   "cxx": "clang++",
                   "cxxflags": "${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}",
-                  "extra_flags": ""
+                  "swiftflags": "${{ steps.context.outputs.DARWIN_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=arm64 -D CMAKE_OSX_DEPLOYMENT_TARGET=\"10.15\" -D CMAKE_OSX_ARCHITECTURES=arm64"
                 }
               ]
             }
@@ -524,7 +552,7 @@ jobs:
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
       ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
       ANDROID_NDK_VERSION: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
-      CMAKE_Swift_FLAGS: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+      CMAKE_Swift_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}
       debug_info: ${{ fromJSON(needs.context.outputs.debug_info) }}
       signed: ${{ fromJSON(needs.context.outputs.signed) }}
       swift_version: ${{ needs.context.outputs.swift_version }}
@@ -597,7 +625,7 @@ jobs:
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
       ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
       ANDROID_NDK_VERSION: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
-      CMAKE_Swift_FLAGS: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+      CMAKE_Swift_FLAGS: ${{ needs.context.outputs.DARWIN_CMAKE_Swift_FLAGS }}
       debug_info: ${{ fromJSON(needs.context.outputs.debug_info) }}
       signed: ${{ fromJSON(needs.context.outputs.signed) }}
       swift_version: ${{ needs.context.outputs.swift_version }}
