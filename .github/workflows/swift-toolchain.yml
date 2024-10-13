@@ -847,7 +847,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
         with:
@@ -1008,7 +1008,7 @@ jobs:
                 -D SWIFT_PATH_TO_SWIFT_SDK="${SDKROOT}" `
                 -D CLANG_VENDOR=compnerd.org `
                 -D CLANG_VENDOR_UTI=org.compnerd.dt `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
+                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
                 -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
                 -D LLVM_PARALLEL_LINK_JOBS=2 `
@@ -1028,6 +1028,10 @@ jobs:
 
       - name: Install Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
+
+      - name: Copy cmark-gfm shared libraries
+        run: |
+          Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin"
 
       - name: Upload Compilers
         uses: actions/upload-artifact@v4
@@ -1540,14 +1544,6 @@ jobs:
         with:
           name: compilers-amd64
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
-
       - uses: actions/checkout@v4
         with:
           repository: swiftlang/llvm-project
@@ -1756,14 +1752,6 @@ jobs:
         with:
           name: windows-vfs-overlay-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/swift/stdlib
-      - uses: actions/download-artifact@v4
-        with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
-
       - uses: actions/checkout@v4
         with:
           repository: swiftlang/swift
@@ -2007,14 +1995,6 @@ jobs:
         with:
           name: macros-amd64
           path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
-
       - uses: actions/checkout@v4
         with:
           repository: apple/swift-corelibs-libdispatch
@@ -2411,16 +2391,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
-
-      - uses: actions/download-artifact@v4
-        if: matrix.arch == 'arm64'
-        with:
-          name: cmark-gfm-Windows-arm64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
@@ -3122,19 +3093,6 @@ jobs:
         with:
           name: Windows-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
-
-      - uses: actions/download-artifact@v4
-        if: matrix.arch == 'arm64'
-        with:
-          name: cmark-gfm-Windows-arm64-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: Update environment variables
         run: |
@@ -3271,15 +3229,6 @@ jobs:
         with:
           name: macros-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
-
-      - name: Download cmark-gfm
-        uses: actions/download-artifact@v4
-        with:
-          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-
-      - name: cmark-gfm Setup
-        run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
 
       - uses: actions/checkout@v4
         with:
