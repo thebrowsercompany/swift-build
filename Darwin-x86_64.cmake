@@ -157,6 +157,7 @@ set(LLVM_DISTRIBUTION_COMPONENTS
     libclang
     libclang-headers
     LTO
+    builtins
     runtimes
     ${LLVM_TOOLCHAIN_TOOLS}
     ${CLANG_TOOLS}
