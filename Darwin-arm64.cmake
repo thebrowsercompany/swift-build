@@ -1,7 +1,3 @@
-# test args
-
-set(LLVM_LIT_ARGS "--xunit-xml-output=testresults.xunit.xml -v" CACHE STRING "")
-
 set(LLVM_ENABLE_PROJECTS
     clang
     clang-tools-extra
@@ -19,12 +15,11 @@ set(LLVM_ENABLE_RUNTIMES
     CACHE STRING "")
 
 # This forces libc++ to be built so disable it.
-set(LLDB_INCLUDE_TESTS OFF CACHE BOOL "")
+set(LLDB_INCLUDE_TESTS NO CACHE BOOL "")
 
-# Compiler-RT configuration for macOS. For some reason, enabling `compiler-rt` in
-# `LLVM_ENABLE_RUNTIMES` is not enough.
-set(LLVM_BUILD_EXTERNAL_COMPILER_RT ON CACHE BOOL "Build Compiler-RT with just-built clang")
-set(COMPILER_RT_ENABLE_IOS ON CACHE BOOL "Build iOS Compiler-RT libraries")
+# Compiler-RT configuration for macOS.
+set(LLVM_BUILD_EXTERNAL_COMPILER_RT YES CACHE BOOL "Build Compiler-RT with just-built clang")
+set(COMPILER_RT_ENABLE_IOS YES CACHE BOOL "Build iOS Compiler-RT libraries")
 
 # NOTE(compnerd) always enable assertions, the toolchain will not provide enough
 # context to resolve issues otherwise and may silently generate invalid output.
@@ -39,35 +34,7 @@ set(LLVM_DEFAULT_TARGET_TRIPLE aarch64-apple-darwin CACHE STRING "")
 set(LLVM_APPEND_VC_REV NO CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR YES CACHE BOOL "")
 set(LLVM_ENABLE_PYTHON YES CACHE BOOL "")
-
-set(CMAKE_CXX_SCAN_FOR_MODULES OFF CACHE BOOL "")
-
-# Setting any of the stuff below causes issues with configure (?).
-# set(LLVM_BUILTIN_TARGETS
-#     aarch64-apple-darwin x86_64-apple-darwin
-#     CACHE STRING "")
-
-# The runtime targets are used to build the compiler-rt profile library.
-# set(LLVM_RUNTIME_TARGETS
-#       aarch64-apple-darwin x86_64-apple-darwin
-#     CACHE STRING "")
-
-# foreach(target ${LLVM_RUNTIME_TARGETS})
-#   set(BUILTINS_${target}_LLVM_ENABLE_RUNTIMES
-#           compiler-rt
-#       CACHE STRING "")
-#   set(BUILTINS_${target}_CMAKE_SYSTEM_NAME Darwin CACHE STRING "")
-#   set(BUILTINS_${target}_CMAKE_BUILD_TYPE Release CACHE STRING "")
-#   set(RUNTIMES_${target}_COMPILER_RT_BUILD_BUILTINS NO CACHE BOOL "")
-#   set(BUILTINS_${target}_COMPILER_RT_BUILD_CRT NO CACHE BOOL "")
-#   set(BUILTINS_${target}_COMPILER_RT_BUILD_LIBFUZZER NO CACHE BOOL "")
-#   set(BUILTINS_${target}_COMPILER_RT_BUILD_PROFILE YES CACHE BOOL "")
-#   set(BUILTINS_${target}_COMPILER_RT_BUILD_SANITIZERS NO CACHE BOOL "")
-#   set(BUILTINS_${target}_COMPILER_RT_BUILD_XRAY NO CACHE BOOL "")
-# endforeach()
-
-set(CMAKE_MACOSX_RPATH ON CACHE BOOL "")
-set(LLVM_ENABLE_MODULES OFF CACHE BOOL "")
+set(CMAKE_MACOSX_RPATH YES CACHE BOOL "")
 
 set(LLVM_TARGETS_TO_BUILD AArch64 ARM WebAssembly X86 CACHE STRING "")
 
