@@ -336,7 +336,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
+          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
@@ -356,7 +356,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: amd64
 
@@ -442,7 +442,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -561,7 +561,7 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }} --target install
       - uses: actions/upload-artifact@v4
         with:
-          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
   build_tools:
@@ -577,7 +577,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
@@ -731,7 +731,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/0/bin
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
@@ -791,7 +791,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -800,7 +800,7 @@ jobs:
         with:
           github-repo: thebrowsercompany/swift-build
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-amd64.exe
+          release-asset-name: installer-${{ inputs.build_arch }}.exe
           release-tag-name: '20231016.0'
 
       - uses: nttld/setup-ndk@v1
@@ -992,7 +992,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -1081,7 +1081,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -1241,7 +1241,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -1426,11 +1426,11 @@ jobs:
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
-          name: compilers-amd64
+          name: compilers-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ inputs.build_arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: cmark-gfm Setup
@@ -1470,13 +1470,13 @@ jobs:
         with:
           github-repo: thebrowsercompany/swift-build
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-amd64.exe
+          release-asset-name: installer-${{ inputs.build_arch }}.exe
           release-tag-name: '20231016.0'
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -1624,7 +1624,7 @@ jobs:
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
-          name: compilers-amd64
+          name: compilers-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download swift-syntax
         uses: actions/download-artifact@v4
@@ -1638,7 +1638,7 @@ jobs:
       - uses: actions/download-artifact@v4
         if: matrix.arch == 'arm64'
         with:
-          name: Windows-stdlib-amd64
+          name: Windows-stdlib-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
@@ -1646,7 +1646,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/swift/stdlib
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ inputs.build_arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: cmark-gfm Setup
@@ -1674,7 +1674,7 @@ jobs:
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -1876,7 +1876,7 @@ jobs:
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
-          name: compilers-amd64
+          name: compilers-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
@@ -1884,7 +1884,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-stdlib-amd64
+          name: Windows-stdlib-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         if: matrix.os == 'Windows'
@@ -1893,11 +1893,11 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/swift/stdlib
       - uses: actions/download-artifact@v4
         with:
-          name: macros-amd64
+          name: macros-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ inputs.build_arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: cmark-gfm Setup
@@ -1964,7 +1964,7 @@ jobs:
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -2273,13 +2273,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: sqlite-Windows-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
+          name: sqlite-Windows-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
-          name: compilers-amd64
+          name: compilers-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
@@ -2291,7 +2291,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: macros-amd64
+          name: macros-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
@@ -2299,16 +2299,16 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ inputs.build_arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: cmark-gfm Setup
         run: Copy-Item ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
 
       - uses: actions/download-artifact@v4
-        if: matrix.arch == 'arm64'
+        if: matrix.arch != inputs.build_arch
         with:
-          name: cmark-gfm-Windows-arm64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
@@ -2417,7 +2417,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -2441,11 +2441,11 @@ jobs:
       # Download host libraries for the windows amd64 host, after moving the target libraries to the target-specific directory.
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-stdlib-amd64
+          name: Windows-stdlib-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-amd64
+          name: Windows-sdk-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
       - name: Configure swift-argument-parser
@@ -2993,12 +2993,12 @@ jobs:
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
-          name: compilers-amd64
+          name: compilers-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
       - name: Download Devtools
         uses: actions/download-artifact@v4
         with:
-          name: devtools-amd64
+          name: devtools-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
       - name: Download stdlib
         uses: actions/download-artifact@v4
@@ -3012,16 +3012,16 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-amd64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ inputs.build_arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: cmark-gfm Setup
         run: Copy-Item ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/
 
       - uses: actions/download-artifact@v4
-        if: matrix.arch == 'arm64'
+        if: matrix.arch != inputs.build_arch
         with:
-          name: cmark-gfm-Windows-arm64-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: Update environment variables
@@ -3056,11 +3056,11 @@ jobs:
       # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-stdlib-amd64
+          name: Windows-stdlib-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-amd64
+          name: Windows-sdk-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
 
       - name: Move host libs to the host architecture directory
@@ -3163,7 +3163,7 @@ jobs:
       - name: Download cmark-gfm
         uses: actions/download-artifact@v4
         with:
-          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - name: cmark-gfm Setup
@@ -3178,7 +3178,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -3355,7 +3355,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -3472,7 +3472,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -3597,7 +3597,7 @@ jobs:
 
       - uses: compnerd/gha-setup-vsdevenv@main
         with:
-          host_arch: amd64
+          host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
@@ -3654,7 +3654,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: installer-${{ matrix.arch }}
+          name: installer-${{ matrix.arch }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
   smoke_test:
@@ -3666,7 +3666,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: installer-amd64
+          name: installer-${{ inputs.build_arch }}-built-on-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed

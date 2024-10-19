@@ -71,15 +71,25 @@ on:
         default: true
         required: false
 
-      windows_default_runner:
-        description: 'Build runner'
+      windows_x64_default_runner:
+        description: 'X64 Build runner'
         required: false
         type: string
 
-      windows_compilers_runner:
-        description: 'Build runner for `compilers` job'
-        type: string
+      windows_arm64_default_runner:
+        description: 'ARM64 Build runner'
         required: false
+        type: string
+
+      windows_x64_compilers_runner:
+        description: 'X64 Build runner for `compilers` job'
+        required: false
+        type: string
+
+      windows_arm64_compilers_runner:
+        description: 'ARM64 Build runner for `compilers` job'
+        required: false
+        type: string
 
     secrets:
       SYMBOL_SERVER_PAT:
@@ -152,11 +162,13 @@ jobs:
       signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
-      windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
-      windows_compilers_runner: ${{ steps.context.outputs.windows_compilers_runner }}
+      windows_x64_build_runner: ${{ steps.context.outputs.windows_x64_build_runner }}
+      windows_x64_compilers_runner: ${{ steps.context.outputs.windows_x64_compilers_runner }}
+      windows_arm64_build_runner: ${{ steps.context.outputs.windows_arm64_build_runner }}
+      windows_arm64_compilers_runner: ${{ steps.context.outputs.windows_arm64_compilers_runner }}
       mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
       windows_host_matrix: ${{ steps.setup-matrix.outputs.windows_host_matrix }}
-      windows_build_matrix: ${{ steps.setup-matrix.outputs.windows_build_matrix }}
+      windows_x64_build_matrix: ${{ steps.setup-matrix.outputs.windows_x64_build_matrix }}
       windows_target_matrix: ${{ steps.setup-matrix.outputs.windows_target_matrix }}
       darwin_host_matrix: ${{ steps.setup-matrix.outputs.darwin_host_matrix }}
       darwin_build_matrix: ${{ steps.setup-matrix.outputs.darwin_build_matrix }}
@@ -281,8 +293,10 @@ jobs:
             fi
           fi
 
-          echo windows_build_runner=${{ inputs.windows_default_runner || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo windows_compilers_runner=${{ inputs.windows_compilers_runner || inputs.windows_default_runner || vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_x64_build_runner=${{ inputs.windows_x64_default_runner || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_x64_compilers_runner=${{ inputs.windows_x64_compilers_runner || inputs.windows_x64_default_runner || vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_arm64_build_runner=${{ inputs.windows_arm64_default_runner }} >> ${GITHUB_OUTPUT}
+          echo windows_arm64_compilers_runner=${{ inputs.windows_arm64_compilers_runner || inputs.windows_arm64_default_runner }} >> ${GITHUB_OUTPUT}
           # TODO: Make the mac runner configurable.
           echo mac_build_runner=macos-latest >> ${GITHUB_OUTPUT}
 
@@ -319,11 +333,24 @@ jobs:
                 }
               ]
             }
-          WINDOWS_BUILD_MATRIX: >-
+          WINDOWS_X64_BUILD_MATRIX: >-
             {
               "include": [
                 {
                   "arch": "amd64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}"
+                }
+              ]
+            }
+          WINDOWS_ARM64_BUILD_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "arm64",
                   "os": "Windows",
                   "cc": "cl",
                   "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
@@ -459,20 +486,21 @@ jobs:
             }
         run: |
           echo "windows_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
-          echo "windows_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_x64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_arm64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_host_matrix=$(jq -r -c '.' <<< ${DARWIN_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_build_matrix=$(jq -r -c '.' <<< ${DARWIN_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_target_matrix=$(jq -r -c '.' <<< ${DARWIN_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
 
-  windows-build:
+  windows-build-x64:
     needs: [context]
     name: Windows Swift Toolchains Build
     uses: ./.github/workflows/swift-toolchain.yml
     with:
       build_os: Windows
       build_arch: amd64
-      build_matrix: ${{ needs.context.outputs.windows_build_matrix }}
+      build_matrix: ${{ needs.context.outputs.windows_x64_build_matrix }}
       host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
       target_matrix: ${{ needs.context.outputs.windows_target_matrix }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
@@ -529,8 +557,79 @@ jobs:
       signed: ${{ fromJSON(needs.context.outputs.signed) }}
       swift_version: ${{ needs.context.outputs.swift_version }}
       swift_tag: ${{ needs.context.outputs.swift_tag }}
-      default_build_runner: ${{ needs.context.outputs.windows_build_runner }}
-      compilers_build_runner: ${{ needs.context.outputs.windows_compilers_runner }}
+      default_build_runner: ${{ needs.context.outputs.windows_x64_build_runner }}
+      compilers_build_runner: ${{ needs.context.outputs.windows_x64_compilers_runner }}
+    secrets:
+      SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
+      CERTIFICATE: ${{ secrets.CERTIFICATE }}
+      PASSPHRASE: ${{ secrets.PASSPHRASE }}
+
+  windows-build-arm64:
+    needs: [context]
+    name: Windows Swift Toolchains Build
+    uses: ./.github/workflows/swift-toolchain.yml
+    with:
+      build_os: Windows
+      build_arch: arm64
+      build_matrix: ${{ needs.context.outputs.windows_arm64_build_matrix }}
+      host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
+      target_matrix: ${{ needs.context.outputs.windows_target_matrix }}
+      curl_revision: ${{ needs.context.outputs.curl_revision }}
+      curl_version: ${{ needs.context.outputs.curl_version }}
+      ds2_revision: ${{ needs.context.outputs.ds2_revision }}
+      indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
+      libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
+      libxml2_version: ${{ needs.context.outputs.libxml2_version }}
+      llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
+      mimalloc_revision: ${{ needs.context.outputs.mimalloc_revision }}
+      sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
+      swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
+      swift_asn1_revision: ${{ needs.context.outputs.swift_asn1_revision }}
+      swift_atomics_revision: ${{ needs.context.outputs.swift_atomics_revision }}
+      swift_certificates_revision: ${{ needs.context.outputs.swift_certificates_revision }}
+      swift_cmark_revision: ${{ needs.context.outputs.swift_cmark_revision }}
+      swift_cmark_version: ${{ needs.context.outputs.swift_cmark_version }}
+      swift_collections_revision: ${{ needs.context.outputs.swift_collections_revision }}
+      swift_corelibs_foundation_revision: ${{ needs.context.outputs.swift_corelibs_foundation_revision }}
+      swift_corelibs_libdispatch_revision: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
+      swift_corelibs_xctest_revision: ${{ needs.context.outputs.swift_corelibs_xctest_revision }}
+      swift_crypto_revision: ${{ needs.context.outputs.swift_crypto_revision }}
+      swift_driver_revision: ${{ needs.context.outputs.swift_driver_revision }}
+      swift_experimental_string_processing_revision: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+      swift_format_revision: ${{ needs.context.outputs.swift_format_revision }}
+      swift_foundation_revision: ${{ needs.context.outputs.swift_foundation_revision }}
+      swift_foundation_icu_revision: ${{ needs.context.outputs.swift_foundation_icu_revision }}
+      swift_installer_scripts_revision: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+      swift_llbuild_revision: ${{ needs.context.outputs.swift_llbuild_revision }}
+      swift_markdown_revision: ${{ needs.context.outputs.swift_markdown_revision }}
+      swift_package_manager_revision: ${{ needs.context.outputs.swift_package_manager_revision }}
+      swift_revision: ${{ needs.context.outputs.swift_revision }}
+      swift_syntax_revision: ${{ needs.context.outputs.swift_syntax_revision }}
+      swift_system_revision: ${{ needs.context.outputs.swift_system_revision }}
+      swift_testing_revision: ${{ needs.context.outputs.swift_testing_revision }}
+      swift_toolchain_sqlite_revision: ${{ needs.context.outputs.swift_toolchain_sqlite_revision }}
+      swift_toolchain_sqlite_version: ${{ needs.context.outputs.swift_toolchain_sqlite_version }}
+      swift_tools_support_core_revision: ${{ needs.context.outputs.swift_tools_support_core_revision }}
+      yams_revision: ${{ needs.context.outputs.yams_revision }}
+      zlib_revision: ${{ needs.context.outputs.zlib_revision }}
+      zlib_version: ${{ needs.context.outputs.zlib_version }}
+      ANDROID_API_LEVEL: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+      WINDOWS_CMAKE_C_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_C_FLAGS }}
+      WINDOWS_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
+      WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
+      WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_CMAKE_C_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
+      ANDROID_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
+      ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
+      ANDROID_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_NDK_VERSION: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+      CMAKE_Swift_FLAGS: ${{ needs.context.outputs.CMAKE_Swift_FLAGS }}
+      debug_info: ${{ fromJSON(needs.context.outputs.debug_info) }}
+      signed: ${{ fromJSON(needs.context.outputs.signed) }}
+      swift_version: ${{ needs.context.outputs.swift_version }}
+      swift_tag: ${{ needs.context.outputs.swift_tag }}
+      default_build_runner: ${{ needs.context.outputs.windows_arm64_build_runner }}
+      compilers_build_runner: ${{ needs.context.outputs.windows_arm64_compilers_runner }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
@@ -611,7 +710,7 @@ jobs:
 
   snapshot:
     runs-on: ubuntu-latest
-    needs: [context, windows-build]
+    needs: [context, windows-build-x64]
     if: github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4
@@ -634,17 +733,17 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [context, windows-build]
+    needs: [context, windows-build-x64]
     if: inputs.create_release == true
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: installer-amd64
+          name: installer-amd64-built-on-amd64
           path: ${{ github.workspace }}/tmp/amd64
 
       - uses: actions/download-artifact@v4
         with:
-          name: installer-arm64
+          name: installer-arm64-built-on-amd64
           path: ${{ github.workspace }}/tmp/arm64
 
       - name: Create Release
