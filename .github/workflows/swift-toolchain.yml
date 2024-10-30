@@ -133,11 +133,12 @@ jobs:
           fi
 
           echo swift_version=${{ github.event.inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
-          if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
-            echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
-          else
-            echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
-          fi
+          #if [[ -n "${{ github.event.inputs.swift_tag }}" ]] ; then
+          #  echo swift_tag=${{ github.event.inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
+          #else
+          #  echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
+          #fi
+          echo swift_tag="20231016.5" | tee -a ${GITHUB_OUTPUT}
 
           echo windows_build_runner=${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
           echo compilers_build_runner=${{ vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
@@ -2038,28 +2039,6 @@ jobs:
 
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
-
-  snapshot:
-    runs-on: ubuntu-latest
-    needs: [context, smoke_test]
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: refs/heads/main
-
-      - uses: actions/download-artifact@v3
-        with:
-          name: stable.xml
-
-      - run: |
-          git config --global user.name 'github-action[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          if ! git diff --exit-code ; then
-            git add stable.xml
-            git commit -m "repo: update stable revision snapshot ${{ needs.context.outputs.swift_tag }}"
-            git push origin HEAD:main
-          fi
 
   release:
     runs-on: ubuntu-latest
