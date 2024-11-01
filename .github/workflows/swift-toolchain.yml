@@ -1250,6 +1250,11 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      # FIXME(z2oh) find another way around this chicken-and-egg bootstrapping compiler problem. As it stands, this will break with every MSVC upgrade.
+      - name: Patch yvals_core.h
+        run: |
+            (Get-Content "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\include\yvals_core.h").Replace('#if __clang_major__ < 17', '#if __clang_major__ < 16') | Set-Content "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\include\yvals_core.h"
+
       - name: Configure swift-argument-parser
         run: |
           # Workaround CMake 3.20 issue
@@ -1865,6 +1870,15 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
+      - name: Install WixToolset.Sdk
+        run: |
+          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
+            if ([string]::IsNullOrEmpty((Get-PackageSource | %{ $_.Location } | Select-String -Pattern api.nuget.org))) {
+              Register-PackageSource -Name NuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+            }
+            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
+          }
 
       - name: Package SDK
         run: |
