@@ -1988,6 +1988,8 @@ jobs:
             ""
           }
 
+          $OPT_FLAGS = if ("${{ matrix.cpu }}" -eq "i686" -and "${{ matrix.os }}" -eq "Windows") { "-Onone" } else { "-O" }
+
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
           $DEFINITION_FLAG = if ("${{ matrix.os }}" -eq "Windows") { "/D" } else { "-D" }
@@ -2017,7 +2019,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_Swift_FLAGS_RELEASE="${OPT_FLAGS}" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
                 -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
@@ -2062,6 +2064,8 @@ jobs:
             ""
           }
 
+          $OPT_FLAGS = if ("${{ matrix.cpu }}" -eq "i686" -and "${{ matrix.os }}" -eq "Windows") { "-Onone" } else { "-O" }
+
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
           cmake -B ${{ github.workspace }}/BinaryCache/xctest `
@@ -2079,7 +2083,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_Swift_FLAGS_RELEASE="$OPT_FLAGS" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
                 ${{ matrix.linker_flags }} `
@@ -2110,6 +2114,8 @@ jobs:
             ""
           }
 
+          $OPT_FLAGS = if ("${{ matrix.cpu }}" -eq "i686" -and "${{ matrix.os }}" -eq "Windows") { "-Onone" } else { "-O" }
+
           # Workaround the issue of not using the new Swift driver , that forces us to disable the CMP0157 policy.
           (Get-Content -Path "${{ github.workspace }}\SourceCache\swift-testing\CMakeLists.txt") -replace 'cmake_policy\(SET CMP0157 NEW\)', 'cmake_policy(SET CMP0157 OLD)' | Set-Content -Path "${{ github.workspace }}\SourceCache\swift-testing\CMakeLists.txt"
 
@@ -2126,7 +2132,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
                 -D CMAKE_Swift_FLAGS="-load-plugin-library ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/SwiftMacros.dll -resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_Swift_FLAGS_RELEASE="$OPT_FLAGS" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_SYSTEM_PROCESSOR=${CMAKE_CPU} `
                 ${{ matrix.linker_flags }} `
