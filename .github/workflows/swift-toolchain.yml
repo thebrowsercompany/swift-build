@@ -3500,6 +3500,15 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
+      - name: Install WixToolset.Sdk
+        run: |
+          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
+            if ([string]::IsNullOrEmpty((Get-PackageSource | %{ $_.Location } | Select-String -Pattern api.nuget.org))) {
+              Register-PackageSource -Name NuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet
+            }
+            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
+          }
+
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
           $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
