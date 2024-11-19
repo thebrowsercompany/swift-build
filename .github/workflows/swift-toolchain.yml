@@ -2775,8 +2775,12 @@ jobs:
           searchPattern: '**/*.dll'
 
   devtools:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: >
+      always() &&
+      needs.sqlite.result == 'success' &&
+      needs.compilers.result == 'success' &&
+      needs.stdlib.result == 'success' &&
+      (needs.sdk.result == 'success' || needs.sdk.result == 'skipped')
     needs: [sqlite, compilers, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2784,38 +2788,39 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.host_matrix) }}
 
-    name: Windows ${{ matrix.arch }} Developer Tools
+    name: ${{ matrix.os }} ${{ matrix.arch }} Developer Tools
 
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: Windows-${{ inputs.build_arch }}-Asserts-compilers
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-Asserts-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: Windows-${{ matrix.arch }}-stdlib
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
+        if: inputs.build_os == 'Windows'
         with:
           name: Windows-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: Windows-${{ inputs.build_arch }}-macros
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-macros
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: Windows-${{ matrix.arch }}-Asserts-swift-syntax
+          name: ${{ matrix.os }}-${{ matrix.arch }}-Asserts-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: Windows-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4.2.2
@@ -2915,7 +2920,9 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
-      - run: |
+      - name: Setup environment
+        if: matrix.os == 'Windows'
+        run: |
           $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
@@ -2957,7 +2964,12 @@ jobs:
           arch: ${{ matrix.arch }}
           winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
-      - run: |
+      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401
+        if: inputs.build_os == 'Darwin'
+
+      - name: Move libraries
+        if: inputs.build_os == 'Windows'
+        run: |
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
@@ -2976,39 +2988,73 @@ jobs:
 
       # Download host libraries for the windows amd64 host, after moving the target libraries to the target-specific directory.
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        if: matrix.os == 'Windows'
         with:
           name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
+        if: matrix.os == 'Windows'
         with:
           name: Windows-${{ inputs.build_arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
+      - name: Setup configuration
+        id: setup-config
+        run: |
+          $SwiftFlags = "${{ matrix.swiftflags }}"
+
+          if ("${{ matrix.os }}" -eq "Windows") {
+            $CC = ${{ matrix.cc }}
+            $CXX = ${{ matrix.cxx }}
+            $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
+            $SwiftFlags += " -sdk ${env:SDKROOT}"
+
+            # Workaround CMake 3.20 issue
+            $AltCC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
+            $AltCXX = $AltCC
+
+            $Sqlite3Lib = ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib
+          } else {
+            $CC = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang"
+            $CXX = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang++"
+            $SWIFTC = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc"
+
+            $AltCC = $CC
+            $AltCXX = $CXX
+
+            $Sqlite3Lib = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/libSQLite3.a"
+          }
+
+          # Export the configuration.
+          Write-Output "cc=${CC}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+          Write-Output "cxx=${CXX}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+          Write-Output "swiftc=${SwiftC}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+          Write-Output "swiftflags=${SwiftFlags}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+          Write-Output "altcc=${AltCC}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+          Write-Output "altcxx=${AltCXX}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+          Write-Output "sqlite3-lib=${Sqlite3Lib}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+
       - name: Configure swift-argument-parser
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-argument-parser `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-argument-parser
       - name: Build swift-argument-parser
@@ -3016,29 +3062,25 @@ jobs:
 
       - name: Configure swift-collections
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-collections `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-collections
       - name: Build swift-collections
@@ -3046,28 +3088,25 @@ jobs:
 
       - name: Configure swift-crypto
         run: |
-          # Workaround CMake 3.20 issue
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-crypto `
                 -D BUILD_SHARED_LIBS=NO `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.cc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.cxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-crypto
       - name: Build swift-crypto
@@ -3075,61 +3114,54 @@ jobs:
 
       - name: Configure swift-llbuild
         run: |
-          # Workaround CMake 3.20 issue
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-llbuild `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.cc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=cl `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.cxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-llbuild `
                 -D LLBUILD_SUPPORT_BINDINGS=Swift `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
+                -D SQLite3_LIBRARY=${{ steps.setup-config.outputs.sqlite3-lib }} `
                 -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include
       - name: Build swift-llbuild
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild
 
       - name: Configure swift-system
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-system `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-system
       - name: Build swift-system
@@ -3137,68 +3169,60 @@ jobs:
 
       - name: Configure swift-tools-support-core
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-tools-support-core `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-tools-support-core `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
+                -D SQLite3_LIBRARY=${{ steps.setup-config.outputs.sqlite3-lib }} `
                 -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include
       - name: Build swift-tools-support-core
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core
 
       - name: Configure swift-driver
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-driver `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-driver `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
+                -D SQLite3_LIBRARY=${{ steps.setup-config.outputs.sqlite3-lib }} `
                 -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include `
                 -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules
       - name: Build swift-driver
@@ -3206,21 +3230,17 @@ jobs:
 
       - name: Configure swift-asn1
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-asn1 `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-asn1
       - name: Build swift-asn1
@@ -3228,22 +3248,17 @@ jobs:
 
       - name: Configure swift-certificates
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-certificates `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-certificates `
                 -D SwiftASN1_DIR=${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules `
@@ -3251,43 +3266,38 @@ jobs:
       - name: Build swift-certificates
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-certificates
 
-      - name: extract swift-syntax
+      - name: Extract swift-syntax
         run: |
           $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
-          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
           (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
 
       - name: Configure swift-package-manager
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-package-manager `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-package-manager `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
                 -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
                 -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include `
-                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
+                -D SQLite3_LIBRARY=${{ steps.setup-config.outputs.sqlite3-lib }} `
                 -D SwiftASN1_DIR=${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules `
                 -D SwiftCertificates_DIR=${{ github.workspace }}/BinaryCache/swift-certificates/cmake/modules `
                 -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `
@@ -3301,28 +3311,24 @@ jobs:
 
       - name: Configure Markdown
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-markdown `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-markdown `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
@@ -3332,25 +3338,21 @@ jobs:
 
       - name: Configure Format
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-format `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-format `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
@@ -3362,20 +3364,16 @@ jobs:
 
       - name: Configure swift-lmdb
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/swift-lmdb `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift-lmdb
       - name: Build swift-lmdb
@@ -3383,29 +3381,31 @@ jobs:
 
       - name: Configure IndexStoreDB
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
+          if ("${{ inputs.build_os }}" -eq "Windows") {
+            $CxxFlags = "${{ matrix.cxxflags }} -I${env:SDKROOT}/usr/include -I${env:SDKROOT}/usr/include/Block"
+          } else {
+            $CxxFlags = "${{ matrix.cxxflags }}"
+          }
 
           cmake -B ${{ github.workspace }}/BinaryCache/indexstore-db `
                 -D BUILD_SHARED_LIBS=NO `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }} -I${env:SDKROOT}/usr/include -I${env:SDKROOT}/usr/include/Block" `
+                -D CMAKE_CXX_FLAGS="${CxxFlags}" `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/indexstore-db `
                 -D LMDB_DIR=${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules
@@ -3414,29 +3414,25 @@ jobs:
 
       - name: Configure SourceKit-LSP
         run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
           cmake -B ${{ github.workspace }}/BinaryCache/sourcekit-lsp `
                 -D BUILD_SHARED_LIBS=YES `
                 -D BUILD_TESTING=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER=${{ steps.setup-config.outputs.altcc }} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_CXX_COMPILER=${{ steps.setup-config.outputs.altcxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
+                -D CMAKE_Swift_COMPILER=${{ steps.setup-config.outputs.swiftc }} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-config.outputs.swiftflags }}" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/sourcekit-lsp `
                 -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
@@ -3483,7 +3479,7 @@ jobs:
 
       - name: Upload PDBs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ inputs.debug_info }}
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -3492,7 +3488,7 @@ jobs:
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ inputs.debug_info }}
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -3501,7 +3497,7 @@ jobs:
 
       - name: Upload EXEs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ inputs.debug_info }}
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
