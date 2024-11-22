@@ -2890,6 +2890,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_MT=mt `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2917,6 +2918,7 @@ jobs:
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_MT=mt `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -3026,6 +3028,11 @@ jobs:
           name: devtools-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: swift-argument-parser-Windows-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
+
       - name: Upload PDBs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
         if: ${{ inputs.debug_info }}
@@ -3066,6 +3073,7 @@ jobs:
           - arch: amd64
             cpu: x86_64
             triple: x86_64-unknown-windows-msvc
+
           - arch: arm64
             cpu: aarch64
             triple: aarch64-unknown-windows-msvc
@@ -3073,38 +3081,47 @@ jobs:
     name: Windows ${{ matrix.arch }} Debugging Tools
 
     steps:
+      - name: Download swift-argument-parser
+        uses: actions/download-artifact@v4
+        with:
+          name: swift-argument-parser-Windows-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
+
       - name: Download Compilers
         uses: actions/download-artifact@v4
         with:
           name: compilers-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library
-      - name: Download Devtools
-        uses: actions/download-artifact@v4
-        with:
-          name: devtools-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library
+          path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download stdlib
         uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
-      - name: Update environment variables
-        run: |
-          $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+
+      - run: |
+          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin"
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          $SDKRoot = cygpath -w "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-          $ToolchainPath = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin"
-          echo "${ToolchainPath}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "AR=${ToolchainPath}\llvm-ar.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          echo "${RTLPath}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        with:
+          host_arch: amd64
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
 
       - run: |
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
@@ -3127,71 +3144,40 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-amd64
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
-      - name: Move host libs to the host architecture directory
-        if: matrix.arch == 'arm64'
+      - name: Configure swift-inspect
         run: |
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/BlocksRuntime.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/dispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/swiftDispatch.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/Foundation.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationXML.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationNetworking.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/_FoundationICU.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationEssentials.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/windows/FoundationInternationalization.lib ${env:SDKROOT}/usr/lib/swift/windows/x86_64/
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
 
-      - name: Move host runtime DLLs to the runtime binary directory.
-        run: |
-          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/dispatch -Recurse -Force
-          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/os -Recurse -Force
-          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/Block -Recurse -Force
-          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/_foundation_unicode -Recurse -Force
-          Remove-Item -Path ${env:SDKROOT}/usr/lib/swift/_FoundationCShims -Recurse -Force
-
-          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Developer/SDKs/Windows.sdk/usr/bin"
-          mkdir $RTLPath
-          Get-ChildItem -Path ${env:SDKROOT}/usr/bin -Filter "*.dll" | Move-Item -Destination $RTLPath
-
-      - uses: actions/checkout@v4
-        with:
-          repository: swiftlang/swift
-          ref: ${{ inputs.swift_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift
-          show-progress: false
-
+          cmake -B ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_MT=mt `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }} -Xcc `"-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror`"" `
+                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift/tools/swift-inspect `
+                -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules
       - name: Build swift-inspect
-        id: swift_inspect
-        shell: cmd
-        run: |
-          swift build ^
-              --triple=${{ matrix.triple }} ^
-              --scratch-path="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect" ^
-              --sdk="%SDKROOT%" ^
-              --package-path="${{ github.workspace }}/SourceCache/swift/tools/swift-inspect" ^
-              -c="release" ^
-              -Xbuild-tools-swiftc="-L%SDKROOT%/usr/lib/swift/windows" ^
-              -Xbuild-tools-swiftc="-I%SDKROOT%/usr/lib/swift" ^
-              -Xbuild-tools-swiftc="-use-ld=lld" ^
-              -Xcc="-I%SDKROOT%/usr/include/swift/SwiftRemoteMirror" ^
-              -Xswiftc="-use-ld=lld" ^
-              -Xlinker="%SDKROOT%/usr/lib/swift/windows/${{ matrix.cpu }}/swiftRemoteMirror.lib"
+        run: cmake --build ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect
 
-      - name: Copy swift-inspect executable
-        run: |
-          New-Item -Path ${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect -ItemType Directory -Force | Out-Null
-          $SwiftInspectPath="${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect/${{ matrix.triple }}/release/swift-inspect.exe"
-          Copy-Item ${SwiftInspectPath} -Destination "${{ github.workspace }}/BuildRoot-DebuggingTools/swift-inspect/"
+      - name: Install swift-inspect
+        run: cmake --build ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect --target install
 
       - uses: actions/upload-artifact@v4
         with:
           name: debugging_tools-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot-DebuggingTools
+          path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -3210,7 +3196,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: debugging_tools-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/DebuggingTools
+          path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download Compilers
         uses: actions/download-artifact@v4
@@ -3328,8 +3314,6 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
-              -p:INCLUDE_SWIFT_INSPECT=true `
-              -p:SWIFT_INSPECT_BUILD=${{ github.workspace }}/BuildRoot/DebuggingTools/swift-inspect `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/dbg.wixproj
