@@ -258,6 +258,14 @@ on:
 env:
   SCCACHE_DIRECT: on
 
+  # Workaround for ... on macOS preventing us from using the 5.10 toolchain release.
+  WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH: swift-6.0.1-release
+  WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG: 6.0.1-RELEASE
+
+  # Workaround for ... on Windows preventing us from using the 5.10 toolchain release.
+  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
+  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: 20231016.5
+
 defaults:
   run:
     shell: pwsh
@@ -760,8 +768,8 @@ jobs:
         if: inputs.build_os == 'Darwin'
         uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
         with:
-          branch: swift-6.0.1-release
-          tag: 6.0.1-RELEASE
+          branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
+          tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
 
       - name: Build early swift-driver
         run: |
@@ -913,10 +921,10 @@ jobs:
       - name: Install Swift Toolchain
         uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
         with:
-          github-repo: thebrowsercompany/swift-build
+          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-amd64.exe
-          release-tag-name: '20231016.5'
+          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -1576,10 +1584,10 @@ jobs:
       - name: Install Swift Toolchain
         uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
         with:
-          github-repo: thebrowsercompany/swift-build
+          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-amd64.exe
-          release-tag-name: '20231016.5'
+          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
