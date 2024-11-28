@@ -707,28 +707,26 @@ jobs:
             ${{ steps.export-binary-paths.outputs.swift_compatibility_symbols }}
 
   early_swift_driver:
-    # TODO: Build this on Windows too.
-    if: inputs.build_os == 'Darwin'
-    needs: [sqlite]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(inputs.host_matrix) }}
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
 
-    name: ${{ matrix.os }} ${{ matrix.arch }} Early Swift Driver
+    name: ${{ matrix.os }} ${{ matrix.arch }} early swift-driver
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
-
       - uses: actions/checkout@v4
         with:
           repository: swiftlang/swift-llbuild
           ref: ${{ inputs.swift_llbuild_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-llbuild
+          path: ${{ github.workspace }}/SourceCache/llbuild
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-toolchain-sqlite
+          ref: ${{ inputs.swift_toolchain_sqlite_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
           show-progress: false
       - uses: actions/checkout@v4
         with:
@@ -755,17 +753,7 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-driver
           show-progress: false
 
-      - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
-        with:
-          host_arch: ${{ inputs.build_arch }}
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
-
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
-      - name: Install Swift Toolchain (Mac)
-        if: inputs.build_os == 'Darwin'
+      - name: Install Swift Toolchain
         uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
         with:
           branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
@@ -773,60 +761,31 @@ jobs:
 
       - name: Build early swift-driver
         run: |
+          $env:SWIFTCI_USE_LOCAL_DEPS=1
+
           swift build `
-                --configuration release `
-                --arch ${{ matrix.arch }} `
-                --package-path ${{ github.workspace }}/SourceCache/swift-driver `
-                --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
+            --configuration release `
+            --package-path ${{ github.workspace }}/SourceCache/swift-driver `
+            --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
+            -Xlinker "${env:SDKROOT}/usr/lib/swift/windows/x86_64/swiftCore.lib"
 
-      - name: Create installable package
+      - id: export-binary-paths
         run: |
-          if ("${{ matrix.os }}" -eq "Darwin") {
-              $PlatformName = "macosx"
-              $ExeSuffix = ""
-              $Cpu = "${{ matrix.arch }}"
-              $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "${Cpu}-apple-macosx" "release"
-          } else {
-              $PlatformName = "windows"
-              $ExeSuffix = ".exe"
-              if ("${{ matrix.arch }}" -eq "ARM64") {
-                $Cpu = "aarch64"
-              } else {
-                $Cpu = "x86_64"
-              }
-              $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "${Cpu}-unknown-windows-msvc" "release"
-          }
-
-          # The Swift compiler expects a specific folder name for the early swift-driver build.
-          # TODO: Make this configurable upstream so we don't have to hardcode it here.
-          $InstallFolderName = "earlyswiftdriver-${PlatformName}-${Cpu}"
-          $InstallBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" $InstallFolderName "release" "bin"
-
-          # Create the target folder.
-          New-Item -ItemType Directory -Path $InstallBinDir -Force
-
-          # Copy binaries.
-          $SwiftBinaries = @("swift-driver", "swift-help")
-          foreach ($bin in $SwiftBinaries) {
-              $binName = "${bin}${ExeSuffix}"
-              $binPath = Join-Path $InstallBinDir $binName
-              Copy-Item -Path "${SourceBinDir}/${binName}" -Destination $binPath -Force
-          }
-
-          # Create an archive to preserve permissions.
-          tar -czf "${{ github.workspace }}/BinaryCache/early-swift-driver.tar.gz" `
-              -C "${{ github.workspace }}/BinaryCache" `
-              $InstallFolderName
+          $Suffix = if ("${{ matrix.os }}" -eq "Windows") { ".exe" } else { "" }
+          echo "swift_driver=${{ github.workspace }}/BinaryCache/swift-driver/x86_64-unknown-windows-msvc/release/swift-driver${Suffix}" >> $env:GITHUB_OUTPUT
+          echo "swift_help=${{ github.workspace }}/BinaryCache/swift-driver/x86_64-unknown-windows-msvc/release/swift-help${Suffix}" >> $env:GITHUB_OUTPUT
 
       - uses: actions/upload-artifact@v4
         with:
           name: early-swift-driver-${{ matrix.os }}-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/early-swift-driver.tar.gz
+          path: |
+            ${{ steps.export-binary-paths.outputs.swift_driver }}
+            ${{ steps.export-binary-paths.outputs.swift_help }}
 
   compilers:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
-    needs: [build_tools, cmark_gfm]
+    needs: [build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
     env:
@@ -856,6 +815,10 @@ jobs:
         with:
           name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: early-swift-driver-Windows-amd64
+          path: ${{ github.workspace }}/BinaryCache/swift-driver/release
 
       - uses: actions/checkout@v4
         with:
