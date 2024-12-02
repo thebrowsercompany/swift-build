@@ -762,25 +762,45 @@ jobs:
       - name: Build early swift-driver
         run: |
           $env:SWIFTCI_USE_LOCAL_DEPS=1
+          $LinkerFlags = if ("${{ matrix.os }}" -eq "Windows") {
+            @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/x86_64/swiftCore.lib")
+          } else {
+            @()
+          }
 
           swift build `
             --configuration release `
             --package-path ${{ github.workspace }}/SourceCache/swift-driver `
             --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
-            -Xlinker "${env:SDKROOT}/usr/lib/swift/windows/x86_64/swiftCore.lib"
+            @LinkerFlags
 
-      - id: export-binary-paths
+      - name: Copy binaries
         run: |
-          $Suffix = if ("${{ matrix.os }}" -eq "Windows") { ".exe" } else { "" }
-          echo "swift_driver=${{ github.workspace }}/BinaryCache/swift-driver/x86_64-unknown-windows-msvc/release/swift-driver${Suffix}" >> $env:GITHUB_OUTPUT
-          echo "swift_help=${{ github.workspace }}/BinaryCache/swift-driver/x86_64-unknown-windows-msvc/release/swift-help${Suffix}" >> $env:GITHUB_OUTPUT
+          if ("${{ matrix.os }}" -eq "Windows") {
+              $ExeSuffix = ".exe"
+              $Cpu = if ("${{ matrix.arch }}" -eq "arm64") { "aarch64" } else { "x86_64" }
+              $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "${Cpu}-unknown-windows-msvc" "release"
+          } else {
+              $ExeSuffix = ""
+              $Cpu = "${{ matrix.arch }}"
+              $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "${Cpu}-apple-macosx" "release"
+          }
+          $InstallBinDir = Join-Path "${{ github.workspace }}" "BuildRoot" "bin"
 
-      - uses: actions/upload-artifact@v4
+          # Create the target folder.
+          New-Item -ItemType Directory -Path $InstallBinDir -Force
+
+          # Copy binaries.
+          foreach ($bin in @("swift-driver", "swift-help")) {
+              $binName = "${bin}${ExeSuffix}"
+              $binPath = Join-Path $InstallBinDir $binName
+              Copy-Item -Path "${SourceBinDir}/${binName}" -Destination $binPath -Force
+          }
+
+      - uses: thebrowsercompany/gha-upload-tar-artifact@d8f9b9d463a319b5b65b273db0a4e12ab0b10e72 # main
         with:
           name: early-swift-driver-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
-            ${{ steps.export-binary-paths.outputs.swift_driver }}
-            ${{ steps.export-binary-paths.outputs.swift_help }}
+          path: ${{ github.workspace }}/BuildRoot
 
   compilers:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -815,10 +835,10 @@ jobs:
         with:
           name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-      - uses: actions/download-artifact@v4
+      - uses: thebrowsercompany/gha-download-tar-artifact@717214c9da2a52b3407a5b0a1f31c00b8fde5681 # main
         with:
           name: early-swift-driver-Windows-amd64
-          path: ${{ github.workspace }}/BinaryCache/swift-driver/release
+          path: ${{ github.workspace }}/BinaryCache
 
       - uses: actions/checkout@v4
         with:
