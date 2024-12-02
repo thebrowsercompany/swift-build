@@ -823,9 +823,9 @@ jobs:
         with:
           name: build-tools-${{ matrix.os }}
           path: ${{ github.workspace }}/BinaryCache/0/bin
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - uses: actions/download-artifact@v4
         with:
-          name: libxml2-Windows-${{ matrix.arch }}-${{ inputs.libxml2_version }}
+          name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
@@ -833,7 +833,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: early-swift-driver-${{ matrix.os }}-${{ matrix.arch }}
+          name: early-swift-driver-${{ inputs.build_os }}-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/swift-driver
 
       - uses: actions/checkout@v4
@@ -947,13 +947,13 @@ jobs:
         run: |
           $CxxFlags = "${{ matrix.cxxflags }}"
           $SwiftFlags = ""
+          $EXTRA_FLAGS = @()
 
           if ( "${{ matrix.os }}" -eq "Windows" ) {
             $SWIFTC = cygpath -m (Get-Command swiftc).Source
             # Use toolchain clang to avoid broken __prefetch intrinsic on arm64 in Clang 18.
             # TODO: Use llvm-19 when available. See https://github.com/compnerd/swift-build/issues/846
             $CLANG_LOCATION = Split-Path (Get-Command swiftc).Source
-            $EXTRA_FLAGS = @("-D", "SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin")
             if ( "${{ matrix.arch }}" -eq "arm64" ) {
               $EXTRA_FLAGS += "${{ matrix.extra_flags }}".Split()
               $EXTRA_FLAGS += @("-D", "CMAKE_SYSTEM_NAME=Windows")
@@ -990,7 +990,7 @@ jobs:
             $CXX = Join-Path $CLANG_LOCATION "clang++"
             $CACHE = "${{ github.workspace }}/SourceCache/swift/cmake/caches/Darwin-${{ matrix.arch }}.cmake"
             $SDKROOT = xcrun --sdk macosx --show-sdk-path
-            $EXTRA_FLAGS = "${{ matrix.extra_flags }}".Split()
+            $EXTRA_FLAGS += "${{ matrix.extra_flags }}".Split()
             $EXTRA_FLAGS += @("-D", "CMAKE_SYSTEM_NAME=Darwin")
             # TODO: Use early-swift-driver on Windows too.
             $EXTRA_FLAGS += @("-D", "SWIFT_EARLY_SWIFT_DRIVER_BUILD=${{ github.workspace }}/BinaryCache/swift-driver/bin")
@@ -1040,6 +1040,7 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
                 -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
