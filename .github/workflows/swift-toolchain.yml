@@ -805,7 +805,7 @@ jobs:
   compilers:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
-    needs: [build_tools, cmark_gfm, early_swift_driver]
+    needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
     env:
@@ -831,6 +831,10 @@ jobs:
         with:
           name: build-tools-Windows
           path: ${{ github.workspace }}/BinaryCache/0/bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: libxml2-Windows-${{ matrix.arch }}-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr
       - uses: actions/download-artifact@v4
         with:
           name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
@@ -1000,6 +1004,8 @@ jobs:
                 -D CLANG_VENDOR=compnerd.org `
                 -D CLANG_VENDOR_UTI=org.compnerd.dt `
                 -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
+                -D LIBXML2_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/include/libxml2 `
+                -D LIBXML2_LIBRARY=${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/libxml2s.lib `
                 -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
                 -D LLVM_PARALLEL_LINK_JOBS=2 `
