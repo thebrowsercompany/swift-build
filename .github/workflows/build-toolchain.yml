@@ -36,6 +36,17 @@ on:
         default: true
         required: false
 
+      create_snapshot:
+        description: 'Create Snapshot'
+        type: boolean
+        default: true
+        required: false
+
+      build_android:
+        required: false
+        default: false
+        type: boolean
+
   workflow_call:
     inputs:
       swift_version:
@@ -71,15 +82,41 @@ on:
         default: true
         required: false
 
-      windows_default_runner:
-        description: 'Build runner'
+      create_snapshot:
+        description: 'Create Snapshot'
+        type: boolean
+        default: true
+        required: false
+
+      windows_x64_default_runner:
+        description: 'X64 Build runner'
         required: false
         type: string
 
-      windows_compilers_runner:
-        description: 'Build runner for `compilers` job'
-        type: string
+      windows_arm64_default_runner:
+        description: 'ARM64 Build runner'
         required: false
+        type: string
+
+      windows_x64_compilers_runner:
+        description: 'X64 Build runner for `compilers` job'
+        required: false
+        type: string
+
+      windows_arm64_compilers_runner:
+        description: 'ARM64 Build runner for `compilers` job'
+        required: false
+        type: string
+
+      windows_build_arch:
+        description: 'Windows build architecture'
+        required: false
+        type: string
+
+      build_android:
+        required: false
+        default: false
+        type: boolean
 
     secrets:
       SYMBOL_SERVER_PAT:
@@ -153,12 +190,19 @@ jobs:
       signed: ${{ steps.context.outputs.signed }}
       swift_version: ${{ steps.context.outputs.swift_version }}
       swift_tag: ${{ steps.context.outputs.swift_tag }}
-      windows_build_runner: ${{ steps.context.outputs.windows_build_runner }}
-      windows_compilers_runner: ${{ steps.context.outputs.windows_compilers_runner }}
+      windows_arm64_build_runner: ${{ steps.context.outputs.windows_arm64_build_runner }}
+      windows_arm64_compilers_runner: ${{ steps.context.outputs.windows_arm64_compilers_runner }}
+      windows_build_arch: ${{ steps.context.outputs.windows_build_arch }}
+      windows_build_cpu: ${{ steps.context.outputs.windows_build_cpu }}
+      windows_x64_build_runner: ${{ steps.context.outputs.windows_x64_build_runner }}
+      windows_x64_compilers_runner: ${{ steps.context.outputs.windows_x64_compilers_runner }}
       mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
-      windows_host_matrix: ${{ steps.setup-matrix.outputs.windows_host_matrix }}
-      windows_build_matrix: ${{ steps.setup-matrix.outputs.windows_build_matrix }}
-      windows_target_matrix: ${{ steps.setup-matrix.outputs.windows_target_matrix }}
+      windows_arm64_build_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_build_matrix }}
+      windows_arm64_host_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_host_matrix }}
+      windows_arm64_target_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_target_matrix }}
+      windows_x64_build_matrix: ${{ steps.setup-matrix.outputs.windows_x64_build_matrix }}
+      windows_x64_host_matrix: ${{ steps.setup-matrix.outputs.windows_x64_host_matrix }}
+      windows_x64_target_matrix: ${{ steps.setup-matrix.outputs.windows_x64_target_matrix }}
       darwin_host_matrix: ${{ steps.setup-matrix.outputs.darwin_host_matrix }}
       darwin_build_matrix: ${{ steps.setup-matrix.outputs.darwin_build_matrix }}
       darwin_target_matrix: ${{ steps.setup-matrix.outputs.darwin_target_matrix }}
@@ -284,8 +328,18 @@ jobs:
             fi
           fi
 
-          echo windows_build_runner=${{ inputs.windows_default_runner || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo windows_compilers_runner=${{ inputs.windows_compilers_runner || inputs.windows_default_runner || vars.COMPILERS_BUILD_RUNNER || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_x64_build_runner=${{ inputs.windows_x64_default_runner || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_x64_compilers_runner=${{ inputs.windows_x64_compilers_runner || inputs.windows_x64_default_runner || vars.WINDOWS_X64_COMPILERS_BUILD_RUNNER || vars.WINDOWS_X64_DEFAULT_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_arm64_build_runner=${{ inputs.windows_arm64_default_runner || vars.WINDOWS_ARM64_DEFAULT_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          echo windows_arm64_compilers_runner=${{ inputs.windows_arm64_compilers_runner || inputs.windows_arm64_default_runner || vars.WINDOWS_ARM64_COMPILERS_BUILD_RUNNER || vars.WINDOWS_ARM64_DEFAULT_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
+          if [[ "${{ inputs.windows_build_arch }}" == "arm64" ]] ; then
+            echo windows_build_arch=arm64 >> ${GITHUB_OUTPUT}
+            echo windows_build_cpu=arm64 >> ${GITHUB_OUTPUT}
+          else
+            echo windows_build_arch=amd64 >> ${GITHUB_OUTPUT}
+            echo windows_build_cpu=x64 >> ${GITHUB_OUTPUT}
+          fi
+
           # TODO: Make the mac runner configurable.
           echo mac_build_runner=macos-latest >> ${GITHUB_OUTPUT}
 
@@ -293,6 +347,7 @@ jobs:
           echo ANDROID_NDK_VERSION=r26b >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
+        if: inputs.create_snapshot == true
         with:
           name: stable.xml
           path: stable.xml
@@ -301,7 +356,56 @@ jobs:
       - name: Setup matrix
         id: setup-matrix
         env:
-          WINDOWS_HOST_MATRIX: >-
+          WINDOWS_X64_HOST_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "amd64",
+                  "cpu": "x86_64",
+                  "triple": "x86_64-unknown-windows-msvc",
+                  "compiler_target": "x86_64-unknown-windows-msvc",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=AMD64 -D CMAKE_MT=mt"
+                },
+                {
+                  "arch": "arm64",
+                  "cpu": "aarch64",
+                  "triple": "aarch64-unknown-windows-msvc",
+                  "compiler_target": "aarch64-unknown-windows-msvc",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=ARM64 -D CMAKE_MT=mt"
+                }
+              ]
+            }
+          WINDOWS_ARM64_HOST_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "arm64",
+                  "cpu": "aarch64",
+                  "triple": "aarch64-unknown-windows-msvc",
+                  "compiler_target": "aarch64-unknown-windows-msvc",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=ARM64 -D CMAKE_MT=mt"
+                }
+              ]
+            }
+          WINDOWS_X64_BUILD_MATRIX: >-
             {
               "include": [
                 {
@@ -314,7 +418,12 @@ jobs:
                   "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
                   "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
                   "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=AMD64 -D CMAKE_MT=mt"
-                },
+                }
+              ]
+            }
+          WINDOWS_ARM64_BUILD_MATRIX: >-
+            {
+              "include": [
                 {
                   "arch": "arm64",
                   "compiler_target": "aarch64-unknown-windows-msvc",
@@ -328,22 +437,7 @@ jobs:
                 }
               ]
             }
-          WINDOWS_BUILD_MATRIX: >-
-            {
-              "include": [
-                {
-                  "arch": "amd64",
-                  "os": "Windows",
-                  "cc": "cl",
-                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
-                  "cxx": "cl",
-                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
-                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
-                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=AMD64 -D CMAKE_MT=mt"
-                }
-              ]
-            }
-          WINDOWS_TARGET_MATRIX: >-
+          WINDOWS_X64_TARGET_MATRIX: >-
             {
               "include": [
                 {
@@ -418,6 +512,41 @@ jobs:
                 }
               ]
             }
+          WINDOWS_ARM64_TARGET_MATRIX: >-
+            {
+              "include": [
+                {
+                  "arch": "amd64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=AMD64 -D CMAKE_MT=mt"
+                },
+                {
+                  "arch": "arm64",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "${{ steps.context.outputs.WINDOWS_CMAKE_Swift_FLAGS }}",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=ARM64 -D CMAKE_MT=mt"
+                },
+                {
+                  "arch": "x86",
+                  "os": "Windows",
+                  "cc": "cl",
+                  "cflags": "${{ steps.context.outputs.WINDOWS_CMAKE_C_FLAGS }}",
+                  "cxx": "cl",
+                  "cxxflags": "${{ steps.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}",
+                  "swiftflags": "",
+                  "extra_flags": "-D CMAKE_SYSTEM_PROCESSOR=X86 -D CMAKE_MT=mt"
+                }
+              ]
+            }
           DARWIN_HOST_MATRIX: >-
             {
               "include": [
@@ -486,9 +615,12 @@ jobs:
               ]
             }
         run: |
-          echo "windows_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
-          echo "windows_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
-          echo "windows_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_x64_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_arm64_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_x64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_arm64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_x64_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_arm64_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_host_matrix=$(jq -r -c '.' <<< ${DARWIN_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_build_matrix=$(jq -r -c '.' <<< ${DARWIN_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_target_matrix=$(jq -r -c '.' <<< ${DARWIN_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
@@ -496,13 +628,14 @@ jobs:
   windows-build:
     needs: [context]
     name: Windows Swift Toolchains Build
+
     uses: ./.github/workflows/swift-toolchain.yml
     with:
       build_os: Windows
-      build_arch: amd64
-      build_matrix: ${{ needs.context.outputs.windows_build_matrix }}
-      host_matrix: ${{ needs.context.outputs.windows_host_matrix }}
-      target_matrix: ${{ needs.context.outputs.windows_target_matrix }}
+      build_arch: ${{ inputs.windows_build_arch }}
+      build_matrix: ${{ needs.context.outputs[format('windows_{0}_build_matrix', needs.context.outputs.windows_build_cpu)] }}
+      host_matrix: ${{ needs.context.outputs[format('windows_{0}_host_matrix', needs.context.outputs.windows_build_cpu)] }}
+      target_matrix: ${{ needs.context.outputs[format('windows_{0}_target_matrix', needs.context.outputs.windows_build_cpu)] }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
       curl_version: ${{ needs.context.outputs.curl_version }}
       ds2_revision: ${{ needs.context.outputs.ds2_revision }}
@@ -557,8 +690,9 @@ jobs:
       signed: ${{ fromJSON(needs.context.outputs.signed) }}
       swift_version: ${{ needs.context.outputs.swift_version }}
       swift_tag: ${{ needs.context.outputs.swift_tag }}
-      default_build_runner: ${{ needs.context.outputs.windows_build_runner }}
-      compilers_build_runner: ${{ needs.context.outputs.windows_compilers_runner }}
+      default_build_runner: ${{ needs.context.outputs[format('windows_{0}_build_runner', needs.context.outputs.windows_build_cpu)] }}
+      compilers_build_runner: ${{ needs.context.outputs[format('windows_{0}_compilers_runner', needs.context.outputs.windows_build_cpu)] }}
+      build_android: ${{ inputs.build_android }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
@@ -640,7 +774,7 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     needs: [context, windows-build]
-    if: github.event_name == 'schedule'
+    if: inputs.create_snapshot == true && github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4
         with:
