@@ -1431,6 +1431,9 @@ jobs:
             # Since win/arm64 doesn't have one, this logic is necessary because
             # passing an empty CMAKE_ANDROID_NDK value causes a failure.
             $CMAKE_NDK_FLAG = "-DCMAKE_ANDROID_NDK=$NDKPATH"
+            # Also pass CMAKE_HAVE_LIBC_PTHREAD to ensure that libxml2 doesn't
+            # try to link using the `-pthread` flag.
+            $CMAKE_HAVE_LIBC_PTHREAD_FLAG = "-DCMAKE_HAVE_LIBC_PTHREAD=YES"
           }
           cmake -B ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }} `
                 -D BUILD_SHARED_LIBS=NO `
@@ -1454,7 +1457,8 @@ jobs:
                 -D LIBXML2_WITH_THREADS=YES `
                 -D LIBXML2_WITH_ZLIB=NO `
                 -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
-                $CMAKE_NDK_FLAG
+                $CMAKE_NDK_FLAG `
+                $CMAKE_HAVE_LIBC_PTHREAD_FLAG
       - name: Build libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }}
       - name: Install libxml2
