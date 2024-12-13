@@ -2069,17 +2069,9 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
       - uses: actions/checkout@v4
-        if: matrix.os != 'Android'
         with:
           repository: apple/swift-corelibs-foundation
           ref: ${{ inputs.swift_corelibs_foundation_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
-          show-progress: false
-      - uses: actions/checkout@v4
-        if: matrix.os == 'Android'
-        with:
-          repository: hyp/swift-corelibs-foundation
-          ref: eng/recore-android-build
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
           show-progress: false
       - uses: actions/checkout@v4
@@ -2270,7 +2262,7 @@ jobs:
                 -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/$LIBZ `
                 -D SwiftFoundation_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
       - name: Build foundation
-        if: ${{ !(matrix.os == 'Android' && inputs.build_os == 'Windows' && inputs.build_arch == 'arm64') }}
+        if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/foundation
 
@@ -3532,8 +3524,8 @@ jobs:
         with:
           name: sdk-windows-${{ matrix.arch }}-msi
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.${{ matrix.arch }}.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.${{ matrix.arch }}.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.windows.${{ matrix.arch }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.windows.${{ matrix.arch }}.cab
       - uses: actions/upload-artifact@v4
         with:
           name: rtl-windows-${{ matrix.arch }}-msi
@@ -3545,7 +3537,6 @@ jobs:
           name: rtl-windows-${{ matrix.arch }}-msm
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_android_sdk_runtime:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -3632,8 +3623,8 @@ jobs:
         with:
           name: sdk-android-${{ matrix.arch }}-msi
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/android_sdk.${{ matrix.cpu }}.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/android_sdk.${{ matrix.cpu }}.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/sdk.android.${{ matrix.cpu }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/sdk.android.${{ matrix.cpu }}.cab
 
   installer:
     # TODO: Build this on macOS or make an equivalent Mac-only job
