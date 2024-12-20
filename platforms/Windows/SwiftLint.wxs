@@ -1,0 +1,44 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+      Language="1033"
+      Manufacturer="MongoDB"
+      Name="SwiftLint"
+      UpgradeCode="10907440-f19d-412b-a6e4-71f43f4da6bf"
+      Version="$(var.ProductVersion)"
+      Scope="perMachine">
+    <SummaryInformation Description="SwiftLint" />
+
+    <MediaTemplate CabinetTemplate="lint{0}.cab" EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ManufacturerFolder" Name="MongoDB">
+        <Directory Id="INSTALLDIR" Name="SwiftLint">
+          <Directory Id="_usr" Name="usr">
+            <Directory Id="_usr_bin" Name="bin">
+              <Merge Id="swift_runtime" Language="0" SourceFile="$(RedistributablesDirectory)\rtl.$(ProductArchitecture).msm" />
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <Component Id="swiftlint.exe" Directory="_usr_bin">
+      <File Source="$(var.SWIFT_LINT_BUILD)\swiftlint.exe" />
+    </Component>
+
+    <ComponentGroup Id="EnvironmentVariables">
+      <Component Id="SystemEnvironmentVariables" Condition="ALLUSERS=1" Directory="INSTALLDIR" Guid="c48cc327-9591-459f-a93e-6244162cff16">
+        <Environment Id="SystemPath" Action="set" Name="Path" Part="last" Permanent="no" System="yes" Value="[_usr_bin]" />
+      </Component>
+      <Component Id="UserEnvironmentVariables" Condition="NOT ALLUSERS=1" Directory="INSTALLDIR" Guid="f7f401ff-962c-4055-91b1-f31fcff91374">
+        <Environment Id="UserPath" Action="set" Name="Path" Part="last" Permanent="no" System="no" Value="[_usr_bin]" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="SwiftLint" AllowAbsent="no" Description="Linting Tool for Swift" Title="SwiftLint">
+      <ComponentRef Id="swiftlint.exe" />
+      <MergeRef Id="swift_runtime" />
+      <ComponentGroupRef Id="EnvironmentVariables" />
+    </Feature>
+  </Package>
+</Wix>
