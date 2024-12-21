@@ -267,16 +267,10 @@ env:
   WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH: swift-6.0.1-release
   WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG: 6.0.1-RELEASE
 
-  # Workaround for the `static_assert(false...)` failure in Clang on Windows
-  # preventing us from using the 5.10 toolchain release.
+  # Workaround for the upstream builds are still built with VS versions (17.9.x and 17.10.x)
+  # with the ARM64 miscompile bug.
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
-  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: 20231016.5
-
-  # The placeholder for the ARM64 version for
-  # WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_* above. These (x64 and arm64) need
-  # to be updated when the ARM64 compiler is fixed and the pinned toolchain is updated.
-  WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
-  WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: "20231016.1"
+  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: swift-6.0.0-20241216.0
 
 defaults:
   run:
@@ -768,12 +762,21 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-driver
           show-progress: false
 
-      - name: Install Swift Toolchain
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+      - name: Install Swift Toolchain (macOS)
+        if: matrix.os == 'Darwin'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
-          host_arch: ${{ inputs.build_arch }}
           branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
           tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
+
+      - name: Install Swift Toolchain (Windows)
+        if: matrix.os == 'Windows'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+        with:
+          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-${{ inputs.build_arch }}.exe
+          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       - name: Build early swift-driver
         run: |
@@ -928,25 +931,17 @@ jobs:
         if: inputs.build_os == 'Darwin'
 
       - name: Install Swift Toolchain
-        if: inputs.build_os == 'Windows' && inputs.build_arch == 'amd64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+        if: inputs.build_os == 'Windows'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
           github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-${{ inputs.build_arch }}.exe
           release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
-      - name: Install Swift Toolchain
-        if: inputs.build_os == 'Windows' && inputs.build_arch == 'arm64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       - name: Install Swift Toolchain
         if: inputs.build_os == 'Darwin'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
           branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
           tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
@@ -1670,26 +1665,13 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
 
-      # NOTE(compnerd) While we do not have ABI stability on Windows yet, we use
-      # Swift in the compiler, which requires that we have the Swift runtime. As
-      # we have not yet built the runtime, this requires that we use the runtime
-      # from the previous build.
       - name: Install Swift Toolchain
-        if: inputs.build_arch == 'amd64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
           github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-${{ inputs.build_arch }}.exe
           release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
-      - name: Install Swift Toolchain
-        if: inputs.build_arch == 'arm64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
