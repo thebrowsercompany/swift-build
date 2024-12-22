@@ -131,6 +131,10 @@ on:
         required: true
         type: string
 
+      swift_lmdb_revision:
+        required: true
+        type: string
+
       swift_markdown_revision:
         required: true
         type: string
@@ -267,16 +271,10 @@ env:
   WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH: swift-6.0.1-release
   WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG: 6.0.1-RELEASE
 
-  # Workaround for the `static_assert(false...)` failure in Clang on Windows
-  # preventing us from using the 5.10 toolchain release.
+  # Workaround for the upstream builds are still built with VS versions (17.9.x and 17.10.x)
+  # with the ARM64 miscompile bug.
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
-  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: 20231016.5
-
-  # The placeholder for the ARM64 version for
-  # WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_* above. These (x64 and arm64) need
-  # to be updated when the ARM64 compiler is fixed and the pinned toolchain is updated.
-  WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
-  WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: "20231016.1"
+  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: swift-6.0.0-20241216.0
 
 defaults:
   run:
@@ -768,12 +766,21 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-driver
           show-progress: false
 
-      - name: Install Swift Toolchain
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+      - name: Install Swift Toolchain (macOS)
+        if: matrix.os == 'Darwin'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
-          host_arch: ${{ inputs.build_arch }}
           branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
           tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
+
+      - name: Install Swift Toolchain (Windows)
+        if: matrix.os == 'Windows'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+        with:
+          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-${{ inputs.build_arch }}.exe
+          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       - name: Build early swift-driver
         run: |
@@ -928,25 +935,17 @@ jobs:
         if: inputs.build_os == 'Darwin'
 
       - name: Install Swift Toolchain
-        if: inputs.build_os == 'Windows' && inputs.build_arch == 'amd64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+        if: inputs.build_os == 'Windows'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
           github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-${{ inputs.build_arch }}.exe
           release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
-      - name: Install Swift Toolchain
-        if: inputs.build_os == 'Windows' && inputs.build_arch == 'arm64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       - name: Install Swift Toolchain
         if: inputs.build_os == 'Darwin'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
           branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
           tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
@@ -1670,26 +1669,13 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
 
-      # NOTE(compnerd) While we do not have ABI stability on Windows yet, we use
-      # Swift in the compiler, which requires that we have the Swift runtime. As
-      # we have not yet built the runtime, this requires that we use the runtime
-      # from the previous build.
       - name: Install Swift Toolchain
-        if: inputs.build_arch == 'amd64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
           github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-asset-name: installer-${{ inputs.build_arch }}.exe
           release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
-      - name: Install Swift Toolchain
-        if: inputs.build_arch == 'arm64'
-        uses: compnerd/gha-setup-swift@b6c5fc1ed5b5439ada8e7661985acb09ad8c3ba2 # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_ARM64_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
@@ -2603,6 +2589,12 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
+          repository: swiftlang/swift-lmdb
+          ref: ${{ inputs.swift_lmdb_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-lmdb
+          show-progress: false
+      - uses: actions/checkout@v4
+        with:
           repository: swiftlang/swift-markdown
           ref: ${{ inputs.swift_markdown_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-markdown
@@ -3071,6 +3063,26 @@ jobs:
       - name: Build swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
 
+      - name: Configure swift-lmdb
+        run: |
+          # Workaround CMake 3.20 issue
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+
+          cmake -B ${{ github.workspace }}/BinaryCache/swift-lmdb `
+                -D BUILD_SHARED_LIBS=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-lmdb
+      - name: Build swift-lmdb
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-lmdb
+
       - name: Configure IndexStoreDB
         run: |
           # Workaround CMake 3.20 issue
@@ -3096,7 +3108,8 @@ jobs:
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
                 -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/indexstore-db
+                -S ${{ github.workspace }}/SourceCache/indexstore-db `
+                -D LMDB_DIR=${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules
       - name: Build indexstore-db
         run: cmake --build ${{ github.workspace }}/BinaryCache/indexstore-db
 
@@ -3134,7 +3147,8 @@ jobs:
                 -D SwiftPM_DIR=${{ github.workspace }}/BinaryCache/swift-package-manager/cmake/modules `
                 -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules `
                 -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
-                -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules
+                -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
+                -D LMDB_DIR=${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules
       - name: Build SourceKit-LSP
         run: cmake --build ${{ github.workspace }}/BinaryCache/SourceKit-LSP
 
