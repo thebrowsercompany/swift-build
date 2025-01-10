@@ -358,14 +358,14 @@ jobs:
 
   ds2_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
-    if: inputs.build_android
     runs-on: ${{ inputs.default_build_runner }}
 
     name: ds2 Build Tools
 
     steps:
       - uses: actions/checkout@v4
+        # There is currently no Android NDK for Windows ARM64 so build ds2_tools only on Windows X64 host only
+        if: inputs.build_android
         with:
           repository: compnerd/ds2
           ref: ${{ inputs.ds2_revision }}
@@ -373,6 +373,7 @@ jobs:
           show-progress: false
 
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        if: inputs.build_android
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
@@ -380,11 +381,14 @@ jobs:
 
       # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
       - uses: andrurogerz/ensure-chocolatey@v1
+        if: inputs.build_android
 
       - name: Install Flex and Bison Tools
         run: choco install winflexbison3
+        if: inputs.build_android
 
       - name: Configure RegsGen2
+        if: inputs.build_android
         run: |
           cmake -B ${{ github.workspace }}/BinaryCache/RegsGen2 `
                 -S ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2 `
@@ -397,9 +401,11 @@ jobs:
                 -G Ninja
 
       - name: Build RegsGen2
+        if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/RegsGen2 --config Release
 
       - uses: actions/upload-artifact@v4
+        if: inputs.build_android
         with:
           name: windows-regsgen2
           path: |
@@ -407,8 +413,6 @@ jobs:
 
   ds2:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
-    if: inputs.build_android
     needs: [ds2_tools]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -452,6 +456,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
+        if: inputs.build_android
         with:
           repository: compnerd/ds2
           ref: ${{ inputs.ds2_revision }}
@@ -459,6 +465,7 @@ jobs:
           show-progress: false
 
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        if: inputs.build_android
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
@@ -466,22 +473,26 @@ jobs:
 
       # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
       - uses: andrurogerz/ensure-chocolatey@v1
+        if: inputs.build_android
 
       - name: Install Flex and Bison Tools
+        if: inputs.build_android
         run: choco install winflexbison3
 
       - uses: actions/download-artifact@v4
+        if: inputs.build_android
         with:
           name: windows-regsgen2
           path: ${{ github.workspace }}/BinaryCache/RegsGen2
 
       - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android'
+        if: matrix.os == 'Android' && inputs.build_android
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
 
       - name: Configure DS2
+        if: inputs.build_android
         run: |
           $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
           cmake -B ${{ github.workspace }}/BinaryCache/ds2 `
@@ -500,12 +511,15 @@ jobs:
                 -G Ninja
 
       - name: Build DS2
+        if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/ds2
 
       - name: Install DS2
+        if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/ds2 --target install
 
       - uses: actions/upload-artifact@v4
+        if: inputs.build_android
         with:
           name: ds2-${{ matrix.os }}-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
@@ -786,7 +800,7 @@ jobs:
         run: |
           $env:SWIFTCI_USE_LOCAL_DEPS=1
           $LinkerFlags = if ("${{ matrix.os }}" -eq "Windows") {
-            @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/x86_64/swiftCore.lib")
+            @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib")
           } else {
             @()
           }
@@ -795,6 +809,7 @@ jobs:
             --configuration release `
             --package-path ${{ github.workspace }}/SourceCache/swift-driver `
             --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
+            --triple ${{ matrix.compiler_target }} `
             @LinkerFlags
 
       - name: Copy binaries
@@ -1684,9 +1699,8 @@ jobs:
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
 
-      # NOTE(compnerd): we execute unconditionally as we reference outputs
       - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android'
+        if: matrix.os == 'Android' && inputs.build_android
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
@@ -1827,15 +1841,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: 'amd64'
-            cpu: 'x86_64'
-            triple: 'x86_64-unknown-windows-msvc'
-
-          - arch: 'arm64'
-            cpu: 'aarch64'
-            triple: 'aarch64-unknown-windows-msvc'
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
 
     name: Windows ${{ matrix.arch }} Macros
 
@@ -2168,13 +2174,12 @@ jobs:
           arch: ${{ matrix.arch }}
 
       # FIXME(compnerd): workaround CMake 3.29-3.30 issue
-      - uses: jwlawson/actions-setup-cmake@v2
+      - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
         with:
-          cmake-version: '3.28'
+          cmakeVersion: 3.28.6
 
-      # NOTE(compnerd): we execute unconditionally as we reference outputs
       - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android'
+        if: matrix.os == 'Android' && inputs.build_android
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
@@ -3602,7 +3607,6 @@ jobs:
 
   package_android_sdk_runtime:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_android
     name: Package Android SDK & Runtime
     needs: [stdlib, ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -3626,20 +3630,25 @@ jobs:
 
     steps:
       - uses: actions/download-artifact@v4
+        # There is currently no Android NDK for Windows ARM64 so build Android only on Windows X64 host only
+        if: inputs.build_android
         with:
           name: Android-stdlib-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - uses: actions/download-artifact@v4
+        if: inputs.build_android
         with:
           name: Android-sdk-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
 
       - uses: actions/download-artifact@v4
+        if: inputs.build_android
         with:
           name: ds2-Android-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library/${{ matrix.triple_no_api_level }}
 
       - uses: actions/checkout@v4
+        if: inputs.build_android
         with:
           repository: swiftlang/swift-installer-scripts
           ref: ${{ inputs.swift_installer_scripts_revision }}
@@ -3647,6 +3656,7 @@ jobs:
           show-progress: false
 
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        if: inputs.build_android
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
@@ -3658,15 +3668,17 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: ${{ inputs.signed }}
+        if: ${{ inputs.signed && inputs.build_android }}
 
       - name: Install WixToolset.Sdk
+        if: inputs.build_android
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
       - name: Package SDK
+        if: inputs.build_android
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -3682,6 +3694,7 @@ jobs:
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk/drd/sdk.wixproj
 
       - uses: actions/upload-artifact@v4
+        if: inputs.build_android
         with:
           name: sdk-android-${{ matrix.arch }}-msi
           path: |
