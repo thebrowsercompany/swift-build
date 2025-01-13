@@ -990,11 +990,12 @@ jobs:
           key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-compilers
           variant: sccache
 
-      - name: Configure Compilers
+      - name: Setup context
+        id: setup-context
         run: |
           $CxxFlags = "${{ matrix.cxxflags }}"
           $SwiftFlags = ""
-          $EXTRA_FLAGS = @()
+          $ExtraFlags = "${{ matrix.extra_flags }}"
 
           if ( "${{ matrix.os }}" -eq "Windows" ) {
             $SWIFTC = cygpath -m (Get-Command swiftc).Source
@@ -1002,13 +1003,14 @@ jobs:
             # TODO: Use llvm-19 when available. See https://github.com/compnerd/swift-build/issues/846
             $CLANG_LOCATION = Split-Path (Get-Command swiftc).Source
             if ( "${{ matrix.arch }}" -eq "arm64" ) {
-              $EXTRA_FLAGS += "${{ matrix.extra_flags }}".Split()
-              $EXTRA_FLAGS += @("-D", "CMAKE_SYSTEM_NAME=Windows")
+              $ExtraFlags += " -D CMAKE_SYSTEM_NAME=Windows"
               $CACHE="${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-aarch64.cmake"
 
               # FIXME(compnerd) re-enable runtimes after we sort out compiler-rt
               (Get-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-aarch64.cmake).Replace(' runtimes', '') | Set-Content ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-aarch64.cmake
             } else {
+              # FIXME(steelskin) Setting `CMAKE_SYSTEM_NAME and `CMAKE_SYSTEM_PROCESSOR` breaks the compiler-rt build
+              $ExtraFlags = ""
               $CACHE="${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-x86_64.cmake"
             }
             $CC = "cl"
@@ -1023,7 +1025,6 @@ jobs:
             $LIBPYTHON_PATH = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/libs/python39.lib"
             $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/include"
             $PYTHON_BINARY="python.exe"
-            $ExeSuffix = ".exe"
             Remove-Item env:\SDKROOT
           } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
             # Default swiftc comes from /usr/bin and is not compatible with the toolchain.
@@ -1035,10 +1036,10 @@ jobs:
             $CXX = Join-Path $CLANG_LOCATION "clang++"
             $CACHE = "${{ github.workspace }}/SourceCache/swift/cmake/caches/Darwin-${{ matrix.arch }}.cmake"
             $SDKROOT = xcrun --sdk macosx --show-sdk-path
-            $EXTRA_FLAGS += "${{ matrix.extra_flags }}".Split()
-            $EXTRA_FLAGS += @("-D", "CMAKE_SYSTEM_NAME=Darwin")
+
+            $ExtraFlags += " -D CMAKE_SYSTEM_NAME=Darwin"
             # TODO: Use early-swift-driver on Windows too.
-            $EXTRA_FLAGS += @("-D", "SWIFT_EARLY_SWIFT_DRIVER_BUILD=${{ github.workspace }}/BinaryCache/swift-driver/bin")
+            $ExtraFlags += " -D SWIFT_EARLY_SWIFT_DRIVER_BUILD=${{ github.workspace }}/BinaryCache/swift-driver/bin"
             $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python3.9/config-3.9-darwin/libpython3.9.a"
             $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python3.9"
             $PYTHON_BINARY="python3"
@@ -1047,22 +1048,50 @@ jobs:
 
           $SwiftFlags += " -sdk `"${SDKROOT}`""
 
+          # Output the context for the configure task.
+          $Context = @"
+          cc=${CC}
+          cxx=${CXX}
+          swiftc=${SWIFTC}
+          cxxflags=${CxxFlags}
+          swiftflags=${SwiftFlags}
+          extra_flags=${ExtraFlags}
+          cache=${CACHE}
+          clang_location=${CLANG_LOCATION}
+          libpython_path=${LIBPYTHON_PATH}
+          python_include_dir=${PYTHON_INCLUDE_DIR}
+          python_binary=${PYTHON_BINARY}
+          sdkroot=${SDKROOT}
+          "@
+          Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Configure Compilers
+        env:
+          NDKPATH: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          if ( "${{ matrix.os }}" -eq "Windows" ) {
+            $ExeSuffix = ".exe"
+            Remove-Item env:\SDKROOT
+          } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
+            $ExeSuffix = ""
+          }
+
           cmake -B ${{ github.workspace }}/BinaryCache/1 `
-                -C "${CACHE}" `
+                -C "${{ steps.setup-context.outputs.cache }}" `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER="${CC}" `
+                -D CMAKE_C_COMPILER="${{ steps.setup-context.outputs.cc }}" `
                 -D CMAKE_C_COMPILER_LAUNCHER=sccache `
                 -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER="${CXX}" `
+                -D CMAKE_CXX_COMPILER="${{ steps.setup-context.outputs.cxx }}" `
                 -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${CxxFlags}" `
-                -D CMAKE_Swift_COMPILER="${SWIFTC}" `
+                -D CMAKE_CXX_FLAGS="${{ steps.setup-context.outputs.cxxflags }}" `
+                -D CMAKE_Swift_COMPILER="${{ steps.setup-context.outputs.swiftc }}" `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${SwiftFlags}" `
+                -D CMAKE_Swift_FLAGS="${{ steps.setup-context.outputs.swiftflags }}" `
                 ${{ matrix.cmake_linker_flags }} `
                 -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
-                @EXTRA_FLAGS `
+                ${{ steps.setup-context.outputs.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
                 -D CLANG_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}" `
@@ -1077,7 +1106,7 @@ jobs:
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
                 -D SWIFT_BUILD_REMOTE_MIRROR=NO `
                 -D SWIFT_BUILD_SWIFT_SYNTAX=YES `
-                -D SWIFT_CLANG_LOCATION=${CLANG_LOCATION} `
+                -D SWIFT_CLANG_LOCATION="${{ steps.setup-context.outputs.clang_location }}" `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
@@ -1089,7 +1118,7 @@ jobs:
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
                 -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
-                -D SWIFT_PATH_TO_SWIFT_SDK="${SDKROOT}" `
+                -D SWIFT_PATH_TO_SWIFT_SDK="${{ steps.setup-context.outputs.sdkroot }}" `
                 -D CLANG_VENDOR=compnerd.org `
                 -D CLANG_VENDOR_UTI=org.compnerd.dt `
                 -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
@@ -1100,12 +1129,12 @@ jobs:
                 -D SWIFT_PARALLEL_LINK_JOBS=2 `
                 -D LLVM_APPEND_VC_REV=NO `
                 -D LLVM_VERSION_SUFFIX="" `
-                -D LLDB_PYTHON_EXE_RELATIVE_PATH=${PYTHON_BINARY} `
+                -D LLDB_PYTHON_EXE_RELATIVE_PATH=${{ steps.setup-context.outputs.python_binary }} `
                 -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
                 -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
                 -D Python3_EXECUTABLE=${{ steps.python.outputs.python-path }} `
-                -D Python3_INCLUDE_DIR=$PYTHON_INCLUDE_DIR `
-                -D Python3_LIBRARY=$LIBPYTHON_PATH `
+                -D Python3_INCLUDE_DIR=${{ steps.setup-context.outputs.python_include_dir }} `
+                -D Python3_LIBRARY=${{ steps.setup-context.outputs.libpython_path }} `
                 -D Python3_ROOT_DIR=$env:pythonLocation
 
       - name: Build Compiler Distribution
