@@ -1151,6 +1151,19 @@ jobs:
             Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/lib/swift/host/compiler"
           }
 
+      - uses: actions/setup-python@v5
+      - uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            import os
+            import plistlib
+            from datetime import datetime
+
+            now = datetime.now()
+            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/ToolchainInfo.plist'
+            with open(os.path.normpath(info_plist), 'wb') as plist:
+              plistlib.dump({ 'Identifier': 'org.compnerd.dt.toolchain.{0}.{1}-asserts'.format(now.strftime('%Y%m%d'), now.timetuple().tm_hour % 6) }, plist)
+
       - name: Upload Compilers
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
