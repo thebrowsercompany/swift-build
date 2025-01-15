@@ -3947,6 +3947,11 @@ jobs:
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+
     steps:
       - name: Download Swift SDK
         uses: actions/download-artifact@v4
@@ -3999,9 +4004,9 @@ jobs:
       - name: Setup Swift environment
         id: android-swift-env
         run: |
-          echo "sysroot=$(resolve-path ${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\${{ matrix.host-tag }}\sysroot)" >> $env:GITHUB_OUTPUT
+          echo "sysroot=$(resolve-path ${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\windows-x86_64\sysroot)" >> $env:GITHUB_OUTPUT
           echo "sdkroot=$(resolve-path $env:SDKROOT\..\..\..\..\Android.platform\Developer\SDKs\Android.sdk)" >> $env:GITHUB_OUTPUT
-          echo "clang-resource-dir=$(& $(resolve-path "${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\${{ matrix.host-tag }}\bin\clang.exe") -print-resource-dir)" >> $env:GITHUB_OUTPUT
+          echo "clang-resource-dir=$(& $(resolve-path "${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\windows-x86_64\bin\clang.exe") -print-resource-dir)" >> $env:GITHUB_OUTPUT
 
       - name: Checkout cassowary project
         uses: actions/checkout@v4
@@ -4013,7 +4018,7 @@ jobs:
         run: |
           swift build `
             --package-path ${{ github.workspace }}/SourceCache/cassowary `
-            --triple ${{ matrix.arch }}-unknown-linux-android${{ matrix.api-level }} `
+            --triple ${{ matrix.arch }}-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} `
             --sdk "${{ steps.android-swift-env.outputs.sysroot }}" `
             -Xswiftc -sdk -Xswiftc "${{ steps.android-swift-env.outputs.sdkroot }}" `
             -Xswiftc -sysroot -Xswiftc "${{ steps.android-swift-env.outputs.sysroot }}" `
