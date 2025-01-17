@@ -3430,22 +3430,29 @@ jobs:
           }
 
       - uses: actions/checkout@v4
-        if: matrix.arch == 'amd64'
         with:
           repository: microsoft/mimalloc
           ref: ${{ inputs.mimalloc_revision }}
           path: ${{ github.workspace }}/SourceCache/mimalloc
 
       - name: Build and apply mimalloc
-        if: matrix.arch == 'amd64'
         run: |
+          $HostMSArch = if ("${{ matrix.arch }}" -eq "arm64") { "arm64" } else { "x64" }
+          $HostSuffix = if ("${{ matrix.arch }}" -eq "arm64") { "-arm64" } else { "" }
+          $BuildSuffix = if ("${{ inputs.build_arch }}" -eq "arm64") { "-arm64" } else { "" }
           # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
-          msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release
+          msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release -p:Platform=$HostMSArch
           $ToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin"
-          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-x64\Release\mimalloc-override.dll" `
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
             -Destination "$ToolchainBin"
-          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-x64\Release\mimalloc-redirect.dll" `
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
             -Destination "$ToolchainBin"
+          # When cross-compiling, bundle the second mimalloc redirect dll as a workaround for
+          # https://github.com/microsoft/mimalloc/issues/997
+          if ("${{ inputs.build_arch }}" -ne "${{ matrix.arch }}") {
+            Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
+              -Destination "$ToolchainBin/mimalloc-redirect$BuildSuffix.dll"
+          }
           $MimallocExecutables = @("swift.exe",
                                    "swiftc.exe",
                                    "swift-driver.exe",
@@ -3458,14 +3465,17 @@ jobs:
                                    "ld.lld.exe",
                                    "ld64.lld.exe")
           foreach ($Exe in $MimallocExecutables) {
-            # Binary-patch in place
-            ${{ github.workspace }}\SourceCache\mimalloc\bin\minject -f -i -v "$ToolchainBin\$Exe"
+            # Binary-patch in place.
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$ToolchainBin\$Exe"
             # Log the import table
-            ${{ github.workspace }}\SourceCache\mimalloc\bin\minject -l "$ToolchainBin\$Exe"
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$ToolchainBin\$Exe"
           }
 
       - name: Package Build Tools
         run: |
+          # When cross-compiling, bundle the second mimalloc redirect dll as a workaround for
+          # https://github.com/microsoft/mimalloc/issues/997
+          $WORKAROUND_MIMALLOC_ISSUE_997 = if ("${{ inputs.build_arch }}" -ne "${{ matrix.arch }}") { "true" } else { "false" }
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
@@ -3473,7 +3483,8 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
-              -p:ENABLE_MIMALLOC=${{ matrix.arch == 'amd64' && 'true' || 'false' }} `
+              -p:ENABLE_MIMALLOC=true `
+              -p:WORKAROUND_MIMALLOC_ISSUE_997=$WORKAROUND_MIMALLOC_ISSUE_997 `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/bld.wixproj
