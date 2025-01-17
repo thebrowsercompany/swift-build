@@ -3940,3 +3940,88 @@ jobs:
 
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
+
+  smoke_test_android:
+    # TODO: Run this job on macOS or make an equivalent Mac-only job
+    if: inputs.build_os == 'Windows' && inputs.build_android
+    needs: [installer]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64 ]
+
+    steps:
+      - name: Download Swift SDK
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-${{ inputs.build_arch }}
+          path: ${{ github.workspace }}/tmp
+
+      # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
+      - name: Install Swift SDK
+        run: |
+          function Update-EnvironmentVariables {
+            foreach ($level in "Machine", "User") {
+              [Environment]::GetEnvironmentVariables($level).GetEnumerator() | % {
+                # For Path variables, append the new values, if they're not already in there
+                if ($_.Name -Match 'Path$') {
+                  $_.Value = ($((Get-Content "Env:$($_.Name)") + ";$($_.Value)") -Split ';' | Select -Unique) -Join ';'
+                }
+                $_
+              } | Set-Content -Path { "Env:$($_.Name)" }
+            }
+          }
+
+          try {
+            Write-Host "Starting Install installer.exe..."
+            $Process = Start-Process -FilePath ${{ github.workspace }}/tmp/installer.exe -ArgumentList ("-q") -Wait -PassThru
+            $ExitCode = $Process.ExitCode
+            if ($ExitCode -eq 0 -or $ExitCode -eq 3010) {
+              Write-Host "Installation successful"
+            } else {
+              Write-Host "non-zero exit code returned by the installation process: $ExitCode"
+              exit $ExitCode
+            }
+          } catch {
+            Write-Host "Failed to install: $($_.Exception.Message)"
+            exit 1
+          }
+          Update-EnvironmentVariables
+
+          # Reset Path and environment
+          echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
+          Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          local-cache: true
+
+      - name: Setup Swift environment
+        id: android-swift-env
+        run: |
+          echo "sysroot=$(resolve-path ${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\windows-x86_64\sysroot)" >> $env:GITHUB_OUTPUT
+          echo "sdkroot=$(resolve-path $env:SDKROOT\..\..\..\..\Android.platform\Developer\SDKs\Android.sdk)" >> $env:GITHUB_OUTPUT
+          echo "clang-resource-dir=$(& $(resolve-path "${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\windows-x86_64\bin\clang.exe") -print-resource-dir)" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout cassowary project
+        uses: actions/checkout@v4
+        with:
+          repository: compnerd/cassowary
+          ref: 0.0.2
+          path: ${{ github.workspace }}/SourceCache/cassowary
+
+      - name: Build cassowary project
+        run: |
+          swift build `
+            --package-path ${{ github.workspace }}/SourceCache/cassowary `
+            --triple ${{ matrix.arch }}-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} `
+            --sdk "${{ steps.android-swift-env.outputs.sysroot }}" `
+            -Xswiftc -sdk -Xswiftc "${{ steps.android-swift-env.outputs.sdkroot }}" `
+            -Xswiftc -sysroot -Xswiftc "${{ steps.android-swift-env.outputs.sysroot }}" `
+            -Xswiftc -I -Xswiftc "${{ steps.android-swift-env.outputs.sdkroot }}\usr\include" `
+            -Xswiftc -Xclang-linker -Xswiftc -resource-dir -Xswiftc -Xclang-linker -Xswiftc ${{ steps.android-swift-env.outputs.clang-resource-dir }}
