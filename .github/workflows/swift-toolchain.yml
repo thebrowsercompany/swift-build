@@ -3612,16 +3612,16 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            cpu: aarch64
+            msarch: arm64
             triple_no_api_level: aarch64-unknown-linux-android
           - arch: armv7
-            cpu: armv7
+            msarch: arm
             triple_no_api_level: armv7-unknown-linux-androideabi
           - arch: i686
-            cpu: i686
+            msarch: x86
             triple_no_api_level: i686-unknown-linux-android
           - arch: x86_64
-            cpu: x86_64
+            msarch: amd64
             triple_no_api_level: x86_64-unknown-linux-android
 
     steps:
@@ -3676,6 +3676,12 @@ jobs:
       - name: Package SDK
         if: inputs.build_android
         run: |
+          if ("${{ inputs.build_arch }}" -eq "amd64") {
+            $InstallerPlatform = "x64"
+          } else {
+            $InstallerPlatform = "arm64"
+          }
+
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
@@ -3686,7 +3692,8 @@ jobs:
               -p:PLATFORM_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform `
               -p:SDK_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk `
               -p:ProductVersion=${{ inputs.swift_version }} `
-              -p:ProductArchitecture=${{ matrix.cpu }} `
+              -p:ProductArchitecture=${{ matrix.msarch }} `
+              -p:InstallerPlatform=${InstallerPlatform} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk/drd/sdk.wixproj
 
       - uses: actions/upload-artifact@v4
@@ -3694,8 +3701,8 @@ jobs:
         with:
           name: sdk-android-${{ matrix.arch }}-msi
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/sdk.android.${{ matrix.cpu }}.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.cpu }}/sdk.android.${{ matrix.cpu }}.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.msarch }}/sdk.android.${{ matrix.msarch }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.msarch }}/sdk.android.${{ matrix.msarch }}.cab
 
   installer:
     # TODO: Build this on macOS or make an equivalent Mac-only job
