@@ -1690,7 +1690,7 @@ jobs:
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: compilers-Windows-${{ inputs.build_arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/checkout@v4
         with:
           repository: swiftlang/llvm-project
@@ -1769,9 +1769,9 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           # NOTE: used by `matrix.cc`
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
 
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
           if ("${{ matrix.os }}" -eq "Android") {
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
             # Since win/arm64 doesn't have one, this logic is necessary because
@@ -1820,7 +1820,7 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
                 -D SWIFT_ENABLE_VOLATILE=YES `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
                 -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing
@@ -1839,7 +1839,7 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ matrix.os }}-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
+          path: ${{ github.workspace }}/BuildRoot/Library
 
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'Windows'
@@ -1891,12 +1891,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         if: matrix.arch == 'arm64'
         with:
           name: Windows-stdlib-${{ inputs.build_arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
           name: windows-vfs-overlay-${{ matrix.arch }}
@@ -2134,11 +2134,11 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ matrix.os }}-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ inputs.build_arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         if: matrix.os == 'Windows'
         with:
@@ -2564,7 +2564,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ matrix.arch }}
@@ -2713,7 +2713,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ inputs.build_arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ inputs.build_arch }}
@@ -3255,7 +3255,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
@@ -3303,7 +3303,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ inputs.build_arch }}
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ inputs.build_arch }}
@@ -3550,7 +3550,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+          path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         with:
           name: Windows-sdk-${{ matrix.arch }}
@@ -3659,7 +3659,7 @@ jobs:
         if: inputs.build_android
         with:
           name: Android-stdlib-${{ matrix.arch }}
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+          path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
