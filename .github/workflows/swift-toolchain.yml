@@ -3249,7 +3249,6 @@ jobs:
             cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
             cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
             linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
             extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
@@ -3261,7 +3260,6 @@ jobs:
             cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
             cxx: clang++
             cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
-            swiftflags: -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -target -Xclang-linker x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }} -Xclang-linker --sysroot -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g
             os: Android
             linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.ANDROID_CMAKE_SHARED_LINKER_FLAGS }}"'
             extra_flags: -DSWIFT_BUILD_CLANG_OVERLAYS_SKIP_BUILTIN_FLOAT=YES -DLLVM_ENABLE_LIBCXX=YES -DSWIFT_USE_LINKER=lld -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
@@ -3361,7 +3359,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} -Xcc `"-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror`"" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} -Xclang-linker -resource-dir -Xclang-linker `"${NDKPATH}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17`" -Xcc `"-I${env:SDKROOT}/usr/include`" -Xcc `"-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror`" -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_ANDROID_NDK=$NDKPATH `
