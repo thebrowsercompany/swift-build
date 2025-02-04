@@ -3315,18 +3315,10 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/os ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/Block ${env:SDKROOT}/usr/include/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/_foundation_unicode ${env:SDKROOT}/usr/include
-          Move-Item ${env:SDKROOT}/usr/lib/swift/_FoundationCShims ${env:SDKROOT}/usr/include
-
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libBlocksRuntime.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libdispatch.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libswiftDispatch.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libFoundation.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libFoundationXML.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libFoundationNetworking.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/lib_FoundationICU.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libFoundationEssentials.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
-          Move-Item ${env:SDKROOT}/usr/lib/swift/android/libFoundationInternationalization.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/_foundation_unicode ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/_FoundationCShims ${env:SDKROOT}/usr/include/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/android/lib*.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
+          Get-ChildItem -Recurse -Force ${env:SDKROOT} | ForEach-Object { $_.FullName }
 
       # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
       - uses: actions/download-artifact@v4
@@ -3359,7 +3351,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk `"$NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot`" -Xclang-linker --sysroot -Xclang-linker `"$NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot`" -Xclang-linker -resource-dir -Xclang-linker `"${NDKPATH}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17`" -Xcc `"-I${env:SDKROOT}/usr/include`" -Xcc `"-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror`" -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g" `
+                -D CMAKE_Swift_FLAGS="-sdk `"${env:SDKROOT}`" -Xclang-linker --sysroot -Xclang-linker `"$NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot`" -Xclang-linker -resource-dir -Xclang-linker `"${NDKPATH}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17`" -Xcc `"-I${env:SDKROOT}/usr/include`" -Xcc `"-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror`" -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_ANDROID_NDK=$NDKPATH `
