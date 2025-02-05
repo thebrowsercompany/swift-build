@@ -3318,6 +3318,9 @@ jobs:
           Move-Item ${env:SDKROOT}/usr/lib/swift/_foundation_unicode ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/_FoundationCShims ${env:SDKROOT}/usr/include/
           Move-Item ${env:SDKROOT}/usr/lib/swift/android/lib*.so ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/android/lib*.a ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/
+          Move-Item ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/Dispatch.swiftdoc ${env:SDKROOT}/usr/lib/swift/android/Dispatch.swiftmodule/${{ matrix.cpu }}-unknown-linux-android.swiftdoc
+          Move-Item ${env:SDKROOT}/usr/lib/swift/android/${{ matrix.cpu }}/Dispatch.swiftmodule ${env:SDKROOT}/usr/lib/swift/android/Dispatch.swiftmodule/${{ matrix.cpu }}-unknown-linux-android.swiftmodule
           Get-ChildItem -Recurse -Force ${env:SDKROOT} | ForEach-Object { $_.FullName }
 
       # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
@@ -3351,9 +3354,10 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk `"${env:SDKROOT}`" -Xclang-linker --sysroot -Xclang-linker `"$NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot`" -Xclang-linker -resource-dir -Xclang-linker `"${NDKPATH}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17`" -Xcc `"-I${env:SDKROOT}/usr/include`" -Xcc `"-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror`" -L ${{ github.workspace }}/BinaryCache/swift/lib/swift/android -g" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} -L$NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17/lib/linux/${{ matrix.cpu }} -Xclang-linker -resource-dir -Xclang-linker $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/17 -Xcc -I${env:SDKROOT}/usr/include -I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                -D CMAKE_BUILD_WITH_INSTALL_RPATH=YES `
                 -D CMAKE_ANDROID_NDK=$NDKPATH `
                 ${{ matrix.linker_flags }} `
                 ${{ matrix.extra_flags }} `
