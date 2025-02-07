@@ -3267,6 +3267,17 @@ jobs:
     name: ${{ matrix.os }} ${{ matrix.arch }} Debugging Tools
 
     steps:
+      - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        with:
+          host_arch: ${{ inputs.build_arch }}
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
@@ -3299,17 +3310,8 @@ jobs:
           show-progress: false
 
       - run: |
-          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
-          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
           $SDKRoot = cygpath -w "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
-        with:
-          host_arch: ${{ inputs.build_arch }}
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
 
       - run: |
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
@@ -3333,11 +3335,9 @@ jobs:
         with:
           name: Windows-sdk-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
-
-      - uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+      - run: |
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Configure swift-inspect
         run: |
