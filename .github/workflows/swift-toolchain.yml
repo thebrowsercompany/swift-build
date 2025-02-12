@@ -1085,7 +1085,7 @@ jobs:
                 -D CMAKE_Swift_FLAGS="${{ steps.setup-context.outputs.swiftflags }}" `
                 ${{ matrix.cmake_linker_flags }} `
                 -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 ${{ steps.setup-context.outputs.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
@@ -1141,9 +1141,9 @@ jobs:
       - name: Copy cmark-gfm shared libraries
         run: |
           if ("${{ matrix.os }}" -eq "Windows") {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin"
           } else {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/lib/swift/host/compiler"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/lib/swift/host/compiler"
           }
 
       - uses: actions/setup-python@v5
@@ -1155,7 +1155,7 @@ jobs:
             from datetime import datetime
 
             now = datetime.now()
-            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/ToolchainInfo.plist'
+            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/ToolchainInfo.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
               plistlib.dump({ 'Identifier': 'org.compnerd.dt.toolchain.{0}.{1}-asserts'.format(now.strftime('%Y%m%d'), now.timetuple().tm_hour % 6) }, plist)
 
@@ -1168,7 +1168,7 @@ jobs:
       - name: Extract swift-syntax
         run: |
           New-Item -Path ${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host -ItemType Directory | Out-Null
-          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain"
+          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain"
           if ("${{ matrix.os }}" -eq "Windows") {
             $bindir = cygpath -m "${{ github.workspace }}/BinaryCache/1"
             Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib"
@@ -1630,7 +1630,7 @@ jobs:
             os: Windows
             llvm_flags:
             linker_flags: '-D CMAKE_EXE_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}" -D CMAKE_SHARED_LINKER_FLAGS="${{ inputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}"'
-            extra_flags: 
+            extra_flags:
 
           - arch: arm64
             cpu: 'aarch64'
@@ -1774,9 +1774,9 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           # NOTE: used by `matrix.cc`
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
 
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
           if ("${{ matrix.os }}" -eq "Android") {
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
             # Since win/arm64 doesn't have one, this logic is necessary because
@@ -1825,7 +1825,7 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
                 -D SWIFT_ENABLE_VOLATILE=YES `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin `
                 -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
                 -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
                 -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing
@@ -1945,11 +1945,11 @@ jobs:
       - name: Configure Foundation Macros
         run: |
           $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-foundation-macros `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ inputs.CMAKE_Swift_FLAGS }}" `
@@ -1965,11 +1965,11 @@ jobs:
       - name: Configure Testing Macros
         run: |
           $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-testing-macros `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ inputs.CMAKE_Swift_FLAGS }}" `
@@ -2225,8 +2225,8 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           if ("${{ matrix.os }}" -eq "Android") {
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -2280,8 +2280,8 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           if ("${{ matrix.os }}" -eq "Android") {
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -2340,7 +2340,7 @@ jobs:
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
                 -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr/lib/cmake/CURL `
                 -D FOUNDATION_BUILD_TOOLS=${build_tools} `
-                -D Foundation_MACRO=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin `
+                -D Foundation_MACRO=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin `
                 -D ENABLE_TESTING=NO `
                 -D _SwiftFoundation_SourceDIR=$SWIFT_FOUNDATION_SOURCE_DIR `
                 -D _SwiftFoundationICU_SourceDIR=$SWIFT_FOUNDATION_ICU_SOURCE_DIR `
@@ -2348,7 +2348,7 @@ jobs:
                 -D LibXml2_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }} `
                 -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr `
                 -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/$LIBZ `
-                -D SwiftFoundation_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin
+                -D SwiftFoundation_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin
       - name: Build foundation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -2359,8 +2359,8 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           if ("${{ matrix.os }}" -eq "Android") {
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -2389,7 +2389,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-0.0.0/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
                 -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
@@ -2414,8 +2414,8 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           if ("${{ matrix.os }}" -eq "Android") {
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -2444,7 +2444,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-0.0.0/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
                 -D CMAKE_Swift_FLAGS="-package-name swift_testing -resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }} ${OVERLAY_FLAGS} ${{ matrix.swiftflags }}" `
@@ -2459,7 +2459,7 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/swift-testing `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
                 -D Foundation_DIR=${{ github.workspace }}/BinaryCache/foundation/cmake/modules `
-                -D SwiftTesting_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/TestingMacros.dll
+                -D SwiftTesting_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/TestingMacros.dll
       - name: Build Testing
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -2493,7 +2493,7 @@ jobs:
             info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Info.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
               # TODO(compnerd) derive this from the install directory
-              plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': 'development', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
+              plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '0.0.0', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
 
             sdk_settings_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.plist'
             with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
@@ -2727,8 +2727,8 @@ jobs:
       - name: Configure swift-argument-parser
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-argument-parser `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2740,7 +2740,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2757,8 +2757,8 @@ jobs:
       - name: Configure swift-collections
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-collections `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2770,7 +2770,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2787,7 +2787,7 @@ jobs:
       - name: Configure swift-crypto
         run: |
           # Workaround CMake 3.20 issue
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-crypto `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2799,7 +2799,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2816,7 +2816,7 @@ jobs:
       - name: Configure swift-llbuild
         run: |
           # Workaround CMake 3.20 issue
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-llbuild `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2828,7 +2828,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=cl `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2848,8 +2848,8 @@ jobs:
       - name: Configure swift-system
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-system `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2861,7 +2861,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2878,8 +2878,8 @@ jobs:
       - name: Configure swift-tools-support-core
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-tools-support-core `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2891,7 +2891,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2911,8 +2911,8 @@ jobs:
       - name: Configure swift-driver
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-driver `
                 -D BUILD_SHARED_LIBS=YES `
@@ -2924,7 +2924,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -2947,8 +2947,8 @@ jobs:
       - name: Configure swift-asn1
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-asn1 `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2969,8 +2969,8 @@ jobs:
       - name: Configure swift-certificates
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-certificates `
                 -D BUILD_SHARED_LIBS=NO `
@@ -2999,8 +2999,8 @@ jobs:
       - name: Configure swift-package-manager
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-package-manager `
                 -D BUILD_SHARED_LIBS=YES `
@@ -3012,7 +3012,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -3041,13 +3041,13 @@ jobs:
       - name: Configure Markdown
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-markdown `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
@@ -3072,13 +3072,13 @@ jobs:
       - name: Configure Format
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-format `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
@@ -3102,13 +3102,13 @@ jobs:
       - name: Configure swift-lmdb
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/swift-lmdb `
                 -D BUILD_SHARED_LIBS=NO `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_C_COMPILER=${CLANG_CL} `
                 -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
@@ -3123,8 +3123,8 @@ jobs:
       - name: Configure IndexStoreDB
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/indexstore-db `
                 -D BUILD_SHARED_LIBS=NO `
@@ -3136,7 +3136,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }} -I${env:SDKROOT}/usr/include -I${env:SDKROOT}/usr/include/Block" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -3154,8 +3154,8 @@ jobs:
       - name: Configure SourceKit-LSP
         run: |
           # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/sourcekit-lsp `
                 -D BUILD_SHARED_LIBS=YES `
@@ -3167,7 +3167,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${CLANG_CL} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -3331,11 +3331,11 @@ jobs:
 
       - name: Configure swift-inspect
         run: |
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/swiftc.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr/bin/swiftc.exe
 
           cmake -B ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect `
                 -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
@@ -3434,7 +3434,7 @@ jobs:
           $BuildSuffix = if ("${{ inputs.build_arch }}" -eq "arm64") { "-arm64" } else { "" }
           # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
           msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release -p:Platform=$HostMSArch
-          $ToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\unknown-Asserts-development.xctoolchain\usr\bin"
+          $ToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\unknown-Asserts-0.0.0.xctoolchain\usr\bin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
             -Destination "$ToolchainBin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
@@ -3474,7 +3474,7 @@ jobs:
               -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain `
               -p:ENABLE_MIMALLOC=true `
               -p:WORKAROUND_MIMALLOC_ISSUE_997=$WORKAROUND_MIMALLOC_ISSUE_997 `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -3489,7 +3489,7 @@ jobs:
               -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/cli.wixproj
@@ -3502,7 +3502,7 @@ jobs:
               -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/dbg.wixproj
@@ -3515,7 +3515,7 @@ jobs:
               -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain `
+              -p:TOOLCHAIN_ROOT=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-0.0.0.xctoolchain `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/ide.wixproj
