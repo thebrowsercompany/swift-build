@@ -1213,6 +1213,118 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
           searchPattern: '**/*.exe'
 
+  sanitizers:
+    # TODO: Build this on macOS or make an equivalent Mac-only job
+    if: inputs.build_os == 'Windows'
+    runs-on: ${{ inputs.default_build_runner }}
+    needs: [compilers]
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.target_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Sanitizers
+
+    steps:
+      - name: Download Compilers
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: compilers-Windows-${{ inputs.build_arch }}
+          path: ${{ github.workspace }}/BinaryCache/Library
+
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/llvm-project
+          ref: ${{ inputs.llvm_project_revision }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+          show-progress: false
+
+      - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        with:
+          host_arch: ${{ inputs.build_arch }}
+          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          arch: ${{ matrix.arch }}
+
+      - uses: nttld/setup-ndk@v1
+        if: matrix.os == 'Android' && inputs.build_android
+        id: setup-ndk
+        with:
+          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        with:
+          max-size: 500M
+          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sanitizers
+          variant: sccache
+
+      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
+
+      - name: Configure Sanitizers
+        run: |
+          if ("${{ matrix.os }}" -eq "Android") {
+            $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
+            if ( "${{ inputs.build_os }}" -eq "Windows" ) {
+              $NDKPATH = cygpath -m $NDKPATH
+            }
+            # Since win/arm64 doesn't have one, this logic is necessary because
+            # passing an empty CMAKE_ANDROID_NDK value causes a failure.
+            $CMAKE_NDK_FLAG = "-DCMAKE_ANDROID_NDK=$NDKPATH"
+            $CC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang.exe
+            $EXE_LINKER_FLAGS = "-DCMAKE_EXE_LINKER_FLAGS=-latomic"
+            $SHARED_LINKER_FLAGS = "-DCMAKE_SHARED_LINKER_FLAGS=-latomic"
+          } else {
+            $CC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr/bin/clang-cl.exe
+          }
+          cmake -B "${{ github.workspace }}/BinaryCache/${{ matrix.os }}-${{ matrix.arch }}-sanitzers" `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_ASM_COMPILER=${CC} `
+                -D CMAKE_C_COMPILER=${CC} `
+                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
+                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
+                -D CMAKE_C_COMPILER_TARGET="${{ matrix.triple }}" `
+                -D CMAKE_CXX_COMPILER=${CC} `
+                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
+                -D CMAKE_CXX_COMPILER_TARGET="${{ matrix.triple }}" `
+                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/unknown-Asserts-development.xctoolchain/usr `
+                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
+                -D CMAKE_SHARED_LINKER_FLAGS=${LINKER_FLAGS} `
+                $EXE_LINKER_FLAGS `
+                $SHARED_LINKER_FLAGS `
+                $CMAKE_NDK_FLAG `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/llvm-project/compiler-rt `
+                -D COMPILER_RT_DEFAULT_TARGET_ONLY=YES `
+                -D COMPILER_RT_BUILD_BUILTINS=NO `
+                -D COMPILER_RT_BUILD_CRT=NO `
+                -D COMPILER_RT_BUILD_LIBFUZZER=NO `
+                -D COMPILER_RT_BUILD_ORC=NO `
+                -D COMPILER_RT_BUILD_PROFILE=YES `
+                -D COMPILER_RT_BUILD_SANITIZERS=YES `
+                -D COMPILER_RT_BUILD_XRAY=NO
+      - name: Build Sanitizers
+        run: cmake --build ${{ github.workspace }}/BinaryCache/${{ matrix.os }}-${{ matrix.arch }}-sanitzers
+      - name: Install Sanitizers
+        run: cmake --build ${{ github.workspace }}/BinaryCache/${{ matrix.os }}-${{ matrix.arch }}-sanitzers --target install-compiler-rt-stripped
+
+      - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+        with:
+          name: sanitizers-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ github.workspace }}/BuildRoot/Library
+
   zlib:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1683,6 +1795,7 @@ jobs:
         with:
           name: compilers-Windows-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
+
       - uses: actions/checkout@v4
         with:
           repository: swiftlang/llvm-project
