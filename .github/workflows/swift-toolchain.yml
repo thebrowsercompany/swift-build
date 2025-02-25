@@ -2277,6 +2277,13 @@ jobs:
 
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
+          $XCTestBinDir = switch ("${{ matrix.cpu }}") {
+          "armv7" { "bin32a" }
+          "i686" { "bin32" }
+          "x86_64" { "bin64" }
+          "aarch64" { "bin64a" }
+          }
+
           cmake -B ${{ github.workspace }}/BinaryCache/xctest `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -2287,6 +2294,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
+                -D CMAKE_INSTALL_BINDIR=$XCTestBinDir `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
@@ -2335,6 +2343,13 @@ jobs:
 
           $CMAKE_CPU = if ("${{ matrix.cpu }}" -eq "armv7") { "armv7-a" } else { "${{ matrix.cpu }}" }
 
+          $TestingBinDir = switch ("${{ matrix.cpu }}") {
+          "armv7" { "bin32a" }
+          "i686" { "bin32" }
+          "x86_64" { "bin64" }
+          "aarch64" { "bin64a" }
+          }
+
           cmake -B ${{ github.workspace }}/BinaryCache/testing `
                 -D BUILD_SHARED_LIBS=YES `
                 -D CMAKE_BUILD_TYPE=Release `
@@ -2342,6 +2357,7 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
+                -D CMAKE_INSTALL_BINDIR=$TestingBinDir `
                 -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr `
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
@@ -2367,10 +2383,25 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/testing --target install
+      - name: Testing Install Fixup
+        if: matrix.os != 'Android' || inputs.build_android
+        run: |
+          $OS = "${{ matrix.os }}".ToLowerInvariant()
+          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/${{ matrix.cpu }}" -Force -ErrorAction Ignore | Out-Null
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/Testing.lib" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/Testing.lib"
       - name: Install xctest
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/xctest --target install
+      - name: XCTest Install Fixup
+        if: matrix.os != 'Android' || inputs.build_android
+        run: |
+          $OS = "${{ matrix.os }}".ToLowerInvariant()
+          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}" -Force -ErrorAction Ignore | Out-Null
+          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.swiftmodule" -Force -ErrorAction Ignore | Out-Null
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.lib" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/XCTest.lib"
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/XCTest.swiftdoc" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.swiftmodule/${{ matrix.triple_no_api_level }}.swiftdoc"
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/XCTest.swiftmodule" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.swiftmodule/${{ matrix.triple_no_api_level }}.swiftmodule"
       - name: Install foundation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
