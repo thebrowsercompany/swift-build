@@ -3,6 +3,12 @@ name: Development Snapshot
 on:
   workflow_dispatch:
     inputs:
+      repo_url:
+        description: 'Repo Manifest URL'
+        default: 'https://github.com/compnerd/swift-build'
+        required: false
+        type: string
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -47,6 +53,12 @@ on:
         required: false
         default: false
         type: boolean
+
+      stable_point:
+        description: 'Use Repo Smart Sync'
+        type: boolean
+        default: false
+        required: false
 
   workflow_call:
     inputs:
@@ -227,7 +239,7 @@ jobs:
             branch_name="release/$branch_version_string"
           fi
 
-          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
+          repo init --quiet --groups default --depth 1 -u ${{ inputs.repo_url }} -b $branch_name
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
           if [[ "${{ inputs.swift_tag }}" != "" ]] ; then
