@@ -3,6 +3,12 @@ name: Development Snapshot
 on:
   workflow_dispatch:
     inputs:
+      repo_url:
+        description: 'Repo Manifest URL'
+        default: 'https://github.com/compnerd/swift-build'
+        required: false
+        type: string
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -48,8 +54,20 @@ on:
         default: false
         type: boolean
 
+      stable_point:
+        description: 'Use Repo Smart Sync'
+        type: boolean
+        default: false
+        required: false
+
   workflow_call:
     inputs:
+      repo_url:
+        description: 'Repo Manifest URL'
+        default: 'https://github.com/compnerd/swift-build'
+        required: false
+        type: string
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -119,6 +137,12 @@ on:
         required: false
         default: false
         type: boolean
+
+      stable_point:
+        description: 'Use Repo Smart Sync'
+        type: boolean
+        default: false
+        required: false
 
     secrets:
       SYMBOL_SERVER_PAT:
@@ -227,8 +251,12 @@ jobs:
             branch_name="release/$branch_version_string"
           fi
 
-          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
-          repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
+          repo init --quiet --groups default --depth 1 -u ${{ inputs.repo_url }} -b $branch_name
+          if [[ "${{ inputs.stable_pointer }}" == "true" ]]; then
+            repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all) -s
+          else
+            repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
+          fi
 
           if [[ "${{ inputs.swift_tag }}" != "" ]] ; then
             tee -a "${GITHUB_OUTPUT}" <<-EOF
