@@ -353,7 +353,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sqlite-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
@@ -407,7 +407,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: inputs.build_android
         with:
-          name: windows-regsgen2
+          name: Windows-${{ inputs.build_os }}-regsgen2
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
 
@@ -482,7 +482,7 @@ jobs:
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
-          name: windows-regsgen2
+          name: Windows-${{ inputs.build_os }}-regsgen2
           path: ${{ github.workspace }}/BinaryCache/RegsGen2
 
       - uses: nttld/setup-ndk@v1
@@ -521,7 +521,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: inputs.build_android
         with:
-          name: ds2-${{ matrix.os }}-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-ds2
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
@@ -592,7 +592,7 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }} --target install
       - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
   build_tools:
@@ -608,7 +608,7 @@ jobs:
     steps:
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
@@ -730,7 +730,7 @@ jobs:
 
       - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: build-tools-${{ matrix.os }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-build-tools
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
@@ -831,7 +831,7 @@ jobs:
 
       - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: early-swift-driver-${{ matrix.os }}-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
           path: ${{ github.workspace }}/BuildRoot
 
   compilers:
@@ -855,19 +855,19 @@ jobs:
     steps:
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: build-tools-${{ matrix.os }}
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
           path: ${{ github.workspace }}/BinaryCache/0/bin
       - uses: actions/download-artifact@v4
         with:
-          name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.libxml2_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: cmark-gfm-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: early-swift-driver-${{ inputs.build_os }}-${{ inputs.build_arch }}
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
           path: ${{ github.workspace }}/BinaryCache/swift-driver
 
       - uses: actions/checkout@v4
@@ -1149,7 +1149,7 @@ jobs:
       - name: Upload Compilers
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: compilers-${{ matrix.os }}-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-compilers
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Extract swift-syntax
@@ -1175,14 +1175,14 @@ jobs:
       - name: Upload swift-syntax
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: swift-syntax-${{matrix.os }}-${{ matrix.arch }}
+          name: ${{matrix.os }}-${{ matrix.arch }}-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
 
       # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
       - uses: actions/upload-artifact@v4
         if: false # ${{ inputs.debug_info }}
         with:
-          name: compilers-${{ matrix.os }}-${{ matrix.arch }}-debug-info
+          name: ${{ matrix.os }}-${{ matrix.arch }}-compilers-debug-info
           path: |
             ${{ github.workspace }}/BinaryCache/1/**/*.pdb
 
@@ -1298,7 +1298,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.zlib_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   curl:
@@ -1321,7 +1321,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.zlib_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
@@ -1469,7 +1469,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: curl-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.curl_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
@@ -1564,7 +1564,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.libxml2_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   stdlib:
@@ -1582,7 +1582,7 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-${{ inputs.build_os }}-${{ inputs.build_arch }}
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/checkout@v4
         if: matrix.os != 'Android' || inputs.build_android
@@ -1747,13 +1747,13 @@ jobs:
       - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: stdlib-${{ matrix.os }}-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'Windows'
         with:
-          name: windows-vfs-overlay-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-vfs-overlay
           path: ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
 
       - name: Upload PDBs to Azure
@@ -1790,25 +1790,25 @@ jobs:
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download swift-syntax
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: swift-syntax-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: stdlib-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         if: matrix.arch == 'arm64'
         with:
-          name: stdlib-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
-          name: windows-vfs-overlay-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-vfs-overlay
           path: ${{ github.workspace }}/BinaryCache/swift/stdlib
       - uses: actions/checkout@v4
         with:
@@ -1893,7 +1893,7 @@ jobs:
       - name: Upload macros
         uses: actions/upload-artifact@v4
         with:
-          name: macros-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-macros
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Upload PDBs to Azure
@@ -2021,44 +2021,44 @@ jobs:
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: libxml2-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.libxml2_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: curl-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.curl_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: zlib-${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.zlib_version }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: stdlib-${{ matrix.os }}-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: stdlib-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         if: matrix.os == 'Windows'
         with:
-          name: windows-vfs-overlay-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-vfs-overlay
           path: ${{ github.workspace }}/BinaryCache/swift/stdlib
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: macros-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-macros
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/checkout@v4
         if: matrix.os != 'Android' || inputs.build_android
@@ -2473,7 +2473,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: ${{ matrix.os }}-sdk-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
 
       - name: Upload PDBs to Azure
@@ -2509,33 +2509,33 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: sqlite-Windows-${{ matrix.arch }}-${{ inputs.swift_toolchain_sqlite_version }}
+          name: Windows-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: stdlib-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: macros-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-macros
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: swift-syntax-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: cmark-gfm-Windows-${{ matrix.arch }}-${{ inputs.swift_cmark_version }}
+          name: Windows-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
       - uses: actions/checkout@v4
@@ -2668,11 +2668,11 @@ jobs:
       # Download host libraries for the windows amd64 host, after moving the target libraries to the target-specific directory.
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: stdlib-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
       - name: Configure swift-argument-parser
@@ -3164,12 +3164,12 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: devtools-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-devtools
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - uses: actions/upload-artifact@v4
         with:
-          name: swift-argument-parser-Windows-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-swift-argument-parser
           path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
       - name: Upload PDBs to Azure
@@ -3215,23 +3215,23 @@ jobs:
       - name: Download swift-argument-parser
         uses: actions/download-artifact@v4
         with:
-          name: swift-argument-parser-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-swift-argument-parser
           path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download stdlib
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: stdlib-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download SDK
         uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
       - uses: actions/checkout@v4
@@ -3274,11 +3274,11 @@ jobs:
       # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: stdlib-Windows-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
       - name: Configure swift-inspect
@@ -3306,7 +3306,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: debugging_tools-${{ matrix.arch }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
@@ -3325,25 +3325,25 @@ jobs:
       - name: Download Debugging Tools
         uses: actions/download-artifact@v4
         with:
-          name: debugging_tools-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-compilers
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download Developer Tools
         uses: actions/download-artifact@v4
         with:
-          name: devtools-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-devtools
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download Macros
         uses: actions/download-artifact@v4
         with:
-          name: macros-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-macros
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - uses: actions/checkout@v4
@@ -3474,28 +3474,28 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bld-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-bld-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.cab
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cli-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-cli-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.cab
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dbg-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-dbg-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.cab
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ide-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-ide-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.cab
@@ -3521,11 +3521,11 @@ jobs:
     steps:
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: stdlib-Windows-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-sdk-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
 
       - uses: actions/checkout@v4
@@ -3586,19 +3586,19 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sdk-windows-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-sdk-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.windows.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/sdk.windows.${{ matrix.arch }}.cab
       - uses: actions/upload-artifact@v4
         with:
-          name: rtl-windows-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-rtl-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
       - uses: actions/upload-artifact@v4
         with:
-          name: rtl-windows-${{ matrix.arch }}-msm
+          name: Windows-${{ matrix.arch }}-rtl-msm
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msm
 
@@ -3630,18 +3630,18 @@ jobs:
         # There is currently no Android NDK for Windows ARM64 so build Android only on Windows X64 host only
         if: inputs.build_android
         with:
-          name: stdlib-Android-${{ matrix.arch }}
+          name: Android-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
-          name: Android-sdk-${{ matrix.arch }}
+          name: Android-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
 
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
-          name: ds2-Android-${{ matrix.arch }}
+          name: Android-${{ matrix.arch }}-ds2
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library/${{ matrix.triple_no_api_level }}
 
       - uses: actions/checkout@v4
@@ -3700,7 +3700,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: inputs.build_android
         with:
-          name: sdk-android-${{ matrix.arch }}-msi
+          name: Android-${{ matrix.arch }}-sdk-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.msarch }}/sdk.android.${{ matrix.msarch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.msarch }}/sdk.android.${{ matrix.msarch }}.cab
@@ -3718,69 +3718,69 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: bld-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-bld-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
-          name: cli-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-cli-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
-          name: dbg-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-dbg-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
-          name: ide-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-ide-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
       - uses: actions/download-artifact@v4
         with:
-          name: rtl-windows-${{ matrix.arch }}-msi
+          name: Windows-${{ matrix.arch }}-rtl-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
-          name: rtl-windows-amd64-msm
+          name: Windows-amd64-rtl-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/amd64
       - uses: actions/download-artifact@v4
         with:
-          name: rtl-windows-x86-msm
+          name: Windows-x86-rtl-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/x86
       - uses: actions/download-artifact@v4
         with:
-          name: rtl-windows-arm64-msm
+          name: Windows-arm64-rtl-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
 
       - uses: actions/download-artifact@v4
         with:
-          name: sdk-windows-amd64-msi
+          name: Windows-amd64-sdk-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/amd64
       - uses: actions/download-artifact@v4
         with:
-          name: sdk-windows-x86-msi
+          name: Windows-x86-sdk-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/x86
       - uses: actions/download-artifact@v4
         with:
-          name: sdk-windows-arm64-msi
+          name: Windows-arm64-sdk-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
-          name: sdk-android-arm64-msi
+          name: Android-arm64-sdk-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/aarch64
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
-          name: sdk-android-x86_64-msi
+          name: Android-x86_64-sdk-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/x86_64
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
-          name: sdk-android-armv7-msi
+          name: Android-armv7-sdk-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/armv7
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
-          name: sdk-android-i686-msi
+          name: Android-i686-sdk-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/i686
 
       - uses: actions/checkout@v4
@@ -3841,7 +3841,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: installer-${{ matrix.arch }}
+          name: Windows-${{ matrix.arch }}-installer
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
   smoke_test:
@@ -3853,7 +3853,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: installer-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-installer
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
@@ -3918,7 +3918,7 @@ jobs:
       - name: Download Swift SDK
         uses: actions/download-artifact@v4
         with:
-          name: installer-${{ inputs.build_arch }}
+          name: Windows-${{ inputs.build_arch }}-installer
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
