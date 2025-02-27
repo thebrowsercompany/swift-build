@@ -850,7 +850,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.host_matrix) }}
 
-    name: ${{ matrix.os }} ${{ matrix.arch }} Toolchain
+    name: ${{ matrix.variant }} ${{ matrix.os }} ${{ matrix.arch }} Toolchain
 
     steps:
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -1080,6 +1080,7 @@ jobs:
                 -D CLANG_TIDY_CONFUSABLE_CHARS_GEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}" `
                 -D LLDB_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}" `
                 -D LLVM_CONFIG_PATH="${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}" `
+                -D LLVM_ENABLE_ASSERTIONS=${{ matrix.variant == 'Asserts' && 'YES' || 'NO' }} `
                 -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
                 -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
                 -D LLVM_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}" `
@@ -1149,7 +1150,7 @@ jobs:
       - name: Upload Compilers
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: compilers-${{ matrix.os }}-${{ matrix.arch }}
+          name: compilers-${{ matrix.variant}}-${{ matrix.os }}-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Extract swift-syntax
@@ -1182,7 +1183,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: false # ${{ inputs.debug_info }}
         with:
-          name: compilers-${{ matrix.os }}-${{ matrix.arch }}-debug-info
+          name: compilers-${{ matrix.variant}}-${{ matrix.os }}-${{ matrix.arch }}-debug-info
           path: |
             ${{ github.workspace }}/BinaryCache/1/**/*.pdb
 
@@ -1581,7 +1582,7 @@ jobs:
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-${{ inputs.build_os }}-${{ inputs.build_arch }}
+          name: compilers-Asserts-${{ inputs.build_os }}-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/checkout@v4
         with:
@@ -1784,7 +1785,7 @@ jobs:
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: compilers-Asserts-Windows-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download swift-syntax
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -2031,7 +2032,7 @@ jobs:
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: compilers-Asserts-Windows-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
@@ -2493,7 +2494,7 @@ jobs:
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: compilers-Asserts-Windows-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
         with:
@@ -3199,7 +3200,7 @@ jobs:
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ inputs.build_arch }}
+          name: compilers-Asserts-Windows-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - name: Download stdlib
         uses: actions/download-artifact@v4
@@ -3309,7 +3310,7 @@ jobs:
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: compilers-Windows-${{ matrix.arch }}
+          name: compilers-Asserts-Windows-${{ matrix.arch }}
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download Developer Tools
