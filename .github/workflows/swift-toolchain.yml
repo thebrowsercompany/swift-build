@@ -1579,29 +1579,34 @@ jobs:
 
     steps:
       - name: Download Compilers
+        if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: compilers-${{ inputs.build_os }}-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: swiftlang/llvm-project
           ref: ${{ inputs.llvm_project_revision }}
           path: ${{ github.workspace }}/SourceCache/llvm-project
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: swiftlang/swift
           ref: ${{ inputs.swift_revision }}
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: swiftlang/swift-experimental-string-processing
           ref: ${{ inputs.swift_experimental_string_processing_revision }}
@@ -1609,7 +1614,7 @@ jobs:
           show-progress: false
 
       - name: Install Swift Toolchain
-        if: inputs.build_os == 'Windows'
+        if: inputs.build_os == 'Windows' && (matrix.os != 'Android' || inputs.build_android)
         uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
         with:
           github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
@@ -1625,6 +1630,7 @@ jobs:
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
@@ -2029,6 +2035,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
       - name: Download Compilers
+        if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: compilers-Windows-${{ inputs.build_arch }}
@@ -2039,6 +2046,7 @@ jobs:
           name: stdlib-${{ matrix.os }}-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           name: stdlib-Windows-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
@@ -2048,53 +2056,63 @@ jobs:
           name: windows-vfs-overlay-${{ matrix.arch }}
           path: ${{ github.workspace }}/BinaryCache/swift/stdlib
       - uses: actions/download-artifact@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           name: macros-${{ inputs.build_arch }}
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: apple/swift-corelibs-foundation
           ref: ${{ inputs.swift_corelibs_foundation_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: apple/swift-foundation
           ref: ${{ inputs.swift_foundation_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-foundation
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: apple/swift-foundation-icu
           ref: ${{ inputs.swift_foundation_icu_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: apple/swift-collections
           ref: ${{ inputs.swift_collections_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-collections
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: swiftlang/swift-corelibs-xctest
           ref: ${{ inputs.swift_corelibs_xctest_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
           show-progress: false
       - uses: actions/checkout@v4
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           repository: swiftlang/swift-testing
           ref: ${{ inputs.swift_testing_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-testing
           show-progress: false
 
-      - run: |
+      - name: Setup environment
+        if: matrix.os != 'Android' || inputs.build_android
+        run: |
           $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
@@ -2103,6 +2121,7 @@ jobs:
 
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
@@ -2110,6 +2129,7 @@ jobs:
 
       # FIXME(compnerd): workaround CMake 3.29-3.30 issue
       - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           cmakeVersion: 3.28.6
 
@@ -2430,7 +2450,9 @@ jobs:
               # runtime.
               plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
 
-      - run: |
+      - name: Create SDKSettings.json
+        if: matrix.os != 'Android' || inputs.build_android
+        run: |
           $SDKSettings = @{
             CanonicalName = "${{ matrix.triple }}"
             DisplayName = "${{ matrix.os }}"
