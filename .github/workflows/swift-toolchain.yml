@@ -276,6 +276,10 @@ env:
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: swift-6.0.0-20241216.0
 
+  # Workaround for issues with building with SDK version 26100.
+  # See https://github.com/compnerd/swift-build/issues/909 for details.
+  WORKAROUND_WINDOWS_SDK_VERSION: 10.0.22621.0
+
 defaults:
   run:
     shell: pwsh
@@ -308,6 +312,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -378,6 +383,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: amd64
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
       - uses: andrurogerz/ensure-chocolatey@v1
@@ -470,6 +476,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
       - uses: andrurogerz/ensure-chocolatey@v1
@@ -546,6 +553,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -629,6 +637,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -793,8 +802,17 @@ jobs:
       - name: Build early swift-driver
         run: |
           $env:SWIFTCI_USE_LOCAL_DEPS=1
-          $LinkerFlags = if ("${{ matrix.os }}" -eq "Windows") {
-            @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib")
+          $ExtraFlags = if ("${{ matrix.os }}" -eq "Windows") {
+              $Win10SdkRoot = Get-ItemPropertyValue `
+                -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+                -Name "KitsRoot10"
+              @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib",
+              "-Xswiftc", "-windows-sdk-version", "-Xswiftc", "${env:WORKAROUND_WINDOWS_SDK_VERSION}",
+              "-Xswiftc", "-windows-sdk-root", "-Xswiftc", "${Win10SdkRoot}",
+              "-Xbuild-tools-swiftc", "-windows-sdk-version", "-Xbuild-tools-swiftc", "${env:WORKAROUND_WINDOWS_SDK_VERSION}",
+              "-Xbuild-tools-swiftc", "-windows-sdk-root", "-Xbuild-tools-swiftc", "${Win10SdkRoot}",
+              "-Xswiftc", "-Xcc", "-Xswiftc", "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH",
+              "-Xcc", "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH")
           } else {
             @()
           }
@@ -804,7 +822,7 @@ jobs:
             --package-path ${{ github.workspace }}/SourceCache/swift-driver `
             --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
             --triple ${{ matrix.compiler_target }} `
-            @LinkerFlags
+            @ExtraFlags
 
       - name: Copy binaries
         run: |
@@ -939,6 +957,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1235,6 +1254,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1329,6 +1349,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1494,6 +1515,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1635,6 +1657,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1835,6 +1858,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
@@ -2126,6 +2150,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       # FIXME(compnerd): workaround CMake 3.29-3.30 issue
       - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
@@ -2647,6 +2672,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
@@ -3253,6 +3279,7 @@ jobs:
           host_arch: amd64
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
@@ -3358,6 +3385,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
@@ -3540,6 +3568,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
@@ -3658,6 +3687,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
@@ -3795,6 +3825,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
