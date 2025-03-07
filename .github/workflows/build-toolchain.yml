@@ -3,6 +3,12 @@ name: Development Snapshot
 on:
   workflow_dispatch:
     inputs:
+      repo_url:
+        description: 'Repo Manifest URL'
+        default: 'https://github.com/compnerd/swift-build'
+        required: false
+        type: string
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -47,6 +53,12 @@ on:
         required: false
         default: false
         type: boolean
+
+      stable_point:
+        description: 'Use Repo Smart Sync'
+        type: boolean
+        default: false
+        required: false
 
   workflow_call:
     inputs:
@@ -184,6 +196,7 @@ jobs:
       DARWIN_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.DARWIN_CMAKE_CXX_FLAGS }}
       DARWIN_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.DARWIN_CMAKE_EXE_LINKER_FLAGS }}
       DARWIN_CMAKE_SHARED_LINKER_FLAGS: ${{ steps.context.outputs.DARWIN_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_CLANG_VERSION: ${{ steps.context.outputs.ANDROID_CLANG_VERSION }}
       ANDROID_CMAKE_C_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_C_FLAGS }}
       ANDROID_CMAKE_CXX_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ steps.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
@@ -227,7 +240,7 @@ jobs:
             branch_name="release/$branch_version_string"
           fi
 
-          repo init --quiet --groups default --depth 1 -u https://github.com/compnerd/swift-build -b $branch_name
+          repo init --quiet --groups default --depth 1 -u ${{ inputs.repo_url }} -b $branch_name
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
           if [[ "${{ inputs.swift_tag }}" != "" ]] ; then
@@ -354,7 +367,8 @@ jobs:
           echo mac_build_runner=macos-latest >> ${GITHUB_OUTPUT}
 
           echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
-          echo ANDROID_NDK_VERSION=r26b >> ${GITHUB_OUTPUT}
+          echo ANDROID_NDK_VERSION=r27c >> ${GITHUB_OUTPUT}
+          echo ANDROID_CLANG_VERSION=18 >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         if: inputs.create_snapshot == true
@@ -800,6 +814,7 @@ jobs:
       WINDOWS_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
       WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
       WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_CLANG_VERSION: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
       ANDROID_CMAKE_C_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
       ANDROID_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
@@ -875,6 +890,7 @@ jobs:
       WINDOWS_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_CXX_FLAGS }}
       WINDOWS_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_EXE_LINKER_FLAGS }}
       WINDOWS_CMAKE_SHARED_LINKER_FLAGS: ${{ needs.context.outputs.WINDOWS_CMAKE_SHARED_LINKER_FLAGS }}
+      ANDROID_CLANG_VERSION: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
       ANDROID_CMAKE_C_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_C_FLAGS }}
       ANDROID_CMAKE_CXX_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_CXX_FLAGS }}
       ANDROID_CMAKE_EXE_LINKER_FLAGS: ${{ needs.context.outputs.ANDROID_CMAKE_EXE_LINKER_FLAGS }}
@@ -922,12 +938,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: installer-amd64
+          name: Windows-amd64-installer
           path: ${{ github.workspace }}/tmp/amd64
 
       - uses: actions/download-artifact@v4
         with:
-          name: installer-arm64
+          name: Windows-arm64-installer
           path: ${{ github.workspace }}/tmp/arm64
 
       - name: Create Release
