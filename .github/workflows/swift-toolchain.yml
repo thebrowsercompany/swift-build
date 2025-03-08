@@ -431,6 +431,7 @@ jobs:
             cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
             extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+            module_triple: aarch64-unknown-linux-android
 
           - arch: armv7
             cc: clang
@@ -439,6 +440,7 @@ jobs:
             cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
             extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
+            module_triple: armv7-unknown-linux-androideabi
 
           - arch: i686
             cc: clang
@@ -447,6 +449,7 @@ jobs:
             cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
             extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
+            module_triple: i686-unknown-linux-android
 
           - arch: x86_64
             cc: clang
@@ -455,6 +458,7 @@ jobs:
             cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
             extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
+            module_triple: x86_64-unknown-linux-android
 
     name: ${{ matrix.os }} ${{ matrix.arch }} ds2
 
@@ -507,8 +511,9 @@ jobs:
                 -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
                 -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
                 -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
+                -D DS2_PROGRAM_PREFIX="${{ matrix.module_triple }}-" `
                 -D DS2_REGSGEN2=${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BinaryCache/Library/Developer `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BinaryCache/Library/Developer/ds2/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 -D CMAKE_ANDROID_NDK=$NDKPATH `
                 ${{ matrix.extra_flags }} `
@@ -2411,8 +2416,9 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           $OS = "${{ matrix.os }}".ToLowerInvariant()
+          $Lib = if ("${{ matrix.os }}" -eq "Windows") { "Testing.lib" } else { "libTesting.so" }
           New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/${{ matrix.cpu }}" -Force -ErrorAction Ignore | Out-Null
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/Testing.lib" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/Testing.lib"
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/${Lib}" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/${Lib}"
       - name: Install xctest
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -2421,9 +2427,10 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           $OS = "${{ matrix.os }}".ToLowerInvariant()
+          $Lib = if ("${{ matrix.os }}" -eq "Windows") { "XCTest.lib" } else { "libXCTest.so" }
           New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}" -Force -ErrorAction Ignore | Out-Null
           New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.swiftmodule" -Force -ErrorAction Ignore | Out-Null
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.lib" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/XCTest.lib"
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${LIB}" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/${Lib}"
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/XCTest.swiftdoc" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.swiftmodule/${{ matrix.triple_no_api_level }}.swiftdoc"
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/${{ matrix.cpu }}/XCTest.swiftmodule" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-development/usr/lib/swift/${OS}/XCTest.swiftmodule/${{ matrix.triple_no_api_level }}.swiftmodule"
       - name: Install foundation
@@ -3643,7 +3650,7 @@ jobs:
         if: inputs.build_android
         with:
           name: Android-${{ matrix.arch }}-ds2
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library/${{ matrix.triple_no_api_level }}
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
 
       - uses: actions/checkout@v4
         if: inputs.build_android
