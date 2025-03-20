@@ -2339,7 +2339,8 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/swift-corelibs-xctest `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
                 -D Foundation_DIR=${{ github.workspace }}/BinaryCache/foundation/cmake/modules `
-                -D ENABLE_TESTING=NO
+                -D ENABLE_TESTING=NO `
+                -D XCTest_INSTALL_NESTED_SUBDIR=YES
       - name: Build xctest
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -2402,6 +2403,7 @@ jobs:
                 -S ${{ github.workspace }}/SourceCache/swift-testing `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules `
                 -D Foundation_DIR=${{ github.workspace }}/BinaryCache/foundation/cmake/modules `
+                -D SwiftTesting_INSTALL_NESTED_SUBDIR=YES `
                 -D SwiftTesting_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/TestingMacros.dll
       - name: Build Testing
         if: matrix.os != 'Android' || inputs.build_android
@@ -2412,24 +2414,10 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/testing --target install
-      - name: Testing Install Fixup
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          $OS = "${{ matrix.os }}".ToLowerInvariant()
-          $LIB = if ("${{ matrix.os }}" -eq "Windows") { "Testing.lib" } else { "libTesting.so" }
-          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-${{ inputs.swift_version }}/usr/lib/swift/${OS}/${{ matrix.cpu }}" -Force -ErrorAction Ignore | Out-Null
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-${{ inputs.swift_version }}/usr/lib/swift/${OS}/${LIB}" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/Testing-${{ inputs.swift_version }}/usr/lib/swift/${OS}/${{ matrix.cpu }}/"
       - name: Install xctest
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/xctest --target install
-      - name: XCTest Install Fixup
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          $OS = "${{ matrix.os }}".ToLowerInvariant()
-          $LIB = if ("${{ matrix.os }}" -eq "Windows") { "XCTest.lib" } else { "libXCTest.so" }
-          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-${{ inputs.swift_version }}/usr/lib/swift/${OS}/${{ matrix.cpu }}" -Force -ErrorAction Ignore | Out-Null
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-${{ inputs.swift_version }}/usr/lib/swift/${OS}/${LIB}" "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-${{ inputs.swift_version }}/usr/lib/swift/${OS}/${{ matrix.cpu }}/"
       - name: Install foundation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
