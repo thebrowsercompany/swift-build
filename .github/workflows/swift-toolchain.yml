@@ -280,6 +280,16 @@ env:
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: swift-6.0.0-20241216.0
 
+  # Workaround for issues with building with SDK version 26100.
+  # See https://github.com/compnerd/swift-build/issues/909 for details.
+  WORKAROUND_WINDOWS_SDK_VERSION: 10.0.22621.0
+  UNSUPPORTED_WINDOWS_SDK_VERSION: 10.0.26100.0
+
+  # Workaround for issues with building with MSVC 14.43.
+  # See https://github.com/swiftlang/swift/issues/79852 for details.
+  WORKAROUND_WINDOWS_COMPILER_VERSION: 14.42.34433
+  WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE: 14.42.17.12
+
 defaults:
   run:
     shell: pwsh
@@ -312,6 +322,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -382,6 +393,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: amd64
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
       - uses: andrurogerz/ensure-chocolatey@v1
@@ -478,6 +490,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
       - uses: andrurogerz/ensure-chocolatey@v1
@@ -555,6 +568,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -638,6 +652,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -799,11 +814,44 @@ jobs:
           release-asset-name: installer-${{ inputs.build_arch }}.exe
           release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
+      # This is a workaround for not being able to build with MSVC 14.43.
+      # See https://github.com/swiftlang/swift/issues/79852 for details.
+      - name: Install MSVC ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
+        if: matrix.os == 'Windows'
+        run: |
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $VsInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+          $InstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
+
       - name: Build early swift-driver
         run: |
           $env:SWIFTCI_USE_LOCAL_DEPS=1
-          $LinkerFlags = if ("${{ matrix.os }}" -eq "Windows") {
-            @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib")
+          $ExtraFlags = if ("${{ matrix.os }}" -eq "Windows") {
+              $Win10SdkRoot = Get-ItemPropertyValue `
+                -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+                -Name "KitsRoot10"
+              @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib",
+                "-Xswiftc", "-windows-sdk-version", "-Xswiftc", "${env:WORKAROUND_WINDOWS_SDK_VERSION}",
+                "-Xswiftc", "-windows-sdk-root", "-Xswiftc", "${Win10SdkRoot}",
+                "-Xbuild-tools-swiftc", "-windows-sdk-version", "-Xbuild-tools-swiftc", "${env:WORKAROUND_WINDOWS_SDK_VERSION}",
+                "-Xbuild-tools-swiftc", "-windows-sdk-root", "-Xbuild-tools-swiftc", "${Win10SdkRoot}",
+                "-Xswiftc", "-visualc-tools-version", "-Xswiftc", "${env:WORKAROUND_WINDOWS_COMPILER_VERSION}",
+                "-Xbuild-tools-swiftc", "-visualc-tools-version", "-Xbuild-tools-swiftc", "${env:WORKAROUND_WINDOWS_COMPILER_VERSION}",
+                "-Xcc", "-Xmicrosoft-visualc-tools-version", "-Xcc", "${env:WORKAROUND_WINDOWS_COMPILER_VERSION}",
+                "-Xcxx", "-Xmicrosoft-visualc-tools-version", "-Xcxx", "${env:WORKAROUND_WINDOWS_COMPILER_VERSION}"
+              )
           } else {
             @()
           }
@@ -813,7 +861,7 @@ jobs:
             --package-path ${{ github.workspace }}/SourceCache/swift-driver `
             --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
             --triple ${{ matrix.compiler_target }} `
-            @LinkerFlags
+            @ExtraFlags
 
       - name: Copy binaries
         run: |
@@ -943,11 +991,41 @@ jobs:
           echo "PYTHON_LOCATION_amd64=$env:pythonLocation" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ env.PYTHON_VERSION_WINDOWS }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      # This is a workaround for not being able to build with MSVC 14.43.
+      # See https://github.com/swiftlang/swift/issues/79852 for details.
+      - name: Install MSVC ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
+        if: matrix.os == 'Windows'
+        run: |
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $VsInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+          $InstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
+
+          # Delete the unsupported directory version in the `Lib` and `Include` directories.
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          Remove-Item -Path "${Win10SdkRoot}\Lib\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+          Remove-Item -Path "${Win10SdkRoot}\Include\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
+          toolset_version: ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1244,6 +1322,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1338,6 +1417,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1503,6 +1583,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1644,6 +1725,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1844,6 +1926,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
@@ -2128,6 +2211,34 @@ jobs:
           $SDKRoot = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      # This is a workaround for not being able to build with MSVC 14.43.
+      # See https://github.com/swiftlang/swift/issues/79852 for details.
+      - name: Install MSVC ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
+        if: matrix.os == 'Windows'
+        run: |
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $VsInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+          $InstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
+
+          # Delete the unsupported directory version in the `Lib` and `Include` directories.
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          Remove-Item -Path "${Win10SdkRoot}\Lib\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+          Remove-Item -Path "${Win10SdkRoot}\Include\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+
       # NOTE(compnerd): we execute unconditionally as we use CMake from VSDevEnv
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
         if: matrix.os != 'Android' || inputs.build_android
@@ -2135,6 +2246,8 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
+          toolset_version: ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
 
       # FIXME(compnerd): workaround CMake 3.29-3.30 issue
       - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
@@ -2638,11 +2751,40 @@ jobs:
           $SDKRoot = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      # This is a workaround for not being able to build with MSVC 14.43.
+      # See https://github.com/swiftlang/swift/issues/79852 for details.
+      - name: Install MSVC ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
+        if: matrix.os == 'Windows'
+        run: |
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $VsInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+          $InstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
+
+          # Delete the unsupported directory version in the `Lib` and `Include` directories.
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          Remove-Item -Path "${Win10SdkRoot}\Lib\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+          Remove-Item -Path "${Win10SdkRoot}\Include\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
@@ -3244,11 +3386,40 @@ jobs:
           $SDKRoot = cygpath -w "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      # This is a workaround for not being able to build with MSVC 14.43.
+      # See https://github.com/swiftlang/swift/issues/79852 for details.
+      - name: Install MSVC ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
+        if: matrix.os == 'Windows'
+        run: |
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $VsInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+          $InstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
+
+          # Delete the unsupported directory version in the `Lib` and `Include` directories.
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          Remove-Item -Path "${Win10SdkRoot}\Lib\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+          Remove-Item -Path "${Win10SdkRoot}\Include\${env:UNSUPPORTED_WINDOWS_SDK_VERSION}" -Recurse -Force -ErrorAction Ignore
+
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
         with:
           host_arch: amd64
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           Move-Item ${env:SDKROOT}/usr/lib/swift/dispatch ${env:SDKROOT}/usr/include/
@@ -3354,6 +3525,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
@@ -3533,6 +3705,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
@@ -3658,6 +3831,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
@@ -3673,6 +3847,13 @@ jobs:
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
+
+      - run: |
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/dispatch ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/os ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/Block ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include
 
       - name: Package SDK
         if: inputs.build_android
@@ -3793,6 +3974,7 @@ jobs:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
+          winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
