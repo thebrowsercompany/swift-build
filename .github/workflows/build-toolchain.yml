@@ -223,11 +223,14 @@ jobs:
       mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
       windows_arm64_build_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_build_matrix }}
       windows_arm64_host_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_host_matrix }}
+      windows_arm64_compilers_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_compilers_matrix }}
       windows_arm64_target_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_target_matrix }}
       windows_x64_build_matrix: ${{ steps.setup-matrix.outputs.windows_x64_build_matrix }}
       windows_x64_host_matrix: ${{ steps.setup-matrix.outputs.windows_x64_host_matrix }}
+      windows_x64_compilers_matrix: ${{ steps.setup-matrix.outputs.windows_x64_compilers_matrix }}
       windows_x64_target_matrix: ${{ steps.setup-matrix.outputs.windows_x64_target_matrix }}
       darwin_host_matrix: ${{ steps.setup-matrix.outputs.darwin_host_matrix }}
+      darwin_compilers_matrix: ${{ steps.setup-matrix.outputs.darwin_compilers_matrix }}
       darwin_build_matrix: ${{ steps.setup-matrix.outputs.darwin_build_matrix }}
       darwin_target_matrix: ${{ steps.setup-matrix.outputs.darwin_target_matrix }}
     steps:
@@ -754,14 +757,32 @@ jobs:
               ]
             }
         run: |
+          create_compilers_matrix() {
+            local host_matrix=$1
+            jq -n --argjson host_matrix "${host_matrix}" '
+              {
+                "include": [
+                  ($host_matrix.include[] | . + {"variant": "Asserts"}),
+                  ($host_matrix.include[] | . + {"variant": "NoAsserts"})
+                ]
+              }
+            '
+          }
+          WINDOWS_X64_COMPILERS_MATRIX=$(create_compilers_matrix "${WINDOWS_X64_HOST_MATRIX}")
+          WINDOWS_ARM64_COMPILERS_MATRIX=$(create_compilers_matrix "${WINDOWS_ARM64_HOST_MATRIX}")
+          DARWIN_COMPILERS_MATRIX=$(create_compilers_matrix "${DARWIN_HOST_MATRIX}")
+
           echo "windows_x64_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_arm64_host_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_x64_compilers_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_COMPILERS_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "windows_arm64_compilers_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_COMPILERS_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_x64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_arm64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_x64_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_arm64_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_host_matrix=$(jq -r -c '.' <<< ${DARWIN_HOST_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_build_matrix=$(jq -r -c '.' <<< ${DARWIN_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
+          echo "darwin_compilers_matrix=$(jq -r -c '.' <<< ${DARWIN_COMPILERS_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "darwin_target_matrix=$(jq -r -c '.' <<< ${DARWIN_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
 
   windows-build:
@@ -775,6 +796,7 @@ jobs:
       build_matrix: ${{ needs.context.outputs[format('windows_{0}_build_matrix', needs.context.outputs.windows_build_cpu)] }}
       host_matrix: ${{ needs.context.outputs[format('windows_{0}_host_matrix', needs.context.outputs.windows_build_cpu)] }}
       target_matrix: ${{ needs.context.outputs[format('windows_{0}_target_matrix', needs.context.outputs.windows_build_cpu)] }}
+      compilers_matrix: ${{ needs.context.outputs[format('windows_{0}_compilers_matrix', needs.context.outputs.windows_build_cpu)] }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
       curl_version: ${{ needs.context.outputs.curl_version }}
       ds2_revision: ${{ needs.context.outputs.ds2_revision }}
@@ -850,6 +872,7 @@ jobs:
       build_arch: arm64
       build_matrix: ${{ needs.context.outputs.darwin_build_matrix }}
       host_matrix: ${{ needs.context.outputs.darwin_host_matrix }}
+      compilers_matrix: ${{ needs.context.outputs.darwin_compilers_matrix }}
       target_matrix: ${{ needs.context.outputs.darwin_target_matrix }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
       curl_version: ${{ needs.context.outputs.curl_version }}
