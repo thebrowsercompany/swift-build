@@ -1,0 +1,58 @@
+name: _ Checkout Speed Test
+
+on:
+  push:
+    branches:
+      - brian/checkout-speed-test
+
+jobs:
+  measure-checkout:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, 'swift-build-windows-latest-8-cores', 'swift-build-windows-latest-64-cores']
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Measure raw git checkout time
+        id: raw-git
+        shell: pwsh
+        run: |
+          Write-Host "Starting raw git checkout measurement..."
+          $start_time = Get-Date
+
+          git clone --depth=1 --no-checkout --quiet https://github.com/swiftlang/llvm-project.git raw-test
+          git -C llvm-project checkout HEAD
+
+          $end_time = Get-Date
+          $duration = ($end_time - $start_time).TotalSeconds
+
+          Write-Host "Raw git checkout completed in ${duration} seconds"
+          echo "duration=$duration" >> $env:GITHUB_OUTPUT
+      - name: Record start time
+        id: start-time
+        shell: pwsh
+        run: |
+          Write-Host "Starting actions/checkout measurement..."
+          $start_time = Get-Date
+          echo "timestamp=$($start_time.ToString('o'))" >> $env:GITHUB_OUTPUT
+
+      - name: Perform actions/checkout
+        uses: actions/checkout@v4.2.2.2.2.2.2
+        with:
+          repository: swiftlang/llvm-project
+          fetch-depth: 1
+          path: actions-checkout-test
+          show-progress: false
+
+      - name: Calculate actions/checkout duration
+        id: actions-checkout-duration
+        shell: pwsh
+        run: |
+          $end_time = Get-Date
+          $start_time = [DateTime]::Parse('${{ steps.start-time.outputs.timestamp }}')
+          $duration = ($end_time - $start_time).TotalSeconds
+
+          Write-Host "actions/checkout completed in ${duration} seconds"
+          echo "duration=$duration" >> $env:GITHUB_OUTPUT
