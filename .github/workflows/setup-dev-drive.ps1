@@ -26,22 +26,26 @@ else {
     if ($HasDevDrive) {
         Write-Output "Using DevDrive Switch"
         $Volume | Format-Volume -DevDrive -Confirm:$false -Force
+
+        # Set the drive as trusted
+        # See https://learn.microsoft.com/en-us/windows/dev-drive/#how-do-i-designate-a-dev-drive-as-trusted
+        fsutil devdrv trust $Drive
+
+        # Disable antivirus filtering on dev drives
+        # See https://learn.microsoft.com/en-us/windows/dev-drive/#how-do-i-configure-additional-filters-on-dev-drive
+        fsutil devdrv enable /disallowAv
     }
     else {
         Write-Output "Trying to format with ReFS manually since -DevDrive switch doesn't exist"
         # Format as ReFS volume if DevDrive isn't supported
         $Volume | Format-Volume -FileSystem ReFS -Confirm:$false -Force
+
+        # Trust the ReFS volume similar to how we trust DevDrive volumes
+        fsutil behavior set disableLastAccess 1
+        fsutil behavior set disablecompression 1
     }
 
     $Drive = "$($Volume.DriveLetter):"
-
-    # Set the drive as trusted
-    # See https://learn.microsoft.com/en-us/windows/dev-drive/#how-do-i-designate-a-dev-drive-as-trusted
-    fsutil devdrv trust $Drive
-
-    # Disable antivirus filtering on dev drives
-    # See https://learn.microsoft.com/en-us/windows/dev-drive/#how-do-i-configure-additional-filters-on-dev-drive
-    fsutil devdrv enable /disallowAv
 
     # Remount so the changes take effect
     Dismount-VHD -Path C:/bcny_dev_drive.vhdx
