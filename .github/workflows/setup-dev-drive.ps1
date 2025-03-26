@@ -34,6 +34,8 @@ else {
         # Disable antivirus filtering on dev drives
         # See https://learn.microsoft.com/en-us/windows/dev-drive/#how-do-i-configure-additional-filters-on-dev-drive
         fsutil devdrv enable /disallowAv
+
+        fsutil devdrv query $Drive
     }
     else {
         Write-Output "Trying to format with ReFS manually since -DevDrive switch doesn't exist"
@@ -53,7 +55,6 @@ else {
 
     # Show some debug information
     Write-Output $Volume
-    fsutil devdrv query $Drive
 
     Write-Output "Using Dev Drive at $Volume"
 }
