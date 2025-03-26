@@ -65,20 +65,20 @@ $Tmp = "$($Drive)\bcny-tmp"
 New-Item $Tmp -ItemType Directory
 
 # Make root directory for bcny
-New-Item "$($Drive)/bcny" -ItemType Directory -Force
+New-Item "$($Drive)\bcny" -ItemType Directory -Force
 
 # Move Cargo to the dev drive
 New-Item -Path "$($Drive)/.cargo/bin" -ItemType Directory -Force
-if (Test-Path "C:/Users/runneradmin/.cargo") {
-    Copy-Item -Path "C:/Users/runneradmin/.cargo/*" -Destination "$($Drive)/.cargo/" -Recurse -Force
+if (Test-Path "C:\Users\runneradmin\.cargo") {
+    Copy-Item -Path "C:\Users\runneradmin\.cargo/\" -Destination "$($Drive)\.cargo\" -Recurse -Force
 }
 
 Write-Output `
     "DEV_DRIVE=$($Drive)" `
     "TMP=$($Tmp)" `
     "TEMP=$($Tmp)" `
-    "RUSTUP_HOME=$($Drive)/.rustup" `
+    "RUSTUP_HOME=$($Drive)\.rustup" `
     "CARGO_HOME=$($Drive)/.cargo" `
-    "BCNY_WORKSPACE=$($Drive)/bcny" `
-    "PATH=$($Drive)/.cargo/bin;$env:PATH" `
+    "BCNY_WORKSPACE=$($Drive)\bcny" `
+    "PATH=$($Drive)\.cargo\bin;$env:PATH" `
     >> $env:GITHUB_ENV
