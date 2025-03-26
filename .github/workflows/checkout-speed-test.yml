@@ -10,13 +10,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, 'swift-build-windows-latest-8-cores', 'swift-build-windows-latest-64-cores']
+        os: [windows-latest, 'swift-build-windows-latest-8-cores', 'swift-build-windows-latest-64-cores']
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Setup Dev Drive
-        uses: samypr100/setup-dev-drive@v3
+        run: ${{ github.workspace }}/.github/workflows/setup-dev-drive.ps1
 
       - name: Print Drives
         shell: pwsh
@@ -39,27 +39,10 @@ jobs:
           Write-Host "Raw git checkout completed in ${duration} seconds"
           echo "duration=$duration" >> $env:GITHUB_OUTPUT
 
-      - name: Measure raw git checkout time (D drive)
-        id: raw-git-d
-        shell: pwsh
-        working-directory: "D:"
-        run: |
-          Write-Host "Starting raw git checkout measurement..."
-          $start_time = Get-Date
-
-          git clone --depth=1 --no-checkout --quiet https://github.com/swiftlang/llvm-project.git raw-test
-          git -C raw-test checkout HEAD
-
-          $end_time = Get-Date
-          $duration = ($end_time - $start_time).TotalSeconds
-
-          Write-Host "Raw git checkout completed in ${duration} seconds"
-          echo "duration=$duration" >> $env:GITHUB_OUTPUT
-
-      - name: Measure raw git checkout time (Dev drive)
+      - name: Measure raw git checkout time (Dev or D drive)
         id: raw-git-dev
         shell: pwsh
-        working-directory: ${{ env.DEV_DRIVE }}
+        working-directory: ${{ env.BCNY_WORKSPACE }}
         run: |
           Write-Host "Starting raw git checkout measurement..."
           $start_time = Get-Date
