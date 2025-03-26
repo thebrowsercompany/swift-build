@@ -18,8 +18,20 @@ else {
     $Volume = New-VHD -Path C:/bcny_dev_drive.vhdx -SizeBytes 20GB |
     Mount-VHD -Passthru |
     Initialize-Disk -Passthru |
-    New-Partition -AssignDriveLetter -UseMaximumSize |
-    Format-Volume -DevDrive -Confirm:$false -Force
+    New-Partition -AssignDriveLetter -UseMaximumSize
+
+    # Check if DevDrive parameter exists
+    $HasDevDrive = (Get-Command Format-Volume).Parameters.Keys -contains "DevDrive"
+
+    if ($HasDevDrive) {
+        Write-Output "Using DevDrive Switch"
+        $Volume | Format-Volume -DevDrive -Confirm:$false -Force
+    }
+    else {
+        Write-Output "Trying to format with ReFS manually since -DevDrive switch doesn't exist"
+        # Format as ReFS volume if DevDrive isn't supported
+        $Volume | Format-Volume -FileSystem ReFS -Confirm:$false -Force
+    }
 
     $Drive = "$($Volume.DriveLetter):"
 
@@ -46,6 +58,9 @@ $Tmp = "$($Drive)\bcny-tmp"
 
 # Create the directory ahead of time in an attempt to avoid race-conditions
 New-Item $Tmp -ItemType Directory
+
+# Make root directory for bcny
+New-Item "$($Drive)/bcny" -ItemType Directory -Force
 
 # Move Cargo to the dev drive
 New-Item -Path "$($Drive)/.cargo/bin" -ItemType Directory -Force
