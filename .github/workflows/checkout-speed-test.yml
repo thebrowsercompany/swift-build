@@ -34,6 +34,22 @@ jobs:
 
           Write-Host "Raw git checkout completed in ${duration} seconds"
           echo "duration=$duration" >> $env:GITHUB_OUTPUT
+
+      - name: Measure raw git checkout time (D drive)
+        id: raw-git-d
+        shell: pwsh
+        run: |
+          Write-Host "Starting raw git checkout measurement..."
+          $start_time = Get-Date
+
+          git clone --depth=1 --no-checkout --quiet https://github.com/swiftlang/llvm-project.git D:/raw-test
+          git -C D:/raw-test checkout HEAD
+
+          $end_time = Get-Date
+          $duration = ($end_time - $start_time).TotalSeconds
+
+          Write-Host "Raw git checkout completed in ${duration} seconds"
+          echo "duration=$duration" >> $env:GITHUB_OUTPUT
       - name: Record start time
         id: start-time
         shell: pwsh
