@@ -271,10 +271,14 @@ on:
         required: true
       PASSPHRASE:
         required: true
+      SCCACHE_ACCESS_ARN:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
-  SCCACHE_DIRECT: on
-
   # Workaround for needing llvm-17 on macOS preventing us from using the 5.10 toolchain release.
   WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH: swift-6.0.1-release
   WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG: 6.0.1-RELEASE
@@ -343,11 +347,12 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
       - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        uses: ./.github/actions/setup-sccache
         with:
-          max-size: 100M
-          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sqlite
-          variant: sccache
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sqlite
+          s3-bucket: toolchain-sccache-swift-build
+          aws-arn: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
       - name: Configure SQLite
         run: |
@@ -589,12 +594,12 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
       - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        uses: ./.github/actions/setup-sccache
         with:
-          max-size: 1M
-          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
-          variant: sccache
-
+          disk-max-size: 1M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
+          s3-bucket: toolchain-sccache-swift-build
+          aws-arn: ${{ secrets.SCCACHE_ACCESS_ARN }}
       - name: Configure cmark-gfm
         run: >
           cmake -B ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }} `
@@ -673,11 +678,12 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
       - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        uses: ./.github/actions/setup-sccache
         with:
-          max-size: 100M
-          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-build_tools
-          variant: sccache
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-build_tools
+          s3-bucket: toolchain-sccache-swift-build
+          aws-arn: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
       - name: Configure Tools
         run: |
@@ -1070,11 +1076,12 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
       - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        uses: ./.github/actions/setup-sccache
         with:
-          max-size: 500M
-          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compilers
-          variant: sccache
+          disk-max-size: 500M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compilers
+          s3-bucket: toolchain-sccache-swift-build
+          aws-arn: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
       - name: Setup context
         id: setup-context
@@ -1345,11 +1352,12 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
       - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        uses: ./.github/actions/setup-sccache
         with:
-          max-size: 100M
-          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-zlib
-          variant: sccache
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-zlib
+          s3-bucket: toolchain-sccache-swift-build
+          aws-arn: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'
@@ -1440,11 +1448,12 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
       - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        uses: ./.github/actions/setup-sccache
         with:
-          max-size: 100M
-          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-curl
-          variant: sccache
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-curl
+          s3-bucket: toolchain-sccache-swift-build
+          aws-arn: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'
@@ -1607,11 +1616,12 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
       - name: Setup sccache
-        uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+        uses: ./.github/actions/setup-sccache
         with:
-          max-size: 100M
-          key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-libxml2
-          variant: sccache
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-libxml2
+          s3-bucket: toolchain-sccache-swift-build
+          aws-arn: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'

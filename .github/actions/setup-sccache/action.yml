@@ -1,0 +1,68 @@
+name: "Setup sccache"
+description: "Sets up sccache with S3 or local disk configuration"
+
+inputs:
+  disk-max-size:
+    description: "The maximum size of the local disk cache in MB if S3 is unavailable."
+    required: true
+  disk-cache-key:
+    description: "The key to use for the local disk cache."
+    required: true
+  s3-bucket:
+    description: "The s3 bucket to use for cache storage."
+    required: false
+    default: "toolchain-sccache-swift-build"
+  s3-bucket-encryption:
+    description: "Whether to enable server-side encryption for the S3 bucket."
+    required: false
+    default: "true"
+  aws-arn:
+    description: "The ARN of the AWS role to assume which has read/write access to the S3 bucket."
+    required: false
+  aws-region:
+    description: "The region of the S3 bucket to use for the cache"
+    required: false
+    default: "us-east-2"
+
+runs:
+  using: composite
+  steps:
+    - name: Configure caching enviornment
+      shell: pwsh
+      run: |
+        if (${{ inputs.s3-arn }} -ne '') {
+          $requiredParams = @{
+              's3-bucket' = '${{ inputs.s3-bucket }}'
+              's3-bucket-encryption' = '${{ inputs.s3-bucket-encryption }}'
+              'aws-region' = '${{ inputs.aws-region }}'
+          }
+
+          foreach ($param in $requiredParams.GetEnumerator()) {
+              if ([string]::IsNullOrEmpty($param.Value)) {
+                  Write-Error -Message "$($param.Key) input cannot be empty when aws-arn is provided" -ErrorAction Stop
+              }
+          }
+
+          Write-Host "Using S3 bucket ${{ inputs.s3-bucket }} for cache storage."
+          $env:SCCACHE_BUCKET = ${{ inputs.s3-bucket }}
+          $env:SCCACHE_REGION = ${{ inputs.aws-region }}
+          $env:SCCACHE_S3_SERVER_SIDE_ENCRYPTION = ${{ inputs.s3-bucket-encryption }}
+        } else {
+          Write-Host "Using local disk cache."
+          $env:SCCACHE_DIRECT = 'on'
+        }
+
+    - name: Authenticate to AWS
+      uses: aws-actions/configure-aws-credentials@v3
+      if: inputs.aws-arn != ''
+      with:
+        role-to-assume: ${{ inputs.aws-arn }}
+        role-session-name: ToolchainCISccacheAccess
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Setup sccache
+      uses: hendrikmuhs/ccache-action@2e0e89e8d74340a03f75d58d02aae4c5ee1b15c6
+      with:
+        max-size: ${{ inputs.disk-max-size }}
+        key: ${{ inputs.disk-cache-key }}
+        variant: sccache
