@@ -1,0 +1,67 @@
+name: "Setup sccache"
+description: "Sets up sccache with S3 or local disk configuration"
+
+inputs:
+  disk-max-size:
+    description: "The maximum size of the local disk cache in MB if S3 is unavailable."
+    required: true
+  disk-cache-key:
+    description: "The key to use for the local disk cache."
+    required: true
+  s3-bucket:
+    description: "The s3 bucket to use for cache storage."
+    required: false
+  s3-bucket-encryption:
+    description: "Whether to enable server-side encryption for the S3 bucket."
+    required: false
+    default: "true"
+  aws-arn:
+    description: "The ARN of the AWS role to assume which has read/write access to the S3 bucket."
+    required: false
+  aws-region:
+    description: "The region of the S3 bucket to use for the cache"
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Configure caching enviornment
+      shell: pwsh
+      run: |
+        $AWSArn = '${{ inputs.aws-arn }}'
+        if ($AWSArn) {
+          $requiredParams = @{
+              's3-bucket' = '${{ inputs.s3-bucket }}'
+              's3-bucket-encryption' = '${{ inputs.s3-bucket-encryption }}'
+              'aws-region' = '${{ inputs.aws-region }}'
+          }
+
+          foreach ($param in $requiredParams.GetEnumerator()) {
+              if ([string]::IsNullOrEmpty($param.Value)) {
+                  Write-Error -Message "$($param.Key) input cannot be empty when aws-arn is provided" -ErrorAction Stop
+              }
+          }
+
+          Write-Host "Using S3 bucket ${{ inputs.s3-bucket }} for cache storage."
+          Write-Host SCCACHE_BUCKET=${{ inputs.s3-bucket }} | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host SCCACHE_REGION=${{ inputs.aws-region }} | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host SCCACHE_S3_SERVER_SIDE_ENCRYPTION=${{ inputs.s3-bucket-encryption }} | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        } else {
+          Write-Host "Using local disk cache."
+          Write-Host SCCACHE_DIRECT='on' | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        }
+
+    - name: Authenticate to AWS
+      uses: aws-actions/configure-aws-credentials@v3
+      if: inputs.aws-arn != ''
+      with:
+        role-to-assume: ${{ inputs.aws-arn }}
+        role-session-name: ToolchainCISccacheAccess
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Setup sccache
+      uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
+      with:
+        max-size: ${{ inputs.disk-max-size }}
+        key: ${{ inputs.disk-cache-key }}
+        variant: sccache
