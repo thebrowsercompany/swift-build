@@ -145,9 +145,16 @@ on:
         required: true
       PASSPHRASE:
         required: true
+      SCCACHE_ACCESS_ARN:
+        required: true
 
 env:
   SCCACHE_DIRECT: yes
+
+permissions:
+  contents: read
+  # required to make OIDC work
+  id-token: write
 
 jobs:
   context:
@@ -788,7 +795,6 @@ jobs:
   windows-build:
     needs: [context]
     name: Windows Swift Toolchains Build
-
     uses: ./.github/workflows/swift-toolchain.yml
     with:
       build_os: Windows
@@ -860,6 +866,7 @@ jobs:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
       PASSPHRASE: ${{ secrets.PASSPHRASE }}
+      SCCACHE_ACCESS_ARN: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
   mac-build:
     # TODO: Enable the mac build.
@@ -936,6 +943,7 @@ jobs:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
       PASSPHRASE: ${{ secrets.PASSPHRASE }}
+      SCCACHE_ACCESS_ARN: ${{ secrets.SCCACHE_ACCESS_ARN }}
 
   snapshot:
     runs-on: ubuntu-latest

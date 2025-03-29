@@ -271,9 +271,13 @@ on:
         required: true
       PASSPHRASE:
         required: true
+      SCCACHE_ACCESS_ARN:
+        required: true
 
 env:
-  SCCACHE_DIRECT: on
+  SCCACHE_BUCKET: toolchain-sccache-swift-build
+  SCCACHE_REGION: us-east-2
+  SCCACHE_S3_SERVER_SIDE_ENCRYPTION: true
 
   # Workaround for needing llvm-17 on macOS preventing us from using the 5.10 toolchain release.
   WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH: swift-6.0.1-release
@@ -298,10 +302,14 @@ defaults:
   run:
     shell: pwsh
 
+permissions:
+  contents: read
+  # required to make OIDC work
+  id-token: write
+
 jobs:
   sqlite:
     runs-on: ${{ inputs.default_build_runner }}
-
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.host_matrix) }}
@@ -320,6 +328,13 @@ jobs:
           ref: ${{ inputs.swift_toolchain_sqlite_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
           show-progress: false
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.SCCACHE_ACCESS_ARN }}
+          role-session-name: ToolchainCISccacheAccess
+          aws-region: "us-east-2"
 
       - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
         with:
@@ -592,6 +607,13 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.SCCACHE_ACCESS_ARN }}
+          role-session-name: ToolchainCISccacheAccess
+          aws-region: "us-east-2"
+
       - name: Setup sccache
         uses: ./SourceCache/swift-build/.github/actions/setup-sccache
         with:
@@ -679,6 +701,13 @@ jobs:
           $stringAsStream.Position = 0
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.SCCACHE_ACCESS_ARN }}
+          role-session-name: ToolchainCISccacheAccess
+          aws-region: "us-east-2"
 
       - name: Setup sccache
         uses: ./SourceCache/swift-build/.github/actions/setup-sccache
@@ -1081,6 +1110,13 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.SCCACHE_ACCESS_ARN }}
+          role-session-name: ToolchainCISccacheAccess
+          aws-region: "us-east-2"
+
       - name: Setup sccache
         uses: ./SourceCache/swift-build/.github/actions/setup-sccache
         with:
@@ -1360,6 +1396,13 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
 
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.SCCACHE_ACCESS_ARN }}
+          role-session-name: ToolchainCISccacheAccess
+          aws-region: "us-east-2"
+
       - name: Setup sccache
         uses: ./SourceCache/swift-build/.github/actions/setup-sccache
         with:
@@ -1458,6 +1501,13 @@ jobs:
           $stringAsStream.Position = 0
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.SCCACHE_ACCESS_ARN }}
+          role-session-name: ToolchainCISccacheAccess
+          aws-region: "us-east-2"
 
       - name: Setup sccache
         uses: ./SourceCache/swift-build/.github/actions/setup-sccache
@@ -1629,6 +1679,13 @@ jobs:
           $stringAsStream.Position = 0
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.SCCACHE_ACCESS_ARN }}
+          role-session-name: ToolchainCISccacheAccess
+          aws-region: "us-east-2"
 
       - name: Setup sccache
         uses: ./SourceCache/swift-build/.github/actions/setup-sccache
