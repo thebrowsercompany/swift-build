@@ -1,0 +1,27 @@
+name: Schedule - Development Snapshot
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+
+  # Allows us to trigger toolchain builds on-demand using the same inputs as scheduled builds.
+  # For more control over the swift-toolchain.yml's inputs, trigger that workflow directly.
+  workflow_dispatch:
+
+jobs:
+  call_development_snapshot:
+    name: Development Snapshot
+    uses: ./.github/workflows/build-toolchain.yml
+    with:
+      windows_build_arch: amd64
+      windows_x64_default_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-23h2-pro-x64-16-2024-12-19--{0}', github.run_id) || 'swift-build-windows-latest-8-cores' }}
+      windows_x64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-23h2-pro-x64-64-2024-12-19--{0}', github.run_id) || 'swift-build-windows-latest-64-cores' }}
+      windows_arm64_default_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-23h2-pro-arm64-16-2024-12-19--{0}', github.run_id) || 'swift-build-windows-arm64-latest-8-cores' }}
+      windows_arm64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-23h2-pro-arm64-64-2024-12-19--{0}', github.run_id) || 'swift-build-windows-arm64-latest-32-cores' }}
+      android_api_level: 28
+      build_android: true
+    secrets: inherit
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
