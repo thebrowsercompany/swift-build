@@ -1889,12 +1889,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      - uses: actions/upload-artifact@v4
-        if: matrix.os == 'Windows'
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-vfs-overlay
-          path: ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-
       - name: Upload PDBs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
         if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
@@ -1945,10 +1939,6 @@ jobs:
         with:
           name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-vfs-overlay
-          path: ${{ github.workspace }}/BinaryCache/swift/stdlib
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift
@@ -1980,11 +1970,55 @@ jobs:
           $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: extract swift-syntax
+      - name: Extract swift-syntax
         run: |
           $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
           $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
           (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
+
+      - name: Create vfs-overlay
+        run: |
+          $VfsOverlay = "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
+          $ModuleMapDir = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/share
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          $Win10SdkRoot = cygpath -m ${Win10SdkRoot}
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $VsInstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $VsInstallPath = cygpath -m ${VsInstallPath}
+
+          $ModuleMap = @"
+          version: 0
+          use-external-names: false
+          case-sensitive: false
+          roots:
+            - name: "${Win10SdkRoot}/Include/${env:WORKAROUND_WINDOWS_SDK_VERSION}/um"
+              type: directory
+              contents:
+                - name: module.modulemap
+                  type: file
+                  external-contents: "${ModuleMapDir}/winsdk.modulemap"
+            - name: "${Win10SdkRoot}/Include/${env:WORKAROUND_WINDOWS_SDK_VERSION}/ucrt"
+              type: directory
+              contents:
+                - name: module.modulemap
+                  type: file
+                  external-contents: "${ModuleMapDir}/ucrt.modulemap"
+            - name: "${VsInstallPath}/VC/Tools/MSVC/${env:WORKAROUND_WINDOWS_COMPILER_VERSION}/include"
+              type: directory
+              contents:
+                - name: module.modulemap
+                  type: file
+                  external-contents: "${ModuleMapDir}/vcruntime.modulemap"
+                - name: vcruntime.apinotes
+                  type: file
+                  external-contents: "${ModuleMapDir}/vcruntime.apinotes"
+          "@
+          $VfsOverlayDir = Split-Path -Parent $VfsOverlay
+          New-Item -ItemType Directory -Path $VfsOverlayDir
+          Write-Output $ModuleMap | Out-File -FilePath $VfsOverlay -Encoding utf8
 
       - name: Configure Foundation Macros
         run: |
@@ -2191,11 +2225,6 @@ jobs:
           name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
       - uses: actions/download-artifact@v4
-        if: matrix.os == 'Windows'
-        with:
-          name: Windows-${{ matrix.arch }}-vfs-overlay
-          path: ${{ github.workspace }}/BinaryCache/swift/stdlib
-      - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: Windows-${{ inputs.build_arch }}-macros
@@ -2308,6 +2337,52 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+
+      - name: Create vfs-overlay
+        if: matrix.os == 'Windows'
+        run: |
+          $VfsOverlay = "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
+          $ModuleMapDir = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/share
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          $Win10SdkRoot = cygpath -m ${Win10SdkRoot}
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $VsInstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $VsInstallPath = cygpath -m ${VsInstallPath}
+
+          $ModuleMap = @"
+          version: 0
+          use-external-names: false
+          case-sensitive: false
+          roots:
+            - name: "${Win10SdkRoot}/Include/${env:WORKAROUND_WINDOWS_SDK_VERSION}/um"
+              type: directory
+              contents:
+                - name: module.modulemap
+                  type: file
+                  external-contents: "${ModuleMapDir}/winsdk.modulemap"
+            - name: "${Win10SdkRoot}/Include/${env:WORKAROUND_WINDOWS_SDK_VERSION}/ucrt"
+              type: directory
+              contents:
+                - name: module.modulemap
+                  type: file
+                  external-contents: "${ModuleMapDir}/ucrt.modulemap"
+            - name: "${VsInstallPath}/VC/Tools/MSVC/${env:WORKAROUND_WINDOWS_COMPILER_VERSION}/include"
+              type: directory
+              contents:
+                - name: module.modulemap
+                  type: file
+                  external-contents: "${ModuleMapDir}/vcruntime.modulemap"
+                - name: vcruntime.apinotes
+                  type: file
+                  external-contents: "${ModuleMapDir}/vcruntime.apinotes"
+          "@
+
+          $VfsOverlayDir = Split-Path -Parent $VfsOverlay
+          New-Item -ItemType Directory -Path $VfsOverlayDir
+          Write-Output $ModuleMap | Out-File -FilePath $VfsOverlay -Encoding utf8
 
       - name: Configure libdispatch
         if: matrix.os != 'Android' || inputs.build_android
