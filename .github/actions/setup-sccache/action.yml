@@ -52,6 +52,7 @@ runs:
         }
 
     - name: Authenticate to AWS
+      id: aws-credentials
       uses: aws-actions/configure-aws-credentials@v3
       if: inputs.aws-arn != ''
       with:
@@ -59,7 +60,13 @@ runs:
         role-session-name: ToolchainCISccacheAccess
         aws-region: ${{ inputs.aws-region }}
 
-    - name: Setup sccache
+    - name: Setup sccache (remote)
+      if: inputs.aws-arn != '' && steps.aws-credentials.outcome == 'success'
+      uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
+      with:
+        variant: sccache
+
+    - name: Setup sccache (local)
       uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
       with:
         max-size: ${{ inputs.disk-max-size }}
