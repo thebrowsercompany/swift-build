@@ -1,0 +1,36 @@
+name: Trigger Release - Swift Toolchain Binary Sizes
+
+on:
+  workflow_run:
+    workflows: [Development Snapshot]
+    types: 
+      - completed
+  
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      toolchain_version: ${{ steps.toolchain_version.outputs.toolchain_version }}
+
+    steps:
+      - name: Fetch toolchain version
+        id: toolchain_version
+        run: |
+          TOOLCHAIN_VERSION=$( gh release list -R ${{ github.repository }} --limit 1 --json tagName --jq '.[] | .tagName' )
+          echo toolchain_version=$TOOLCHAIN_VERSION >> ${GITHUB_OUTPUT}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  call_release_swift_toolchain_binary_sizes:
+    needs: [context]
+    if: github.event.workflow_run.conclusion == 'success'
+    uses: ./.github/workflows/release-swift-toolchain-binary-sizes.yml
+    with:
+      dry_run: false
+      toolchain_version: ${{ needs.context.outputs.toolchain_version }}
+    secrets: inherit
+    permissions:
+      contents: read
+      # required to make OIDC work
+      id-token: write 
