@@ -4001,90 +4001,103 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.x86.msm
 
   package_android_platform:
-    if: inputs.build_android
     # TODO: Build this on macOS or make an equivalent Mac-only job
     name: Package Android SDK & Runtime
     needs: [stdlib, ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: Android-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
         with:
           name: Android-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
 
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: Android-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
         with:
           name: Android-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
 
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: Android-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
         with:
           name: Android-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
 
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: Android-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BuildRoot/Library
-      - uses: actions/download-artifact@v4
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
         with:
           name: Android-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
 
-      - uses: actions/download-artifact@v4
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
         with:
           name: Android-${{ matrix.arch }}-ds2
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
 
-      - uses: actions/checkout@v4.2.2
+      - if: inputs.build_android
+        uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-installer-scripts
           ref: ${{ inputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
+      - if: inputs.build_android
+        uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
         with:
           host_arch: ${{ inputs.build_arch }}
           components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
           arch: ${{ matrix.arch }}
           winsdk: ${{ env.WORKAROUND_WINDOWS_SDK_VERSION }}
 
-      - run: |
+      - if: inputs.build_android && inputs.signed
+        run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
           $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: ${{ inputs.signed }}
 
-      - name: Install WixToolset.Sdk
+      - if: inputs.build_android
+        name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
-      - run: |
+      - if: inputs.build_android
+        run: |
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/dispatch ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/os ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/Block ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include
 
-      - name: Package SDK
+      - if: inputs.build_android
+        name: Package SDK
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -4099,7 +4112,8 @@ jobs:
               -p:ProductArchitecture=${{ matrix.msarch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/sdk/drd/sdk.wixproj
 
-      - uses: actions/upload-artifact@v4
+      - if: inputs.build_android
+        uses: actions/upload-artifact@v4
         with:
           name: Android-${{ matrix.arch }}-sdk-msi
           path: |
