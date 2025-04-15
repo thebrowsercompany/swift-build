@@ -3787,6 +3787,19 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/ide.wixproj
 
+      - name: Package Runtime
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-bld-msi
@@ -3814,6 +3827,13 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-rtl-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
 
   package_windows_platform:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -3974,13 +3994,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.arm64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x86.cab
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Windows-${{ inputs.build_arch }}-rtl-msi
-          path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/rtl.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/rtl.cab
 
       - uses: actions/upload-artifact@v4
         with:
