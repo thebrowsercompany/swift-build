@@ -515,6 +515,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
 
       - name: Configure DS2
         if: inputs.build_android
@@ -1075,6 +1076,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -1221,8 +1223,8 @@ jobs:
                 -D LibXml2_DIR=${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }} `
                 -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
-                -D LLVM_PARALLEL_LINK_JOBS=2 `
-                -D SWIFT_PARALLEL_LINK_JOBS=2 `
+                -D LLVM_PARALLEL_LINK_JOBS=8 `
+                -D SWIFT_PARALLEL_LINK_JOBS=8 `
                 -D LLVM_APPEND_VC_REV=NO `
                 -D LLVM_VERSION_SUFFIX="" `
                 -D LLDB_PYTHON_EXE_RELATIVE_PATH=${{ steps.setup-context.outputs.python_binary }} `
@@ -1384,6 +1386,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
 
       - name: Configure zlib
         run: |
@@ -1486,6 +1489,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
 
       - name: Configure curl
         run: |
@@ -1660,6 +1664,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
 
       - name: Configure libxml2
         run: |
@@ -1783,6 +1788,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
 
       - name: Configure LLVM
         if: matrix.os != 'Android' || inputs.build_android
@@ -2361,6 +2367,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
 
       - name: Create vfs-overlay
         if: matrix.os == 'Windows'
@@ -3869,21 +3876,18 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-cli-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-dbg-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.cab
-
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-ide-msi
@@ -4240,7 +4244,6 @@ jobs:
         with:
           name: Windows-arm64-rtl-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
-
       - uses: actions/download-artifact@v4
         with:
           name: Windows-platform-msi
@@ -4272,6 +4275,11 @@ jobs:
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: ${{ inputs.signed }}
+
+      # TODO(issues/154): Preload WixToolset.Sdk on Azure images so we can remove this step.
+      - name: Install WixToolset.Sdk
+        run: |
+          Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
