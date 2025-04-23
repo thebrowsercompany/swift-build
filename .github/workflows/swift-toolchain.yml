@@ -3777,12 +3777,6 @@ jobs:
             -Destination "$ToolchainBin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
             -Destination "$ToolchainBin"
-          # When cross-compiling, bundle the second mimalloc redirect dll as a workaround for
-          # https://github.com/microsoft/mimalloc/issues/997
-          if ("${{ inputs.build_arch }}" -ne "${{ matrix.arch }}") {
-            Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
-              -Destination "$ToolchainBin/mimalloc-redirect$BuildSuffix.dll"
-          }
           $MimallocExecutables = @("swift.exe",
                                    "swiftc.exe",
                                    "swift-driver.exe",
@@ -3804,8 +3798,6 @@ jobs:
       - name: Package Build Tools
         run: |
           # When cross-compiling, bundle the second mimalloc redirect dll as a workaround for
-          # https://github.com/microsoft/mimalloc/issues/997
-          $WORKAROUND_MIMALLOC_ISSUE_997 = if ("${{ inputs.build_arch }}" -ne "${{ matrix.arch }}") { "true" } else { "false" }
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
@@ -3813,7 +3805,7 @@ jobs:
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
-              -p:WORKAROUND_MIMALLOC_ISSUE_997=$WORKAROUND_MIMALLOC_ISSUE_997 `
+              -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/bld.wixproj
@@ -4351,8 +4343,8 @@ jobs:
 
       - name: Build installer bundle
         run: |
-          $Platforms=@( "windows" )
-          if (${{ inputs.build_android }}) {
+          $Platforms=@("windows")
+          if ("${{ inputs.build_android }}" -eq "true") {
             $Platforms=@("android") + $Platforms
           }
 
