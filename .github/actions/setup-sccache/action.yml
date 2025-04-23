@@ -53,50 +53,19 @@ runs:
 
     - name: Authenticate to AWS
       id: aws-credentials
-      uses: aws-actions/configure-aws-credentials@v3
+      uses: aws-actions/configure-aws-credentials@v4.1.0
       if: inputs.aws-arn != ''
       with:
         role-to-assume: ${{ inputs.aws-arn }}
         role-session-name: ToolchainCISccacheAccess
         aws-region: ${{ inputs.aws-region }}
 
-    - name: Setup sccache (remote) - First attempt
-      id: setup-sccache-first-attempt
-      continue-on-error: true
+    - name: Setup sccache (remote)
       if: inputs.aws-arn != '' && steps.aws-credentials.outcome == 'success'
       # uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
       uses: thebrowsercompany/ccache-action/@main
       with:
         variant: sccache
-        remote: false
-  
-    - name: Log Results - 1st Attempt
-      shell: bash
-      run: echo "::info::Ran Setup sccache (remote) - First attempt with result = ${{ steps.setup-sccache-first-attempt.outcome }}"
-
-    - name: Authenticate to AWS - Retry
-      id: aws-credentials-2
-      if: inputs.aws-arn != '' && steps.setup-sccache-first-attempt.outcome == 'failure'
-      uses: aws-actions/configure-aws-credentials@v3
-      if: inputs.aws-arn != ''
-      with:
-        role-to-assume: ${{ inputs.aws-arn }}
-        role-session-name: ToolchainCISccacheAccess
-        aws-region: ${{ inputs.aws-region }}
-  
-    - name: Setup sccache (remote) - Retry
-      id: setup-sccache-second-attempt
-      continue-on-error: false
-      if: inputs.aws-arn != '' && steps.aws-credentials-2.outcome == 'success' && steps.setup-sccache-first-attempt.outcome == 'failure'
-      # uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
-      uses: thebrowsercompany/ccache-action/@main
-      with:
-        variant: sccache
-        remote: false
-  
-    - name: Log Results - 2nd Attempt
-      shell: bash
-      run: echo "::info::Ran Setup sccache (remote) - Second attempt with result = ${{ steps.setup-sccache-second-attempt.outcome }}"
 
     - name: Setup sccache (local)
       if: inputs.aws-arn == ''
