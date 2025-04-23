@@ -49,6 +49,7 @@ runs:
         } else {
           Write-Host "Using local disk cache."
           "SCCACHE_DIRECT=on" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SCCACHE_CACHE_SIZE=${{ inputs.disk-max-size }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         }
 
     - name: Authenticate to AWS
@@ -62,14 +63,8 @@ runs:
 
     - name: Setup sccache (remote)
       if: inputs.aws-arn != '' && steps.aws-credentials.outcome == 'success'
-      uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
-      with:
-        variant: sccache
+      uses: mozilla-actions/sccache-action@407a484056de815eeee952f79797c9c3533a7871 # main
 
     - name: Setup sccache (local)
       if: inputs.aws-arn == ''
-      uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
-      with:
-        max-size: ${{ inputs.disk-max-size }}
-        key: ${{ inputs.disk-cache-key }}
-        variant: sccache
+      uses: mozilla-actions/sccache-action@407a484056de815eeee952f79797c9c3533a7871 # main
