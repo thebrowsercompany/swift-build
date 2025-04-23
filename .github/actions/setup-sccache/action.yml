@@ -59,6 +59,20 @@ runs:
         role-to-assume: ${{ inputs.aws-arn }}
         role-session-name: ToolchainCISccacheAccess
         aws-region: ${{ inputs.aws-region }}
+        #special-characters-workaround: 'true'
+        output-credentials: 'true'
+
+
+    - name: Log Results
+      shell: bash
+      run: |
+        echo "============================================================"
+        echo "====  Authenticate to AWS result = ${{ steps.aws-credentials.outcome }}"
+        echo "====  aws-account-id = ${{ steps.aws-credentials.outputs.aws-account-id }}"
+        echo "====  aws-access-key-id = ${{ steps.aws-credentials.outputs.aws-access-key-id }}"
+        echo "====  aws-secret-access-key = ${{ steps.aws-credentials.outputs.aws-secret-access-key }}"
+        echo "====  aws-session-token = ${{ steps.aws-credentials.outputs.aws-session-token }}"
+        echo "============================================================"
 
     - name: Setup sccache (remote)
       if: inputs.aws-arn != '' && steps.aws-credentials.outcome == 'success'
