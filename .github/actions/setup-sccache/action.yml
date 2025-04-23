@@ -53,12 +53,13 @@ runs:
 
     - name: Authenticate to AWS
       id: aws-credentials
-      uses: aws-actions/configure-aws-credentials@v3
+      uses: aws-actions/configure-aws-credentials@v4.1.0
       if: inputs.aws-arn != ''
       with:
         role-to-assume: ${{ inputs.aws-arn }}
         role-session-name: ToolchainCISccacheAccess
         aws-region: ${{ inputs.aws-region }}
+        special-characters-workaround: 'true' # special characters in secrets can cause SignatureDoesNotMatch errors
 
     - name: Setup sccache (remote)
       if: inputs.aws-arn != '' && steps.aws-credentials.outcome == 'success'
