@@ -53,22 +53,23 @@ runs:
 
     - name: Authenticate to AWS
       id: aws-credentials
-      uses: aws-actions/configure-aws-credentials@v3
+      uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
       if: inputs.aws-arn != ''
       with:
         role-to-assume: ${{ inputs.aws-arn }}
         role-session-name: ToolchainCISccacheAccess
         aws-region: ${{ inputs.aws-region }}
+        special-characters-workaround: 'true' # special characters in secrets can cause SignatureDoesNotMatch errors
 
     - name: Setup sccache (remote)
       if: inputs.aws-arn != '' && steps.aws-credentials.outcome == 'success'
-      uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
+      uses: thebrowsercompany/ccache-action@2bb339feaeb58ab618f79d7ab9e5dda7a73f3beb # main
       with:
         variant: sccache
 
     - name: Setup sccache (local)
       if: inputs.aws-arn == ''
-      uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
+      uses: thebrowsercompany/ccache-action@2bb339feaeb58ab618f79d7ab9e5dda7a73f3beb # main
       with:
         max-size: ${{ inputs.disk-max-size }}
         key: ${{ inputs.disk-cache-key }}
