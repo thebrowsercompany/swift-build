@@ -856,6 +856,17 @@ jobs:
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
           $process.WaitForExit()
 
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          Get-ChildItem $Win10SdkRoot\Include
+          Get-ChildItem $Win10SdkRoot\Lib
+          Get-ChildItem $Win10SdkRoot\Include\${env:WORKAROUND_WINDOWS_SDK_VERSION}
+          Get-ChildItem $Win10SdkRoot\Lib\${env:WORKAROUND_WINDOWS_SDK_VERSION}
+          Get-ChildItem $InstallPath\VC\Tools\MSVC
+          Get-Content $InstallPath\VC\Auxiliary\Build\*.txt
+          exit 0
+
       - name: Build early swift-driver
         run: |
           $env:SWIFTCI_USE_LOCAL_DEPS=1
