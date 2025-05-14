@@ -860,8 +860,10 @@ jobs:
                   "--add", "Microsoft.VisualStudio.Component.VC.${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE }}.ARM64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE }}.ATL.ARM64"
           $process.WaitForExit()
-          echo $process.ExitCode
-          echo ${env:ERRORLEVEL}
+          # Find the log file (latest dd_installer_* file in the temp directory)
+          $log = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          # dump the log
+          Get-Content $log.FullName
 
           & "$VsWhere" -latest -products * -format json
           $Win10SdkRoot = Get-ItemPropertyValue `
