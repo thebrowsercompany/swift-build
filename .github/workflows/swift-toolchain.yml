@@ -843,6 +843,11 @@ jobs:
           $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
           $VsInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
           $InstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+
+          Get-ChildItem $InstallPath\VC\Tools\MSVC
+          Get-ChildItem $InstallPath\VC\Auxiliary\Build
+          Get-Content $InstallPath\VC\Auxiliary\Build\*.txt
+
           $process = Start-Process "$VsInstaller" `
               -PassThru `
               -ArgumentList "modify", `
@@ -855,6 +860,8 @@ jobs:
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
           $process.WaitForExit()
+          echo $process.ExitCode
+          echo ${env:ERRORLEVEL}
 
           & "$VsWhere" -latest -products * -format json
           $Win10SdkRoot = Get-ItemPropertyValue `
