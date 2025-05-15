@@ -285,7 +285,6 @@ env:
   # Workaround for issues with building with SDK version 26100.
   # See https://github.com/compnerd/swift-build/issues/909 for details.
   WORKAROUND_WINDOWS_SDK_VERSION: 10.0.22621.0
-  WORKAROUND_WINDOWS_SDK_VERSION_PACKAGE: 22621
   UNSUPPORTED_WINDOWS_SDK_VERSION: 10.0.26100.0
 
   # Workaround for issues with building with MSVC 14.43.
@@ -778,7 +777,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
-    runs-on: windows-latest
+    runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
       fail-fast: false
@@ -853,12 +852,11 @@ jobs:
               -ArgumentList "modify", `
                   "--installPath", "`"$InstallPath`"", `
                   "--channelId", "https://aka.ms/vs/17/release/channel", `
-                  "--quiet", "--norestart", "--nocache", `
-                  "--add", "Microsoft.VisualStudio.Component.Windows11SDK.${{ env.WORKAROUND_WINDOWS_SDK_VERSION_PACKAGE }}", `
-                  "--add", "Microsoft.VisualStudio.Component.VC.${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE }}.x86.x64", `
-                  "--add", "Microsoft.VisualStudio.Component.VC.${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE }}.ATL", `
-                  "--add", "Microsoft.VisualStudio.Component.VC.${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE }}.ARM64", `
-                  "--add", "Microsoft.VisualStudio.Component.VC.${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE }}.ATL.ARM64"
+                  "--quiet", "--norestart", "--nocache", "--noUpdateInstaller", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
           $process.WaitForExit()
           # Find the log file (latest dd_installer_* file in the temp directory)
           $log = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -1054,8 +1052,7 @@ jobs:
               -ArgumentList "modify", `
                   "--installPath", "`"$InstallPath`"", `
                   "--channelId", "https://aka.ms/vs/17/release/channel", `
-                  "--quiet", "--norestart", "--nocache", `
-                  "--add", "Microsoft.VisualStudio.Component.Windows11SDK.${env:WORKAROUND_WINDOWS_SDK_VERSION_PACKAGE}"
+                  "--quiet", "--norestart", "--nocache", "--noUpdateInstaller", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
@@ -2357,8 +2354,7 @@ jobs:
               -ArgumentList "modify", `
                   "--installPath", "`"$InstallPath`"", `
                   "--channelId", "https://aka.ms/vs/17/release/channel", `
-                  "--quiet", "--norestart", "--nocache", `
-                  "--add", "Microsoft.VisualStudio.Component.Windows11SDK.${env:WORKAROUND_WINDOWS_SDK_VERSION_PACKAGE}"
+                  "--quiet", "--norestart", "--nocache", "--noUpdateInstaller", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
@@ -2950,8 +2946,7 @@ jobs:
               -ArgumentList "modify", `
                   "--installPath", "`"$InstallPath`"", `
                   "--channelId", "https://aka.ms/vs/17/release/channel", `
-                  "--quiet", "--norestart", "--nocache", `
-                  "--add", "Microsoft.VisualStudio.Component.Windows11SDK.${env:WORKAROUND_WINDOWS_SDK_VERSION_PACKAGE}"
+                  "--quiet", "--norestart", "--nocache", "--noUpdateInstaller", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
@@ -3587,8 +3582,7 @@ jobs:
               -ArgumentList "modify", `
                   "--installPath", "`"$InstallPath`"", `
                   "--channelId", "https://aka.ms/vs/17/release/channel", `
-                  "--quiet", "--norestart", "--nocache", `
-                  "--add", "Microsoft.VisualStudio.Component.Windows11SDK.${env:WORKAROUND_WINDOWS_SDK_VERSION_PACKAGE}"
+                  "--quiet", "--norestart", "--nocache", "--noUpdateInstaller", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
