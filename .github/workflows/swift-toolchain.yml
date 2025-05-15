@@ -831,18 +831,17 @@ jobs:
           Get-ChildItem $InstallPath\VC\Auxiliary\Build
           Get-Content $InstallPath\VC\Auxiliary\Build\*.txt
 
-          $ArgumentList = (
-              "/c", "$VSInstaller", `
-              "modify", `
-              "--installPath", "`"$InstallPath`"", `
-              "--quiet", "--norestart", "--nocache", `
-              "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
-              "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
-              "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
-              "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
-          )
-
-          $process = Start-Process -FilePath cmd.exe -ArgumentList $ArgumentList -Wait -PassThru -WindowStyle Hidden
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
           echo "INSTALL 1 DONE"
           # Find the log file (latest dd_installer_* file in the temp directory)
           $log = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -850,7 +849,17 @@ jobs:
           Get-Content $log.FullName
           echo "INSTALL 1 DONE"
 
-          $process = Start-Process -FilePath cmd.exe -ArgumentList $ArgumentList -Wait -PassThru -WindowStyle Hidden
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
           echo "INSTALL 2 DONE"
           # Find the log file (latest dd_installer_* file in the temp directory)
           $log = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
