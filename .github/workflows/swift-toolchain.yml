@@ -858,10 +858,12 @@ jobs:
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
           $process.WaitForExit()
+          echo "INSTALL 1 DONE"
           # Find the log file (latest dd_installer_* file in the temp directory)
           $log = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           # dump the log
           Get-Content $log.FullName
+          echo "INSTALL 1 DONE"
 
           $process = Start-Process "$VsInstaller" `
               -PassThru `
@@ -874,6 +876,12 @@ jobs:
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
           $process.WaitForExit()
+          echo "INSTALL 2 DONE"
+          # Find the log file (latest dd_installer_* file in the temp directory)
+          $log = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          # dump the log
+          Get-Content $log.FullName
+          echo "INSTALL 2 DONE"
 
           & "$VsWhere" -latest -products * -format json
           $Win10SdkRoot = Get-ItemPropertyValue `
