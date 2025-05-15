@@ -852,7 +852,7 @@ jobs:
               -ArgumentList "modify", `
                   "--installPath", "`"$InstallPath`"", `
                   "--channelId", "https://aka.ms/vs/17/release/channel", `
-                  "--quiet", "--norestart", "--nocache", "--noUpdateInstaller", `
+                  "--quiet", "--norestart", "--nocache", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
                   "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
@@ -862,6 +862,18 @@ jobs:
           $log = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           # dump the log
           Get-Content $log.FullName
+
+          $process = Start-Process "$VsInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${env:WORKAROUND_WINDOWS_COMPILER_VERSION_PACKAGE}.ATL.ARM64"
+          $process.WaitForExit()
 
           & "$VsWhere" -latest -products * -format json
           $Win10SdkRoot = Get-ItemPropertyValue `
