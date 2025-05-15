@@ -817,22 +817,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-driver
           show-progress: false
 
-      - name: Install Swift Toolchain (macOS)
-        if: matrix.os == 'Darwin'
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
-          tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
-
-      - name: Install Swift Toolchain (Windows)
-        if: matrix.os == 'Windows'
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
-
       # This is a workaround for not being able to build with MSVC 14.43.
       # See https://github.com/swiftlang/swift/issues/79852 for details.
       - name: Install MSVC ${{ env.WORKAROUND_WINDOWS_COMPILER_VERSION }}
@@ -895,6 +879,22 @@ jobs:
           Get-ChildItem $InstallPath\VC\Auxiliary\Build
           Get-Content $InstallPath\VC\Auxiliary\Build\*.txt
           exit 0
+
+      - name: Install Swift Toolchain (macOS)
+        if: matrix.os == 'Darwin'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+        with:
+          branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
+          tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
+
+      - name: Install Swift Toolchain (Windows)
+        if: matrix.os == 'Windows'
+        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+        with:
+          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-asset-name: installer-${{ inputs.build_arch }}.exe
+          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       - name: Build early swift-driver
         run: |
