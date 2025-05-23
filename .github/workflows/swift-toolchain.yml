@@ -2616,6 +2616,12 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4
         with:
+          repository: swiftlang/swift-build
+          ref: ${{ inputs.swift_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-build
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: swiftlang/swift-package-manager
           ref: ${{ inputs.swift_package_manager_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-package-manager
@@ -2946,6 +2952,56 @@ jobs:
       - name: Build swift-certificates
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-certificates
 
+      - name: Configure swift-build
+        run: |
+          # Workaround CMake 3.20 issue
+          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
+          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
+          if ("${{ matrix.arch }}" -eq "arm64") {
+            # We use the lld linker to work around erratum 843419 on Cortex-A53
+            # CPUs. Otherwise, this causes link.exe to fail with LNK1322.
+            # See https://github.com/swiftlang/swift/issues/79740 for details.
+            $ArchSpecificFlags = "-use-ld=lld-link"
+          }
+
+          # `CMAKE_SHARED_LINKER_FLAGS` and `CMAKE_SHARED_LINKER_FLAGS_RELEASE`
+          # are set to empty string here to work around the fact that this
+          # project uses either swift.exe or link.exe as the linker.
+          # swift.exe cannot properly parse the link.exe flags directly.
+          # This should be fixed with CMake 4.0 by passing the linker flags with
+          # a `LINKER:` prefix, while setting `CMP0181` to `NEW`.
+          cmake -B ${{ github.workspace }}/BinaryCache/swift-build `
+                -D BUILD_SHARED_LIBS=YES `
+                -D BUILD_TESTING=NO `
+                -D CMAKE_BUILD_TYPE=Release `
+                -D CMAKE_C_COMPILER=${CLANG_CL} `
+                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
+                -D CMAKE_CXX_COMPILER=${CLANG_CL} `
+                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
+                -D CMAKE_Swift_COMPILER=${SWIFTC} `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${ArchSpecificFlags} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
+                -D CMAKE_SYSTEM_NAME=Windows `
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
+                -D CMAKE_SHARED_LINKER_FLAGS="" `
+                -D CMAKE_SHARED_LINKER_FLAGS_RELEASE="" `
+                -G Ninja `
+                -S ${{ github.workspace }}/SourceCache/swift-build `
+                -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
+                -D LLBuild_DIR=${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules `
+                -D SwiftDriver_DIR=${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules `
+                -D SwiftSystem_DIR=${{ github.workspace }}/BinaryCache/swift-system/cmake/modules `
+                -D TSC_DIR=${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules `
+                -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include `
+                -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib
+      - name: Build swift-build
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build
+
       - name: extract swift-syntax
         run: |
           $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
@@ -2984,6 +3040,7 @@ jobs:
                 -D SQLite3_INCLUDE_DIR=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include `
                 -D SQLite3_LIBRARY=${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib `
                 -D SwiftASN1_DIR=${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules `
+                -D SwiftBuild_DIR=${{ github.workspace }}/BinaryCache/swift-build/cmake/modules `
                 -D SwiftCertificates_DIR=${{ github.workspace }}/BinaryCache/swift-certificates/cmake/modules `
                 -D SwiftCollections_DIR=${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules `
                 -D SwiftCrypto_DIR=${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules `
@@ -3160,6 +3217,8 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core --target install
       - name: Install swift-driver
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver --target install
+      - name: Install swift-build
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build --target install
       - name: Install swift-package-manager
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager --target install
       - name: Install SourceKit-LSP
