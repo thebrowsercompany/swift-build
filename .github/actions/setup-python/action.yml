@@ -1,0 +1,90 @@
+name: 'Python setup'
+description: 'Configures Python for the current workflow job using UV'
+
+inputs:
+  dependency-groups:
+    description: |
+      'The names of the dependency group configurations to use within pyproject.toml.
+      Group names are separated by spaces (or use the | syntax in GHA).
+      Special handling for dependency-group "all" to install all dependencies.'
+    required: false
+  repo-root:
+    description: 'The root directory of the arc repository checkout.'
+    required: true
+    default: ${{ github.workspace }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@v5
+    # uv misbehaves in the presence of the python 3.9 pythonarm64 Nuget package.
+    # This is a workaround to remove it if it exists.
+    - name: Uninstall pythonarm64 if installed
+      if: runner.os == 'Windows' && runner.arch == 'ARM64'
+      shell: pwsh
+      run: |
+        if (Get-Package -Name "pythonarm64" -ErrorAction SilentlyContinue) {
+          Uninstall-Package -Name "pythonarm64"
+        }
+
+    - name: Download python interpreter, install the venv and dependencies
+      shell: bash
+      working-directory: ${{ inputs.repo-root }}
+      run: |
+        echo "::group::Running uv sync"
+        if [[ -z "${{ inputs.dependency-groups }}" ]]; then
+          uv sync --no-default-groups
+        elif echo "${{ inputs.dependency-groups }}" | grep -q "^all$"; then
+          uv sync --all-groups
+        else
+          echo "${{ inputs.dependency-groups }}" | while read -r group; do
+            if [[ -n "$group" ]]; then
+              uv sync --no-default-groups --group "$group"
+            fi
+          done
+        fi
+        echo "::endgroup::"
+
+    - name: Activate venv (posix)
+      if: runner.os != 'Windows'
+      shell: bash
+      working-directory: ${{ inputs.repo-root }}
+      run: |
+        # Activate the virtual environment
+        source .venv/bin/activate
+
+        # Make the virtual environment variable persist to other steps
+        echo "VIRTUAL_ENV=${VIRTUAL_ENV}" >> $GITHUB_ENV
+        echo "${VIRTUAL_ENV}/bin" >> $GITHUB_PATH
+
+    - name: Activate venv (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      working-directory: ${{ inputs.repo-root }}
+      run: |
+        # The python3 exe is not created on windows for some reason so we need to create it
+        Copy-Item .\.venv\Scripts\python.exe .\.venv\Scripts\python3.exe
+
+        # Activate the virtual environment
+        .\.venv\Scripts\activate
+
+        # Make the virtual environment variable persist to other steps
+        echo "Virtual Env After: $Env:VIRTUAL_ENV"
+        echo "VIRTUAL_ENV=$Env:VIRTUAL_ENV" >> $Env:GITHUB_ENV
+        echo "$Env:VIRTUAL_ENV\Scripts" >> $Env:GITHUB_PATH
+
+    - name: Set Up UV Environment Options
+      shell: bash
+      run: |
+        # UV_NO_SYNC is the equivalent of the --no-sync flag in uv
+        # It is used to prevent `uv run` from syncing all dependencies
+        echo "UV_NO_SYNC=1" >> $GITHUB_ENV
+
+    - name: Check python versions
+      shell: bash
+      run: |
+        echo "python  -- version: $(python --version) -- location: $(which python)"
+        echo "python3 -- version: $(python3 --version) -- location: $(which python3)"
+
+
