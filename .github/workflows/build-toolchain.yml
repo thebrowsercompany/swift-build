@@ -1010,3 +1010,14 @@ jobs:
 
           shasum -a 256 installer-arm64.exe > installer-arm64.exe.sha256
           gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe.sha256 -R ${{ github.repository }}
+
+  binary-size:
+    needs: [context, release]
+    if: inputs.create_release == true
+    name: Record Swift Toolchain Binary Sizes
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/release-swift-toolchain-binary-sizes.yml
+    with:
+      toolchain_version: ${{ needs.context.outputs.swift_tag }}
