@@ -29,22 +29,27 @@ runs:
         }
 
     - name: Download python interpreter, install the venv and dependencies
-      shell: bash
+      shell: pwsh
       working-directory: ${{ inputs.repo-root }}
       run: |
-        echo "::group::Running uv sync"
-        if [[ -z "${{ inputs.dependency-groups }}" ]]; then
-          uv sync --no-default-groups
-        elif echo "${{ inputs.dependency-groups }}" | grep -q "^all$"; then
-          uv sync --all-groups
-        else
-          echo "${{ inputs.dependency-groups }}" | while read -r group; do
-            if [[ -n "$group" ]]; then
-              uv sync --no-default-groups --group "$group"
-            fi
-          done
-        fi
-        echo "::endgroup::"
+        Write-Host "::group::Running uv sync"
+
+        if (-not "${{ inputs.dependency-groups }}") {
+            uv sync --no-default-groups
+        }
+        elseif ("${{ inputs.dependency-groups }}" -eq "all") {
+            uv sync --all-groups
+        }
+        else {
+            $groups = "${{ inputs.dependency-groups }}" -split ' '
+            foreach ($group in $groups) {
+                if ($group) {
+                    uv sync --no-default-groups --group $group
+                }
+            }
+        }
+
+        Write-Host "::endgroup::"
 
     - name: Activate venv (posix)
       if: runner.os != 'Windows'
@@ -70,21 +75,22 @@ runs:
         .\.venv\Scripts\activate
 
         # Make the virtual environment variable persist to other steps
-        echo "Virtual Env After: $Env:VIRTUAL_ENV"
-        echo "VIRTUAL_ENV=$Env:VIRTUAL_ENV" >> $Env:GITHUB_ENV
-        echo "$Env:VIRTUAL_ENV\Scripts" >> $Env:GITHUB_PATH
+        Write-Host "Virtual Env After: $Env:VIRTUAL_ENV"
+        "VIRTUAL_ENV=$Env:VIRTUAL_ENV" | Out-File -FilePath $Env:GITHUB_ENV -Append
+        "$Env:VIRTUAL_ENV\Scripts" | Out-File -FilePath $Env:GITHUB_PATH -Append
 
     - name: Set Up UV Environment Options
-      shell: bash
+      shell: pwsh
       run: |
         # UV_NO_SYNC is the equivalent of the --no-sync flag in uv
         # It is used to prevent `uv run` from syncing all dependencies
-        echo "UV_NO_SYNC=1" >> $GITHUB_ENV
+        "UV_NO_SYNC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Check python versions
-      shell: bash
+      shell: pwsh
       run: |
-        echo "python  -- version: $(python --version) -- location: $(which python)"
-        echo "python3 -- version: $(python3 --version) -- location: $(which python3)"
+        Write-Host "python  -- version: $(python --version) -- location: $(Get-Command python | Select-Object -ExpandProperty Source)"
+        Write-Host "python3 -- version: $(python3 --version) -- location: $(Get-Command python3 | Select-Object -ExpandProperty Source)"
+
 
 
