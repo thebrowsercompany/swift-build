@@ -1108,7 +1108,7 @@ jobs:
                 ${{ matrix.cmake_linker_flags }} `
                 -D CMAKE_STATIC_LIBRARY_PREFIX_Swift= `
                 -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ steps.setup-context.outputs.extra_flags }} `
                 -G Ninja `
@@ -1168,9 +1168,9 @@ jobs:
       - name: Copy cmark-gfm shared libraries
         run: |
           if ("${{ matrix.os }}" -eq "Windows") {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/bin"
           } else {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/swift/host/compiler"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/lib/swift/host/compiler"
           }
 
       - uses: actions/setup-python@v5
@@ -1185,7 +1185,7 @@ jobs:
             from datetime import datetime
 
             now = datetime.now()
-            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/ToolchainInfo.plist'
+            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/ToolchainInfo.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
               plistlib.dump({ 'Identifier': 'org.compnerd.dt.toolchain.{0}.{1}-asserts'.format(now.strftime('%Y%m%d'), now.timetuple().tm_hour % 6) }, plist)
 
@@ -1198,7 +1198,7 @@ jobs:
       - name: Extract swift-syntax
         run: |
           New-Item -Path ${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host -ItemType Directory | Out-Null
-          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
+          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}"
           if ("${{ matrix.os }}" -eq "Windows") {
             $bindir = cygpath -m "${{ github.workspace }}/BinaryCache/1"
             Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib"
