@@ -1,0 +1,211 @@
+name: Test the setup-build action
+on:
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - '.github/actions/action.yml'
+      - '.github/workflows/test-setup-build.yml'
+  workflow_dispatch:
+    inputs:
+      windows-runner:
+        description: "The Windows runner to use"
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      windows-runner:
+        description: "The Windows runner to use"
+        required: false
+        type: string
+
+env:
+  TEST_WIN_SDK_VERSION: "10.0.22000.0"
+  TEST_MSVC_VERSION: "14.40"
+
+jobs:
+  test-setup-build-windows-vs-dev-env:
+    name: MSVC + WinSDK With Dev Environment
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          windows-sdk-version: ${{ env.TEST_WIN_SDK_VERSION }}
+          msvc-version: ${{ env.TEST_MSVC_VERSION }}
+          setup-vs-dev-env: true
+
+      - name: Check environment
+        run: |
+          $HasError = $false
+
+          $ParsedWinSdkVersion = [System.Version]::Parse($env:TEST_WIN_SDK_VERSION)
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          $Win10SdkInclude = Join-Path $Win10SdkRoot "Include"
+
+          # Check if the Windows SDK version is installed.
+          $ExpectedWinSdkDir = Join-Path $Win10SdkInclude "$($env:TEST_WIN_SDK_VERSION)"
+          if (Test-Path -Path $ExpectedWinSdkDir) {
+            Write-Output "✅ Windows SDK version `"${env:TEST_WIN_SDK_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::Expected Windows SDK version not found: `"${env:TEST_WIN_SDK_VERSION}`"."
+            $HasError = $true
+          }
+
+          # Check if Windows SDK versions greater than the expected version are installed.
+          $UnexpectedSdkFound = $false
+          Get-ChildItem -Path $Win10SdkInclude -Directory | ForEach-Object {
+            $Version = $_.Name
+            try {
+              $ParsedVersion = [System.Version]::Parse($Version)
+              if ($ParsedVersion -gt $ParsedWinSdkVersion) {
+                Write-Output "::error::Unexpected Windows SDK version found: `"${Version}`" (greater than expected: `"${env:TEST_WIN_SDK_VERSION}`")."
+                $HasError = $true
+                $UnexpectedSdkFound = $true
+              }
+            } catch {
+              # Skip if the directory cannot be parsed as a version.
+            }
+          }
+          if (-not $UnexpectedSdkFound) {
+            Write-Output "✅ No unexpected Windows SDK versions greater than `"${env:TEST_WIN_SDK_VERSION}`" found."
+          }
+
+          # Check if the correct MSVC version is installed.
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VSWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          if (Test-Path -Path $MSVCDir) {
+            Write-Output "✅ MSVC version `${env:TEST_MSVC_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::MSVC directory not found: `"${MSVCDir}`"."
+            $HasError = $true
+          }
+
+          # Check the current cl.exe version by expanding the _MSC_VER macro.
+          $tempFile = [System.IO.Path]::GetTempFileName().Replace('.tmp', '.c')
+          Set-Content -Path $tempFile -Value "_MSC_VER"
+          $clOutput = & cl /nologo /EP $tempFile 2>&1
+          $lastLine = $clOutput | Select-Object -Last 1
+          Remove-Item $tempFile -Force
+
+          # _MSC_VER expands to a number like 1940 for MSVC 14.40.
+          $ParsedMSVCVersion = [System.Version]::Parse($env:TEST_MSVC_VERSION)
+          $ExpectedVersion = ($ParsedMSVCVersion.Major + 5) * 100 + $ParsedMSVCVersion.Minor
+          if ($lastLine -eq $ExpectedVersion) {
+            Write-Output "✅ cl.exe reports expected _MSC_VER `"${ExpectedVersion}`"."
+          } else {
+            Write-Output "::error::Unexpected MSVC version found: `"${lastLine}`" (expected: `"${ExpectedVersion}`")."
+            $HasError = $true
+          }
+
+          # Check that the Windows SDK version is set in the environment.
+          if ($env:UCRTVersion -eq $env:TEST_WIN_SDK_VERSION) {
+            Write-Output "✅ UCRTVersion environment variable is set to `"${env:TEST_WIN_SDK_VERSION}`"."
+          } else {
+            Write-Output "::error::UCRTVersion environment variable (`"${env:UCRTVersion}`") is not set to the expected Windows SDK version (`"${env:TEST_WIN_SDK_VERSION}`")."
+            $HasError = $true
+          }
+
+          if ($HasError) {
+            Write-Output "::error::There were errors in the environment setup. Check the logs for details."
+            exit 1
+          } else {
+            Write-Output "🎉 All environment checks passed successfully."
+          }
+
+  test-setup-build-windows-no-dev-env:
+    name: MSVC + WinSDK No Dev Environment
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          windows-sdk-version: ${{ env.TEST_WIN_SDK_VERSION }}
+          msvc-version: ${{ env.TEST_MSVC_VERSION }}
+          setup-vs-dev-env: false
+
+      - name: Check environment
+        run: |
+          $HasError = $false
+
+          $ParsedWinSdkVersion = [System.Version]::Parse($env:TEST_WIN_SDK_VERSION)
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          $Win10SdkInclude = Join-Path $Win10SdkRoot "Include"
+
+          # Check if the Windows SDK version is installed.
+          $ExpectedWinSdkDir = Join-Path $Win10SdkInclude "$($env:TEST_WIN_SDK_VERSION)"
+          if (Test-Path -Path $ExpectedWinSdkDir) {
+            Write-Output "✅ Windows SDK version `"${env:TEST_WIN_SDK_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::Expected Windows SDK version not found: `"${env:TEST_WIN_SDK_VERSION}`"."
+            $HasError = $true
+          }
+
+          # Check if Windows SDK versions greater than the expected version are installed.
+          $UnexpectedSdkFound = $false
+          Get-ChildItem -Path $Win10SdkInclude -Directory | ForEach-Object {
+            $Version = $_.Name
+            try {
+              $ParsedVersion = [System.Version]::Parse($Version)
+              if ($ParsedVersion -gt $ParsedWinSdkVersion) {
+                Write-Output "::error::Unexpected Windows SDK version found: `"${Version}`" (greater than expected: `"${env:TEST_WIN_SDK_VERSION}`")."
+                $HasError = $true
+                $UnexpectedSdkFound = $true
+              }
+            } catch {
+              # Skip if the directory cannot be parsed as a version.
+            }
+          }
+          if (-not $UnexpectedSdkFound) {
+            Write-Output "✅ No unexpected Windows SDK versions greater than `"${env:TEST_WIN_SDK_VERSION}`" found."
+          }
+
+          # Check if the correct MSVC version is installed.
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VSWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          if (Test-Path -Path $MSVCDir) {
+            Write-Output "✅ MSVC version `${env:TEST_MSVC_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::MSVC directory not found: `"${MSVCDir}`"."
+            $HasError = $true
+          }
+
+          # Check that cl.exe was not set.
+          $CLExe = Get-Command -Name cl.exe -ErrorAction Ignore
+          if ($CLExe) {
+            Write-Output "::error::cl.exe was unexpectedly found in the PATH: `"${CLExe.Path}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ cl.exe is not set in the PATH, as expected."
+          }
+
+          # Check that the VS Dev Environment was not set.
+          if ($env:UCRTVersion) {
+            Write-Output "::error::UCRTVersion environment variable was set to `"${env:UCRTVersion}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ UCRTVersion environment variable is set to `"${env:TEST_WIN_SDK_VERSION}`"."
+          }
+
+          if ($HasError) {
+            Write-Output "::error::There were errors in the environment setup. Check the logs for details."
+            exit 1
+          } else {
+            Write-Output "🎉 All environment checks passed successfully."
+          }
