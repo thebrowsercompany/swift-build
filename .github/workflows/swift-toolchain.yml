@@ -4620,10 +4620,16 @@ jobs:
           name: Windows-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      - name: Download Compilers
+      - name: Download Compilers (Asserts)
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: Windows-${{ matrix.arch }}-Asserts-compilers
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Download Compilers (NoAsserts)
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ matrix.arch }}-NoAsserts-compilers
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download Developer Tools
@@ -4720,11 +4726,12 @@ jobs:
           $BuildSuffix = if ("${{ inputs.build_arch }}" -eq "arm64") { "-arm64" } else { "" }
           # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
           msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release -p:Platform=$HostMSArch
-          $ToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
+          $AssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
+          $NoAssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts\usr\bin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
-            -Destination "$ToolchainBin"
+            -Destination "$AssertToolchainBin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
-            -Destination "$ToolchainBin"
+            -Destination "$AssertToolchainBin"
           $MimallocExecutables = @("swift.exe",
                                    "swiftc.exe",
                                    "swift-driver.exe",
@@ -4736,11 +4743,16 @@ jobs:
                                    "lld-link.exe",
                                    "ld.lld.exe",
                                    "ld64.lld.exe")
-          foreach ($Exe in $MimallocExecutables) {
+          $AssertBinaries = $MimallocExecutables | ForEach-Object {[IO.Path]::Combine(SAssertToolchainBin, $_)}
+          $NoAssertBinaries = $MimallocExecutables `
+                              | ForEach-Object {[IO.Path]::Combine( $NoAssertToolchainBin, $_)} `
+                              | Where-Object { Test-Path $_ -PathType Leaf }
+          $Binaries = $AssertBinaries + $NoAssertBinaries
+          foreach ($Exe in $Binaries) {
             # Binary-patch in place
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$ToolchainBin\$Exe"
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$Exe"
             # Log the import table
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$ToolchainBin\$Exe"
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$Exe"
           }
 
       - name: Package Build Tools
