@@ -22,6 +22,7 @@ on:
 env:
   TEST_WIN_SDK_VERSION: "10.0.22000.0"
   TEST_MSVC_VERSION: "14.40"
+  TEST_BUILD_TOOLS_EXPECTED_VERSION: "14.40.33807"
 
 jobs:
   test-setup-build-windows-vs-dev-env:
@@ -77,11 +78,19 @@ jobs:
             Write-Output "✅ No unexpected Windows SDK versions greater than `"${env:TEST_WIN_SDK_VERSION}`" found."
           }
 
+          $BuildToolsVersion = "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          if ($BuildToolsVersion -ne $env:TEST_BUILD_TOOLS_EXPECTED_VERSION) {
+            Write-Output "::error::Expected build tools version `"${env:TEST_BUILD_TOOLS_EXPECTED_VERSION}`", but got `"${BuildToolsVersion}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ Build tools version `${BuildToolsVersion}` matches expected version."
+          }
+
           # Check if the correct MSVC version is installed.
           $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
           $VSWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
           $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
-          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" $BuildToolsVersion
           if (Test-Path -Path $MSVCDir) {
             Write-Output "✅ MSVC version `${env:TEST_MSVC_VERSION}`" is installed."
           } else {
@@ -174,11 +183,20 @@ jobs:
             Write-Output "✅ No unexpected Windows SDK versions greater than `"${env:TEST_WIN_SDK_VERSION}`" found."
           }
 
+          # Check the action output.
+          $BuildToolsVersion = "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          if ($BuildToolsVersion -ne $env:TEST_BUILD_TOOLS_EXPECTED_VERSION) {
+            Write-Output "::error::Expected build tools version `"${env:TEST_BUILD_TOOLS_EXPECTED_VERSION}`", but got `"${BuildToolsVersion}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ Build tools version `${BuildToolsVersion}` matches expected version."
+          }
+
           # Check if the correct MSVC version is installed.
           $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
           $VSWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
           $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
-          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" $BuildToolsVersion
           if (Test-Path -Path $MSVCDir) {
             Write-Output "✅ MSVC version `${env:TEST_MSVC_VERSION}`" is installed."
           } else {
