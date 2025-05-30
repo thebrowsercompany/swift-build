@@ -10,9 +10,6 @@
 name: Release - Swift Toolchain Binary Sizes
 
 on:
-  release:
-    types: [created, edited]
-
   workflow_call:
     inputs:
       toolchain_version:
@@ -25,6 +22,9 @@ on:
         required: false
         type: boolean
         default: true
+    secrets:
+      SWIFT_TOOLCHAIN_UPLOADER_ROLE_ARN:
+        required: true
 
   workflow_dispatch:
     inputs:
@@ -151,11 +151,10 @@ jobs:
           $SwiftInstallRoot=$(Resolve-Path -LiteralPath $SwiftPath\..\..\..\..\..)
           echo "SWIFT_INSTALL_ROOT=${SwiftInstallRoot}" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      # For scripts/python/binary_sizes
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install google-cloud-bigquery
-          python3 -m pip install pandas
+      - name: Setup python
+        uses: ./.github/actions/setup-python
+        with:
+          dependency-groups: 'bloaty'
 
       - name: Setup VS Dev Env
         uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
