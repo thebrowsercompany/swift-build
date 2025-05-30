@@ -227,3 +227,65 @@ jobs:
           } else {
             Write-Output "🎉 All environment checks passed successfully."
           }
+
+  test-incorrect-windows-sdk-version:
+    name: Incorrect Windows SDK Version
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build with incorrect Windows SDK version
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          windows-sdk-version: "99.99.9999.0"  # Intentionally incorrect version
+        continue-on-error: true
+
+      - name: Download log file
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.job }}-windows-sdk-installer-log
+          path: ${{ github.workspace }}/windows-sdk-installer-log
+
+      - name: Check the log file existence
+        run: |
+          $LogFile = Get-ChildItem -Path "${{ github.workspace }}/windows-sdk-installer-log"
+          if (-Not (Test-Path -Path $LogFile)) {
+            Write-Output "::error::Log file not found."
+            exit 1
+          } else {
+            Write-Output "✅ Log file found. File contents:"
+            Get-Content -Path "$LogFile"
+          }
+
+  test-incorrect-msvc-version:
+    name: Incorrect MSVC Version
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build with incorrect MSVC version
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          msvc-version: "14.99"  # Intentionally incorrect version
+        continue-on-error: true
+
+      - name: Download log file
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.job }}-msvc-installer-log
+          path: ${{ github.workspace }}/msvc-installer-log
+
+      - name: Check the log file existence
+        run: |
+          $LogFile = Get-ChildItem -Path "${{ github.workspace }}/msvc-installer-log"
+          if (-Not (Test-Path -Path $LogFile)) {
+            Write-Output "::error::Log file not found."
+            exit 1
+          } else {
+            Write-Output "✅ Log file found. File contents:"
+            Get-Content -Path "$LogFile"
+          }
