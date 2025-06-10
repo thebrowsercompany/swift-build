@@ -206,26 +206,38 @@ runs:
         $MSVCPackageVersion = "${MajorVersion}.${MinorVersion}.${BuildVersion}.${RevisionVersion}"
 
         # Install the missing MSVC version.
-        Write-Output "ℹ️ Installing MSVC packages for ${MSVCPackageVersion}..."
-        $process = Start-Process "$VSInstaller" `
-            -PassThru `
-            -ArgumentList "modify", `
-                "--installPath", "`"$InstallPath`"", `
-                "--channelId", "https://aka.ms/vs/17/release/channel", `
-                "--quiet", "--norestart", "--nocache", `
-                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.x86.x64", `
-                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ATL", `
-                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ARM64", `
-                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ATL.ARM64"
-        $process.WaitForExit()
-
-        # Check if the MSVC version was installed successfully.
+        $MaxAttempts = 2
         $MSVCBuildToolsVersion = ""
-        foreach ($dir in Get-ChildItem -Path $MSVCDir -Directory) {
-          $MSVCDirName = $dir.Name
-          if ($MSVCDirName.StartsWith($MSVCVersionString)) {
-            Write-Output "ℹ️ MSVC ${MSVCVersionString} installed successfully."
-            $MSVCBuildToolsVersion = $MsvcDirName
+
+        for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+          if ($Attempt -eq 1) {
+            Write-Output "ℹ️ Installing MSVC packages for ${MSVCPackageVersion}..."
+          } else {
+            Write-Output "::warning::First installation attempt failed, retrying MSVC packages for ${MSVCPackageVersion}..."
+          }
+
+          $process = Start-Process "$VSInstaller" `
+              -PassThru `
+              -ArgumentList "modify", `
+                  "--installPath", "`"$InstallPath`"", `
+                  "--channelId", "https://aka.ms/vs/17/release/channel", `
+                  "--quiet", "--norestart", "--nocache", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.x86.x64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ATL", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ARM64", `
+                  "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ATL.ARM64"
+          $process.WaitForExit()
+
+          # Check if the MSVC version was installed successfully.
+          foreach ($dir in Get-ChildItem -Path $MSVCDir -Directory) {
+            $MSVCDirName = $dir.Name
+            if ($MSVCDirName.StartsWith($MSVCVersionString)) {
+              Write-Output "ℹ️ MSVC ${MSVCVersionString} installed successfully."
+              break
+            }
+          }
+
+          if ($MSVCBuildToolsVersion -ne "") {
             break
           }
         }
