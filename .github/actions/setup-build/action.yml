@@ -177,18 +177,19 @@ runs:
         name: ${{ github.job }}-windows-sdk-installer-log
         path: ${{ steps.setup-windows-sdk.outputs.log-file }}
 
-    - name: Install Windows MSVC version ${{ inputs.msvc-version }}
-      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
+    - name: Install Windows MSVC version 14.42
+      if: steps.sanitize-input.outputs.build-os == 'windows'
       id: setup-msvc
       shell: pwsh
       run: |
-        $LogFiles = @()
+        $script:LogFiles = @()
         function Install-MSVC {
+          Write-Host "ℹ️ In Install-MSVC..."
           try {
             # This is assuming a VS2022 toolchain. e.g.
             # MSVC 14.42 corresponds to the 14.42.17.12 package.
             # MSVC 14.43 corresponds to the 14.43.17.13 package.
-            $MSVCVersionString = "${{ inputs.msvc-version }}"
+            $MSVCVersionString = "14.42"
 
             $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
             $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
@@ -209,7 +210,7 @@ runs:
             $MSVCPackageVersion = "${MajorVersion}.${MinorVersion}.${BuildVersion}.${RevisionVersion}"
 
             # Install the missing MSVC version.
-            Write-Output "ℹ️ Installing MSVC packages for ${MSVCPackageVersion}..."
+            Write-Host "ℹ️ Installing MSVC packages for ${MSVCPackageVersion}..."
             $process = Start-Process "$VSInstaller" `
                 -PassThru `
                 -ArgumentList "modify", `
@@ -227,29 +228,31 @@ runs:
             foreach ($dir in Get-ChildItem -Path $MSVCDir -Directory) {
               $MSVCDirName = $dir.Name
               if ($MSVCDirName.StartsWith($MSVCVersionString)) {
-                Write-Output "ℹ️ MSVC ${MSVCVersionString} installed successfully."
+                Write-Host "ℹ️ MSVC ${MSVCVersionString} installed successfully."
                 $MSVCBuildToolsVersion = $MsvcDirName
                 break
               }
             }
 
             if ($MSVCBuildToolsVersion -ne "") {
-              Write-Output "ℹ️ Installation passed. Injecting failure!"
+              Write-Host "ℹ️ Installation passed. Injecting failure!"
               $MSVCBuildToolsVersion = ""
             }
 
             if ($MSVCBuildToolsVersion -eq "") {
-              Write-Output "::error::Failed to install MSVC ${MSVCVersionString}. Check the installer log for details."
+              Write-Host "::error::Failed to install MSVC ${MSVCVersionString}. Check the installer log for details."
               $LogFile = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-              $LogFiles += $LogFile.FullName
+              write-Host "ℹ️ Found Installer log: $($LogFile.FullName)"
+              $script:LogFiles += $LogFile.FullName
+              Write-Host "The size of the array is $($script:LogFiles.Length)"
               return $false
             } else {
-              Write-Output "ℹ️ MSVC ${MSVCBuildToolsVersion} installed successfully."
+              Write-Host "ℹ️ MSVC ${MSVCBuildToolsVersion} installed successfully."
               "windows-build-tools-version=${MSVCBuildToolsVersion}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
               return $true
             }
           } catch {
-              Write-Output "❌ Exception caught in Install-MSVC: $_"
+              Write-Host "❌ Exception caught in Install-MSVC: $_"
               return $false
           }
         }
@@ -257,19 +260,20 @@ runs:
         # Retry logic: up to 3 attempts, sleep 1 minute between failures
         $maxAttempts = 3
         for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-            Write-Output "ℹ️ Attempt $attempt of $maxAttempts to install MSVC..."
+            Write-Host "ℹ️ Attempt $attempt of $maxAttempts to install MSVC..."
             $success = Install-MSVC
+            Write-Host "Install-MSVC returned: $success"
             if ($success) {
-                Write-Output "ℹ️ MSVC install successed on attempt: $attempt."
+                Write-Host "ℹ️ MSVC install successed on attempt: $attempt."
                 break
             } elseif ($attempt -lt $maxAttempts) {
-                Write-Output "ℹ️ MSVC Install failed on attempt: $attempt. Waiting 1 minute before retrying..."
+                Write-Host "ℹ️ MSVC Install failed on attempt: $attempt. Waiting 1 minute before retrying..."
                 Start-Sleep -Seconds 60
             } else {
-                Write-Output "❌ All attempts to install MSVC failed."
-                if ($LogFiles.Count -gt 0) {
-                  Write-Output "ℹ️ Found Installer logs: $($LogFiles -join ', ')"
-                  "log-files=$($LogFiles -join '`n')" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+                Write-Host "❌ All attempts to install MSVC failed."
+                if ($script:LogFiles.Count -gt 0) {
+                  Write-Host "ℹ️ Found Installer logs: $($script:LogFiles -join ', ')"
+                  "log-files=$($script:LogFiles -join "`n" )" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
                 }
                 exit 1
             }
