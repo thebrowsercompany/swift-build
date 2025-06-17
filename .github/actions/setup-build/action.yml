@@ -177,19 +177,18 @@ runs:
         name: ${{ github.job }}-windows-sdk-installer-log
         path: ${{ steps.setup-windows-sdk.outputs.log-file }}
 
-    - name: Install Windows MSVC version 14.42
-      if: steps.sanitize-input.outputs.build-os == 'windows'
+    - name: Install Windows MSVC version ${{ inputs.msvc-version }}
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
       id: setup-msvc
       shell: pwsh
       run: |
         $script:LogFiles = @()
         function Install-MSVC {
-          Write-Host "ℹ️ In Install-MSVC..."
           try {
             # This is assuming a VS2022 toolchain. e.g.
             # MSVC 14.42 corresponds to the 14.42.17.12 package.
             # MSVC 14.43 corresponds to the 14.43.17.13 package.
-            $MSVCVersionString = "14.42"
+            $MSVCVersionString = "${{ inputs.msvc-version }}"
 
             $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
             $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
@@ -234,17 +233,11 @@ runs:
               }
             }
 
-            if ($MSVCBuildToolsVersion -ne "") {
-              Write-Host "ℹ️ Installation passed. Injecting failure!"
-              $MSVCBuildToolsVersion = ""
-            }
-
             if ($MSVCBuildToolsVersion -eq "") {
               Write-Host "::error::Failed to install MSVC ${MSVCVersionString}. Check the installer log for details."
               $LogFile = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
               write-Host "ℹ️ Found Installer log: $($LogFile.FullName)"
               $script:LogFiles += $LogFile.FullName
-              Write-Host "The size of the array is $($script:LogFiles.Length)"
               return $false
             } else {
               Write-Host "ℹ️ MSVC ${MSVCBuildToolsVersion} installed successfully."
@@ -262,7 +255,6 @@ runs:
         for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             Write-Host "ℹ️ Attempt $attempt of $maxAttempts to install MSVC..."
             $success = Install-MSVC
-            Write-Host "Install-MSVC returned: $success"
             if ($success) {
                 Write-Host "ℹ️ MSVC install successed on attempt: $attempt."
                 break
@@ -272,7 +264,6 @@ runs:
             } else {
                 Write-Host "❌ All attempts to install MSVC failed."
                 if ($script:LogFiles.Count -gt 0) {
-                  Write-Host "ℹ️ Found Installer logs: $($script:LogFiles -join ', ')"
                   "log-files=$($script:LogFiles -join "`n" )" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
                 }
                 exit 1
@@ -285,12 +276,6 @@ runs:
       with:
         name: ${{ github.job }}-msvc-installer-log
         path: ${{ steps.setup-msvc.outputs.log-files }}
-
-    - name: Failure
-      shell: pwsh
-      run: |
-        Write-Output "::error::Failed to set up the build environment. Check the logs for details."
-        exit 1
 
     - name: Setup Visual Studio Developer Environment
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.setup-vs-dev-env == 'true'
