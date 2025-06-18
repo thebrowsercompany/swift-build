@@ -1,0 +1,29 @@
+name: Pull Request - Development Snapshot (GitHub)
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - '.github/workflows/swift-toolchain.yml'
+      - '.github/workflows/pull-request-swift-toolchain-github.yml'
+
+  workflow_dispatch:
+
+jobs:
+  call_development_snapshot:
+    name: Development Snapshot
+    uses: ./.github/workflows/build-toolchain.yml
+    with:
+      create_release: false
+      windows_x64_default_runner: "swift-build-windows-latest-8-cores"
+      windows_x64_compilers_runner: "swift-build-windows-latest-64-cores"
+      windows_arm64_default_runner: "swift-build-windows-arm64-latest-8-cores"
+      windows_arm64_compilers_runner: "swift-build-windows-arm64-latest-32-cores"
+      android_api_level: 28
+    secrets: inherit
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
+
