@@ -238,6 +238,10 @@ on:
       debug_info:
         required: true
         type: boolean
+      
+      release:
+        required: true
+        type: boolean
 
       signed:
         required: true
@@ -293,6 +297,10 @@ env:
 defaults:
   run:
     shell: pwsh
+
+permissions:
+  id-token: write
+  attestations: write
 
 jobs:
   sqlite:
@@ -3780,6 +3788,21 @@ jobs:
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
 
+      - if: ${{ inputs.release }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-bld-msi
@@ -3954,6 +3977,19 @@ jobs:
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
 
+      - if: ${{ inputs.release }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.arm64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x86.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.x86.msm
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-platform-msi
@@ -4126,6 +4162,17 @@ jobs:
               -p:AndroidArchitectures="`"x86_64;aarch64;i686;armv7`"" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/android/android.wixproj
 
+      - if: ${{ inputs.build_android && inputs.release }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/android.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/android.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.arm64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.arm.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
+
       - if: inputs.build_android
         uses: actions/upload-artifact@v4
         with:
@@ -4255,6 +4302,11 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
+
+      - if: ${{ inputs.release }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
       - uses: actions/upload-artifact@v4
         with:
