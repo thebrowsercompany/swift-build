@@ -18,6 +18,12 @@ runs:
   steps:
     - name: Install the latest version of uv
       uses: astral-sh/setup-uv@v5
+      with:
+        working-directory: ${{ inputs.repo-root }}
+        # Explicitly set where the pyproject.toml file is located untill we 
+        # a fix for https://github.com/astral-sh/setup-uv/issues/441
+        cache-dependency-glob: ${{ inputs.repo-root }}/**/pyproject.toml
+
     # uv misbehaves in the presence of the python 3.9 pythonarm64 Nuget package.
     # This is a workaround to remove it if it exists.
     - name: Uninstall pythonarm64 if installed
