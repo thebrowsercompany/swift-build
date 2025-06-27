@@ -22,6 +22,18 @@ inputs:
       This is the target architecture for the Visual Studio Developer Environment.
     required: false
     type: string
+  swift-version:
+    description: The Swift version to use, e.g. "6.0.1" for the upstream Apple Swift repository.
+      Or "6.0.0-20261216.0" for a specific snapshot from another repository.
+      If unspecified, the Swift toolchain is not set up.
+    required: false
+    type: string
+  swift-repo:
+    description: |
+      The Swift repository to use, e.g. "thebrowsercompany/swift-build". If unspecified, and
+      `swift-version` is specified, the upstream Apple Swift repository is used.
+    required: false
+    type: string
 
 outputs:
   windows-build-tools-version:
@@ -96,14 +108,39 @@ runs:
           $HostArch = $BuildArch
         }
 
+        ${SwiftVersion} = "${{ inputs.swift-version }}"
+        ${SwiftRepo} = "${{ inputs.swift-repo }}"
+        if ($SwiftRepo -ne "" -and $SwiftVersion -eq "") {
+          Write-Output "::error::The `swift-repo` input was specified, but the `swift-version` input was not. Please specify a Swift toolchain version to use."
+          exit 1
+        }
+
         Write-Output "ℹ️ Build OS: $BuildOS"
         Write-Output "ℹ️ Build architecture: $BuildArch"
         Write-Output "ℹ️ Host architecture: $HostArch"
+
+        # Derive the Swift version and repository from the inputs.
+        if ($SwiftVersion -ne "") {
+          if ($SwiftRepo -eq "") {
+            $SwiftBranch = "swift-${SwiftVersion}-release"
+            $SwiftTag = "${SwiftVersion}-RELEASE"
+            Write-Output "ℹ️ Using upstream Swift toolchain: $SwiftVersion (branch: $SwiftBranch, tag: $SwiftTag)"
+          } else {
+            # Note: This only supports Windows for now.
+            $SwiftReleaseAssetName = "installer-${BuildArch}.exe"
+            $SwiftReleaseTagName = "swift-${SwiftVersion}"
+            Write-Output "ℹ️ Using custom Swift toolchain: $SwiftVersion (repository: $SwiftRepo, tag: $SwiftReleaseTagName, asset: $SwiftReleaseAssetName)"
+          }
+        }
 
         @"
         build-os=$BuildOS
         build-arch=$BuildArch
         host-arch=$HostArch
+        swift-branch=$SwiftBranch
+        swift-tag=$SwiftTag
+        swift-release-asset=$SwiftReleaseAssetName
+        swift-release-tag=$SwiftReleaseTagName
         "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
     - name: Install Windows SDK version ${{ inputs.windows-sdk-version }}
@@ -257,3 +294,19 @@ runs:
         arch: ${{ steps.sanitize-input.outputs.host-arch }}
         winsdk: ${{ inputs.windows-sdk-version }}
         toolset_version: ${{ inputs.msvc-version }}
+
+    - name: Setup Swift toolchain (Upstream)
+      if: inputs.swift-version != '' && inputs.swift-repo == ''
+      uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+      with:
+        branch: ${{ steps.sanitize-input.outputs.swift-branch }}
+        tag: ${{ steps.sanitize-input.outputs.swift-tag }}
+
+    - name: Setup Swift toolchain (Custom)
+      if: inputs.swift-version != '' && inputs.swift-repo != ''
+      uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+      with:
+        github-repo: ${{ inputs.swift-repo }}
+        github-token: ${{ github.token }}
+        release-asset-name: ${{ steps.sanitize-input.outputs.swift-release-asset }}
+        release-tag-name: ${{ steps.sanitize-input.outputs.swift-release-tag }}

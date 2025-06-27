@@ -277,14 +277,12 @@ on:
         required: true
 
 env:
-  # Workaround for needing llvm-17 on macOS preventing us from using the 5.10 toolchain release.
-  WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH: swift-6.0.1-release
-  WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG: 6.0.1-RELEASE
+  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.0.1
 
   # Workaround for the upstream builds are still built with VS versions (17.9.x and 17.10.x)
   # with the ARM64 miscompile bug.
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
-  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE: swift-6.0.0-20241216.0
+  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.0.0-20241216.0
 
   # Workaround for issues with building with SDK version 26100.
   # See https://github.com/compnerd/swift-build/issues/909 for details.
@@ -795,6 +793,8 @@ jobs:
           msvc-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION }}
           windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           host-arch: ${{ matrix.arch }}
+          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO || '' }}
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -826,22 +826,6 @@ jobs:
           ref: ${{ inputs.swift_driver_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-driver
           show-progress: false
-
-      - name: Install Swift Toolchain (macOS)
-        if: matrix.os == 'Darwin'
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
-          tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
-
-      - name: Install Swift Toolchain (Windows)
-        if: matrix.os == 'Windows'
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
 
       - name: Build early swift-driver
         run: |
@@ -930,6 +914,9 @@ jobs:
           windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
+          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO || '' }}
+
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
 
@@ -1034,22 +1021,6 @@ jobs:
           echo "PYTHON_LOCATION_amd64=$env:pythonLocation" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ env.PYTHON_VERSION_WINDOWS }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install Swift Toolchain
-        if: inputs.build_os == 'Windows'
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
-
-      - name: Install Swift Toolchain
-        if: inputs.build_os == 'Darwin'
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
-          tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
-
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'
         id: setup-ndk
@@ -1085,7 +1056,7 @@ jobs:
             Remove-Item env:\SDKROOT
           } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
             # Default swiftc comes from /usr/bin and is not compatible with the toolchain.
-            $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}.xctoolchain/usr/bin"
+            $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}-RELEASE.xctoolchain/usr/bin"
             $SWIFTC = Join-Path $CLANG_LOCATION "swiftc"
 
             # We need to use llvm-17 to build the compiler on macOS. We get it from the Swift toolchain.
@@ -1679,6 +1650,8 @@ jobs:
           windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
+          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO || '' }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
 
@@ -1716,21 +1689,6 @@ jobs:
           ref: ${{ inputs.swift_experimental_string_processing_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
-
-      - name: Install Swift Toolchain
-        if: inputs.build_os == 'Windows' && (matrix.os != 'Android' || inputs.build_android)
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          github-repo: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          release-asset-name: installer-${{ inputs.build_arch }}.exe
-          release-tag-name: ${{ env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_RELEASE }}
-      - name: Install Swift Toolchain
-        if: inputs.build_os == 'Darwin'
-        uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-        with:
-          branch: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_BRANCH }}
-          tag: ${{ env.WORKAROUND_MACOS_PINNED_BOOTSTRAP_TOOLCHAIN_TAG }}
 
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android' && inputs.build_android

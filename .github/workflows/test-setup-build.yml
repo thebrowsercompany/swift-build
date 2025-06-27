@@ -23,6 +23,9 @@ env:
   TEST_WIN_SDK_VERSION: "10.0.22000.0"
   TEST_MSVC_VERSION: "14.40"
   TEST_BUILD_TOOLS_EXPECTED_VERSION: "14.40.33807"
+  TEST_UPSTREAM_SWIFT_VERSION: "5.10"
+  TEST_BCNY_SWIFT_VERSION: "6.0.0-20241216.0"
+  TEST_BCNY_SWIFT_REPO: "thebrowsercompany/swift-build"
 
 jobs:
   test-setup-build-windows-vs-dev-env:
@@ -288,4 +291,54 @@ jobs:
           } else {
             Write-Output "✅ Log file found. File contents:"
             Get-Content -Path "$LogFile"
+          }
+
+  test-upstream-swift-install:
+    name: Upstream Swift Installation
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build with upstream Swift
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          swift-version: ${{ env.TEST_UPSTREAM_SWIFT_VERSION }}
+
+      - name: Check Swift installation
+        run: |
+          $SwiftVersion = & swift --version
+          if ($SwiftVersion -match "Swift version ${env:TEST_UPSTREAM_SWIFT_VERSION}") {
+            Write-Output "✅ Upstream Swift version `"$env:TEST_UPSTREAM_SWIFT_VERSION`" is installed."
+          } else {
+            Write-Output "::error::Expected to find Swift version `"$env:TEST_UPSTREAM_SWIFT_VERSION`" in output:"
+            Write-Output "$SwiftVersion"
+            exit 1
+          }
+
+  test-bcny-swift-install:
+    name: BCNY Swift Installation
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+      - name: Set up build with BCNY Swift
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          swift-version: ${{ env.TEST_BCNY_SWIFT_VERSION }}
+          swift-repo: ${{ env.TEST_BCNY_SWIFT_REPO }}
+
+      - name: Check Swift installation
+        run: |
+          # Get the expected Swift version from the environment variable (i.e. "6.0" for "6.0.0-20241216.0")
+          $ExpectedSwiftVersion = ${env:TEST_BCNY_SWIFT_VERSION} -replace '-.*$', '' | ForEach-Object { ($_ -split '\.')[0..1] -join '.' }
+          $SwiftVersionOutput = & swift --version
+          if (${SwiftVersionOutput} -match "Swift version ${ExpectedSwiftVersion}") {
+            Write-Output "✅ BCNY Swift version `"${env:TEST_BCNY_SWIFT_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::Expected to find Swift version `"${ExpectedSwiftVersion}`" in output:"
+            Write-Output "${SwiftVersionOutput}"
+            exit 1
           }
