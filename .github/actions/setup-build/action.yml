@@ -310,3 +310,21 @@ runs:
         github-token: ${{ github.token }}
         release-asset-name: ${{ steps.sanitize-input.outputs.swift-release-asset }}
         release-tag-name: ${{ steps.sanitize-input.outputs.swift-release-tag }}
+
+    - name: Update Swift toolchain module maps
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
+      shell: pwsh
+      run: |
+        $SwiftBinFolder = Split-Path -Path (Get-Command swift).Source -Parent
+        $SwiftUsrFolder = Split-Path -Path $SwiftBinFolder -Parent
+        $SwiftClangIncludeFolder = Join-Path $SwiftUsrFolder "lib" "swift" "clang" "include"
+        $SwiftClangModuleMap = Join-Path $SwiftClangIncludeFolder "module.modulemap"
+        curl https://raw.githubusercontent.com/llvm/llvm-project/main/clang/lib/Headers/module.modulemap -o SwiftClangModuleMap
+
+        $WindowsSdkShareFolder = Join-Path ${env:SDKROOT} "usr" "share"
+        $WinSdkModuleMap = Join-Path $WindowsSdkShareFolder "winsdk.modulemap"
+        $UCRTModuleMap = Join-Path $WindowsSdkShareFolder "ucrt.modulemap"
+        $VCRuntimeModuleMap = Join-Path $WindowsSdkShareFolder "vcruntime.modulemap"
+        curl https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/winsdk.modulemap -o $WinSdkModuleMap
+        curl https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/ucrt.modulemap -o $UCRTModuleMap
+        curl https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/vcruntime.modulemap -o $VCRuntimeModuleMaps
