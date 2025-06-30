@@ -284,6 +284,10 @@ env:
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.0.0-20241216.0
 
+  # Workaround to build the early swift-driver without the workaround for the MSVC version.
+  WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_REPO: thebrowsercompany/swift-build
+  WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_VERSION: 6.2.0-20250630.0
+
   # Workaround for issues with building with MSVC 14.43.
   # See https://github.com/swiftlang/swift/issues/79852 for details.
   # TODO: Remove this once the bootstrap toolchain is updated to 6.1.
@@ -782,10 +786,9 @@ jobs:
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         id: setup-build
         with:
-          msvc-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION }}
           host-arch: ${{ matrix.arch }}
-          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO || '' }}
+          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_REPO || '' }}
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -821,14 +824,8 @@ jobs:
       - name: Build early swift-driver
         run: |
           $env:SWIFTCI_USE_LOCAL_DEPS=1
-          $BuildToolsVersion = "${{ steps.setup-build.outputs.windows-build-tools-version }}"
-          $ExtraFlags = if ($BuildToolsVersion -ne "") {
-              @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib",
-                "-Xswiftc", "-visualc-tools-version", "-Xswiftc", "${BuildToolsVersion}",
-                "-Xbuild-tools-swiftc", "-visualc-tools-version", "-Xbuild-tools-swiftc", "${BuildToolsVersion}",
-                "-Xcc", "-Xmicrosoft-visualc-tools-version", "-Xcc", "${BuildToolsVersion}",
-                "-Xcxx", "-Xmicrosoft-visualc-tools-version", "-Xcxx", "${BuildToolsVersion}"
-              )
+          $ExtraFlags = if ("${{ matrix.os }}" -eq "Windows") {
+            @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib")
           } else {
             @()
           }
