@@ -284,12 +284,9 @@ env:
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
   WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.0.0-20241216.0
 
-  # Workaround for issues with building with SDK version 26100.
-  # See https://github.com/compnerd/swift-build/issues/909 for details.
-  WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION: 10.0.22621.0
-
   # Workaround for issues with building with MSVC 14.43.
   # See https://github.com/swiftlang/swift/issues/79852 for details.
+  # TODO: Remove this once the bootstrap toolchain is updated to 6.1.
   WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION: 14.42
 
 defaults:
@@ -317,7 +314,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
 
@@ -389,7 +385,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
 
       - uses: actions/checkout@v4.2.2
@@ -488,8 +483,7 @@ jobs:
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         if: inputs.build_android
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
-          setup-vs-dev-env:  ${{ matrix.os == 'Windows' }}
+          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
 
       - uses: actions/checkout@v4.2.2
@@ -572,7 +566,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
@@ -648,7 +641,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
@@ -791,7 +783,6 @@ jobs:
         id: setup-build
         with:
           msvc-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION }}
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
           swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO || '' }}
@@ -832,14 +823,7 @@ jobs:
           $env:SWIFTCI_USE_LOCAL_DEPS=1
           $BuildToolsVersion = "${{ steps.setup-build.outputs.windows-build-tools-version }}"
           $ExtraFlags = if ($BuildToolsVersion -ne "") {
-              $Win10SdkRoot = Get-ItemPropertyValue `
-                -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
-                -Name "KitsRoot10"
               @("-Xlinker", "${env:SDKROOT}/usr/lib/swift/windows/${{ matrix.cpu }}/swiftCore.lib",
-                "-Xswiftc", "-windows-sdk-version", "-Xswiftc", "${env:WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION}",
-                "-Xswiftc", "-windows-sdk-root", "-Xswiftc", "${Win10SdkRoot}",
-                "-Xbuild-tools-swiftc", "-windows-sdk-version", "-Xbuild-tools-swiftc", "${env:WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION}",
-                "-Xbuild-tools-swiftc", "-windows-sdk-root", "-Xbuild-tools-swiftc", "${Win10SdkRoot}",
                 "-Xswiftc", "-visualc-tools-version", "-Xswiftc", "${BuildToolsVersion}",
                 "-Xbuild-tools-swiftc", "-visualc-tools-version", "-Xbuild-tools-swiftc", "${BuildToolsVersion}",
                 "-Xcc", "-Xmicrosoft-visualc-tools-version", "-Xcc", "${BuildToolsVersion}",
@@ -911,7 +895,6 @@ jobs:
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
           msvc-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION }}
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
@@ -1275,7 +1258,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
@@ -1370,7 +1352,6 @@ jobs:
 
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
@@ -1545,7 +1526,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
@@ -1647,7 +1627,6 @@ jobs:
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
@@ -1839,7 +1818,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
 
@@ -2114,8 +2092,6 @@ jobs:
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          msvc-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION }}
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
 
@@ -2659,8 +2635,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          msvc-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION }}
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
 
@@ -3430,7 +3404,6 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          windows-sdk-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_SDK_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
 
