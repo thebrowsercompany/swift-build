@@ -1082,9 +1082,9 @@ jobs:
           } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
             $ExeSuffix = ""
           }
-          $unixPath = $env:GITHUB_WORKSPACE -replace '\\', '/'
-          cmake -B $unixPath/BinaryCache/1 `
-                -C "$unixPath/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake" `
+
+          cmake -B ${{ github.workspace }}/BinaryCache/1 `
+                -C "${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake" `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER="${{ steps.setup-context.outputs.cc }}" `
                 -D CMAKE_C_COMPILER_LAUNCHER=sccache `
@@ -1098,19 +1098,19 @@ jobs:
                 ${{ matrix.cmake_linker_flags }} `
                 -D CMAKE_STATIC_LIBRARY_PREFIX_Swift= `
                 -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_INSTALL_PREFIX=$unixPath/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ steps.setup-context.outputs.extra_flags }} `
                 -G Ninja `
-                -S $unixPath/SourceCache/llvm-project/llvm `
-                -D CLANG_TABLEGEN="$unixPath/BinaryCache/0/bin/clang-tblgen${ExeSuffix}" `
-                -D CLANG_TIDY_CONFUSABLE_CHARS_GEN="$unixPath/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}" `
-                -D LLDB_TABLEGEN="$unixPath/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}" `
-                -D LLVM_CONFIG_PATH="$unixPath/BinaryCache/0/bin/llvm-config${ExeSuffix}" `
+                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
+                -D CLANG_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}" `
+                -D CLANG_TIDY_CONFUSABLE_CHARS_GEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}" `
+                -D LLDB_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}" `
+                -D LLVM_CONFIG_PATH="${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}" `
                 -D LLVM_ENABLE_ASSERTIONS=${{ matrix.variant == 'Asserts' && 'YES' || 'NO' }} `
-                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$unixPath/SourceCache/swift `
-                -D LLVM_NATIVE_TOOL_DIR=$unixPath/BinaryCache/0/bin `
-                -D LLVM_TABLEGEN="$unixPath/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}" `
+                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=${{ github.workspace }}/SourceCache/swift `
+                -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
+                -D LLVM_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}" `
                 -D LLVM_USE_HOST_TOOLS=NO `
                 -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
                 -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
@@ -1124,16 +1124,16 @@ jobs:
                 -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
                 -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
                 -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=$unixPath/BinaryCache/0/bin `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=$unixPath/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=$unixPath/SourceCache/swift-syntax `
-                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=$unixPath/SourceCache/swift-experimental-string-processing `
+                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
+                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
+                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
+                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
                 -D SWIFT_PATH_TO_SWIFT_SDK="${{ steps.setup-context.outputs.sdkroot }}" `
                 -D SWIFT_TOOLCHAIN_VERSION="${{ inputs.swift_version}} ${{ inputs.swift_tag }}" `
                 -D CLANG_VENDOR=compnerd.org `
                 -D CLANG_VENDOR_UTI=org.compnerd.dt `
-                -D cmark-gfm_DIR=$unixPath/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
-                -D LibXml2_DIR=$unixPath/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }} `
+                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
+                -D LibXml2_DIR=${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }} `
                 -D PACKAGE_VENDOR=compnerd.org `
                 -D SWIFT_VENDOR=compnerd.org `
                 -D LLVM_PARALLEL_LINK_JOBS=8 `
