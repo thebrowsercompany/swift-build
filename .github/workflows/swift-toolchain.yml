@@ -4165,6 +4165,7 @@ jobs:
         with:
           name: Windows-${{ matrix.arch }}-ide-asserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-rtl-msi
@@ -4181,6 +4182,7 @@ jobs:
         with:
           name: Windows-arm64-rtl-msm
           path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-platform-msi
@@ -4205,11 +4207,6 @@ jobs:
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: ${{ inputs.signed }}
-
-      # TODO(issues/154): Preload WixToolset.Sdk on Azure images so we can remove this step.
-      - name: Install WixToolset.Sdk
-        run: |
-          Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
