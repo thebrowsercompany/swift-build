@@ -228,6 +228,7 @@ runs:
         $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
         $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
         $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+        $VSInstallerSetup = Join-Path "${InstallerLocation}" "setup.exe"
         $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
         $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC"
 
@@ -243,8 +244,31 @@ runs:
         $RevisionVersion = $MinorVersion - 30
         $MSVCPackageVersion = "${MajorVersion}.${MinorVersion}.${BuildVersion}.${RevisionVersion}"
 
-        # Install the missing MSVC version.
+        # Run the setup update.
+        $process = Start-Process "$VSInstallerSetup " `
+            -PassThru `
+            -ArgumentList "update", `
+                "--quiet", "--norestart", "--nocache", "--wait"
+
+        # Install the missing MSVC version and potentially self-update the installer.
         Write-Output "ℹ️ Installing MSVC packages for ${MSVCPackageVersion}..."
+        $process = Start-Process "$VSInstaller" `
+            -PassThru `
+            -ArgumentList "modify", `
+                "--installPath", "`"$InstallPath`"", `
+                "--channelId", "https://aka.ms/vs/17/release/channel", `
+                "--quiet", "--norestart", "--nocache", `
+                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.x86.x64", `
+                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ATL", `
+                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ARM64", `
+                "--add", "Microsoft.VisualStudio.Component.VC.${MSVCPackageVersion}.ATL.ARM64"
+        $process.WaitForExit()
+
+        # Sleep for 10s to let the installer doing whatever.
+        Start-Sleep -Seconds 10
+
+        # Run the installer a second time to ensure that it has gone through whatever it does When
+        # it fails the first time.
         $process = Start-Process "$VSInstaller" `
             -PassThru `
             -ArgumentList "modify", `
