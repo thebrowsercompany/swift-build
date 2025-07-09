@@ -264,7 +264,7 @@ runs:
       run: |
         $InstallerLocation = Join-PATH (Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio") "Installer"
         $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
-        $VSInstaller = Join-Path "${InstallerLocation}" "setup.exe"
+        $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
         $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
         
         # Install the missing MSVC version.
@@ -275,7 +275,7 @@ runs:
 
         Write-Output "ℹ️ Updating VS installer ..."
                  Write-Output "Start-Process `"$VSInstaller`" -PassThru -ArgumentList `"--installPath`", `"`"$InstallPath`"`", `"--quiet`", `"--norestart`", `"--nocache`" "
-        $process = Start-Process "$VSInstaller" -PassThru -ArgumentList "--installPath", "`"$InstallPath`"", "--quiet", "--norestart", "--nocache" 
+        $process = Start-Process "$VSInstaller" -PassThru -ArgumentList "update", "--installPath", "`"$InstallPath`"", "--quiet", "--norestart", "--nocache" 
         $process.WaitForExit()
         $ExitCode = $process.ExitCode
          
