@@ -312,7 +312,7 @@ runs:
         $ExitCode = $process.ExitCode
 
         Write-Output "⏰ Waiting for 60 seconds after VS installer update..."
-        Start-Sleep -Seconds 120
+        Start-Sleep -Seconds 600
         Write-Output "✅ Wait completed."
          
         Write-Output "ℹ️ VS installer update completed with exit code: $ExitCode"
@@ -360,13 +360,18 @@ runs:
         # MSVC 14.43 corresponds to the 14.43.17.13 package.
         $MSVCVersionString = "${{ inputs.msvc-version }}"
 
-        $InstallerLocation = Join-Path (Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio") "Installer"
+        $InstallerLocation = Join-PATH (Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio") "Installer"
         $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
         $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
         $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+        
+        # Install the missing MSVC version.
+        Write-Output "ℹ️ VS installer location: $VSInstaller"
+        Write-Output "ℹ️ VS where location: $VSWhere"
+        Write-Output "ℹ️ VS install path: $InstallPath"
+        Write-Output "ℹ️ VS installer location: $InstallerLocation"
 
         Write-Output "MSVCVersionString: $MSVCVersionString"
-        Write-Output "InstallPath: $InstallPath"  
         $MSVCDir = Join-Path (Join-Path (Join-Path $InstallPath "VC") "Tools") "MSVC"
 
         # Compute the MSVC version package name from the MSVC version, assuming this is coming from
