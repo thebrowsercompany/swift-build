@@ -277,21 +277,11 @@ on:
         required: true
 
 env:
-  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.0.1
-
-  # Workaround for the upstream builds are still built with VS versions (17.9.x and 17.10.x)
-  # with the ARM64 miscompile bug.
-  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO: thebrowsercompany/swift-build
-  WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.0.0-20241216.0
+  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.1.2
 
   # Workaround to build the early swift-driver without the workaround for the MSVC version.
   WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_REPO: thebrowsercompany/swift-build
   WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_VERSION: 6.2.0-20250630.0
-
-  # Workaround for issues with building with MSVC 14.43.
-  # See https://github.com/swiftlang/swift/issues/79852 for details.
-  # TODO: Remove this once the bootstrap toolchain is updated to 6.1.
-  WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION: 14.42
 
 defaults:
   run:
@@ -892,11 +882,9 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          msvc-version: ${{ env.WORKAROUND_BOOTSTRAP_WINDOWS_MSVC_VERSION }}
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
-          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO || '' }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -1644,8 +1632,7 @@ jobs:
         with:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
-          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_PINNED_BOOTSTRAP_TOOLCHAIN_REPO || '' }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
 
