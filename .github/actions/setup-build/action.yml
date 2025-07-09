@@ -354,28 +354,21 @@ runs:
       shell: pwsh
       run: |
         Write-Output "🔄 Installing Visual Studio 2022 Community using winget..."
-        
-        # Check if winget is available
-        if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-          Write-Output "::error::winget is not available on this system"
-          exit 1
-        }
-        
-        # Check if VS 2022 Community is already installed
-        $VSInstalled = winget list --id Microsoft.VisualStudio.2022.Community --exact 2>$null
-        if ($LASTEXITCODE -eq 0) {
-          Write-Output "ℹ️ Visual Studio 2022 Community is already installed"
-        } else {
-          Write-Output "📦 Installing Visual Studio 2022 Community..."
-          winget install --id Microsoft.VisualStudio.2022.Community --exact --accept-source-agreements --accept-package-agreements
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Output "✅ Visual Studio 2022 Community installed successfully"
-          } else {
-            Write-Output "::error::Failed to install Visual Studio 2022 Community"
-            exit 1
-          }
-        }
+
+        # Download the bootstrapper using curl
+        $bootstrapperUrl = "https://aka.ms/vs/17/release/vs_community.exe"
+        $bootstrapperPath = "$PSScriptRoot\vs_community.exe"
+
+        curl.exe -L -o $bootstrapperPath $bootstrapperUrl
+
+        # Launch the installer with --quiet and --wait, and wait for it to complete
+        $arguments = "--quiet --wait"
+        $process = Start-Process -FilePath $bootstrapperPath -ArgumentList $arguments -Wait -PassThru
+
+        # Report the exit code
+        Write-Host "Visual Studio installer exited with code: $($process.ExitCode)"
+        exit $process.ExitCode
+
 
     - name: Install Windows MSVC version ${{ inputs.msvc-version }}
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
