@@ -143,6 +143,27 @@ runs:
         swift-release-tag=$SwiftReleaseTagName
         "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+    - name: Install Visual Studio 2022 Community
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
+      shell: pwsh
+      run: |
+        Write-Output "🔄 Downloading Visual Studio 2022 Community..."
+
+        # Download the bootstrapper using curl
+        $bootstrapperUrl = "https://aka.ms/vs/17/release/vs_community.exe"
+        $bootstrapperPath = "$PSScriptRoot\vs_community.exe"
+
+        curl.exe -L -o $bootstrapperPath $bootstrapperUrl
+
+        Write-Output "🔄 Installing Visual Studio 2022 Community..."
+        # Launch the installer with --quiet and --wait, and wait for it to complete
+        $arguments = "--quiet --wait"
+        $process = Start-Process -FilePath $bootstrapperPath -ArgumentList $arguments -Wait -PassThru
+
+        # Report the exit code
+        Write-Host "Visual Studio installer exited with code: $($process.ExitCode)"
+        exit $process.ExitCode
+
     - name: Install Windows SDK version ${{ inputs.windows-sdk-version }}
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.windows-sdk-version != ''
       id: setup-windows-sdk
@@ -169,6 +190,12 @@ runs:
           $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
           $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
           $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+
+          Write-Output "ℹ️ VS installer location: $VSInstaller"
+          Write-Output "ℹ️ VS where location: $VSWhere"
+          Write-Output "ℹ️ VS install path: $InstallPath"
+          Write-Output "ℹ️ VS installer location: $InstallerLocation"
+
           $process = Start-Process "$VSInstaller" `
               -PassThru `
               -ArgumentList "modify", `
@@ -231,6 +258,12 @@ runs:
         $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
         $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC"
 
+        Write-Output "ℹ️ VS installer location: $VSInstaller"
+        Write-Output "ℹ️ VS where location: $VSWhere"
+        Write-Output "ℹ️ VS install path: $InstallPath"
+        Write-Output "ℹ️ VS installer location: $InstallerLocation"
+        Write-Output "ℹ️ MSVCDir: $MSVCDir"
+
         # Compute the MSVC version package name from the MSVC version, assuming this is coming from
         # a VS2022 installation. The version package follows the following format:
         # * Major and minor version are the same as the MSVC version.
@@ -248,7 +281,6 @@ runs:
         $process = Start-Process "$VSInstaller" `
             -PassThru `
             -ArgumentList "modify", `
-                "--noUpdateInstaller", `
                 "--installPath", "`"$InstallPath`"", `
                 "--channelId", "https://aka.ms/vs/17/release/channel", `
                 "--quiet", "--norestart", "--nocache", `
@@ -262,6 +294,7 @@ runs:
         $MSVCBuildToolsVersion = ""
         foreach ($dir in Get-ChildItem -Path $MSVCDir -Directory) {
           $MSVCDirName = $dir.Name
+          Write-Output "ℹ️ Found MSVC dir: $MSVCDirName"
           if ($MSVCDirName.StartsWith($MSVCVersionString)) {
             Write-Output "ℹ️ MSVC ${MSVCVersionString} installed successfully."
             $MSVCBuildToolsVersion = $MsvcDirName
