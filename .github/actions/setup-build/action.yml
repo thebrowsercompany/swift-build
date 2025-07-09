@@ -215,6 +215,20 @@ runs:
         name: ${{ github.job }}-windows-sdk-installer-log
         path: ${{ steps.setup-windows-sdk.outputs.log-file }}
 
+    - name: Dump Windows SDK installer log
+      if: always() && steps.setup-windows-sdk.outputs.log-file != ''
+      shell: pwsh
+      run: |
+        $LogFile = "${{ steps.setup-windows-sdk.outputs.log-file }}"
+        if (Test-Path -Path $LogFile) {
+          Write-Output "📋 Windows SDK installer log contents:"
+          Write-Output "=========================================="
+          Get-Content -Path $LogFile -Raw
+          Write-Output "=========================================="
+        } else {
+          Write-Output "⚠️ Log file not found: $LogFile"
+        }
+
     - name: Install Windows MSVC version ${{ inputs.msvc-version }}
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
       id: setup-msvc
@@ -285,6 +299,20 @@ runs:
       with:
         name: ${{ github.job }}-msvc-installer-log
         path: ${{ steps.setup-msvc.outputs.log-file }}
+
+    - name: Dump MSVC installer log
+      if: always() && steps.setup-msvc.outputs.log-file != ''
+      shell: pwsh
+      run: |
+        $LogFile = "${{ steps.setup-msvc.outputs.log-file }}"
+        if (Test-Path -Path $LogFile) {
+          Write-Output "📋 MSVC installer log contents:"
+          Write-Output "=========================================="
+          Get-Content -Path $LogFile -Raw
+          Write-Output "=========================================="
+        } else {
+          Write-Output "⚠️ Log file not found: $LogFile"
+        }
 
     - name: Setup Visual Studio Developer Environment
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.setup-vs-dev-env == 'true'
