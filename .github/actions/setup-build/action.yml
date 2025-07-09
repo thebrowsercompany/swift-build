@@ -257,6 +257,66 @@ runs:
           Write-Output "ℹ️ _Channels directory does not exist"
         }
 
+    - name: Update VS installer 
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
+      id: update-vs-installer
+      shell: pwsh
+      run: |
+        $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+        $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
+        $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+        $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+        
+        # Install the missing MSVC version.
+        Write-Output "ℹ️ VS installer location: $VSInstaller"
+        Write-Output "ℹ️ VS where location: $VSWhere"
+        Write-Output "ℹ️ VS install path: $InstallPath"
+        Write-Output "ℹ️ VS installer location: $InstallerLocation"
+
+        Write-Output "ℹ️ Updating VS installer ..."
+        $process = Start-Process "$VSInstaller" `
+          -PassThru `
+          -ArgumentList "--installerOnly", `
+              "--installPath", "`"$InstallPath`"", `
+              "--quiet", "--norestart", "--nocache" `
+        $process.WaitForExit()
+        $ExitCode = $process.ExitCode
+         
+        Write-Output "ℹ️ VS installer update completed with exit code: $ExitCode"
+         
+        if ($ExitCode -ne 0) {
+          Write-Output "::error::VS installer update failed with exit code: $ExitCode"
+          $LogFile = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($LogFile) {
+            "log-file=$($LogFile.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+          exit 1
+        } else {
+          Write-Output "ℹ️ VS installer updated successfully."
+        }
+  
+    - name: Upload vsinstaller installer log
+      if: always() && steps.update-vs-installer.outputs.log-file != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.job }}-vsinstaller-installer-log
+        path: ${{ steps.update-vs-installer.outputs.log-file }}
+
+    - name: Dump MSVC installer log
+      if: always() && steps.update-vs-installer.outputs.log-file != ''
+      shell: pwsh
+      run: |
+        $LogFile = "${{ steps.update-vs-installer.outputs.log-file }}"
+        if (Test-Path -Path $LogFile) {
+          Write-Output "📋 MSVC installer log contents:"
+          Write-Output "=========================================="
+          Get-Content -Path $LogFile -Raw
+          Write-Output "=========================================="
+        } else {
+          Write-Output "⚠️ Log file not found: $LogFile"
+        }
+
+
     - name: Install Windows MSVC version ${{ inputs.msvc-version }}
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
       id: setup-msvc
