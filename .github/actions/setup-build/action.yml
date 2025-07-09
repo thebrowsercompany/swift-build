@@ -143,91 +143,91 @@ runs:
         swift-release-tag=$SwiftReleaseTagName
         "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-    - name: Install Windows SDK version ${{ inputs.windows-sdk-version }}
-      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.windows-sdk-version != ''
-      id: setup-windows-sdk
-      shell: pwsh
-      run: |
-        $WinSdkVersionString = "${{ inputs.windows-sdk-version }}"
-        $WinSdkVersion = [System.Version]::Parse($WinSdkVersionString)
-        $WinSdkVersionBuild = $WinSdkVersion.Build
+    # - name: Install Windows SDK version ${{ inputs.windows-sdk-version }}
+    #   if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.windows-sdk-version != ''
+    #   id: setup-windows-sdk
+    #   shell: pwsh
+    #   run: |
+    #     $WinSdkVersionString = "${{ inputs.windows-sdk-version }}"
+    #     $WinSdkVersion = [System.Version]::Parse($WinSdkVersionString)
+    #     $WinSdkVersionBuild = $WinSdkVersion.Build
 
-        $Win10SdkRoot = Get-ItemPropertyValue `
-          -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
-          -Name "KitsRoot10"
-        $Win10SdkLib = Join-Path $Win10SdkRoot "Lib"
-        $Win10SdkInclude = Join-Path $Win10SdkRoot "Include"
-        $Win10SdkIncludeVersion = Join-Path $Win10SdkInclude $WinSdkVersionString
+    #     $Win10SdkRoot = Get-ItemPropertyValue `
+    #       -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+    #       -Name "KitsRoot10"
+    #     $Win10SdkLib = Join-Path $Win10SdkRoot "Lib"
+    #     $Win10SdkInclude = Join-Path $Win10SdkRoot "Include"
+    #     $Win10SdkIncludeVersion = Join-Path $Win10SdkInclude $WinSdkVersionString
 
-        if (Test-Path -Path $Win10SdkIncludeVersion -PathType Container) {
-          Write-Output "ℹ️ MSVCPackageVersionWindows SDK ${WinSdkVersionString} already installed."
-        } else {
-          # Install the missing SDK.
-          Write-Output "ℹ️ Installing Windows SDK ${WinSdkVersionString}..."
+    #     if (Test-Path -Path $Win10SdkIncludeVersion -PathType Container) {
+    #       Write-Output "ℹ️ MSVCPackageVersionWindows SDK ${WinSdkVersionString} already installed."
+    #     } else {
+    #       # Install the missing SDK.
+    #       Write-Output "ℹ️ Installing Windows SDK ${WinSdkVersionString}..."
 
-          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
-          $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
-          $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
-          $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
-          $process = Start-Process "$VSInstaller" `
-              -PassThru `
-              -ArgumentList "modify", `
-                  "--noUpdateInstaller", `
-                  "--installPath", "`"$InstallPath`"", `
-                  "--channelId", "https://aka.ms/vs/17/release/channel", `
-                  "--quiet", "--norestart", "--nocache", `
-                  "--add", "Microsoft.VisualStudio.Component.Windows11SDK.${WinSdkVersionBuild}"
-          $process.WaitForExit()
+    #       $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+    #       $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
+    #       $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
+    #       $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+    #       $process = Start-Process "$VSInstaller" `
+    #           -PassThru `
+    #           -ArgumentList "modify", `
+    #               "--noUpdateInstaller", `
+    #               "--installPath", "`"$InstallPath`"", `
+    #               "--channelId", "https://aka.ms/vs/17/release/channel", `
+    #               "--quiet", "--norestart", "--nocache", `
+    #               "--add", "Microsoft.VisualStudio.Component.Windows11SDK.${WinSdkVersionBuild}"
+    #       $process.WaitForExit()
 
-          if (Test-Path -Path $Win10SdkIncludeVersion -PathType Container) {
-            Write-Output "ℹ️ Windows SDK ${WinSdkVersionString} installed successfully."
-          } else {
-            Write-Output "::error::Failed to install Windows SDK ${WinSdkVersionString}. Check the installer log for details."
-            $LogFile = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            "log-file=$($LogFile.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            exit 1
-          }
-        }
+    #       if (Test-Path -Path $Win10SdkIncludeVersion -PathType Container) {
+    #         Write-Output "ℹ️ Windows SDK ${WinSdkVersionString} installed successfully."
+    #       } else {
+    #         Write-Output "::error::Failed to install Windows SDK ${WinSdkVersionString}. Check the installer log for details."
+    #         $LogFile = Get-ChildItem "${env:TEMP}" -Filter "dd_installer_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    #         "log-file=$($LogFile.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+    #         exit 1
+    #       }
+    #     }
 
-        # Remove more recent Windows SDKs, if present. This is used to work
-        # around issues where LLVM uses the most recent Windows SDK.
-        # This should be removed once a more permanent solution is found.
-        # See https://github.com/compnerd/swift-build/issues/958 for details.
-        Get-ChildItem -Path $Win10SdkInclude -Directory | ForEach-Object {
-          $IncludeDirName = $_.Name
-          try {
-            $IncludeDirVersion = [System.Version]::Parse($IncludeDirName)
-            if ($IncludeDirVersion -gt $WinSdkVersion) {
-              $LibDirVersion = Join-Path $Win10SdkLib $IncludeDirName
-              Write-Output "ℹ️ Removing folders for Windows SDK ${IncludeDirVersion}."
-              Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction Ignore
-              Remove-Item -Path $LibDirVersion -Recurse -Force -ErrorAction Ignore
-            }
-          } catch {
-            # Skip if the directory cannot be parsed as a version.
-          }
-        }
+    #     # Remove more recent Windows SDKs, if present. This is used to work
+    #     # around issues where LLVM uses the most recent Windows SDK.
+    #     # This should be removed once a more permanent solution is found.
+    #     # See https://github.com/compnerd/swift-build/issues/958 for details.
+    #     Get-ChildItem -Path $Win10SdkInclude -Directory | ForEach-Object {
+    #       $IncludeDirName = $_.Name
+    #       try {
+    #         $IncludeDirVersion = [System.Version]::Parse($IncludeDirName)
+    #         if ($IncludeDirVersion -gt $WinSdkVersion) {
+    #           $LibDirVersion = Join-Path $Win10SdkLib $IncludeDirName
+    #           Write-Output "ℹ️ Removing folders for Windows SDK ${IncludeDirVersion}."
+    #           Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction Ignore
+    #           Remove-Item -Path $LibDirVersion -Recurse -Force -ErrorAction Ignore
+    #         }
+    #       } catch {
+    #         # Skip if the directory cannot be parsed as a version.
+    #       }
+    #     }
 
-    - name: Upload installer log
-      if: always() && steps.setup-windows-sdk.outputs.log-file != ''
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ github.job }}-windows-sdk-installer-log
-        path: ${{ steps.setup-windows-sdk.outputs.log-file }}
+    # - name: Upload installer log
+    #   if: always() && steps.setup-windows-sdk.outputs.log-file != ''
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: ${{ github.job }}-windows-sdk-installer-log
+    #     path: ${{ steps.setup-windows-sdk.outputs.log-file }}
 
-    - name: Dump Windows SDK installer log
-      if: always() && steps.setup-windows-sdk.outputs.log-file != ''
-      shell: pwsh
-      run: |
-        $LogFile = "${{ steps.setup-windows-sdk.outputs.log-file }}"
-        if (Test-Path -Path $LogFile) {
-          Write-Output "📋 Windows SDK installer log contents:"
-          Write-Output "=========================================="
-          Get-Content -Path $LogFile -Raw
-          Write-Output "=========================================="
-        } else {
-          Write-Output "⚠️ Log file not found: $LogFile"
-        }
+    # - name: Dump Windows SDK installer log
+      # if: always() && steps.setup-windows-sdk.outputs.log-file != ''
+      # shell: pwsh
+      # run: |
+      #   $LogFile = "${{ steps.setup-windows-sdk.outputs.log-file }}"
+      #   if (Test-Path -Path $LogFile) {
+      #     Write-Output "📋 Windows SDK installer log contents:"
+      #     Write-Output "=========================================="
+      #     Get-Content -Path $LogFile -Raw
+      #     Write-Output "=========================================="
+      #   } else {
+      #     Write-Output "⚠️ Log file not found: $LogFile"
+      #   }
 
     - name: Clean Visual Studio Packages Channels
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
