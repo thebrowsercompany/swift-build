@@ -229,6 +229,34 @@ runs:
           Write-Output "⚠️ Log file not found: $LogFile"
         }
 
+    - name: Clean Visual Studio Packages Channels
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
+      shell: pwsh
+      run: |
+        $ChannelsPath = Join-Path $env:ProgramData "Microsoft\VisualStudio\Packages\_Channels"
+        Write-Output "🧹 Cleaning Visual Studio Packages Channels directory: $ChannelsPath"
+        
+        if (Test-Path -Path $ChannelsPath -PathType Container) {
+          $AllItems = Get-ChildItem -Path $ChannelsPath -Recurse -Force
+          $Files = $AllItems | Where-Object { $_.PSIsContainer -eq $false }
+          $Directories = $AllItems | Where-Object { $_.PSIsContainer -eq $true }
+          
+          if ($AllItems.Count -gt 0) {
+            Write-Output "📋 Found $($Files.Count) files and $($Directories.Count) directories in _Channels:"
+            foreach ($Item in $AllItems) {
+              $Type = if ($Item.PSIsContainer) { "DIR" } else { "FILE" }
+              Write-Output "  [$Type] $($Item.FullName)"
+            }
+            Write-Output "🗑️ Deleting all files and directories..."
+            Remove-Item -Path $ChannelsPath -Recurse -Force
+            Write-Output "✅ Successfully deleted all files and directories in _Channels directory"
+          } else {
+            Write-Output "ℹ️ No files or directories found in _Channels directory"
+          }
+        } else {
+          Write-Output "ℹ️ _Channels directory does not exist"
+        }
+
     - name: Install Windows MSVC version ${{ inputs.msvc-version }}
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
       id: setup-msvc
@@ -262,6 +290,7 @@ runs:
         $process = Start-Process "$VSInstaller" `
             -PassThru `
             -ArgumentList "modify", `
+                "--noUpdateInstaller", `
                 "--installPath", "`"$InstallPath`"", `
                 "--channelId", "https://aka.ms/vs/17/release/channel", `
                 "--quiet", "--norestart", "--nocache", `
