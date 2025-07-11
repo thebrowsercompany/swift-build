@@ -126,9 +126,6 @@ You may also do this at the initial checkout time as:
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo init -u https://github.com/compnerd/swift-build -b release/6.0
 ```
 
-> [!NOTE]
-> The first clone will fail if you do not have git-lfs. The failure is due to the inability to checkout the ICU data which is stored using LFS, but is not fatal in practice.
-
 ## Building
 
 The full toolchain can be built in an automated fashion.  The following script
