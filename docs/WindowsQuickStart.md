@@ -115,8 +115,16 @@ You may also sync to specific toolchain versions by providing `repo` with the co
 "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -m path\to\stable.xml
 ```
 
-> [!NOTE]
-> The first clone will fail if you do not have git-lfs. The failure is due to the inability to checkout the ICU data which is stored using LFS, but is not fatal in practice.
+If you wish to build a specific release branch, you can specify the `-b` (branch) option to `repo` to checkout the branch:
+```
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo init -b release/6.0
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync
+```
+
+You may also do this at the initial checkout time as:
+```
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo init -u https://github.com/compnerd/swift-build -b release/6.0
+```
 
 ## Building
 

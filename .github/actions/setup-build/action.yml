@@ -228,7 +228,9 @@ runs:
         $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
         $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
         $VSInstaller = Join-Path "${InstallerLocation}" "vs_installer.exe"
-        $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+        $VSWhereJSON = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json)
+        $InstallPath = $VSWhereJSON.installationPath
+        $ProductID = $VSWhereJSON.productId
         $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC"
 
         # Compute the MSVC version package name from the MSVC version, assuming this is coming from
@@ -243,12 +245,41 @@ runs:
         $RevisionVersion = $MinorVersion - 30
         $MSVCPackageVersion = "${MajorVersion}.${MinorVersion}.${BuildVersion}.${RevisionVersion}"
 
+        # Download the latest VS Installer to update the VS Installer installation. This is needed
+        # due to a bug in the VS Installer that causes it to fail to self-update. For details, see
+        # https://developercommunity.visualstudio.com/t/Visual-Studio-Installer-randomly-fails-t/10924708
+        $VSInstallerURI = switch ($ProductID) {
+          "Microsoft.VisualStudio.Product.Community" {
+            "https://aka.ms/vs/17/release/vs_community.exe"
+          }
+          "Microsoft.VisualStudio.Product.Enterprise" {
+            "https://aka.ms/vs/17/release/vs_enterprise.exe"
+          }
+          "Microsoft.VisualStudio.Product.Professional" {
+            "https://aka.ms/vs/17/release/vs_professional.exe"
+          }
+          "Microsoft.VisualStudio.Product.BuildTools" {
+            "https://aka.ms/vs/17/release/vs_buildtools.exe"
+          }
+          default {
+            Write-Output "::error::Unsupported Visual Studio product ID: $ProductID"
+            exit 1
+          }
+        }
+        $VSProductInstaller = Join-Path "${env:TEMP}" "vs_installer.exe"
+        Invoke-WebRequest $VSInstallerURI -OutFile $VSProductInstaller -ErrorAction Stop
+
+        Write-Output "ℹ️ Updating Visual Studio Installer..."
+        $process = Start-Process "$VSProductInstaller" `
+            -PassThru `
+            -ArgumentList "--update", "--quiet", "--wait"
+        $process.WaitForExit()
+
         # Install the missing MSVC version.
         Write-Output "ℹ️ Installing MSVC packages for ${MSVCPackageVersion}..."
         $process = Start-Process "$VSInstaller" `
             -PassThru `
             -ArgumentList "modify", `
-                "--noUpdateInstaller", `
                 "--installPath", "`"$InstallPath`"", `
                 "--channelId", "https://aka.ms/vs/17/release/channel", `
                 "--quiet", "--norestart", "--nocache", `
