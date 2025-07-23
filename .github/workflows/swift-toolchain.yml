@@ -888,7 +888,8 @@ jobs:
         with:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
-          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          swift-version: ${{ inputs.build_arch == 'arm64' && env.WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          swift-repo: ${{ inputs.build_arch == 'arm64' && env.WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_REPO || '' }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -4014,7 +4015,7 @@ jobs:
                 -D CMAKE_Swift_COMPILER=${SWIFTC} `
                 -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
                 -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${ArchSpecificFlags} ${{ inputs.CMAKE_Swift_FLAGS }}" `
+                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${ArchSpecificFlags} ${{ inputs.CMAKE_Swift_FLAGS }} -use-ld=lld-link" `
                 -D CMAKE_Swift_FLAGS_RELEASE="-O" `
                 -D CMAKE_SYSTEM_NAME=Windows `
                 -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
