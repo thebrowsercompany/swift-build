@@ -398,3 +398,14 @@ runs:
           Write-Output "::error::Failed to update VCRuntime module map. curl failed with exit code $LASTEXITCODE."
           exit 1
         }
+
+    - name: Fix Process Path
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != '' && inputs.setup-vs-dev-env == 'true'
+      shell: pwsh
+      run: |
+        # This is a workaround for an issue where the Process Path is not correctly set up,
+        # resulting in the Swift toolchain failing to find the MSVC toolchain.
+        $CLLocation = Split-Path -Parent (Get-Command "cl.exe").Path
+        $Path = [Environment]::GetEnvironmentVariable("Path", "Process")
+        $Path = "$CLLocation;$Path"
+        [Environment]::SetEnvironmentVariable("Path", $Path, "Process")
