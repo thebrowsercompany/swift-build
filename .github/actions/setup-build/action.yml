@@ -143,6 +143,79 @@ runs:
         swift-release-tag=$SwiftReleaseTagName
         "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+    - name: Setup Swift toolchain (Upstream)
+      if: inputs.swift-version != '' && inputs.swift-repo == ''
+      uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+      with:
+        branch: ${{ steps.sanitize-input.outputs.swift-branch }}
+        tag: ${{ steps.sanitize-input.outputs.swift-tag }}
+
+    - name: Setup Swift toolchain (Custom)
+      if: inputs.swift-version != '' && inputs.swift-repo != ''
+      uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
+      with:
+        github-repo: ${{ inputs.swift-repo }}
+        github-token: ${{ github.token }}
+        release-asset-name: ${{ steps.sanitize-input.outputs.swift-release-asset }}
+        release-tag-name: ${{ steps.sanitize-input.outputs.swift-release-tag }}
+
+    - name: Update Swift toolchain module maps
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
+      shell: pwsh
+      run: |
+        $SwiftBinFolder = Split-Path -Path (Get-Command swift).Source -Parent
+        $SwiftUsrFolder = Split-Path -Path $SwiftBinFolder -Parent
+        $SwiftClangIncludeFolder = Join-Path $SwiftUsrFolder "lib" "swift" "clang" "include"
+        $SwiftClangModuleMap = Join-Path $SwiftClangIncludeFolder "module.modulemap"
+        curl -s `
+          -H "Authorization: Bearer ${{ github.token }}" `
+          https://raw.githubusercontent.com/llvm/llvm-project/main/clang/lib/Headers/module.modulemap `
+          -o SwiftClangModuleMap
+        if ($LASTEXITCODE -eq 0) {
+          Write-Output "ℹ️ Updated Swift Clang module map."
+        } else {
+          Write-Output "::error::Failed to update Swift Clang module map. curl failed with exit code $LASTEXITCODE."
+          exit 1
+        }
+
+        $WindowsSdkShareFolder = Join-Path ${env:SDKROOT} "usr" "share"
+
+        $WinSdkModuleMap = Join-Path $WindowsSdkShareFolder "winsdk.modulemap"
+        curl -s `
+          -H "Authorization: Bearer ${{ github.token }}" `
+          https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/winsdk.modulemap `
+          -o $WinSdkModuleMap
+        if ($LASTEXITCODE -eq 0) {
+          Write-Output "ℹ️ Updated Windows SDK module map."
+        } else {
+          Write-Output "::error::Failed to update Windows SDK module map. curl failed with exit code $LASTEXITCODE."
+          exit 1
+        }
+
+        $UCRTModuleMap = Join-Path $WindowsSdkShareFolder "ucrt.modulemap"
+        curl -s `
+          -H "Authorization: Bearer ${{ github.token }}" `
+          https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/ucrt.modulemap `
+          -o $UCRTModuleMap
+        if ($LASTEXITCODE -eq 0) {
+          Write-Output "ℹ️ Updated UCRT module map."
+        } else {
+          Write-Output "::error::Failed to update UCRT module map. curl failed with exit code $LASTEXITCODE."
+          exit 1
+        }
+
+        $VCRuntimeModuleMap = Join-Path $WindowsSdkShareFolder "vcruntime.modulemap"
+        curl -s `
+          -H "Authorization: Bearer ${{ github.token }}" `
+          https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/vcruntime.modulemap `
+          -o $VCRuntimeModuleMap
+        if ($LASTEXITCODE -eq 0) {
+          Write-Output "ℹ️ Updated VCRuntime module map."
+        } else {
+          Write-Output "::error::Failed to update VCRuntime module map. curl failed with exit code $LASTEXITCODE."
+          exit 1
+        }
+
     - name: Install Windows SDK version ${{ inputs.windows-sdk-version }}
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.windows-sdk-version != ''
       id: setup-windows-sdk
@@ -325,76 +398,3 @@ runs:
         arch: ${{ steps.sanitize-input.outputs.host-arch }}
         winsdk: ${{ inputs.windows-sdk-version }}
         toolset_version: ${{ inputs.msvc-version }}
-
-    - name: Setup Swift toolchain (Upstream)
-      if: inputs.swift-version != '' && inputs.swift-repo == ''
-      uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-      with:
-        branch: ${{ steps.sanitize-input.outputs.swift-branch }}
-        tag: ${{ steps.sanitize-input.outputs.swift-tag }}
-
-    - name: Setup Swift toolchain (Custom)
-      if: inputs.swift-version != '' && inputs.swift-repo != ''
-      uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
-      with:
-        github-repo: ${{ inputs.swift-repo }}
-        github-token: ${{ github.token }}
-        release-asset-name: ${{ steps.sanitize-input.outputs.swift-release-asset }}
-        release-tag-name: ${{ steps.sanitize-input.outputs.swift-release-tag }}
-
-    - name: Update Swift toolchain module maps
-      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
-      shell: pwsh
-      run: |
-        $SwiftBinFolder = Split-Path -Path (Get-Command swift).Source -Parent
-        $SwiftUsrFolder = Split-Path -Path $SwiftBinFolder -Parent
-        $SwiftClangIncludeFolder = Join-Path $SwiftUsrFolder "lib" "swift" "clang" "include"
-        $SwiftClangModuleMap = Join-Path $SwiftClangIncludeFolder "module.modulemap"
-        curl -s `
-          -H "Authorization: Bearer ${{ github.token }}" `
-          https://raw.githubusercontent.com/llvm/llvm-project/main/clang/lib/Headers/module.modulemap `
-          -o SwiftClangModuleMap
-        if ($LASTEXITCODE -eq 0) {
-          Write-Output "ℹ️ Updated Swift Clang module map."
-        } else {
-          Write-Output "::error::Failed to update Swift Clang module map. curl failed with exit code $LASTEXITCODE."
-          exit 1
-        }
-
-        $WindowsSdkShareFolder = Join-Path ${env:SDKROOT} "usr" "share"
-
-        $WinSdkModuleMap = Join-Path $WindowsSdkShareFolder "winsdk.modulemap"
-        curl -s `
-          -H "Authorization: Bearer ${{ github.token }}" `
-          https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/winsdk.modulemap `
-          -o $WinSdkModuleMap
-        if ($LASTEXITCODE -eq 0) {
-          Write-Output "ℹ️ Updated Windows SDK module map."
-        } else {
-          Write-Output "::error::Failed to update Windows SDK module map. curl failed with exit code $LASTEXITCODE."
-          exit 1
-        }
-
-        $UCRTModuleMap = Join-Path $WindowsSdkShareFolder "ucrt.modulemap"
-        curl -s `
-          -H "Authorization: Bearer ${{ github.token }}" `
-          https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/ucrt.modulemap `
-          -o $UCRTModuleMap
-        if ($LASTEXITCODE -eq 0) {
-          Write-Output "ℹ️ Updated UCRT module map."
-        } else {
-          Write-Output "::error::Failed to update UCRT module map. curl failed with exit code $LASTEXITCODE."
-          exit 1
-        }
-
-        $VCRuntimeModuleMap = Join-Path $WindowsSdkShareFolder "vcruntime.modulemap"
-        curl -s `
-          -H "Authorization: Bearer ${{ github.token }}" `
-          https://raw.githubusercontent.com/swiftlang/swift/main/stdlib/public/Platform/vcruntime.modulemap `
-          -o $VCRuntimeModuleMap
-        if ($LASTEXITCODE -eq 0) {
-          Write-Output "ℹ️ Updated VCRuntime module map."
-        } else {
-          Write-Output "::error::Failed to update VCRuntime module map. curl failed with exit code $LASTEXITCODE."
-          exit 1
-        }
