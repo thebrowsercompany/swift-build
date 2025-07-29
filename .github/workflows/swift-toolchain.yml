@@ -1059,6 +1059,11 @@ jobs:
           # Consider 24 GB per link job, to a minimum of 2 jobs.
           $LinkJobs = [math]::Max(2, [math]::Floor($RamGB / 24))
 
+          if ( "${{ matrix.build_os }}" -eq "Windows" -and "${{ matrix.build_arch }}" -eq "arm64" ) {
+            $SwiftFlags += " -use-ld=lld-link"
+            $ExtraFlags += " -D CMAKE_Swift_CREATE_STATIC_LIBRARY=`"`<CMAKE_Swift_COMPILER`> -use-ld=lld-link -j ${LinkJobs} -num-threads ${LinkJobs} -emit-library -static -o `<TARGET`> -module-name `<SWIFT_MODULE_NAME`> -module-link-name `<SWIFT_LIBRARY_NAME`> -emit-module -emit-module-path `<SWIFT_MODULE`> -emit-dependencies `<DEFINES`> `<FLAGS`> `<INCLUDES`> `<SWIFT_SOURCES`> `<LINK_FLAGS`> `<LINK_LIBRARIES`>`"" `
+          }
+
           # Output the context for the configure task.
           $Context = @"
           cc=${CC}
@@ -1080,7 +1085,8 @@ jobs:
         env:
           NDKPATH: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          if ( "${{ matrix.os }}" -eq "Windows" ) {
+          if ( "${{ matrix.os }}" -eq "Windows") {
+            $env:Path =  ($env:Path -split ';' | Where-Object { $_.Trim() -ne '' } | Select-Object -Unique) -join ';'
             $ExeSuffix = ".exe"
             Remove-Item env:\SDKROOT
           } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
@@ -1156,7 +1162,19 @@ jobs:
                 -D Python3_ROOT_DIR=$env:pythonLocation
 
       - name: Build Compiler Distribution
-        run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
+        run: |
+          if ( "${{ matrix.os }}" -eq "Windows" ) {
+            $PathLength = $env:PATH.Length
+            Write-Output "DEBUG DEBUG: Path length: $PathLength"
+            $env:Path =  ($env:Path -split ';' | Where-Object { $_.Trim() -ne '' } | Select-Object -Unique) -join ';'
+            $PathLength = $env:PATH.Length
+            Write-Output "DEBUG DEBUG: New Path length: $PathLength"
+            foreach ($path in $env:Path -split ';') {
+              Write-Output "DEBUG DEBUG: Path: $path"
+            }
+            where.exe link
+          }
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
 
       - name: Install Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target install-distribution-stripped
