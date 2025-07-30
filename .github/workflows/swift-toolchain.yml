@@ -344,26 +344,27 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
           show-progress: false
 
-      - name: Configure SQLite
-        run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
-      - name: Build SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
-      - name: Install SQLite
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }} --target install
+      - uses: ./SourceCache/ci-build/.github/actions/build-cmake-project
+        with:
+          project-name: SQLite
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+          bin-dir: ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          msvc-compilers: '@("C")'
+          build-targets: '@("install")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+            }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -1303,38 +1304,30 @@ jobs:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
           local-cache: true
 
-      - name: Configure zlib
-        run: |
-          if ("${{ matrix.os }}" -eq "Android") {
-            $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
-            if ( "${{ inputs.build_os }}" -eq "Windows" ) {
-              $NDKPATH = cygpath -m $NDKPATH
-            }
-            # Since win/arm64 doesn't have one, this logic is necessary because
-            # passing an empty CMAKE_ANDROID_NDK value causes a failure.
-            $CMAKE_NDK_FLAG = "-DCMAKE_ANDROID_NDK=$NDKPATH"
-          }
-          cmake -B ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                $CMAKE_NDK_FLAG `
-                -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/zlib `
-                -D SKIP_INSTALL_FILES=YES
       - name: Build zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
-      - name: Install zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }} --target install
+        uses: ./SourceCache/ci-build/.github/actions/build-cmake-project
+        with:
+          project-name: zlib
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/zlib
+          bin-dir: ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          msvc-compilers: '@("C")'
+          build-targets: '@("install")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+            }
 
       - uses: actions/upload-artifact@v4
         with:

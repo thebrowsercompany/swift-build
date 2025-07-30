@@ -1,0 +1,117 @@
+name: Build CMake Project
+description: Build a CMake project using the specified build type and configuration.
+
+inputs:
+  project-name:
+    description: Name of the CMake project to build.
+    required: true
+  swift-version:
+    description: Built Swift compiler version.
+    required: true
+  enable-caching:
+    description: Enable sccache.
+    required: false
+    default: false
+  debug-info:
+    description: Enable debug information in the build.
+    required: false
+    default: false
+  build-os:
+    description: Build operating system (e.g., "Windows", "Darwin").
+    required: true
+  build-arch:
+    description: Build architecture (e.g., "x86_64", "arm64").
+    required: true
+  os:
+    description: Operating system to build for (e.g., "Windows", "Android").
+    required: true
+  arch:
+    description: Architecture to build for (e.g., "amd64", "arm64").
+    required: true
+  src-dir:
+    description: Path to the source directory of the CMake project.
+    required: true
+  bin-dir:
+    description: Path to the output directory for the build artifacts.
+    required: true
+  install-dir:
+    description: Path to the installation directory for the built artifacts.
+    required: false
+    default: ''
+  android-api-level:
+    description: Android API level to target.
+    required: false
+    default: ''
+  android-clang-version:
+    description: Version of the Android Clang toolchain to use.
+    required: false
+    default: ''
+  ndk-path:
+    description: Path to the Android NDK.
+    required: false
+    default: ''
+  swift-sdk-path:
+    description: Path to the Swift SDK.
+    required: false
+    default: ''
+  msvc-compilers:
+    description: List of languages to build with the MSVC compilers (e.g. "C", "CXX", "ASM_MASM").
+    required: false
+    default: '@()'
+  built-compilers:
+    description: |
+      List of languages to build with the built compilers (e.g. "C", "CXX", "ASM", "Swift").
+    required: false
+    default: '@()'
+  bootstrap-compilers:
+    description: |
+      List of languages to build with the bootstrap compilers (e.g. "C", "CXX", "ASM", "Swift").
+    required: false
+    default: '@()'
+  use-gnu-driver:
+    description: Use the GNU driver for building the project.
+    required: false
+    default: false
+  build-targets:
+    description: List of targets to build (e.g., @("all", "install")).
+    required: false
+    default: '@("default")'
+  cache-script:
+    description: Optional path to a CMake Cache file.
+    required: false
+    default: ''
+  cmake-defines:
+    description: |
+      Additional CMake definitions to pass to the build system (e.g., "CMAKE_BUILD_TYPE=Release").
+    required: false
+    default: '@{}'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure ${{ inputs.project-name }}
+      shell: pwsh
+      run: |
+        ${{ github.workspace }}/SourceCache/ci-build/.github/actions/build-cmake-project/Build-CMakeProject.ps1 `
+          -ProjectName '${{ inputs.project-name }}' `
+          -SwiftVersion '${{ inputs.swift-version }}' `
+          ${{ inputs.enable-caching == 'true' && '-EnableCaching' || '' }} `
+          ${{ inputs.debug-info == 'true' && '-DebugInfo' || '' }} `
+          -BuildOS ${{ inputs.build-os }} `
+          -BuildArch ${{ inputs.build-arch }} `
+          -OS ${{ inputs.os }} `
+          -Arch ${{ inputs.arch }} `
+          -SrcDir '${{ inputs.src-dir }}' `
+          -BinDir '${{ inputs.bin-dir }}' `
+          -InstallDir '${{ inputs.install-dir }}' `
+          -AndroidAPILevel '${{ inputs.android-api-level }}' `
+          -AndroidClangVersion '${{ inputs.android-clang-version }}' `
+          -NDKPath '${{ inputs.ndk-path }}' `
+          -SwiftSDKPath '${{ inputs.swift-sdk-path }}' `
+          -UseMSVCCompilers ${{ inputs.msvc-compilers }} `
+          -UseBuiltCompilers ${{ inputs.built-compilers }} `
+          -UsePinnedCompilers ${{ inputs.bootstrap-compilers }} `
+          ${{ inputs.use-gnu-driver == 'true' && '-UseGNUDriver' || '' }} `
+          -BuildTargets ${{ inputs.build-targets }} `
+          -CacheScript '${{ inputs.cache-script }}' `
+          -CMakeDefines ${{ inputs.cmake-defines }}
