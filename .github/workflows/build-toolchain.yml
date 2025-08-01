@@ -220,6 +220,7 @@ jobs:
       windows_x64_build_runner: ${{ steps.context.outputs.windows_x64_build_runner }}
       windows_x64_compilers_runner: ${{ steps.context.outputs.windows_x64_compilers_runner }}
       mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
+      python_version: ${{ steps.context.outputs.python_version }}
       windows_arm64_build_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_build_matrix }}
       windows_arm64_host_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_host_matrix }}
       windows_arm64_compilers_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_compilers_matrix }}
@@ -378,6 +379,13 @@ jobs:
           echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
           echo ANDROID_NDK_VERSION=r27c >> ${GITHUB_OUTPUT}
           echo ANDROID_CLANG_VERSION=18 >> ${GITHUB_OUTPUT}
+
+          # Set Python version used in the build
+          if [[ "${{ inputs.windows_build_arch }}" == "arm64" ]] ; then
+            echo python_version=3.11 >> ${GITHUB_OUTPUT}
+          else
+            echo python_version=3.9 >> ${GITHUB_OUTPUT}
+          fi
 
       - uses: actions/upload-artifact@v4
         if: inputs.create_snapshot == true
@@ -862,6 +870,7 @@ jobs:
       default_build_runner: ${{ needs.context.outputs[format('windows_{0}_build_runner', needs.context.outputs.windows_build_cpu)] }}
       compilers_build_runner: ${{ needs.context.outputs[format('windows_{0}_compilers_runner', needs.context.outputs.windows_build_cpu)] }}
       build_android: ${{ inputs.build_android }}
+      python_version: ${{ needs.context.outputs.python_version }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
@@ -945,6 +954,7 @@ jobs:
       swift_tag: ${{ needs.context.outputs.swift_tag }}
       default_build_runner: ${{ needs.context.outputs.mac_build_runner }}
       compilers_build_runner: ${{ needs.context.outputs.mac_build_runner }}
+      python_version: ${{ needs.context.outputs.python_version }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
