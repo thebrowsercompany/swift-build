@@ -4636,6 +4636,7 @@ jobs:
         run: |
           $AssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts"
           $NoAssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
+          $LogFile = "${{ github.workspace }}\robocopy-${{ matrix.arch }}.log"
           # Only compilers have NoAsserts enabled. Copy the rest of the Toolcahin binaries from the Asserts output
           # Use robocopy for efficient copying
           #   /E : Copies subdirectories, including empty ones.
@@ -4648,7 +4649,17 @@ jobs:
           #   /NC: Do not write file classes
           #   /NS: Do not write file sizes
           #   /NP: Do not show progress indicator
-          &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
+          #   /R:3                - Retry 3 times on failed copies
+          #   /W:5                - Wait 5 seconds between retries
+          #   /LOG:"D:\robocopy.log" - Write output to a log file
+          &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH /R:3 /W:5 /LOG:"$LogFile"
+    
+      - name: Uploas robocopy log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robocopy-${{ matrix.arch }}.log
+          path: ${{ github.workspace }}\robocopy-${{ matrix.arch }}.log
       
       - name: Download Developer Tools
         uses: actions/download-artifact@v4
