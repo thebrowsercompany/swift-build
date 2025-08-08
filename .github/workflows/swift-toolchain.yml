@@ -4632,6 +4632,24 @@ jobs:
           name: Windows-${{ matrix.arch }}-NoAsserts-compilers
           path: ${{ github.workspace }}/BuildRoot/Library
 
+      - name: Complete NoAsserts layout
+        run: |
+          $AssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts"
+          $NoAssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
+          # Only compilers have NoAsserts enabled. Copy the rest of the Toolcahin binaries from the Asserts output
+          # Use robocopy for efficient copying
+          #   /E : Copies subdirectories, including empty ones.
+          #   /XC: Excludes existing files with the same timestamp but different file sizes.
+          #   /XN: Excludes existing files that are newer than the copy in the source directory.
+          #   /XO: Excludes existing files that are older than the copy in the source directory.
+          #   /NFL: Do not list coppied files in output
+          #   /NDL: Do not list directories in output
+          #   /NJH: Do not write a job header
+          #   /NC: Do not write file classes
+          #   /NS: Do not write file sizes
+          #   /NP: Do not show progress indicator
+          &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
+      
       - name: Download Developer Tools
         uses: actions/download-artifact@v4
         with:
