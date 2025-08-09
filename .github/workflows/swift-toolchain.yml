@@ -4714,7 +4714,6 @@ jobs:
           }
 
       - name: Complete NoAsserts layout
-        continue-on-error: true
         run: |
           $AssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts"
           $NoAssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
@@ -4730,7 +4729,8 @@ jobs:
           #   /NC: Do not write file classes
           #   /NS: Do not write file sizes
           #   /NP: Do not show progress indicator
-          $exitCode = &robocopy $HostPlatform.ToolchainInstallRoot $HostPlatform.NoAssertsToolchainInstallRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
+          # Exit code documentationn for robocopy: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/robocopy#exit-return-codes
+          $exitCode = &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
           if ($LastExitCode -gt 8) {
               Write-Error "robocopy failed with exit code $LastExitCode"
               exit $LastExitCode
