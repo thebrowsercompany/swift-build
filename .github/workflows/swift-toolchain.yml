@@ -1108,7 +1108,7 @@ jobs:
                 ${{ matrix.cmake_linker_flags }} `
                 -D CMAKE_STATIC_LIBRARY_PREFIX_Swift= `
                 -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
+                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr `
                 -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
                 ${{ steps.setup-context.outputs.extra_flags }} `
                 -G Ninja `
@@ -1168,9 +1168,9 @@ jobs:
       - name: Copy cmark-gfm shared libraries
         run: |
           if ("${{ matrix.os }}" -eq "Windows") {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/bin"
           } else {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/swift/host/compiler"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/lib/swift/host/compiler"
           }
 
       - uses: actions/setup-python@v5
@@ -1185,7 +1185,7 @@ jobs:
             from datetime import datetime
 
             now = datetime.now()
-            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/ToolchainInfo.plist'
+            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/ToolchainInfo.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
               plistlib.dump({ 'Identifier': 'org.compnerd.dt.toolchain.{0}.{1}-asserts'.format(now.strftime('%Y%m%d'), now.timetuple().tm_hour % 6) }, plist)
 
@@ -1198,7 +1198,7 @@ jobs:
       - name: Extract swift-syntax
         run: |
           New-Item -Path ${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host -ItemType Directory | Out-Null
-          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
+          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}"
           if ("${{ matrix.os }}" -eq "Windows") {
             $bindir = cygpath -m "${{ github.workspace }}/BinaryCache/1"
             Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib"
@@ -4620,12 +4620,18 @@ jobs:
           name: Windows-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      - name: Download Compilers
+      - name: Download Compilers (Asserts)
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: Windows-${{ matrix.arch }}-Asserts-compilers
           path: ${{ github.workspace }}/BuildRoot/Library
 
+      - name: Download Compilers (NoAsserts)
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ matrix.arch }}-NoAsserts-compilers
+          path: ${{ github.workspace }}/BuildRoot/Library
+      
       - name: Download Developer Tools
         uses: actions/download-artifact@v4
         with:
@@ -4707,6 +4713,30 @@ jobs:
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
+      - name: Complete NoAsserts layout
+        run: |
+          $AssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts"
+          $NoAssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
+          # Only compilers have NoAsserts enabled. Copy the rest of the Toolcahin binaries from the Asserts output
+          # Use robocopy for efficient copying
+          #   /E : Copies subdirectories, including empty ones.
+          #   /XC: Excludes existing files with the same timestamp but different file sizes.
+          #   /XN: Excludes existing files that are newer than the copy in the source directory.
+          #   /XO: Excludes existing files that are older than the copy in the source directory.
+          #   /NFL: Do not list coppied files in output
+          #   /NDL: Do not list directories in output
+          #   /NJH: Do not write a job header
+          #   /NC: Do not write file classes
+          #   /NS: Do not write file sizes
+          #   /NP: Do not show progress indicator
+          # Exit code documentationn for robocopy: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/robocopy#exit-return-codes
+          $exitCode = &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
+          if ($LastExitCode -gt 8) {
+              Write-Error "robocopy failed with exit code $LastExitCode"
+              exit $LastExitCode
+          }
+          exit 0 
+
       - uses: actions/checkout@v4.2.2
         with:
           repository: microsoft/mimalloc
@@ -4720,11 +4750,16 @@ jobs:
           $BuildSuffix = if ("${{ inputs.build_arch }}" -eq "arm64") { "-arm64" } else { "" }
           # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
           msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release -p:Platform=$HostMSArch
-          $ToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
+          $AssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
+          $NoAssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts\usr\bin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
-            -Destination "$ToolchainBin"
+            -Destination "$AssertToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
+            -Destination "$NoAssertToolchainBin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
-            -Destination "$ToolchainBin"
+            -Destination "$AssertToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
+            -Destination "$NoAssertToolchainBin"
           $MimallocExecutables = @("swift.exe",
                                    "swiftc.exe",
                                    "swift-driver.exe",
@@ -4736,16 +4771,18 @@ jobs:
                                    "lld-link.exe",
                                    "ld.lld.exe",
                                    "ld64.lld.exe")
-          foreach ($Exe in $MimallocExecutables) {
+          $AssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($AssertToolchainBin, $_) }
+          $NoAssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($NoAssertToolchainBin, $_) }
+          $Binaries = $AssertBinaries + $NoAssertBinaries
+          foreach ($Exe in $Binaries) {
             # Binary-patch in place
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$ToolchainBin\$Exe"
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$Exe"
             # Log the import table
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$ToolchainBin\$Exe"
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$Exe"
           }
 
-      - name: Package Build Tools
+      - name: Package Build Tools (Asserts)
         run: |
-          # When cross-compiling, bundle the second mimalloc redirect dll as a workaround for
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
@@ -4758,7 +4795,21 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/asserts/bld.asserts.wixproj
 
-      - name: Package CLI Tools
+      - name: Package Build Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/noasserts/bld.noasserts.wixproj
+
+      - name: Package CLI Tools (Asserts)
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -4771,7 +4822,20 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/asserts/cli.asserts.wixproj
 
-      - name: Package Debugging Tools
+      - name: Package CLI Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/noasserts/cli.noasserts.wixproj
+ 
+      - name: Package Debugging Tools (Asserts)
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -4784,7 +4848,20 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/asserts/dbg.asserts.wixproj
 
-      - name: Package IDE Tools
+      - name: Package Debugging Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/noasserts/dbg.noasserts.wixproj
+
+      - name: Package IDE Tools (Asserts)
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -4796,6 +4873,19 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/asserts/ide.asserts.wixproj
+
+      - name: Package IDE Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
       - name: Package Runtime
         run: |
@@ -4819,13 +4909,21 @@ jobs:
         with:
           subject-path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
 
@@ -4835,24 +4933,55 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-bld-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.cab
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-cli-asserts-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.cab
+   
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-cli-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.cab
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-dbg-asserts-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-dbg-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.cab
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-ide-asserts-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-ide-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -5352,15 +5481,34 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-${{ matrix.arch }}-bld-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-${{ matrix.arch }}-cli-asserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-cli-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-dbg-asserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-${{ matrix.arch }}-dbg-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-${{ matrix.arch }}-ide-asserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-ide-noasserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
       - uses: actions/download-artifact@v4
@@ -5439,6 +5587,7 @@ jobs:
               -p:WindowsArchitectures="`"aarch64;i686;x86_64`"" `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              -p:ToolchainVariants="`"asserts;noasserts`"" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - if: ${{ inputs.release }}
