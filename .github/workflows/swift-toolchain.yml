@@ -349,21 +349,26 @@ jobs:
           show-progress: false
 
       - name: Configure SQLite
-        run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: SQLite
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+          bin-dir: ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          msvc-compilers: '@("C")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+            }
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
       - name: Install SQLite
@@ -1018,47 +1023,19 @@ jobs:
       - name: Setup context
         id: setup-context
         run: |
-          $CxxFlags = "${{ matrix.cxxflags }}"
-          $SwiftFlags = ""
-          $ExtraFlags = "${{ matrix.extra_flags }}"
-
           if ( "${{ matrix.os }}" -eq "Windows" ) {
-            # Use toolchain clang to avoid broken __prefetch intrinsic on arm64 in Clang 18.
-            # TODO: Use llvm-19 when available. See https://github.com/compnerd/swift-build/issues/846
             $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
-            $SWIFTC = cygpath -m (Get-Command swiftc).Source
-
-            $CC = "${{ matrix.cc }}"
-            $CXX = "${{ matrix.cxx }}"
             $SDKROOT = cygpath -m ${env:SDKROOT}
-
-            # Workaround for compiler and STL version mismatch on Windows.
-            $CxxFlags += " -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
-            $SwiftFlags += " -Xcc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
-
             $LIBPYTHON_PATH = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/libs/python39.lib"
             $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/include"
             $PYTHON_BINARY="python.exe"
-
-            Remove-Item env:\SDKROOT
           } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
-            # Default swiftc comes from /usr/bin and is not compatible with the toolchain.
             $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}-RELEASE.xctoolchain/usr/bin"
-            $SWIFTC = Join-Path $CLANG_LOCATION "swiftc"
-
-            # We need to use llvm-17 to build the compiler on macOS. We get it from the Swift toolchain.
-            $CC = Join-Path $CLANG_LOCATION ${{ matrix.cc }}
-            $CXX = Join-Path $CLANG_LOCATION ${{ matrix.cxx }}
             $SDKROOT = xcrun --sdk macosx --show-sdk-path
-
-            # TODO: Use early-swift-driver on Windows too.
-            $ExtraFlags += " -D SWIFT_EARLY_SWIFT_DRIVER_BUILD=${{ github.workspace }}/BinaryCache/swift-driver/bin"
             $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python3.9/config-3.9-darwin/libpython3.9.a"
             $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python3.9"
             $PYTHON_BINARY="python3"
           }
-
-          $SwiftFlags += " -sdk `"${SDKROOT}`""
 
           # Compute the number of parallel jobs to use for the build.
           $RamBytes = if ($IsWindows) {
@@ -1075,99 +1052,84 @@ jobs:
 
           # Output the context for the configure task.
           $Context = @"
-          cc=${CC}
-          cxx=${CXX}
-          swiftc=${SWIFTC}
-          cxxflags=${CxxFlags}
-          swiftflags=${SwiftFlags}
-          extra_flags=${ExtraFlags}
-          clang_location=${CLANG_LOCATION}
-          libpython_path=${LIBPYTHON_PATH}
-          python_include_dir=${PYTHON_INCLUDE_DIR}
-          python_binary=${PYTHON_BINARY}
+          clang-location=${CLANG_LOCATION}
+          libpython-path=${LIBPYTHON_PATH}
+          python-include-dir=${PYTHON_INCLUDE_DIR}
+          python-binary=${PYTHON_BINARY}
           sdkroot=${SDKROOT}
-          link_jobs=${LinkJobs}
+          link-jobs=${LinkJobs}
           "@
           Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Configure Compilers
-        env:
-          NDKPATH: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          if ( "${{ matrix.os }}" -eq "Windows" ) {
-            $ExeSuffix = ".exe"
-            Remove-Item env:\SDKROOT
-          } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
-            $ExeSuffix = ""
-          }
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Compilers
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/1
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr
+          swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
+          msvc-compilers: '@("C", "CXX")'
+          pinned-compilers: '@("Swift")'
+          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
+          cmake-defines: |
+            @{
+              'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "NO";
+              'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
+              'SWIFT_BUILD_REMOTE_MIRROR' = "NO";
+              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/0/bin";
+              'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}";
+              'CLANG_TIDY_CONFUSABLE_CHARS_GEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}";
+              'LibXml2_DIR' = "${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
+              'LLDB_LIBXML2_VERSION' = "${{ inputs.libxml2_version }}";
+              'LLDB_PYTHON_EXE_RELATIVE_PATH' = "${{ steps.setup-context.outputs.python-binary }}";
+              'LLDB_PYTHON_EXT_SUFFIX' = ".pyd";
+              'LLDB_PYTHON_RELATIVE_PATH' = "lib/site-packages";
+              'LLDB_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}";
+              'LLVM_CONFIG_PATH' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}";
+              'LLVM_ENABLE_ASSERTIONS' = ${{ matrix.variant == 'Asserts' && '"YES"' || '"NO"' }};
+              'LLVM_EXTERNAL_SWIFT_SOURCE_DIR' = "${{ github.workspace }}/SourceCache/swift";
+              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
+              'LLVM_NATIVE_TOOL_DIR' = "${{ github.workspace }}/BinaryCache/0/bin";
+              'LLVM_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}";
+              'LLVM_USE_HOST_TOOLS' = "NO";
+              'Python3_EXECUTABLE' = "${{ steps.python.outputs.python-path }}";
+              'Python3_INCLUDE_DIR' = "${{ steps.setup-context.outputs.python-include-dir }}";
+              'Python3_LIBRARY' = "${{ steps.setup-context.outputs.libpython-path }}";
+              'Python3_ROOT_DIR' = $env:pythonLocation;
+              'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version}} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
+              'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
+              'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
+              'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
+              'SWIFT_ENABLE_VOLATILE' = "YES";
+              'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
+              'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
+              'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
+              'SWIFT_STDLIB_ASSERTIONS' = "NO";
+              'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
 
-          $LLVM_EXTERNAL_SWIFT_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift
-
-          cmake -B ${{ github.workspace }}/BinaryCache/1 `
-                -C "${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake" `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER="${{ steps.setup-context.outputs.cc }}" `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER="${{ steps.setup-context.outputs.cxx }}" `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ steps.setup-context.outputs.cxxflags }}" `
-                -D CMAKE_Swift_COMPILER="${{ steps.setup-context.outputs.swiftc }}" `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ steps.setup-context.outputs.swiftflags }}" `
-                ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_STATIC_LIBRARY_PREFIX_Swift= `
-                -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ steps.setup-context.outputs.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
-                -D CLANG_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}" `
-                -D CLANG_TIDY_CONFUSABLE_CHARS_GEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}" `
-                -D LLDB_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}" `
-                -D LLVM_CONFIG_PATH="${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}" `
-                -D LLVM_ENABLE_ASSERTIONS=${{ matrix.variant == 'Asserts' && 'YES' || 'NO' }} `
-                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$LLVM_EXTERNAL_SWIFT_SOURCE_DIR `
-                -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
-                -D LLVM_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}" `
-                -D LLVM_USE_HOST_TOOLS=NO `
-                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
-                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
-                -D SWIFT_BUILD_REMOTE_MIRROR=NO `
-                -D SWIFT_BUILD_SWIFT_SYNTAX=YES `
-                -D SWIFT_CLANG_LOCATION="${{ steps.setup-context.outputs.clang_location }}" `
-                -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
-                -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
-                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
-                -D SWIFT_PATH_TO_SWIFT_SDK="${{ steps.setup-context.outputs.sdkroot }}" `
-                -D SWIFT_TOOLCHAIN_VERSION="${{ inputs.swift_version}} ${{ inputs.swift_tag }}" `
-                -D CLANG_VENDOR=compnerd.org `
-                -D CLANG_VENDOR_UTI=org.compnerd.dt `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
-                -D LibXml2_DIR=${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }} `
-                -D LLDB_LIBXML2_VERSION="${{ inputs.libxml2_version }}" `
-                -D PACKAGE_VENDOR=compnerd.org `
-                -D SWIFT_VENDOR=compnerd.org `
-                -D LLVM_PARALLEL_LINK_JOBS=${{ steps.setup-context.outputs.link_jobs }} `
-                -D SWIFT_PARALLEL_LINK_JOBS=${{ steps.setup-context.outputs.link_jobs }} `
-                -D LLVM_APPEND_VC_REV=NO `
-                -D LLVM_VERSION_SUFFIX="" `
-                -D LLDB_PYTHON_EXE_RELATIVE_PATH=${{ steps.setup-context.outputs.python_binary }} `
-                -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
-                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
-                -D Python3_EXECUTABLE=${{ steps.python.outputs.python-path }} `
-                -D Python3_INCLUDE_DIR=${{ steps.setup-context.outputs.python_include_dir }} `
-                -D Python3_LIBRARY=${{ steps.setup-context.outputs.libpython_path }} `
-                -D Python3_ROOT_DIR=$env:pythonLocation
+              'CLANG_VENDOR' = 'compnerd.org';
+              'CLANG_VENDOR_UTI' = 'org.compnerd.dt';
+              'LLVM_APPEND_VC_REV' = "NO";
+              'LLVM_VERSION_SUFFIX' = "";
+              'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+              'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+            }
 
       - name: Build Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
@@ -1319,33 +1281,28 @@ jobs:
           local-cache: true
 
       - name: Configure zlib
-        run: |
-          if ("${{ matrix.os }}" -eq "Android") {
-            $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
-            if ( "${{ inputs.build_os }}" -eq "Windows" ) {
-              $NDKPATH = cygpath -m $NDKPATH
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: zlib
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/zlib
+          bin-dir: ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          msvc-compilers: '@("C")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
             }
-            # Since win/arm64 doesn't have one, this logic is necessary because
-            # passing an empty CMAKE_ANDROID_NDK value causes a failure.
-            $CMAKE_NDK_FLAG = "-DCMAKE_ANDROID_NDK=$NDKPATH"
-          }
-          cmake -B ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                $CMAKE_NDK_FLAG `
-                -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/zlib `
-                -D SKIP_INSTALL_FILES=YES
       - name: Build zlib
         run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
       - name: Install zlib
