@@ -272,6 +272,10 @@ on:
         default: false
         type: boolean
 
+      python_version:
+        required: true
+        type: string
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -345,21 +349,26 @@ jobs:
           show-progress: false
 
       - name: Configure SQLite
-        run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: SQLite
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+          bin-dir: ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          msvc-compilers: '@("C")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+            }
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
       - name: Install SQLite
@@ -683,7 +692,8 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - name: Configure Tools
         run: |
@@ -977,7 +987,7 @@ jobs:
         id: python
         with:
           python-version: '${{ env.PYTHON_VERSION_WINDOWS }}'
-          architecture: x64
+          architecture: x64 
 
       - uses: nuget/setup-nuget@v2
         if: inputs.build_os == 'Windows' && (matrix.arch == 'arm64' || inputs.build_arch == 'arm64')
@@ -1005,50 +1015,27 @@ jobs:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
           local-cache: true
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
       - name: Setup context
         id: setup-context
         run: |
-          $CxxFlags = "${{ matrix.cxxflags }}"
-          $SwiftFlags = ""
-          $ExtraFlags = "${{ matrix.extra_flags }}"
-
           if ( "${{ matrix.os }}" -eq "Windows" ) {
-            # Use toolchain clang to avoid broken __prefetch intrinsic on arm64 in Clang 18.
-            # TODO: Use llvm-19 when available. See https://github.com/compnerd/swift-build/issues/846
             $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
-            $SWIFTC = cygpath -m (Get-Command swiftc).Source
-
-            $CC = "${{ matrix.cc }}"
-            $CXX = "${{ matrix.cxx }}"
             $SDKROOT = cygpath -m ${env:SDKROOT}
-
-            # Workaround for compiler and STL version mismatch on Windows.
-            $CxxFlags += " -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
-            $SwiftFlags += " -Xcc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
-
             $LIBPYTHON_PATH = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/libs/python39.lib"
             $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/include"
             $PYTHON_BINARY="python.exe"
-
-            Remove-Item env:\SDKROOT
           } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
-            # Default swiftc comes from /usr/bin and is not compatible with the toolchain.
             $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}-RELEASE.xctoolchain/usr/bin"
-            $SWIFTC = Join-Path $CLANG_LOCATION "swiftc"
-
-            # We need to use llvm-17 to build the compiler on macOS. We get it from the Swift toolchain.
-            $CC = Join-Path $CLANG_LOCATION ${{ matrix.cc }}
-            $CXX = Join-Path $CLANG_LOCATION ${{ matrix.cxx }}
             $SDKROOT = xcrun --sdk macosx --show-sdk-path
-
-            # TODO: Use early-swift-driver on Windows too.
-            $ExtraFlags += " -D SWIFT_EARLY_SWIFT_DRIVER_BUILD=${{ github.workspace }}/BinaryCache/swift-driver/bin"
             $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python3.9/config-3.9-darwin/libpython3.9.a"
             $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python3.9"
             $PYTHON_BINARY="python3"
           }
-
-          $SwiftFlags += " -sdk `"${SDKROOT}`""
 
           # Compute the number of parallel jobs to use for the build.
           $RamBytes = if ($IsWindows) {
@@ -1065,99 +1052,84 @@ jobs:
 
           # Output the context for the configure task.
           $Context = @"
-          cc=${CC}
-          cxx=${CXX}
-          swiftc=${SWIFTC}
-          cxxflags=${CxxFlags}
-          swiftflags=${SwiftFlags}
-          extra_flags=${ExtraFlags}
-          clang_location=${CLANG_LOCATION}
-          libpython_path=${LIBPYTHON_PATH}
-          python_include_dir=${PYTHON_INCLUDE_DIR}
-          python_binary=${PYTHON_BINARY}
+          clang-location=${CLANG_LOCATION}
+          libpython-path=${LIBPYTHON_PATH}
+          python-include-dir=${PYTHON_INCLUDE_DIR}
+          python-binary=${PYTHON_BINARY}
           sdkroot=${SDKROOT}
-          link_jobs=${LinkJobs}
+          link-jobs=${LinkJobs}
           "@
           Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Configure Compilers
-        env:
-          NDKPATH: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          if ( "${{ matrix.os }}" -eq "Windows" ) {
-            $ExeSuffix = ".exe"
-            Remove-Item env:\SDKROOT
-          } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
-            $ExeSuffix = ""
-          }
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Compilers
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/1
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr
+          swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
+          msvc-compilers: '@("C", "CXX")'
+          pinned-compilers: '@("Swift")'
+          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
+          cmake-defines: |
+            @{
+              'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "NO";
+              'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
+              'SWIFT_BUILD_REMOTE_MIRROR' = "NO";
+              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/0/bin";
+              'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}";
+              'CLANG_TIDY_CONFUSABLE_CHARS_GEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}";
+              'LibXml2_DIR' = "${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
+              'LLDB_LIBXML2_VERSION' = "${{ inputs.libxml2_version }}";
+              'LLDB_PYTHON_EXE_RELATIVE_PATH' = "${{ steps.setup-context.outputs.python-binary }}";
+              'LLDB_PYTHON_EXT_SUFFIX' = ".pyd";
+              'LLDB_PYTHON_RELATIVE_PATH' = "lib/site-packages";
+              'LLDB_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}";
+              'LLVM_CONFIG_PATH' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}";
+              'LLVM_ENABLE_ASSERTIONS' = ${{ matrix.variant == 'Asserts' && '"YES"' || '"NO"' }};
+              'LLVM_EXTERNAL_SWIFT_SOURCE_DIR' = "${{ github.workspace }}/SourceCache/swift";
+              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
+              'LLVM_NATIVE_TOOL_DIR' = "${{ github.workspace }}/BinaryCache/0/bin";
+              'LLVM_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}";
+              'LLVM_USE_HOST_TOOLS' = "NO";
+              'Python3_EXECUTABLE' = "${{ steps.python.outputs.python-path }}";
+              'Python3_INCLUDE_DIR' = "${{ steps.setup-context.outputs.python-include-dir }}";
+              'Python3_LIBRARY' = "${{ steps.setup-context.outputs.libpython-path }}";
+              'Python3_ROOT_DIR' = $env:pythonLocation;
+              'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version}} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
+              'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
+              'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
+              'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
+              'SWIFT_ENABLE_VOLATILE' = "YES";
+              'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
+              'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
+              'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
+              'SWIFT_STDLIB_ASSERTIONS' = "NO";
+              'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
 
-          $LLVM_EXTERNAL_SWIFT_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift
-
-          cmake -B ${{ github.workspace }}/BinaryCache/1 `
-                -C "${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake" `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER="${{ steps.setup-context.outputs.cc }}" `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER="${{ steps.setup-context.outputs.cxx }}" `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ steps.setup-context.outputs.cxxflags }}" `
-                -D CMAKE_Swift_COMPILER="${{ steps.setup-context.outputs.swiftc }}" `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="${{ steps.setup-context.outputs.swiftflags }}" `
-                ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_STATIC_LIBRARY_PREFIX_Swift= `
-                -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ steps.setup-context.outputs.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
-                -D CLANG_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}" `
-                -D CLANG_TIDY_CONFUSABLE_CHARS_GEN="${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}" `
-                -D LLDB_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}" `
-                -D LLVM_CONFIG_PATH="${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}" `
-                -D LLVM_ENABLE_ASSERTIONS=${{ matrix.variant == 'Asserts' && 'YES' || 'NO' }} `
-                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$LLVM_EXTERNAL_SWIFT_SOURCE_DIR `
-                -D LLVM_NATIVE_TOOL_DIR=${{ github.workspace }}/BinaryCache/0/bin `
-                -D LLVM_TABLEGEN="${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}" `
-                -D LLVM_USE_HOST_TOOLS=NO `
-                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
-                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
-                -D SWIFT_BUILD_REMOTE_MIRROR=NO `
-                -D SWIFT_BUILD_SWIFT_SYNTAX=YES `
-                -D SWIFT_CLANG_LOCATION="${{ steps.setup-context.outputs.clang_location }}" `
-                -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
-                -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/0/bin `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
-                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing `
-                -D SWIFT_PATH_TO_SWIFT_SDK="${{ steps.setup-context.outputs.sdkroot }}" `
-                -D SWIFT_TOOLCHAIN_VERSION="${{ inputs.swift_version}} ${{ inputs.swift_tag }}" `
-                -D CLANG_VENDOR=compnerd.org `
-                -D CLANG_VENDOR_UTI=org.compnerd.dt `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
-                -D LibXml2_DIR=${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }} `
-                -D LLDB_LIBXML2_VERSION="${{ inputs.libxml2_version }}" `
-                -D PACKAGE_VENDOR=compnerd.org `
-                -D SWIFT_VENDOR=compnerd.org `
-                -D LLVM_PARALLEL_LINK_JOBS=${{ steps.setup-context.outputs.link_jobs }} `
-                -D SWIFT_PARALLEL_LINK_JOBS=${{ steps.setup-context.outputs.link_jobs }} `
-                -D LLVM_APPEND_VC_REV=NO `
-                -D LLVM_VERSION_SUFFIX="" `
-                -D LLDB_PYTHON_EXE_RELATIVE_PATH=${{ steps.setup-context.outputs.python_binary }} `
-                -D LLDB_PYTHON_EXT_SUFFIX=.pyd `
-                -D LLDB_PYTHON_RELATIVE_PATH=lib/site-packages `
-                -D Python3_EXECUTABLE=${{ steps.python.outputs.python-path }} `
-                -D Python3_INCLUDE_DIR=${{ steps.setup-context.outputs.python_include_dir }} `
-                -D Python3_LIBRARY=${{ steps.setup-context.outputs.libpython_path }} `
-                -D Python3_ROOT_DIR=$env:pythonLocation
+              'CLANG_VENDOR' = 'compnerd.org';
+              'CLANG_VENDOR_UTI' = 'org.compnerd.dt';
+              'LLVM_APPEND_VC_REV' = "NO";
+              'LLVM_VERSION_SUFFIX' = "";
+              'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+              'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+            }
 
       - name: Build Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
@@ -1168,14 +1140,12 @@ jobs:
       - name: Copy cmark-gfm shared libraries
         run: |
           if ("${{ matrix.os }}" -eq "Windows") {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/bin"
           } else {
-            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/swift/host/compiler"
+            Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/lib/swift/host/compiler"
           }
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+
 
       - uses: jannekem/run-python-script-action@v1
         with:
@@ -1185,7 +1155,7 @@ jobs:
             from datetime import datetime
 
             now = datetime.now()
-            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/ToolchainInfo.plist'
+            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/ToolchainInfo.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
               plistlib.dump({ 'Identifier': 'org.compnerd.dt.toolchain.{0}.{1}-asserts'.format(now.strftime('%Y%m%d'), now.timetuple().tm_hour % 6) }, plist)
 
@@ -1198,7 +1168,7 @@ jobs:
       - name: Extract swift-syntax
         run: |
           New-Item -Path ${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host -ItemType Directory | Out-Null
-          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
+          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}"
           if ("${{ matrix.os }}" -eq "Windows") {
             $bindir = cygpath -m "${{ github.workspace }}/BinaryCache/1"
             Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib"
@@ -1311,33 +1281,28 @@ jobs:
           local-cache: true
 
       - name: Configure zlib
-        run: |
-          if ("${{ matrix.os }}" -eq "Android") {
-            $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
-            if ( "${{ inputs.build_os }}" -eq "Windows" ) {
-              $NDKPATH = cygpath -m $NDKPATH
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: zlib
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/zlib
+          bin-dir: ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          msvc-compilers: '@("C")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
             }
-            # Since win/arm64 doesn't have one, this logic is necessary because
-            # passing an empty CMAKE_ANDROID_NDK value causes a failure.
-            $CMAKE_NDK_FLAG = "-DCMAKE_ANDROID_NDK=$NDKPATH"
-          }
-          cmake -B ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                $CMAKE_NDK_FLAG `
-                -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/zlib `
-                -D SKIP_INSTALL_FILES=YES
       - name: Build zlib
         run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
       - name: Install zlib
@@ -1691,7 +1656,8 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - name: Configure LLVM
         if: matrix.os != 'Android' || inputs.build_android
@@ -2136,7 +2102,8 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - name: Compute workspace hash
         if: matrix.os != 'Android' || inputs.build_android
@@ -3600,7 +3567,8 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - uses: jannekem/run-python-script-action@v1
         if: matrix.os != 'Android' || inputs.build_android
@@ -4620,12 +4588,18 @@ jobs:
           name: Windows-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      - name: Download Compilers
+      - name: Download Compilers (Asserts)
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: Windows-${{ matrix.arch }}-Asserts-compilers
           path: ${{ github.workspace }}/BuildRoot/Library
 
+      - name: Download Compilers (NoAsserts)
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ matrix.arch }}-NoAsserts-compilers
+          path: ${{ github.workspace }}/BuildRoot/Library
+      
       - name: Download Developer Tools
         uses: actions/download-artifact@v4
         with:
@@ -4707,6 +4681,30 @@ jobs:
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
+      - name: Complete NoAsserts layout
+        run: |
+          $AssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts"
+          $NoAssertToolchainRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
+          # Only compilers have NoAsserts enabled. Copy the rest of the Toolcahin binaries from the Asserts output
+          # Use robocopy for efficient copying
+          #   /E : Copies subdirectories, including empty ones.
+          #   /XC: Excludes existing files with the same timestamp but different file sizes.
+          #   /XN: Excludes existing files that are newer than the copy in the source directory.
+          #   /XO: Excludes existing files that are older than the copy in the source directory.
+          #   /NFL: Do not list coppied files in output
+          #   /NDL: Do not list directories in output
+          #   /NJH: Do not write a job header
+          #   /NC: Do not write file classes
+          #   /NS: Do not write file sizes
+          #   /NP: Do not show progress indicator
+          # Exit code documentationn for robocopy: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/robocopy#exit-return-codes
+          $exitCode = &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
+          if ($LastExitCode -gt 8) {
+              Write-Error "robocopy failed with exit code $LastExitCode"
+              exit $LastExitCode
+          }
+          exit 0 
+
       - uses: actions/checkout@v4.2.2
         with:
           repository: microsoft/mimalloc
@@ -4720,11 +4718,16 @@ jobs:
           $BuildSuffix = if ("${{ inputs.build_arch }}" -eq "arm64") { "-arm64" } else { "" }
           # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
           msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release -p:Platform=$HostMSArch
-          $ToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
+          $AssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
+          $NoAssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts\usr\bin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
-            -Destination "$ToolchainBin"
+            -Destination "$AssertToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
+            -Destination "$NoAssertToolchainBin"
           Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
-            -Destination "$ToolchainBin"
+            -Destination "$AssertToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
+            -Destination "$NoAssertToolchainBin"
           $MimallocExecutables = @("swift.exe",
                                    "swiftc.exe",
                                    "swift-driver.exe",
@@ -4736,16 +4739,18 @@ jobs:
                                    "lld-link.exe",
                                    "ld.lld.exe",
                                    "ld64.lld.exe")
-          foreach ($Exe in $MimallocExecutables) {
+          $AssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($AssertToolchainBin, $_) }
+          $NoAssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($NoAssertToolchainBin, $_) }
+          $Binaries = $AssertBinaries + $NoAssertBinaries
+          foreach ($Exe in $Binaries) {
             # Binary-patch in place
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$ToolchainBin\$Exe"
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$Exe"
             # Log the import table
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$ToolchainBin\$Exe"
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$Exe"
           }
 
-      - name: Package Build Tools
+      - name: Package Build Tools (Asserts)
         run: |
-          # When cross-compiling, bundle the second mimalloc redirect dll as a workaround for
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
@@ -4758,7 +4763,21 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/asserts/bld.asserts.wixproj
 
-      - name: Package CLI Tools
+      - name: Package Build Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/noasserts/bld.noasserts.wixproj
+
+      - name: Package CLI Tools (Asserts)
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -4771,7 +4790,20 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/asserts/cli.asserts.wixproj
 
-      - name: Package Debugging Tools
+      - name: Package CLI Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/noasserts/cli.noasserts.wixproj
+ 
+      - name: Package Debugging Tools (Asserts)
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -4784,7 +4816,20 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/asserts/dbg.asserts.wixproj
 
-      - name: Package IDE Tools
+      - name: Package Debugging Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/noasserts/dbg.noasserts.wixproj
+
+      - name: Package IDE Tools (Asserts)
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
@@ -4796,6 +4841,19 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/asserts/ide.asserts.wixproj
+
+      - name: Package IDE Tools (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
       - name: Package Runtime
         run: |
@@ -4819,13 +4877,21 @@ jobs:
         with:
           subject-path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
 
@@ -4835,24 +4901,55 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-bld-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/bld.noasserts.cab
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-cli-asserts-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.asserts.cab
+   
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-cli-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/cli.noasserts.cab
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-dbg-asserts-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-dbg-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.cab
+
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-ide-asserts-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-ide-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -5352,15 +5449,34 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-${{ matrix.arch }}-bld-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-${{ matrix.arch }}-cli-asserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-cli-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-dbg-asserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-${{ matrix.arch }}-dbg-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-${{ matrix.arch }}-ide-asserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-ide-noasserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
       - uses: actions/download-artifact@v4
@@ -5439,6 +5555,7 @@ jobs:
               -p:WindowsArchitectures="`"aarch64;i686;x86_64`"" `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              -p:ToolchainVariants="`"asserts;noasserts`"" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - if: ${{ inputs.release }}
