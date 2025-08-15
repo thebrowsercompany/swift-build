@@ -727,43 +727,49 @@ jobs:
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - name: Configure Tools
-        run: |
-          $LLVM_EXTERNAL_SWIFT_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift
-          cmake -B ${{ github.workspace }}/BinaryCache/0 `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                ${{ matrix.extra_flags }} `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
-                -D LLVM_ENABLE_ASSERTIONS=NO `
-                -D LLVM_ENABLE_LIBEDIT=NO `
-                -D LLVM_ENABLE_LIBXML2=NO `
-                -D LLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lldb" `
-                -D LLVM_EXTERNAL_PROJECTS="swift" `
-                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$LLVM_EXTERNAL_SWIFT_SOURCE_DIR `
-                -D LLDB_ENABLE_PYTHON=NO `
-                -D LLDB_INCLUDE_TESTS=NO `
-                -D LLDB_ENABLE_SWIFT_SUPPORT=NO `
-                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
-                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
-                -D SWIFT_BUILD_HOST_DISPATCH=NO `
-                -D SWIFT_BUILD_LIBEXEC=NO `
-                -D SWIFT_BUILD_REGEX_PARSER_IN_COMPILER=NO `
-                -D SWIFT_BUILD_REMOTE_MIRROR=NO `
-                -D SWIFT_BUILD_SOURCEKIT=NO `
-                -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO `
-                -D SWIFT_BUILD_STATIC_STDLIB=NO `
-                -D SWIFT_BUILD_SWIFT_SYNTAX=NO `
-                -D SWIFT_ENABLE_DISPATCH=NO `
-                -D SWIFT_INCLUDE_APINOTES=NO `
-                -D SWIFT_INCLUDE_DOCS=NO `
-                -D SWIFT_INCLUDE_TESTS=NO
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Build Tools
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/0
+          msvc-compilers: '@("ASM_MASM", "C", "CXX")'
+          cmake-defines: |
+            @{
+              'CMAKE_CROSSCOMPILING' = "NO";
+              'CLANG_ENABLE_LIBXML2' = "NO";
+              'LLDB_ENABLE_LIBXML2' = "NO";
+              'LLDB_ENABLE_PYTHON' = "NO";
+              'LLDB_INCLUDE_TESTS' = "NO";
+              'LLDB_ENABLE_SWIFT_SUPPORT' = "NO";
+              'LLVM_ENABLE_ASSERTIONS' = "NO";
+              'LLVM_ENABLE_LIBEDIT' = "NO";
+              'LLVM_ENABLE_LIBXML2' = "NO";
+              'LLVM_ENABLE_PROJECTS' = "clang;clang-tools-extra;lldb";
+              'LLVM_EXTERNAL_PROJECTS' = "swift";
+              'LLVM_EXTERNAL_SWIFT_SOURCE_DIR' = "${{ github.workspace }}/SourceCache/swift";
+              'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "NO";
+              'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
+              'SWIFT_BUILD_HOST_DISPATCH' = "NO";
+              'SWIFT_BUILD_LIBEXEC' = "NO";
+              'SWIFT_BUILD_REGEX_PARSER_IN_COMPILER' = "NO";
+              'SWIFT_BUILD_REMOTE_MIRROR' = "NO";
+              'SWIFT_BUILD_SOURCEKIT' = "NO";
+              'SWIFT_BUILD_STATIC_SDK_OVERLAY' = "NO";
+              'SWIFT_BUILD_STATIC_STDLIB' = "NO";
+              'SWIFT_BUILD_SWIFT_SYNTAX' = "NO";
+              'SWIFT_ENABLE_DISPATCH' = "NO";
+              'SWIFT_INCLUDE_APINOTES' = "NO";
+              'SWIFT_INCLUDE_DOCS' = "NO";
+              'SWIFT_INCLUDE_TESTS' = "NO";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+            }
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
       - name: Build clang-tblgen
