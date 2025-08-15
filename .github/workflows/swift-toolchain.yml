@@ -633,23 +633,26 @@ jobs:
           show-progress: false
 
       - name: Configure cmark-gfm
-        run: >
-          cmake -B ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }} `
-                -D BUILD_SHARED_LIBS=YES `
-                -D BUILD_TESTING=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_COMPILER_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr `
-                -D CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP=YES `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.extra_flags }} `
-                -S ${{ github.workspace }}/SourceCache/cmark-gfm `
-                -G Ninja
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: cmark-gfm
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/cmark-gfm
+          bin-dir: ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+          msvc-compilers: '@("C", "CXX")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'BUILD_TESTING' = "NO";
+              'CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP' = "YES";
+            }
       - name: Build cmark-gfm
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
       - name: Install cmark-gfm
