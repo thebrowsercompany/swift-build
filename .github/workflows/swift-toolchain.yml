@@ -387,12 +387,35 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.2.2
+        if: inputs.build_android
         with:
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        if: inputs.build_android
         with:
           setup-vs-dev-env: true
+
+      - name: Compute workspace hash
+        if: inputs.build_android
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        if: inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 1M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
 
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2_tools only on Windows X64 host only
@@ -413,17 +436,20 @@ jobs:
 
       - name: Configure RegsGen2
         if: inputs.build_android
-        run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/RegsGen2 `
-                -S ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2 `
-                -C ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -G Ninja
-
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: RegsGen2
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ inputs.build_os }}
+          arch: ${{ inputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2
+          bin-dir: ${{ github.workspace }}/BinaryCache/RegsGen2
+          msvc-compilers: '@("C", "CXX")'
+          cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
       - name: Build RegsGen2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/RegsGen2 --config Release
@@ -445,45 +471,23 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
             module_triple: aarch64-unknown-linux-android
-
           - arch: armv7
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
             module_triple: armv7-unknown-linux-android
-
           - arch: i686
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
             module_triple: i686-unknown-linux-android
-
           - arch: x86_64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
             module_triple: x86_64-unknown-linux-android
 
     name: ${{ matrix.os }} ${{ matrix.arch }} ds2
 
     steps:
       - uses: actions/checkout@v4.2.2
+        if: inputs.build_android
         with:
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
@@ -492,6 +496,27 @@ jobs:
         with:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
+
+      - name: Compute workspace hash
+        if: inputs.build_android
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        if: inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 1M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2
 
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
@@ -517,7 +542,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/RegsGen2
 
       - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android' && inputs.build_android
+        if: inputs.build_android
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
@@ -525,28 +550,31 @@ jobs:
 
       - name: Configure DS2
         if: inputs.build_android
-        run: |
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/ds2 `
-                -S ${{ github.workspace }}/SourceCache/ds2 `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
-                -D DS2_PROGRAM_PREFIX="${{ matrix.module_triple }}-" `
-                -D DS2_REGSGEN2=${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BinaryCache/Library/Developer/ds2/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D CMAKE_ANDROID_NDK=$NDKPATH `
-                ${{ matrix.extra_flags }} `
-                -G Ninja
-
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: DS2
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/ds2
+          bin-dir: ${{ github.workspace }}/BinaryCache/ds2
+          install-dir: ${{ github.workspace }}/BinaryCache/Library/Developer/ds2/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          pinned-compilers: '@("C", "CXX")'
+          cmake-defines: |
+            @{
+              'DS2_REGSGEN2' = "${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe";
+              'DS2_PROGRAM_PREFIX' = "${{ matrix.module_triple }}-";
+            }
       - name: Build DS2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/ds2
-
       - name: Install DS2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/ds2 --target install
