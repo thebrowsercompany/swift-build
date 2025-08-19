@@ -387,12 +387,35 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.2.2
+        if: inputs.build_android
         with:
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        if: inputs.build_android
         with:
           setup-vs-dev-env: true
+
+      - name: Compute workspace hash
+        if: inputs.build_android
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        if: inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 1M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
 
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2_tools only on Windows X64 host only
@@ -413,17 +436,20 @@ jobs:
 
       - name: Configure RegsGen2
         if: inputs.build_android
-        run: |
-          cmake -B ${{ github.workspace }}/BinaryCache/RegsGen2 `
-                -S ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2 `
-                -C ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=cl `
-                -D CMAKE_CXX_COMPILER=cl `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_CXX_FLAGS="${{ inputs.WINDOWS_CMAKE_CXX_FLAGS }}" `
-                -G Ninja
-
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: RegsGen2
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ inputs.build_os }}
+          arch: ${{ inputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2
+          bin-dir: ${{ github.workspace }}/BinaryCache/RegsGen2
+          msvc-compilers: '@("C", "CXX")'
+          cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
       - name: Build RegsGen2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/RegsGen2 --config Release
@@ -445,45 +471,23 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
             module_triple: aarch64-unknown-linux-android
-
           - arch: armv7
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=armeabi-v7a
             module_triple: armv7-unknown-linux-android
-
           - arch: i686
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86
             module_triple: i686-unknown-linux-android
-
           - arch: x86_64
-            cc: clang
-            cflags: ${{ inputs.ANDROID_CMAKE_C_FLAGS }}
-            cxx: clang++
-            cxxflags: ${{ inputs.ANDROID_CMAKE_CXX_FLAGS }}
             os: Android
-            extra_flags: -DCMAKE_ANDROID_API=${{ inputs.ANDROID_API_LEVEL }} -DCMAKE_ANDROID_ARCH_ABI=x86_64
             module_triple: x86_64-unknown-linux-android
 
     name: ${{ matrix.os }} ${{ matrix.arch }} ds2
 
     steps:
       - uses: actions/checkout@v4.2.2
+        if: inputs.build_android
         with:
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
@@ -492,6 +496,27 @@ jobs:
         with:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
+
+      - name: Compute workspace hash
+        if: inputs.build_android
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        if: inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 1M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2
 
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
@@ -517,7 +542,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/RegsGen2
 
       - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android' && inputs.build_android
+        if: inputs.build_android
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
@@ -525,28 +550,31 @@ jobs:
 
       - name: Configure DS2
         if: inputs.build_android
-        run: |
-          $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          cmake -B ${{ github.workspace }}/BinaryCache/ds2 `
-                -S ${{ github.workspace }}/SourceCache/ds2 `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D MSVC_C_ARCHITECTURE_ID=${{ matrix.arch }} `
-                -D DS2_PROGRAM_PREFIX="${{ matrix.module_triple }}-" `
-                -D DS2_REGSGEN2=${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BinaryCache/Library/Developer/ds2/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D CMAKE_ANDROID_NDK=$NDKPATH `
-                ${{ matrix.extra_flags }} `
-                -G Ninja
-
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: DS2
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/ds2
+          bin-dir: ${{ github.workspace }}/BinaryCache/ds2
+          install-dir: ${{ github.workspace }}/BinaryCache/Library/Developer/ds2/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          pinned-compilers: '@("C", "CXX")'
+          cmake-defines: |
+            @{
+              'DS2_REGSGEN2' = "${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe";
+              'DS2_PROGRAM_PREFIX' = "${{ matrix.module_triple }}-";
+            }
       - name: Build DS2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/ds2
-
       - name: Install DS2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/ds2 --target install
@@ -605,23 +633,26 @@ jobs:
           show-progress: false
 
       - name: Configure cmark-gfm
-        run: >
-          cmake -B ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }} `
-                -D BUILD_SHARED_LIBS=YES `
-                -D BUILD_TESTING=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_COMPILER_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr `
-                -D CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP=YES `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.extra_flags }} `
-                -S ${{ github.workspace }}/SourceCache/cmark-gfm `
-                -G Ninja
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: cmark-gfm
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/cmark-gfm
+          bin-dir: ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+          msvc-compilers: '@("C", "CXX")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'BUILD_TESTING' = "NO";
+              'CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP' = "YES";
+            }
       - name: Build cmark-gfm
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
       - name: Install cmark-gfm
@@ -696,43 +727,49 @@ jobs:
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - name: Configure Tools
-        run: |
-          $LLVM_EXTERNAL_SWIFT_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift
-          cmake -B ${{ github.workspace }}/BinaryCache/0 `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                ${{ matrix.extra_flags }} `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
-                -D LLVM_ENABLE_ASSERTIONS=NO `
-                -D LLVM_ENABLE_LIBEDIT=NO `
-                -D LLVM_ENABLE_LIBXML2=NO `
-                -D LLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lldb" `
-                -D LLVM_EXTERNAL_PROJECTS="swift" `
-                -D LLVM_EXTERNAL_SWIFT_SOURCE_DIR=$LLVM_EXTERNAL_SWIFT_SOURCE_DIR `
-                -D LLDB_ENABLE_PYTHON=NO `
-                -D LLDB_INCLUDE_TESTS=NO `
-                -D LLDB_ENABLE_SWIFT_SUPPORT=NO `
-                -D SWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO `
-                -D SWIFT_BUILD_DYNAMIC_STDLIB=NO `
-                -D SWIFT_BUILD_HOST_DISPATCH=NO `
-                -D SWIFT_BUILD_LIBEXEC=NO `
-                -D SWIFT_BUILD_REGEX_PARSER_IN_COMPILER=NO `
-                -D SWIFT_BUILD_REMOTE_MIRROR=NO `
-                -D SWIFT_BUILD_SOURCEKIT=NO `
-                -D SWIFT_BUILD_STATIC_SDK_OVERLAY=NO `
-                -D SWIFT_BUILD_STATIC_STDLIB=NO `
-                -D SWIFT_BUILD_SWIFT_SYNTAX=NO `
-                -D SWIFT_ENABLE_DISPATCH=NO `
-                -D SWIFT_INCLUDE_APINOTES=NO `
-                -D SWIFT_INCLUDE_DOCS=NO `
-                -D SWIFT_INCLUDE_TESTS=NO
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Build Tools
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/0
+          msvc-compilers: '@("ASM_MASM", "C", "CXX")'
+          cmake-defines: |
+            @{
+              'CMAKE_CROSSCOMPILING' = "NO";
+              'CLANG_ENABLE_LIBXML2' = "NO";
+              'LLDB_ENABLE_LIBXML2' = "NO";
+              'LLDB_ENABLE_PYTHON' = "NO";
+              'LLDB_INCLUDE_TESTS' = "NO";
+              'LLDB_ENABLE_SWIFT_SUPPORT' = "NO";
+              'LLVM_ENABLE_ASSERTIONS' = "NO";
+              'LLVM_ENABLE_LIBEDIT' = "NO";
+              'LLVM_ENABLE_LIBXML2' = "NO";
+              'LLVM_ENABLE_PROJECTS' = "clang;clang-tools-extra;lldb";
+              'LLVM_EXTERNAL_PROJECTS' = "swift";
+              'LLVM_EXTERNAL_SWIFT_SOURCE_DIR' = "${{ github.workspace }}/SourceCache/swift";
+              'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "NO";
+              'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
+              'SWIFT_BUILD_HOST_DISPATCH' = "NO";
+              'SWIFT_BUILD_LIBEXEC' = "NO";
+              'SWIFT_BUILD_REGEX_PARSER_IN_COMPILER' = "NO";
+              'SWIFT_BUILD_REMOTE_MIRROR' = "NO";
+              'SWIFT_BUILD_SOURCEKIT' = "NO";
+              'SWIFT_BUILD_STATIC_SDK_OVERLAY' = "NO";
+              'SWIFT_BUILD_STATIC_STDLIB' = "NO";
+              'SWIFT_BUILD_SWIFT_SYNTAX' = "NO";
+              'SWIFT_ENABLE_DISPATCH' = "NO";
+              'SWIFT_INCLUDE_APINOTES' = "NO";
+              'SWIFT_INCLUDE_DOCS' = "NO";
+              'SWIFT_INCLUDE_TESTS' = "NO";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+            }
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
       - name: Build clang-tblgen
@@ -1375,110 +1412,113 @@ jobs:
           local-cache: true
 
       - name: Configure curl
-        run: |
-          if ("${{ matrix.os }}" -eq "Android") {
-            $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
-            if ( "${{ inputs.build_os }}" -eq "Windows" ) {
-              $NDKPATH = cygpath -m $NDKPATH
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: curl
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/curl
+          bin-dir: ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          msvc-compilers: '@("C")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_TESTING' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'BUILD_CURL_EXE' = "NO";
+              'BUILD_LIBCURL_DOCS' = "NO";
+              'BUILD_MISC_DOCS' = "NO";
+              'CURL_CA_BUNDLE' = "none";
+              'CURL_CA_FALLBACK' = "NO";
+              'CURL_CA_PATH' = "none";
+              'CURL_BROTLI' = "NO";
+              'CURL_DISABLE_ALTSVC' = "NO";
+              'CURL_DISABLE_AWS' = "YES";
+              'CURL_DISABLE_BASIC_AUTH' = "NO";
+              'CURL_DISABLE_BEARER_AUTH' = "NO";
+              'CURL_DISABLE_BINDLOCAL' = "NO";
+              'CURL_DISABLE_COOKIES' = "NO";
+              'CURL_DISABLE_DICT' = "YES";
+              'CURL_DISABLE_DIGEST_AUTH' = "NO";
+              'CURL_DISABLE_DOH' = "NO";
+              'CURL_DISABLE_FILE' = "YES";
+              'CURL_DISABLE_FORM_API' = "NO";
+              'CURL_DISABLE_FTP' = "YES";
+              'CURL_DISABLE_GETOPTIONS' = "NO";
+              'CURL_DISABLE_GOPHER' = "YES";
+              'CURL_DISABLE_HEADERS_API' = "YES";
+              'CURL_DISABLE_HSTS' = "NO";
+              'CURL_DISABLE_HTTP' = "NO";
+              'CURL_DISABLE_HTTP_AUTH' = "NO";
+              'CURL_DISABLE_IMAP' = "YES";
+              'CURL_DISABLE_KERBEROS_AUTH' = "NO";
+              'CURL_DISABLE_LDAP' = "YES";
+              'CURL_DISABLE_LDAPS' = "YES";
+              'CURL_DISABLE_MIME' = "NO";
+              'CURL_DISABLE_MQTT' = "YES";
+              'CURL_DISABLE_NEGOTIATE_AUTH' = "NO";
+              'CURL_DISABLE_NETRC' = "NO";
+              'CURL_DISABLE_NTLM' = "NO";
+              'CURL_DISABLE_PARSEDATE' = "NO";
+              'CURL_DISABLE_POP3' = "YES";
+              'CURL_DISABLE_PROGRESS_METER' = "YES";
+              'CURL_DISABLE_PROXY' = "NO";
+              'CURL_DISABLE_RTSP' = "YES";
+              'CURL_DISABLE_SHUFFLE_DNS' = "YES";
+              'CURL_DISABLE_SMB' = "YES";
+              'CURL_DISABLE_SMTP' = "YES";
+              'CURL_DISABLE_SOCKETPAIR' = "YES";
+              'CURL_DISABLE_SRP' = "NO";
+              'CURL_DISABLE_TELNET' = "YES";
+              'CURL_DISABLE_TFTP' = "YES";
+              'CURL_DISABLE_VERBOSE_STRINGS' = "NO";
+              'CURL_LTO' = "NO";
+              'CURL_USE_BEARSSL' = "NO";
+              'CURL_USE_GNUTLS' = "NO";
+              'CURL_USE_GSSAPI' = "NO";
+              'CURL_USE_LIBPSL' = "NO";
+              'CURL_USE_LIBSSH' = "NO";
+              'CURL_USE_LIBSSH2' = "NO";
+              'CURL_USE_MBEDTLS' = "NO";
+              'CURL_USE_OPENSSL' = "NO";
+              'CURL_USE_SCHANNEL' = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" };
+              'CURL_USE_WOLFSSL' = "NO";
+              'CURL_WINDOWS_SSPI' = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" };
+              'CURL_ZLIB' = "YES";
+              'CURL_ZSTD' = "NO";
+              'ENABLE_ARES' = "NO";
+              'ENABLE_CURLDEBUG' = "NO";
+              'ENABLE_CURL_MANUAL' = "NO";
+              'ENABLE_DEBUG' = "NO";
+              'ENABLE_IPV6' = "YES";
+              'ENABLE_THREADED_RESOLVER' = "NO";
+              'ENABLE_UNICODE' = "YES";
+              'ENABLE_UNIX_SOCKETS' = "NO";
+              'ENABLE_WEBSOCKETS' = "YES";
+              'HAVE_POLL_FINE' = "NO";
+              'USE_ECH' = "NO";
+              'USE_HTTPSRR' = "NO";
+              'USE_IDN2' = "NO";
+              'USE_MSH3' = "NO";
+              'USE_NGHTTP2' = "NO";
+              'USE_NGTCP2' = "NO";
+              'USE_QUICHE' = "NO";
+              'USE_OPENSSL_QUIC' = "NO";
+              'USE_WIN32_IDN' = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" };
+              'USE_WIN32_LARGE_FILES' = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" };
+              'USE_WIN32_LDAP' = "NO";
+              'ZLIB_ROOT' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr";
+              'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/zlibstatic.lib";
             }
-            # Since win/arm64 doesn't have one, this logic is necessary because
-            # passing an empty CMAKE_ANDROID_NDK value causes a failure.
-            $CMAKE_NDK_FLAG = "-DCMAKE_ANDROID_NDK=$NDKPATH"
-          }
-          cmake -B ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/curl `
-                -D BUILD_TESTING=NO `
-                -D BUILD_CURL_EXE=NO `
-                -D CURL_CA_BUNDLE="none" `
-                -D CURL_CA_FALLBACK=NO `
-                -D CURL_CA_PATH="none" `
-                -D CURL_BROTLI=NO `
-                -D CURL_DISABLE_ALTSVC=NO `
-                -D CURL_DISABLE_AWS=YES `
-                -D CURL_DISABLE_BASIC_AUTH=NO `
-                -D CURL_DISABLE_BEARER_AUTH=NO `
-                -D CURL_DISABLE_COOKIES=NO `
-                -D CURL_DISABLE_DICT=YES `
-                -D CURL_DISABLE_DIGEST_AUTH=NO `
-                -D CURL_DISABLE_DOH=NO `
-                -D CURL_DISABLE_FILE=YES `
-                -D CURL_DISABLE_FORM_API=NO `
-                -D CURL_DISABLE_FTP=YES `
-                -D CURL_DISABLE_GETOPTIONS=NO `
-                -D CURL_DISABLE_GOPHER=YES `
-                -D CURL_DISABLE_HSTS=NO `
-                -D CURL_DISABLE_HTTP=NO `
-                -D CURL_DISABLE_HTTP_AUTH=NO `
-                -D CURL_DISABLE_IMAP=YES `
-                -D CURL_DISABLE_KERBEROS_AUTH=NO `
-                -D CURL_DISABLE_LDAP=YES `
-                -D CURL_DISABLE_LDAPS=YES `
-                -D CURL_DISABLE_MIME=NO `
-                -D CURL_DISABLE_MQTT=YES `
-                -D CURL_DISABLE_NEGOTIATE_AUTH=NO `
-                -D CURL_DISABLE_NETRC=NO `
-                -D CURL_DISABLE_NTLM=NO `
-                -D CURL_DISABLE_PARSEDATE=NO `
-                -D CURL_DISABLE_POP3=YES `
-                -D CURL_DISABLE_PROGRESS_METER=YES `
-                -D CURL_DISABLE_PROXY=NO `
-                -D CURL_DISABLE_RTSP=YES `
-                -D CURL_DISABLE_SHUFFLE_DNS=YES `
-                -D CURL_DISABLE_SMB=YES `
-                -D CURL_DISABLE_SMTP=YES `
-                -D CURL_DISABLE_SOCKETPAIR=YES `
-                -D CURL_DISABLE_SRP=NO `
-                -D CURL_DISABLE_TELNET=YES `
-                -D CURL_DISABLE_TFTP=YES `
-                -D CURL_DISABLE_VERBOSE_STRINGS=NO `
-                -D CURL_LTO=NO `
-                -D CURL_USE_BEARSSL=NO `
-                -D CURL_USE_GNUTLS=NO `
-                -D CURL_USE_GSSAPI=NO `
-                -D CURL_USE_LIBPSL=NO `
-                -D CURL_USE_LIBSSH=NO `
-                -D CURL_USE_LIBSSH2=NO `
-                -D CURL_USE_MBEDTLS=NO `
-                -D CURL_USE_OPENSSL=NO `
-                -D CURL_USE_SCHANNEL=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
-                -D CURL_USE_WOLFSSL=NO `
-                -D CURL_WINDOWS_SSPI=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
-                -D CURL_ZLIB=YES `
-                -D CURL_ZSTD=NO `
-                -D ENABLE_ARES=NO `
-                -D ENABLE_CURLDEBUG=NO `
-                -D ENABLE_DEBUG=NO `
-                -D ENABLE_IPV6=YES `
-                -D ENABLE_MANUAL=NO `
-                -D ENABLE_THREADED_RESOLVER=NO `
-                -D ENABLE_UNICODE=YES `
-                -D ENABLE_UNIX_SOCKETS=NO `
-                -D ENABLE_WEBSOCKETS=NO `
-                -D HAVE_POLL_FINE=NO `
-                -D USE_IDN2=NO `
-                -D USE_MSH3=NO `
-                -D USE_NGHTTP2=NO `
-                -D USE_NGTCP2=NO `
-                -D USE_QUICHE=NO `
-                -D USE_WIN32_IDN=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
-                -D USE_WIN32_LARGE_FILES=${{ matrix.os == 'Windows' && 'YES' || 'NO' }} `
-                -D USE_WIN32_LDAP=NO `
-                -D ZLIB_ROOT=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr  `
-                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/zlibstatic.lib `
-                -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
-                $CMAKE_NDK_FLAG
       - name: Build curl
         run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }}
       - name: Install curl
@@ -1545,39 +1585,35 @@ jobs:
           local-cache: true
 
       - name: Configure libxml2
-        run: |
-          if ("${{ matrix.os }}" -eq "Android") {
-            $NDKPATH = "${{ steps.setup-ndk.outputs.ndk-path }}"
-            if ( "${{ inputs.build_os }}" -eq "Windows" ) {
-              $NDKPATH = cygpath -m $NDKPATH
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: libxml2
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/libxml2
+          bin-dir: ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          msvc-compilers: '@("C", "CXX")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'LIBXML2_WITH_ICONV' = "NO";
+              'LIBXML2_WITH_ICU' = "NO";
+              'LIBXML2_WITH_LZMA' = "NO";
+              'LIBXML2_WITH_PYTHON' = "NO";
+              'LIBXML2_WITH_TESTS' = "NO";
+              'LIBXML2_WITH_THREADS' = "YES";
+              'LIBXML2_WITH_ZLIB' = "NO";
             }
-            # Since win/arm64 doesn't have one, this logic is necessary because
-            # passing an empty CMAKE_ANDROID_NDK value causes a failure.
-            $CMAKE_NDK_FLAG = "-DCMAKE_ANDROID_NDK=$NDKPATH"
-          }
-          cmake -B ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }} `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/libxml2 `
-                -D LIBXML2_WITH_ICONV=NO `
-                -D LIBXML2_WITH_ICU=NO `
-                -D LIBXML2_WITH_LZMA=NO `
-                -D LIBXML2_WITH_PYTHON=NO `
-                -D LIBXML2_WITH_TESTS=NO `
-                -D LIBXML2_WITH_THREADS=YES `
-                -D LIBXML2_WITH_ZLIB=NO `
-                -D CMAKE_POSITION_INDEPENDENT_CODE=YES `
-                $CMAKE_NDK_FLAG
       - name: Build libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }}
       - name: Install libxml2
@@ -2335,21 +2371,6 @@ jobs:
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
           }
 
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
-          }
-
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalRuntime `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.gnu-cc }} `
@@ -2375,6 +2396,7 @@ jobs:
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift/Runtimes/Core `
                 -D SwiftCore_ENABLE_CONCURRENCY=YES `
+                -D SwiftCore_ENABLE_REMOTE_MIRROR=YES `
                 -D dispatch_DIR=${{ github.workspace }}/BinaryCache/libdispatch-c/cmake/modules
       - name: Build Experimental Runtime
         if: matrix.os != 'Android' || inputs.build_android
@@ -2397,21 +2419,6 @@ jobs:
           if ("${{ matrix.os }}" -eq "Android") {
             # Used by matrix definitions.
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          }
-
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
           }
 
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalOverlay `
@@ -2437,7 +2444,8 @@ jobs:
                 ${{ matrix.extra_flags }} `
                 -G Ninja `
                 -S ${{ github.workspace }}/SourceCache/swift/Runtimes/Overlay `
-                -D SwiftCore_DIR=${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore
+                -D SwiftCore_DIR=${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore `
+                -D SwiftOverlay_ENABLE_CXX_INTEROP=YES
       - name: Build Experimental Overlay
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -2459,21 +2467,6 @@ jobs:
           if ("${{ matrix.os }}" -eq "Android") {
             # Used by matrix definitions.
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          }
-
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
           }
 
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalStringProcessing `
@@ -2519,21 +2512,6 @@ jobs:
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
           }
 
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
-          }
-
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalSynchronization `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_C_COMPILER=${{ matrix.gnu-cc }} `
@@ -2576,21 +2554,6 @@ jobs:
           if ("${{ matrix.os }}" -eq "Android") {
             # Used by matrix definitions.
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          }
-
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
           }
 
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalDistributed `
@@ -2641,21 +2604,6 @@ jobs:
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
           }
 
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
-          }
-
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalObservation `
                 -D CMAKE_BUILD_TYPE=Release `
                 -D CMAKE_CXX_COMPILER=${{ matrix.gnu-cxx }} `
@@ -2698,21 +2646,6 @@ jobs:
           if ("${{ matrix.os }}" -eq "Android") {
             # Used by matrix definitions.
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          }
-
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
           }
 
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalVolatile `
@@ -2762,21 +2695,6 @@ jobs:
           if ("${{ matrix.os }}" -eq "Android") {
             # Used by matrix definitions.
             $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          }
-
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $WINDOWS_VFS_OVERLAY = cygpath -m "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift"
-            $SwiftFlags += " -vfsoverlay ${WINDOWS_VFS_OVERLAY}"
-            $SwiftFlags += " -strict-implicit-module-context"
-            $SwiftFlags += " -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/windows"
-          } elseif ("${{ matrix.os }}" -eq "Android") {
-            $SwiftResourceDir = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift"
-            $SwiftFlags += " -sdk $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-            $SwiftFlags += " -resource-dir $SwiftResourceDir"
-            $SwiftFlags += " -L $SwiftResourceDir/android"
           }
 
           cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalDifferentiation `
