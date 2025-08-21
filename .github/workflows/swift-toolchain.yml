@@ -1879,86 +1879,55 @@ jobs:
           $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
           (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
 
-      - name: Create vfs-overlay
-        run: |
-          $VfsOverlay = "${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml"
-          $ModuleMapDir = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/share
-          $Win10SdkRoot = Get-ItemPropertyValue `
-            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
-            -Name "KitsRoot10"
-          $Win10SdkRoot = cygpath -m ${Win10SdkRoot}
-          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
-          $VsWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
-          $VsInstallPath = (& "$VsWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
-          $VsInstallPath = cygpath -m ${VsInstallPath}
-
-          $ModuleMap = @"
-          version: 0
-          use-external-names: false
-          case-sensitive: false
-          roots:
-            - name: "${Win10SdkRoot}/Include/${env:UCRTVersion}/um"
-              type: directory
-              contents:
-                - name: module.modulemap
-                  type: file
-                  external-contents: "${ModuleMapDir}/winsdk.modulemap"
-            - name: "${Win10SdkRoot}/Include/${env:UCRTVersion}/ucrt"
-              type: directory
-              contents:
-                - name: module.modulemap
-                  type: file
-                  external-contents: "${ModuleMapDir}/ucrt.modulemap"
-            - name: "${VsInstallPath}/VC/Tools/MSVC/${env:VCToolsVersion}/include"
-              type: directory
-              contents:
-                - name: module.modulemap
-                  type: file
-                  external-contents: "${ModuleMapDir}/vcruntime.modulemap"
-                - name: vcruntime.apinotes
-                  type: file
-                  external-contents: "${ModuleMapDir}/vcruntime.apinotes"
-          "@
-          $VfsOverlayDir = Split-Path -Parent $VfsOverlay
-          New-Item -ItemType Directory -Path $VfsOverlayDir
-          Write-Output $ModuleMap | Out-File -FilePath $VfsOverlay -Encoding utf8
-
       - name: Configure Foundation Macros
-        run: |
-          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with: 
+          project-name: swift-foundation-macros
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-foundation/Sources/FoundationMacros
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          built-compilers: '@("Swift")'
+          cmake-defines: |
+            @{
+              'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
+            }
 
-          cmake -B ${{ github.workspace }}/BinaryCache/swift-foundation-macros `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ inputs.CMAKE_Swift_FLAGS }}" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-foundation/Sources/FoundationMacros `
-                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
       - name: Build Foundation Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros
 
       - name: Configure Testing Macros
-        run: |
-          $WINDOWS_VFS_OVERLAY = cygpath -m ${{ github.workspace }}/BinaryCache/swift/stdlib/windows-vfs-overlay.yaml
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with: 
+          project-name: swift-testing-macros
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-testing/Sources/TestingMacros
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift-testing-macros
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          built-compilers: '@("Swift")'
+          cmake-defines: |
+            @{
+              'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
+            }
 
-          cmake -B ${{ github.workspace }}/BinaryCache/swift-testing-macros `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift -L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows -vfsoverlay ${WINDOWS_VFS_OVERLAY} -strict-implicit-module-context -Xcc -Xclang -Xcc -fbuiltin-headers-in-system-modules ${{ inputs.CMAKE_Swift_FLAGS }}" `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-testing/Sources/TestingMacros `
-                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
       - name: Build Testing Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-testing-macros
 
@@ -1966,7 +1935,7 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros --target install
       - name: Install Testing Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-testing-macros --target install
-
+      
       - name: Upload macros
         uses: actions/upload-artifact@v4
         with:
