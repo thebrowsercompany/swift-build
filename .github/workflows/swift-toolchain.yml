@@ -914,15 +914,6 @@ jobs:
   compilers:
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
-
-    env:
-      # This will grab the latest Python 3.10 version available for setup-python. It is necessary to
-      # specify in this manner for Mac where actions/setup-python does not have version 3.10.1.
-      # Once the Python version is upgraded to 3.12, these should be kept in sync.
-      PYTHON_VERSION_MACOS: 3.10
-      # Must be a full version string from https://www.nuget.org/packages/pythonarm64
-      PYTHON_VERSION_WINDOWS: 3.10.1
-
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.compilers_matrix) }}
@@ -1012,38 +1003,38 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
 
-      - name: Install Python ${{ env.PYTHON_VERSION_MACOS }} (Host)
+      - name: Install Python ${{ inputs.python_version }} (Host)
         if: matrix.os == 'Darwin'
         uses: actions/setup-python@v5
         with:
-          python-version: '${{ env.PYTHON_VERSION_MACOS }}'
+          python-version: '${{ inputs.python_version }}'
 
-      - name: Install Python ${{ env.PYTHON_VERSION_WINDOWS }} (Host)
+      - name: Install Python ${{ inputs.python_version }} (Host)
         if: matrix.os == 'Windows' && (matrix.arch == 'amd64' || inputs.build_arch == 'amd64')
         uses: actions/setup-python@v5
         id: python
         with:
-          python-version: '${{ env.PYTHON_VERSION_WINDOWS }}'
+          python-version: '${{ inputs.python_version }}'
           architecture: x64 
 
       - uses: nuget/setup-nuget@v2
         if: inputs.build_os == 'Windows' && (matrix.arch == 'arm64' || inputs.build_arch == 'arm64')
 
       # TODO(lxbndr) use actions/cache to improve this step timings
-      - name: Install Python ${{ env.PYTHON_VERSION_WINDOWS }} (Windows arm64)
+      - name: Install Python ${{ inputs.python_version}} (Windows arm64)
         if: inputs.build_os == 'Windows' && (matrix.arch == 'arm64' || inputs.build_arch == 'arm64')
         run: |
           $NugetSources=[string](nuget Sources List -Format short)
           if (-Not ($NugetSources.contains("api.nuget.org"))) {
             nuget sources Add -Name api.nuget.org -Source https://api.nuget.org/v3/index.json -NonInteractive
           }
-          nuget install pythonarm64 -Version ${{ env.PYTHON_VERSION_WINDOWS }}
+          nuget install pythonarm64 -Version ${{ inputs.python_version}}
 
       - name: Export Python Location (Windows)
         if: inputs.build_os == 'Windows'
         run: |
           echo "PYTHON_LOCATION_amd64=$env:pythonLocation" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ env.PYTHON_VERSION_WINDOWS }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ inputs.python_version }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'
