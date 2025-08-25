@@ -3083,6 +3083,7 @@ jobs:
           local-cache: true
 
       - name: Configure libdispatch
+        if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: libdispatch
@@ -3099,12 +3100,13 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "CXX", "Swift")'
+          msvc-compilers: '@("C", "CXX", "Swift")'
           cmake-defines: |
             @{
               'ENABLE_SWIFT' = "YES";
+              'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
             }
+    
       - name: Build libdispatch
         if: matrix.os != 'Android' || inputs.build_android
         run: |
