@@ -36,7 +36,7 @@ del /q vs_community.exe
 ```
 
 > [!IMPORTANT]
-> On ARM64, Visual Studio doesn't include Python. If you are building Swift on an ARM64 processor, install Python 3.9 from https://www.python.org/downloads/release/python-3913/ and don't include the `Component.CPython39.x64` line in the command above.
+> On ARM64, Visual Studio doesn't include Python. If you are building Swift on an ARM64 processor, install Python 3.10.1 from https://www.python.org/downloads/release/python-3101/ and don't include the `Component.CPython39.x64` line in the command above.
 
 ### Enable Symbolic Links Support
 
