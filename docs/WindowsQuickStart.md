@@ -22,7 +22,6 @@ automated fashion.
 ```cmd
 curl.exe -sOL https://aka.ms/vs/17/release/vs_community.exe
 vs_community.exe ^
-  --add Component.CPython39.x64 ^
   --add Microsoft.NetCore.Component.SDK ^
   --add Microsoft.VisualStudio.Component.Git ^
   --add Microsoft.VisualStudio.Component.VC.CMake.Project ^
@@ -35,8 +34,9 @@ vs_community.exe ^
 del /q vs_community.exe
 ```
 
-> [!IMPORTANT]
-> On ARM64, Visual Studio doesn't include Python. If you are building Swift on an ARM64 processor, install Python 3.10.1 from https://www.python.org/downloads/release/python-3101/ and don't include the `Component.CPython39.x64` line in the command above.
+### Install Python
+
+The `repo` tool uses Python, and as such, we need a Python installation on the host. We recommend installing **Python 3.9.10** to ensure compatibility with the provided scripts and examples. Download and install Python 3.9.10 for your platform from [https://www.python.org/downloads/release/python-3910/](https://www.python.org/downloads/release/python-3910/).
 
 ### Enable Symbolic Links Support
 
@@ -98,32 +98,32 @@ curl.exe -sLo S:\Applications\repo https://storage.googleapis.com/git-repo-downl
 md SourceCache
 cd SourceCache
 set PYTHONUTF8=1
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo init -u https://github.com/compnerd/swift-build
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -j 8
+python S:\Applications\repo init -u https://github.com/compnerd/swift-build
+python S:\Applications\repo sync -j 8
 ```
 
-Subsequently, you can update all the repositories using `"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync`.
+Subsequently, you can update all the repositories using `python S:\Applications\repo sync`.
 
 If you wish to sync to a point that is known to build successfully, you can use the smart sync option:
 
 ```
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -s
+python S:\Applications\repo sync -s
 ```
 
 You may also sync to specific toolchain versions by providing `repo` with the corresponding manifest file. Download `swift-build/stable.xml` at some revision, then sync with
 ```
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync -m path\to\stable.xml
+python S:\Applications\repo sync -m path\to\stable.xml
 ```
 
 If you wish to build a specific release branch, you can specify the `-b` (branch) option to `repo` to checkout the branch:
 ```
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo init -b release/6.0
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo sync
+python S:\Applications\repo init -b release/6.0
+python S:\Applications\repo sync
 ```
 
 You may also do this at the initial checkout time as:
 ```
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\Python39_64\python.exe" S:\Applications\repo init -u https://github.com/compnerd/swift-build -b release/6.0
+python S:\Applications\repo init -u https://github.com/compnerd/swift-build -b release/6.0
 ```
 
 ## Building
@@ -192,7 +192,7 @@ The following content in your Powershell profile file (whose path is stored in t
 function Set-SwiftEnv {
   $SwiftRoot = "S:\Program Files\Swift"
   $env:SDKROOT = "${SwiftRoot}\Platforms\Windows.platform\Developer\SDKs\Windows.sdk"
-  $env:Path = "${env:ProgramFiles}\Python39;${SwiftRoot}\Runtimes\0.0.0\usr\bin;${SwiftRoot}\Toolchains\0.0.0+Asserts\usr\bin;${env:Path}"
+  $env:Path = "S:\b\Python${env:PROCESSOR_ARCHITECTURE}-3.9.10\tools;${SwiftRoot}\Runtimes\0.0.0\usr\bin;${SwiftRoot}\Toolchains\0.0.0+Asserts\usr\bin;${env:Path}"
 }
 Set-Alias -Name SwiftEnv -Value Set-SwiftEnv
 ```
