@@ -36,7 +36,7 @@ del /q vs_community.exe
 
 ### Install Python
 
-The `repo` tool uses Python, and as such, we need a Python installation on the host. We recommend installing **Python 3.9.10** to ensure compatibility with the provided scripts and examples. Download and install Python 3.9.10 for your platform from [https://www.python.org/downloads/release/python-3910/](https://www.python.org/downloads/release/python-3910/).
+The `repo` tool uses Python, and as such, we need a Python installation on the host. We recommend installing **Python 3.10.1** to ensure compatibility with the provided scripts and examples. Download and install Python 3.10.1 for your platform from [https://www.python.org/downloads/release/python-3101/](https://www.python.org/downloads/release/python-3101/).
 
 ### Enable Symbolic Links Support
 
@@ -181,7 +181,7 @@ the toolchain.
 
 ```cmd
 set SDKROOT=S:\Program Files\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
-path S:\Program Files\Swift\Runtimes\0.0.0\usr\bin;S:\Program Files\Swift\Toolchains\0.0.0+Asserts\usr\bin;%PATH%
+path S:\b\Python%PROCESSOR_ARCHITECTURE%-3.10.1\tools;S:\Program Files\Swift\Runtimes\0.0.0\usr\bin;S:\Program Files\Swift\Toolchains\0.0.0+Asserts\usr\bin;%PATH%
 ```
 
 ### PowerShell Helper
@@ -192,7 +192,7 @@ The following content in your Powershell profile file (whose path is stored in t
 function Set-SwiftEnv {
   $SwiftRoot = "S:\Program Files\Swift"
   $env:SDKROOT = "${SwiftRoot}\Platforms\Windows.platform\Developer\SDKs\Windows.sdk"
-  $env:Path = "S:\b\Python${env:PROCESSOR_ARCHITECTURE}-3.9.10\tools;${SwiftRoot}\Runtimes\0.0.0\usr\bin;${SwiftRoot}\Toolchains\0.0.0+Asserts\usr\bin;${env:Path}"
+  $env:Path = "S:\b\Python${env:PROCESSOR_ARCHITECTURE}-3.10.1\tools;${SwiftRoot}\Runtimes\0.0.0\usr\bin;${SwiftRoot}\Toolchains\0.0.0+Asserts\usr\bin;${env:Path}"
 }
 Set-Alias -Name SwiftEnv -Value Set-SwiftEnv
 ```
