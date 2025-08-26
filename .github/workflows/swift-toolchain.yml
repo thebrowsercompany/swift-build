@@ -3554,24 +3554,27 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections
 
       - name: Configure swift-asn1
-        run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
-          cmake -B ${{ github.workspace }}/BinaryCache/swift-asn1 `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
-                ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-asn1
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: swift-asn1
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-asn1
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift-asn1
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          built-compilers: '@("Swift")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+            }
       - name: Build swift-asn1
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-asn1
 
