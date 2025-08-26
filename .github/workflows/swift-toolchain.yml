@@ -3902,33 +3902,33 @@ jobs:
       - name: Build Markdown
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-markdown
 
-      - name: Configure Format
-        run: |
-          # Workaround CMake 3.20 issue
-          $CLANG_CL = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
-
-          cmake -B ${{ github.workspace }}/BinaryCache/swift-format `
-                -D BUILD_SHARED_LIBS=YES `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_C_COMPILER=${CLANG_CL} `
-                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ inputs.WINDOWS_CMAKE_C_FLAGS }}" `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }}" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
-                ${{ matrix.cmake_linker_flags }} `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-format `
-                -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules `
-                -D cmark-gfm_DIR=${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake `
-                -D SwiftMarkdown_DIR=${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules `
-                -D SwiftSyntax_DIR=${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules
+      - name: Configure swift-format
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: swift-format
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-format
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift-format
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          msvc-compilers: '@("C")'
+          built-compilers: '@("Swift")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+              'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
+              'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+            }
       - name: Build swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
 
