@@ -2488,43 +2488,32 @@ jobs:
 
       - name: Configure Experimental Distributed
         if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          $CLANG = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang.exe"
-          $CLANGXX = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang++.exe"
-          $CLANG_CL = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe"
-          $SWIFTC = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe"
-          $SwiftFlags = "${{ matrix.swiftflags }}"
-
-          if ("${{ matrix.os }}" -eq "Android") {
-            # Used by matrix definitions.
-            $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-          }
-
-          cmake -B ${{ github.workspace }}/BinaryCache/ExperimentalDistributed `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.gnu-cc }} `
-                -D CMAKE_C_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ matrix.gnu-cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.gnu-cxx }} `
-                -D CMAKE_CXX_COMPILER_LAUNCHER=sccache `
-                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ matrix.gnu-cxxflags }}  -I${{ github.workspace }}/BinaryCache/ExperimentalRuntime/include" `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
-                -D CMAKE_Swift_FLAGS="${SwiftFlags}" `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_COMPILER_USE_OLD_DRIVER=YES `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr `
-                -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_STATIC_LIBRARY_PREFIX_Swift="lib" `
-                ${{ matrix.gnu-linker_flags }} `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Distributed `
-                -D SwiftCore_DIR=${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore `
-                -D SwiftOverlay_DIR=${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalDistributed
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Distributed 
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalDistributed
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          built-compilers: '@("C", "CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "NO";
+               'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/ExperimentalRuntime/include";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+            }
       - name: Build Experimental Distributed
         if: matrix.os != 'Android' || inputs.build_android
         run: |
