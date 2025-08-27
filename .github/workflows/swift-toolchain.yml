@@ -2674,61 +2674,44 @@ jobs:
 
       - name: Configure Static Foundation
         if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          $CLANG = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang.exe"
-          $CLANGXX = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang++.exe"
-          $CLANG_CL = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe"
-          $SWIFTC = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe"
-          $SwiftFlags = "${{ matrix.swiftflags }}"
-
-          if ("${{ matrix.os }}" -eq "Android") {
-            # Used by matrix definitions.
-            $NDKPATH = cygpath -m ${{ steps.setup-ndk.outputs.ndk-path }}
-            $SwiftFlags += " -sysroot $NDKPATH/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
-          }
-
-          $SwiftSDKDir = cygpath -m "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk"
-          $SwiftFlags += " -sdk $SwiftSDKDir"
-
-          $SWIFT_FOUNDATION_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-foundation
-          $SWIFT_FOUNDATION_ICU_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-foundation-icu
-          $SWIFT_COLLECTIONS_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift-collections
-
-          $build_tools = if ("${{ matrix.os }}" -eq "Windows") { "YES" } else { "NO" }
-          $LIBZ = if ("${{ matrix.os }}" -eq "Windows") { "zlibstatic.lib" } else { "libz.a" }
-
-          cmake -B ${{ github.workspace }}/BinaryCache/StaticFoundation `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
-                -D CMAKE_Swift_FLAGS="${SwiftFlags} -static-stdlib -Xfrontend -use-static-resource-dir" `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_COMPILER_USE_OLD_DRIVER=YES `
-                -D BUILD_SHARED_LIBS=NO `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr `
-                -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
-                -D CMAKE_STATIC_LIBRARY_PREFIX_Swift="lib" `
-                ${{ matrix.linker_flags }} `
-                ${{ matrix.extra_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift-corelibs-foundation `
-                -D ENABLE_TESTING=NO `
-                -D FOUNDATION_BUILD_TOOLS=${build_tools} `
-                -D CURL_DIR=${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr/lib/cmake/CURL `
-                -D LibXml2_DIR=${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }} `
-                -D ZLIB_LIBRARY=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/$LIBZ `
-                -D ZLIB_INCLUDE_DIR=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/include `
-                -D dispatch_DIR=${{ github.workspace }}/BinaryCache/ExperimentalDispatch/cmake/modules `
-                -D _SwiftFoundation_SourceDIR=${SWIFT_FOUNDATION_SOURCE_DIR} `
-                -D _SwiftFoundationICU_SourceDIR=${SWIFT_FOUNDATION_ICU_SOURCE_DIR} `
-                -D _SwiftCollections_SourceDIR=${SWIFT_COLLECTIONS_SOURCE_DIR} `
-                -D SwiftFoundation_MACRO=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: StaticFoundation
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          bin-dir: ${{ github.workspace }}/BinaryCache/StaticFoundation
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          built-compilers: '@("ASM","C", "CXX", "Swift")'
+          swift-sdk-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+              'CMAKE_NINJA_FORCE_RESPONSE_FILE' = "YES";
+              'CMAKE_Swift_FLAGS' = "-static-stdlib -Xfrontend -use-static-resource-dir";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'ENABLE_TESTING' = "NO";
+              'FOUNDATION_BUILD_TOOLS' = "${{ matrix.os == 'Windows' && 'YES' || 'NO' }}";
+              'CURL_DIR' = "${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr/lib/cmake/CURL \";
+              'LibXml2_DIR' = "${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
+              'ZLIB_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/include";
+              'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/${{ matrix.os == 'Windows' && 'zlibstatic.lib' || 'libz.a' }}";
+              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalDispatch/cmake/modules";
+              'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/${{ matrix.triple }}/usr/lib/cmake/Compilers";
+              '_SwiftFoundation_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation";
+              '_SwiftFoundationICU_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation-icu";
+              '_SwiftCollections_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-collections";
+              'SwiftFoundation_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
+            }
       - name: Build Static Foundation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
