@@ -3326,7 +3326,6 @@ jobs:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
       - name: Compute workspace hash
-        if: matrix.os != 'Android' || inputs.build_android
         id: workspace_hash
         run: |
           $stringAsStream = [System.IO.MemoryStream]::new()
@@ -3344,6 +3343,10 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-devtools
+      # FIXME(compnerd): workaround CMake 3.30+ issue
+      - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
+        with:
+          cmakeVersion: 3.29.9
 
       - uses: actions/download-artifact@v4
         with:
