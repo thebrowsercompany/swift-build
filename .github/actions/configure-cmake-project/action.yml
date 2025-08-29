@@ -405,7 +405,7 @@ runs:
               Add-KeyValueIfNew $Defines SWIFT_ANDROID_NDK_PATH "$AndroidNDKPath"
 
               $SWIFTC = if ($UseBuiltCompilers.Contains("Swift")) {
-                $SWIFTC = "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
+                "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
               } else {
                 # The pinned toolchain is already in the path.
                 "swiftc.exe"
@@ -461,7 +461,8 @@ runs:
           }
         }
 
-        if ($EnableCaching) {
+        # TODO(steelskin): sccache does not work with "-gsplit-dwarf".
+        if ($EnableCaching -and $OS -ne "Android") {
           if ($UseC) {
             Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER "sccache"
           }
