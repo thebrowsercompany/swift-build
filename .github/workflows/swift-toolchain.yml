@@ -2955,6 +2955,7 @@ jobs:
           host-arch: ${{ matrix.arch }}
 
       - name: Compute workspace hash
+        if: matrix.os == 'Windows'
         id: workspace_hash
         run: |
           $stringAsStream = [System.IO.MemoryStream]::new()
@@ -2965,6 +2966,7 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
+        if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
