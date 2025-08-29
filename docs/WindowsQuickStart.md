@@ -30,7 +30,7 @@ vs_community.exe ^
   --add Microsoft.VisualStudio.Component.VC.ATL ^
   --add Microsoft.VisualStudio.Component.VC.ATL.ARM64 ^
   --add Microsoft.VisualStudio.Component.Windows10SDK ^
-  --add Microsoft.VisualStudio.Component.Windows11SDK.22000
+  --add Microsoft.VisualStudio.Component.Windows11SDK.22621
 del /q vs_community.exe
 ```
 
