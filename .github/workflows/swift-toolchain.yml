@@ -4158,7 +4158,12 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
-
+      # FIXME(compnerd): workaround CMake 3.30+ issue
+      - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          cmakeVersion: 3.29.9
+ 
       - name: Download swift-argument-parser
         uses: actions/download-artifact@v4
         with:
