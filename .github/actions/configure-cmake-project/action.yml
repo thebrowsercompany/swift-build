@@ -113,6 +113,34 @@ runs:
         $CacheScript = '${{ inputs.cache-script }}'
         $CMakeDefines = ${{ inputs.cmake-defines }}
 
+
+        Write-Output "ℹ️ Configs:"
+        Write-Output "----------------------"
+        Write-Output "   ProjectName = $ProjectName"
+        Write-Output "   SwiftVersion = $SwiftVersion"
+        Write-Output "   EnableCaching = $EnableCaching"
+        Write-Output "   UseGNUDriver = $UseGNUDriver"
+        Write-Output "   UseMSVCCompilers = $UseMSVCCompilers"
+        Write-Output "   UseBuiltCompilers = $UseBuiltCompilers"
+        Write-Output "   UsePinnedCompilers = $UsePinnedCompilers"
+        Write-Output "   NDKPath = $NDKPath"
+        Write-Output "   SwiftSDK = $SwiftSDK"
+        Write-Output "   SrcDir = $SrcDir"
+        Write-Output "   BinDir = $BinDir"
+        Write-Output "   InstallDir = $InstallDir"
+        Write-Output "   AndroidAPILevel = $AndroidAPILevel"
+        Write-Output "   AndroidClangVersion = $AndroidClangVersion"
+        Write-Output "   CacheScript = $CacheScript"
+        Write-Output "   CMakeDefines = $CMakeDefines"
+        Write-Output "   DebugInfo = $DebugInfo"
+        Write-Output "   BuildOS = $BuildOS"
+        Write-Output "   BuildArch = $BuildArch"
+        Write-Output "   OS = $OS"
+        Write-Output "   Arch = $Arch"
+        Write-Output "----------------------"
+        Write-Output "`n"
+
+
         function Add-KeyValueIfNew([hashtable]$Hashtable, [string]$Key, [string]$Value) {
           if (-not $Hashtable.Contains($Key)) {
             $Hashtable.Add($Key, $Value)
@@ -169,6 +197,17 @@ runs:
         $UseC = $UseBuiltCompilers.Contains("C") -or $UseMSVCCompilers.Contains("C") -or $UsePinnedCompilers.Contains("C")
         $UseCXX = $UseBuiltCompilers.Contains("CXX") -or $UseMSVCCompilers.Contains("CXX") -or $UsePinnedCompilers.Contains("CXX")
         $UseSwift = $UseBuiltCompilers.Contains("Swift") -or $UsePinnedCompilers.Contains("Swift")
+
+
+        Write-Output "ℹ️ Configs:"
+        Write-Output "----------------------"
+        Write-Output "   UseASM = $UseASM"
+        Write-Output "   UseASM_MASM = $UseASM_MASM"
+        Write-Output "   UseC = $UseC"
+        Write-Output "   UseCXX = $UseCXX"
+        Write-Output "   UseSwift = $UseSwift"
+        Write-Output "----------------------"
+        Write-Output "`n"
 
         # Add additional defines (unless already present)
         $Defines = $CMakeDefines.Clone()
@@ -235,6 +274,8 @@ runs:
                 }
               }
 
+              Write-Output "ℹ️ CC = $CC"
+
               Add-KeyValueIfNew $Defines CMAKE_C_COMPILER $CC
               Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_TARGET $Triple
 
@@ -263,6 +304,7 @@ runs:
                   $Driver
                 }
               }
+              Write-Output "ℹ️ CXX = $CXX"
 
               Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER $CXX
               Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_TARGET $Triple
