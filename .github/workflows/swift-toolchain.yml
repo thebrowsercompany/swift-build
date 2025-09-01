@@ -4140,6 +4140,24 @@ jobs:
         with:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
+      - name: Compute workspace hash
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
 
       - name: Download swift-argument-parser
         uses: actions/download-artifact@v4
@@ -4205,22 +4223,28 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
       - name: Configure swift-inspect
-        run: |
-          $SWIFTC = cygpath -m ${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: swift-inspect
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/tools/swift-inspect
+          bin-dir: ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          built-compilers: '@("Swift")'
+          cmake-defines: |
+            @{
+               'CMAKE_Swift_FLAGS' = @(
+                  "-Xcc", "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/swift/SwiftRemoteMirror"
+               );
+               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+            }
 
-          cmake -B ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_FLAGS="-sdk ${env:SDKROOT} ${{ inputs.CMAKE_Swift_FLAGS }} -Xcc `"-I${env:SDKROOT}/usr/include/swift/SwiftRemoteMirror`"" `
-                -D CMAKE_Swift_FLAGS_RELEASE="-O" `
-                -D CMAKE_SYSTEM_NAME=Windows `
-                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.cpu }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift/tools/swift-inspect `
-                -D ArgumentParser_DIR=${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules
       - name: Build swift-inspect
         run: cmake --build ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect
 
