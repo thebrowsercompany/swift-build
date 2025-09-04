@@ -1973,26 +1973,46 @@ jobs:
           - os: Windows
             arch: amd64
             triple: x86_64-unknown-windows-msvc
+            static: true
+          - os: Windows
+            arch: amd64
+            triple: x86_64-unknown-windows-msvc
+            static: false
           - os: Windows
             arch: arm64
             triple: aarch64-unknown-windows-msvc
+            static: true
+          - os: Windows
+            arch: arm64
+            triple: aarch64-unknown-windows-msvc
+            static: false
           - os: Windows
             arch: x86
             triple: i686-unknown-windows-msvc
+            static: true
+          - os: Windows
+            arch: x86
+            triple: i686-unknown-windows-msvc
+            static: false
           - os: Android
             arch: arm64
             triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            static: true
           - os: Android
             arch: armv7
             triple: 'armv7-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
+            static: true
           - os: Android
             arch: i686
             triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            static: true
           - os: Android
             arch: x86_64
             triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            static: true
+
     
-    name: ${{ matrix.os }} ${{ matrix.arch }} Experimental SDK
+    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} Experimental SDK
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -2030,7 +2050,7 @@ jobs:
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-experimental-sdk
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
 
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
@@ -2197,11 +2217,12 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch-c/cmake/modules";
               'SwiftCore_ENABLE_CONCURRENCY' = "YES";
               'SwiftCore_ENABLE_REMOTE_MIRROR' = "YES";
+              'SwiftCore_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build Experimental Runtime
         if: matrix.os != 'Android' || inputs.build_android
@@ -2234,7 +2255,7 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
                'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
@@ -2271,7 +2292,7 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
                'SwiftStringProcessing_ENABLE_LIBRARY_EVOLUTION' = "NO";
@@ -2307,7 +2328,7 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
                'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
@@ -2344,7 +2365,7 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/ExperimentalRuntime/include";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
@@ -2382,7 +2403,7 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/ExperimentalRuntime/include"
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
@@ -2420,7 +2441,7 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
@@ -2458,7 +2479,7 @@ jobs:
           use-gnu-driver: true
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
                'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
@@ -2495,8 +2516,9 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
-               'CMAKE_Swift_FLAGS' = @("-static-stdlib", "-Xfrontend", "-use-static-resource-dir");
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
+               CMAKE_FIND_PACKAGE_PREFER_CONFIG = "${{ matrix.static && 'NO' || 'YES' }}";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'ENABLE_SWIFT' = "YES";
               }
@@ -2509,11 +2531,11 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalDispatch --target install
 
-      - name: Configure Static Foundation
+      - name: Configure Experimental Foundation
         if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
-          project-name: StaticFoundation
+          project-name: ExperimentalFoundation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: true
           debug-info: ${{ inputs.debug_info }}
@@ -2522,7 +2544,7 @@ jobs:
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
           src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
-          bin-dir: ${{ github.workspace }}/BinaryCache/StaticFoundation
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalFoundation
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
@@ -2531,13 +2553,13 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk
           cmake-defines: |
             @{
-              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
               'CMAKE_NINJA_FORCE_RESPONSE_FILE' = "YES";
-              'CMAKE_Swift_FLAGS' = @("-static-stdlib", "-Xfrontend", "-use-static-resource-dir");
+              'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'ENABLE_TESTING' = "NO";
-              'FOUNDATION_BUILD_TOOLS' = "${{ matrix.os == 'Windows' && 'YES' || 'NO' }}";
+              'FOUNDATION_BUILD_TOOLS' = "${{ matrix.static && matrix.os == 'Windows' && 'YES' || 'NO' }}";
               'CURL_DIR' = "${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr/lib/cmake/CURL";
               'LibXml2_DIR' = "${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
               'ZLIB_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/include";
@@ -2548,14 +2570,14 @@ jobs:
               '_SwiftCollections_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-collections";
               'SwiftFoundation_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
             }
-      - name: Build Static Foundation
+      - name: Build Experimental Foundation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/StaticFoundation
-      - name: Install Static Foundation
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalFoundation
+      - name: Install Experimental Foundation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/StaticFoundation --target install
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalFoundation --target install
 
       - uses: actions/setup-python@v5
       - uses: jannekem/run-python-script-action@v1
@@ -2599,8 +2621,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-experimental-sdk
+          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
+                ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
 
       - name: Upload PDBs to Azure
         if: matrix.os == 'Windows' && inputs.debug_info
@@ -4374,9 +4397,13 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-amd64-experimental-sdk
+          name: Windows-amd64-static-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-amd64-shared-experimental-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+  
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/" -ItemType Directory -Force | Out-Null
 
@@ -4427,7 +4454,11 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-arm64-experimental-sdk
+          name: Windows-arm64-static-experimental-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-arm64-shared-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
 
       - run: |
@@ -4480,9 +4511,12 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-x86-experimental-sdk
+          name: Windows-x86-static-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x86-shared-experimental-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/" -ItemType Directory -Force
 
@@ -4698,7 +4732,7 @@ jobs:
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-arm64-experimental-sdk
+          name: Android-arm64-static-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
@@ -4725,7 +4759,7 @@ jobs:
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-armv7-experimental-sdk
+          name: Android-armv7-static-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
@@ -4752,7 +4786,7 @@ jobs:
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-x86_64-experimental-sdk
+          name: Android-x86_64-static-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
@@ -4779,7 +4813,7 @@ jobs:
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-i686-experimental-sdk
+          name: Android-i686-static-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
