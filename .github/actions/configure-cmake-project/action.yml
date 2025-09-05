@@ -128,7 +128,14 @@ runs:
         }
 
         $CMakeArch = switch ($OS) {
-          'Windows' { $Arch.ToUpperInvariant() }
+          'Windows' {
+            switch ($Arch) {
+              'arm64' { 'ARM64' }
+              'amd64' { 'AMD64' }
+              'x86' { 'i686' }
+              default { throw "Unsupported Windows architecture: $Arch" }
+            }
+          }
           'Android' {
             switch ($Arch) {
               'arm64' { 'aarch64' }
