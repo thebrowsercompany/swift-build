@@ -2175,7 +2175,7 @@ jobs:
         run: |
           cd ${{ github.workspace }}/SourceCache/swift/Runtimes
           cmake -P Resync.cmake
-          
+
       - name: Configure Dispatch (C parts only)
         if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
@@ -5170,7 +5170,7 @@ jobs:
         if: ${{ inputs.release }}
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-installer
+          name: Windows-${{ matrix.arch }}-installer-online
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
       - name: Upload msi's and cab's 
@@ -5191,10 +5191,12 @@ jobs:
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
+        uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ inputs.build_arch }}-installer-offline
+          name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
+
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
       - run: |
@@ -5255,12 +5257,12 @@ jobs:
         arch: [ x86_64, aarch64 ]
 
     steps:
-      - name: Download Swift SDK
+      - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
         uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ inputs.build_arch }}-installer-offline
+          name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
-
+    
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
       - name: Install Swift SDK
         run: |
