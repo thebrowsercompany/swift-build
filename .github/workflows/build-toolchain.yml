@@ -757,12 +757,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          function Upload_File_To_Release([string]$InputFile, [string]$OutputName) {
-            mv "${InputFile}" "${OutputName}"
-            gh release upload ${{ needs.context.outputs.swift_tag }} "${OutputName}" -R ${{ github.repository }}
+          function upload_installer() {
+            local input_file=$1
+            local output_name=$2
             
-            shasum -a 256 "${OutputName}" > "${OutputName}.sha256"
-            gh release upload ${{ needs.context.outputs.swift_tag }} "${OutputName}.sha256" -R ${{ github.repository }}
+            mv "${input_file}" "${output_name}"
+            gh release upload ${{ needs.context.outputs.swift_tag }} "${output_name}" -R ${{ github.repository }}
+            
+            shasum -a 256 "${output_name}" > "${output_name}.sha256"
+            gh release upload ${{ needs.context.outputs.swift_tag }} "${output_name}.sha256" -R ${{ github.repository }}
           }
 
           branch_version_string=${{ inputs.swift_version || '0.0.0' }}
@@ -776,10 +779,10 @@ jobs:
           gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }} --latest=${latest}
 
           # Upload all installer variants
-          Upload_File_To_Release "${{ github.workspace }}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
-          Upload_File_To_Release "${{ github.workspace }}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
-          Upload_File_To_Release "${{ github.workspace }}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
-          Upload_File_To_Release "${{ github.workspace }}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
+          upload_installer "${{ github.workspace }}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
+          upload_installer "${{ github.workspace }}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
+          upload_installer "${{ github.workspace }}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
+          upload_installer "${{ github.workspace }}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
 
   binary-size:
     needs: [context, release]
