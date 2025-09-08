@@ -1019,51 +1019,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO: Upload the offline installer as well.
+          function Upload_File_To_Release([string]$InputFile, [string]$OutputName) {
+            mv "${InputFile}" "${OutputName}"
+            gh release upload ${{ needs.context.outputs.swift_tag }} "${OutputName}" -R ${{ github.repository }}
+            
+            shasum -a 256 "${OutputName}" > "${OutputName}.sha256"
+            gh release upload ${{ needs.context.outputs.swift_tag }} "${OutputName}.sha256" -R ${{ github.repository }}
+          }
+
           branch_version_string=${{ inputs.swift_version || '0.0.0' }}
           if [[ $branch_version_string == "0.0.0" ]]; then
             latest="true"
           else
             latest="false"
           fi
+          
           # Create Release
           gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }} --latest=${latest}
 
-          # AMD64
-          cd ${{ github.workspace }}/tmp/online/amd64
-
-          mv installer.exe installer-amd64.exe
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe -R ${{ github.repository }}
-
-          shasum -a 256 installer-amd64.exe > installer-amd64.exe.sha256
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-amd64.exe.sha256 -R ${{ github.repository }}
-
-          # ARM64
-          cd ${{ github.workspace }}/tmp/online/arm64
-
-          mv installer.exe installer-arm64.exe
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe -R ${{ github.repository }}
-
-          shasum -a 256 installer-arm64.exe > installer-arm64.exe.sha256
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-arm64.exe.sha256 -R ${{ github.repository }}
-
-          # AMD64
-          cd ${{ github.workspace }}/tmp/offline/amd64
-
-          mv installer.exe installer-offline-amd64.exe
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-offline-amd64.exe -R ${{ github.repository }}
-
-          shasum -a 256 installer-offline-amd64.exe > installer-offline-amd64.exe.sha256
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-offline-amd64.exe.sha256 -R ${{ github.repository }}
-
-          # ARM64
-          cd ${{ github.workspace }}/tmp/offline/arm64
-
-          mv installer.exe installer-offline-arm64.exe
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-offline-arm64.exe -R ${{ github.repository }}
-
-          shasum -a 256 installer-offline-arm64.exe > installer-offline-arm64.exe.sha256
-          gh release upload ${{ needs.context.outputs.swift_tag }} installer-offline-arm64.exe.sha256 -R ${{ github.repository }}
+          # Upload all installer variants
+          Upload_File_To_Release "${{ github.workspace }}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
+          Upload_File_To_Release "${{ github.workspace }}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
+          Upload_File_To_Release "${{ github.workspace }}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
+          Upload_File_To_Release "${{ github.workspace }}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
 
   binary-size:
     needs: [context, release]
