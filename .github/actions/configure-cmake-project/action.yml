@@ -109,7 +109,7 @@ runs:
         $UseMSVCCompilers = ${{ inputs.msvc-compilers }}
         $UseBuiltCompilers = ${{ inputs.built-compilers }}
         $UsePinnedCompilers = ${{ inputs.pinned-compilers }}
-        $UseGNUDriver = ${{ inputs.use-gnu-driver == 'true' && '&True' || '$False' }}
+        $UseGNUDriver = ${{ inputs.use-gnu-driver == 'true' && '$True' || '$False' }}
         $CacheScript = '${{ inputs.cache-script }}'
         $CMakeDefines = ${{ inputs.cmake-defines }}
 
@@ -128,7 +128,14 @@ runs:
         }
 
         $CMakeArch = switch ($OS) {
-          'Windows' { $Arch.ToUpperInvariant() }
+          'Windows' {
+            switch ($Arch) {
+              'arm64' { 'ARM64' }
+              'amd64' { 'AMD64' }
+              'x86' { 'i686' }
+              default { throw "Unsupported Windows architecture: $Arch" }
+            }
+          }
           'Android' {
             switch ($Arch) {
               'arm64' { 'aarch64' }
@@ -405,7 +412,7 @@ runs:
               Add-KeyValueIfNew $Defines SWIFT_ANDROID_NDK_PATH "$AndroidNDKPath"
 
               $SWIFTC = if ($UseBuiltCompilers.Contains("Swift")) {
-                $SWIFTC = "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
+                "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
               } else {
                 # The pinned toolchain is already in the path.
                 "swiftc.exe"
@@ -461,7 +468,8 @@ runs:
           }
         }
 
-        if ($EnableCaching) {
+        # TODO(steelskin): sccache does not work with "-gsplit-dwarf".
+        if ($EnableCaching -and $OS -ne "Android") {
           if ($UseC) {
             Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER "sccache"
           }
