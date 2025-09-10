@@ -4390,6 +4390,8 @@ jobs:
     name: Package Windows SDK & Runtime
     needs: [stdlib, sdk, experimental-sdk]
     runs-on: ${{ inputs.default_build_runner }}
+    outputs:
+      expected-dlls: ${{ steps.read-file.outputs.expected-dlls}}
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -4662,6 +4664,11 @@ jobs:
               -p:WindowsExperimentalRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64" `
               -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
+      - name: Write DLL Expectations
+        run: |
+          $runtimes = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin"
+          $dlls = Get-ChildItem -Path ‘C:\example’ -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
+          "expected-dlls=$dlls" | OutFile -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
@@ -5159,6 +5166,53 @@ jobs:
 
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
+
+  # Ensures redistributables contain all expected DLLs.
+  redistributable_smoke_test:
+    if: inputs.build_os == 'Windows'
+    needs: [package_windows_platform]
+    runs-on: ${{ inputs.default_build_runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ["amd64", "arm64", "x86"]
+        variant: ["static", "shared"]
+    env:
+      MSM_NAME: >
+        Windows-${{ matrix.arch }}-${{
+        matrix.variant == 'shared' && 'shared-' || ''
+        }}rtl-msm
+      EXPECTED: >
+        ${{ matrix.variant == 'shared' && needs.package_windows_platform.outputs.expected-dlls || '["BlocksRuntime.dll", "dispatch.dll"]' }}
+    steps:
+      - name: Download MSM
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.MSM_NAME }}
+          path: ${{ github.workspace }}/tmp
+      - name: Test ${{ matrix.variant }} ${{ matrix.arch}}
+        run: |
+          $installer = New-Object -ComObject WindowsInstaller.Installer
+          $db = $installer.OpenDatabase("$env:GITHUB_WORKSPACE/tmp/$env:MSM_NAME", 0)
+          $view = $db.OpenView("SELECT FileName FROM File")
+          $view.Execute()
+
+          $dlls = @()
+          while($record = $view.Fetch()) {
+              $file = $record.GetType().InvokeMember("StringData", "GetProperty", $null, $record, 1).Split('\|')[-1]
+              if ($file.EndsWith(".dll")) {
+                  $dlls += $file
+              }
+          }
+          $actual = [System.Collections.Generic.HashSet[string]]::new([string[]]$dlls)
+          $expected = $env:EXPECTED | ConvertFrom-Json
+          $missing = $expected | Where-Object { -not $actual.Contains($_) }
+          if ($missing.Count > 0) {
+            $missing | ForEach-Object {
+              Write-Host "::error '$_' not found in '$env:MSM_NAME'"
+            }
+            exit 1
+          }
 
   smoke_test_android:
     # TODO: Run this job on macOS or make an equivalent Mac-only job
