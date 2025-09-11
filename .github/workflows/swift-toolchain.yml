@@ -4395,7 +4395,9 @@ jobs:
     needs: [stdlib, sdk, experimental-sdk]
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
-      expected-dlls: ${{ steps.read-file.outputs.expected-dlls}}
+      expected-dlls-amd64: ${{ steps.write-expectations.outputs.expected-dlls-amd64}}
+      expected-dlls-arm64: ${{ steps.write-expectations.outputs.expected-dlls-arm64}}
+      expected-dlls-x86: ${{ steps.write-expectations.outputs.expected-dlls-x86}}
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -4669,10 +4671,19 @@ jobs:
               -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
       - name: Write DLL Expectations
+        id: write-expectations
         run: |
-          $runtimes = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin"
-          $dlls = Get-ChildItem -Path $runtimes -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
-          "expected-dlls=$dlls" | OutFile -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $runtimes_amd64 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64/usr/bin"
+          $dlls_amd64 = Get-ChildItem -Path $runtimes_amd64 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
+          "expected-dlls-amd64=$dlls_amd64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $runtimes_arm64 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64/usr/bin"
+          $dlls_arm64 = Get-ChildItem -Path $runtimes_arm64 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
+          "expected-dlls-arm64=$dlls_arm64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $runtimes_x86 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686/usr/bin"
+          $dlls_x86 = Get-ChildItem -Path $runtimes_x86 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
+          "expected-dlls-x86=$dlls_x86" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
@@ -5187,7 +5198,11 @@ jobs:
         matrix.variant == 'shared' && 'shared-' || ''
         }}rtl-msm
       EXPECTED: >
-        ${{ matrix.variant == 'shared' && needs.package_windows_platform.outputs.expected-dlls || '["BlocksRuntime.dll", "dispatch.dll"]' }}
+        ${{ matrix.variant == 'shared' && (
+          matrix.arch == 'amd64' && needs.package_windows_platform.outputs.expected-dlls-amd64 ||
+          matrix.arch == 'arm64' && needs.package_windows_platform.outputs.expected-dlls-arm64 ||
+          matrix.arch == 'x86' && needs.package_windows_platform.outputs.expected-dlls-x86
+        ) || '["BlocksRuntime.dll", "dispatch.dll"]' }}
     steps:
       - name: Download MSM
         uses: actions/download-artifact@v4
