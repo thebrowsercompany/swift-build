@@ -5211,8 +5211,20 @@ jobs:
           path: ${{ github.workspace }}/tmp
       - name: Test ${{ matrix.variant }} ${{ matrix.arch}}
         run: |
-          $installer = New-Object -ComObject WindowsInstaller.Installer
-          $db = $installer.OpenDatabase("$env:GITHUB_WORKSPACE/tmp/$env:MSM_NAME", 0)
+          try {
+              $installer = New-Object -ComObject WindowsInstaller.Installer
+              $db = $installer.OpenDatabase("$env:GITHUB_WORKSPACE/tmp/$env:MSM_NAME", 0)
+          } catch {
+              Write-Host "Error Type: $($_.Exception.GetType().FullName)"
+              Write-Host "HRESULT: 0x$($_.Exception.HResult.ToString('X8'))"
+              Write-Host "Message: $($_.Exception.Message)"
+              Write-Host "Inner Exception: $($_.Exception.InnerException)"
+
+              if ($_.Exception.InnerException) {
+                  Write-Host "COM Error: $($_.Exception.InnerException.Message)"
+              }
+              exit 1
+          }
           $view = $db.OpenView("SELECT FileName FROM File")
           $view.Execute()
 
