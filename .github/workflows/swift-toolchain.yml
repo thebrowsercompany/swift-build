@@ -5193,10 +5193,11 @@ jobs:
         arch: ["amd64", "arm64", "x86"]
         variant: ["static", "shared"]
     env:
-      MSM_NAME: >
-        Windows-${{ matrix.arch }}-${{
-        matrix.variant == 'shared' && 'shared-' || ''
-        }}rtl-msm
+      MSM_ARTIFACT_NAME: >
+        Windows-${{ matrix.arch }}-rtl-${{ matrix.variant }}-msm
+      MSM_FILE_NAME: >
+        rtl.${{matrix.variant}}.${{matrix.arch}}.msm
+
       EXPECTED: >
         ${{ matrix.variant == 'shared' && (
           matrix.arch == 'amd64' && needs.package_windows_platform.outputs.expected-dlls-amd64 ||
@@ -5207,13 +5208,16 @@ jobs:
       - name: Download MSM
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.MSM_NAME }}
+          name: ${{ env.MSM_ARTIFACT_NAME }}
           path: ${{ github.workspace }}/tmp
-      - name: Test ${{ matrix.variant }} ${{ matrix.arch}}
+      - name: Test ${{ matrix.variant }} ${{ matrix.arch }}
         run: |
+          $msmPath = "$env:GITHUB_WORKSPACE/tmp/$env:MSM_FILE_NAME"
+          Write-Host "Trying $msmPath"
+          Write-Host "File exists: $(Test-Path $msmPath)"
           try {
               $installer = New-Object -ComObject WindowsInstaller.Installer
-              $db = $installer.OpenDatabase("$env:GITHUB_WORKSPACE/tmp/$env:MSM_NAME", 0)
+              $db = $installer.OpenDatabase($msmPath, 0)
           } catch {
               Write-Host "Error Type: $($_.Exception.GetType().FullName)"
               Write-Host "HRESULT: 0x$($_.Exception.HResult.ToString('X8'))"
@@ -5240,7 +5244,7 @@ jobs:
           $missing = $expected | Where-Object { -not $actual.Contains($_) }
           if ($missing.Count > 0) {
             $missing | ForEach-Object {
-              Write-Host "::error '$_' not found in '$env:MSM_NAME'"
+              Write-Host "::error '$_' not found in '$env:MSM_FILE_NAME'"
             }
             exit 1
           }
