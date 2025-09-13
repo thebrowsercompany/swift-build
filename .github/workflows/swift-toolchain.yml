@@ -5210,6 +5210,23 @@ jobs:
         with:
           name: ${{ env.MSM_ARTIFACT_NAME }}
           path: ${{ github.workspace }}/tmp
+      - name: Debug download location
+        shell: pwsh
+        run: |
+          Write-Host "GITHUB_WORKSPACE: $env:GITHUB_WORKSPACE"
+          Write-Host "Expected tmp path: $env:GITHUB_WORKSPACE\tmp"
+          Write-Host "Contents of workspace root:"
+          Get-ChildItem $env:GITHUB_WORKSPACE -Force | ForEach-Object { 
+            Write-Host "$($_.Mode) $($_.Name)"
+          }
+          
+          # Check if tmp exists and what's in it
+          if (Test-Path "$env:GITHUB_WORKSPACE\tmp") {
+            Write-Host "`ntmp exists. Contents:"
+            Get-ChildItem "$env:GITHUB_WORKSPACE\tmp" -Recurse -Force
+          } else {
+            Write-Host "`ntmp directory does not exist!"
+          }
       - name: Test ${{ matrix.variant }} ${{ matrix.arch }}
         run: |
           $msmPath = "$env:GITHUB_WORKSPACE\tmp\$env:MSM_FILE_NAME"
