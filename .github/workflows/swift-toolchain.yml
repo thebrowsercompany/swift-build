@@ -5139,14 +5139,19 @@ jobs:
 
       - name: Upload msi's and cab's 
         if: ${{ inputs.release }}
-        uses: ryand56/r2-upload-action@b801a390acbdeb034c5e684ff5e1361c06639e7c # v1.4
-        with:
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-bucket: swift-toolchain
-          source-dir: ${{ steps.prepare-layout.outputs.LayoutDir }}
-          destination-dir: ${{ steps.generate-base-release-download-prefix.outputs.url_prefix }}
+        env:
+          SOURCE_DIR: ${{ steps.prepare-layout.outputs.LayoutDir }}
+          DESTINATION_PREFIX: ${{ steps.generate-base-release-download-prefix.outputs.url_prefix }}
+          R2_BUCKET: swift-toolchain
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3 sync "${env:SOURCE_DIR}" "s3://${env:R2_BUCKET}/${env:DESTINATION_PREFIX}/" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --acl private
 
   smoke_test:
     # TODO: Build this on macOS or make an equivalent Mac-only job
