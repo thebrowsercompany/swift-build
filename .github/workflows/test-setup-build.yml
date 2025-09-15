@@ -35,48 +35,310 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.2.2
 
-      - name: Create test folder and files
-        shell: pwsh
-        run: |
-          $Base = Join-Path $env:GITHUB_WORKSPACE "tmp\TestUpload"
-          New-Item -ItemType Directory -Path $Base -Force | Out-Null
-      
-          # Create a few files of different types
-          Set-Content -Path (Join-Path $Base "test.txt") -Value "dummy text content"
-      
-          # Echo tree for debugging
-          Write-Host "Created files under $Base"
-          Get-ChildItem -Recurse -Force $Base | Format-List -Property FullName, Length
+      - name: Set up build
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          windows-sdk-version: ${{ env.TEST_WIN_SDK_VERSION }}
+          msvc-version: ${{ env.TEST_MSVC_VERSION }}
+          setup-vs-dev-env: true
 
-      - name: Upload directory to R2 (aws s3 sync)
-        env:
-          SRC: ${{ github.workspace }}\tmp\TestUpload
-          DEST_PREFIX: TestUpload
-          R2_BUCKET: swift-toolchain
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      - name: Check environment
         run: |
-          Write-Host "SRC:  ${env:SRC}"
-          Write-Host "DEST_PREFIX: ${env:DEST_PREFIX}"
-          Write-Host "R2_BUCKET: ${env:R2_BUCKET}"
-          Write-Host "R2_ENDPOINT_URL: ${env:R2_ENDPOINT_URL}"
-          Write-Host "AWS_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID}"
-          Write-Host "AWS_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY}"
-          Write-Host "AWS_DEFAULT_REGION: ${env:AWS_DEFAULT_REGION}"
+          $HasError = $false
 
-          aws s3 sync "${env:SRC}" "s3://${env:R2_BUCKET}/${env:DEST_PREFIX}/" `
-            --endpoint-url "${env:R2_ENDPOINT_URL}" `
-            --no-progress `
-            --acl private
+          $ParsedWinSdkVersion = [System.Version]::Parse($env:TEST_WIN_SDK_VERSION)
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          $Win10SdkInclude = Join-Path $Win10SdkRoot "Include"
 
-      - name: List uploaded objects (verify)
-        env:
-            SRC: ${{ github.workspace }}\tmp\TestUpload
-            DEST_PREFIX: TestUpload
-            R2_BUCKET: swift-toolchain
-            R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          # Check if the Windows SDK version is installed.
+          $ExpectedWinSdkDir = Join-Path $Win10SdkInclude "$($env:TEST_WIN_SDK_VERSION)"
+          if (Test-Path -Path $ExpectedWinSdkDir) {
+            Write-Output "✅ Windows SDK version `"${env:TEST_WIN_SDK_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::Expected Windows SDK version not found: `"${env:TEST_WIN_SDK_VERSION}`"."
+            $HasError = $true
+          }
+
+          # Check if Windows SDK versions greater than the expected version are installed.
+          $UnexpectedSdkFound = $false
+          Get-ChildItem -Path $Win10SdkInclude -Directory | ForEach-Object {
+            $Version = $_.Name
+            try {
+              $ParsedVersion = [System.Version]::Parse($Version)
+              if ($ParsedVersion -gt $ParsedWinSdkVersion) {
+                Write-Output "::error::Unexpected Windows SDK version found: `"${Version}`" (greater than expected: `"${env:TEST_WIN_SDK_VERSION}`")."
+                $HasError = $true
+                $UnexpectedSdkFound = $true
+              }
+            } catch {
+              # Skip if the directory cannot be parsed as a version.
+            }
+          }
+          if (-not $UnexpectedSdkFound) {
+            Write-Output "✅ No unexpected Windows SDK versions greater than `"${env:TEST_WIN_SDK_VERSION}`" found."
+          }
+
+          $BuildToolsVersion = "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          if ($BuildToolsVersion -ne $env:TEST_BUILD_TOOLS_EXPECTED_VERSION) {
+            Write-Output "::error::Expected build tools version `"${env:TEST_BUILD_TOOLS_EXPECTED_VERSION}`", but got `"${BuildToolsVersion}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ Build tools version `"${BuildToolsVersion}`" matches expected version."
+          }
+
+          # Check if the correct MSVC version is installed.
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VSWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" $BuildToolsVersion
+          if (Test-Path -Path $MSVCDir) {
+            Write-Output "✅ MSVC version `"${env:TEST_MSVC_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::MSVC directory not found: `"${MSVCDir}`"."
+            $HasError = $true
+          }
+
+          # Check the current cl.exe version by expanding the _MSC_VER macro.
+          $tempFile = [System.IO.Path]::GetTempFileName().Replace('.tmp', '.c')
+          Set-Content -Path $tempFile -Value "_MSC_VER"
+          $clOutput = & cl /nologo /EP $tempFile 2>&1
+          $lastLine = $clOutput | Select-Object -Last 1
+          Remove-Item $tempFile -Force
+
+          # _MSC_VER expands to a number like 1940 for MSVC 14.40.
+          $ParsedMSVCVersion = [System.Version]::Parse($env:TEST_MSVC_VERSION)
+          $ExpectedVersion = ($ParsedMSVCVersion.Major + 5) * 100 + $ParsedMSVCVersion.Minor
+          if ($lastLine -eq $ExpectedVersion) {
+            Write-Output "✅ cl.exe reports expected _MSC_VER `"${ExpectedVersion}`"."
+          } else {
+            Write-Output "::error::Unexpected MSVC version found: `"${lastLine}`" (expected: `"${ExpectedVersion}`")."
+            $HasError = $true
+          }
+
+          # Check that the Windows SDK version is set in the environment.
+          if ($env:UCRTVersion -eq $env:TEST_WIN_SDK_VERSION) {
+            Write-Output "✅ UCRTVersion environment variable is set to `"${env:TEST_WIN_SDK_VERSION}`"."
+          } else {
+            Write-Output "::error::UCRTVersion environment variable (`"${env:UCRTVersion}`") is not set to the expected Windows SDK version (`"${env:TEST_WIN_SDK_VERSION}`")."
+            $HasError = $true
+          }
+
+          if ($HasError) {
+            Write-Output "::error::There were errors in the environment setup. Check the logs for details."
+            exit 1
+          } else {
+            Write-Output "🎉 All environment checks passed successfully."
+          }
+
+  test-setup-build-windows-no-dev-env:
+    name: MSVC + WinSDK No Dev Environment
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          windows-sdk-version: ${{ env.TEST_WIN_SDK_VERSION }}
+          msvc-version: ${{ env.TEST_MSVC_VERSION }}
+          setup-vs-dev-env: false
+
+      - name: Check environment
         run: |
-          aws s3 ls "s3://${env:R2_BUCKET}/${env:DEST_PREFIX}/" --endpoint-url "${env:R2_ENDPOINT_URL}"
-     
+          $HasError = $false
+
+          $ParsedWinSdkVersion = [System.Version]::Parse($env:TEST_WIN_SDK_VERSION)
+          $Win10SdkRoot = Get-ItemPropertyValue `
+            -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots" `
+            -Name "KitsRoot10"
+          $Win10SdkInclude = Join-Path $Win10SdkRoot "Include"
+
+          # Check if the Windows SDK version is installed.
+          $ExpectedWinSdkDir = Join-Path $Win10SdkInclude "$($env:TEST_WIN_SDK_VERSION)"
+          if (Test-Path -Path $ExpectedWinSdkDir) {
+            Write-Output "✅ Windows SDK version `"${env:TEST_WIN_SDK_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::Expected Windows SDK version not found: `"${env:TEST_WIN_SDK_VERSION}`"."
+            $HasError = $true
+          }
+
+          # Check if Windows SDK versions greater than the expected version are installed.
+          $UnexpectedSdkFound = $false
+          Get-ChildItem -Path $Win10SdkInclude -Directory | ForEach-Object {
+            $Version = $_.Name
+            try {
+              $ParsedVersion = [System.Version]::Parse($Version)
+              if ($ParsedVersion -gt $ParsedWinSdkVersion) {
+                Write-Output "::error::Unexpected Windows SDK version found: `"${Version}`" (greater than expected: `"${env:TEST_WIN_SDK_VERSION}`")."
+                $HasError = $true
+                $UnexpectedSdkFound = $true
+              }
+            } catch {
+              # Skip if the directory cannot be parsed as a version.
+            }
+          }
+          if (-not $UnexpectedSdkFound) {
+            Write-Output "✅ No unexpected Windows SDK versions greater than `"${env:TEST_WIN_SDK_VERSION}`" found."
+          }
+
+          # Check the action output.
+          $BuildToolsVersion = "${{ steps.setup-build.outputs.windows-build-tools-version }}"
+          if ($BuildToolsVersion -ne $env:TEST_BUILD_TOOLS_EXPECTED_VERSION) {
+            Write-Output "::error::Expected build tools version `"${env:TEST_BUILD_TOOLS_EXPECTED_VERSION}`", but got `"${BuildToolsVersion}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ Build tools version `"${BuildToolsVersion}`" matches expected version."
+          }
+
+          # Check if the correct MSVC version is installed.
+          $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
+          $VSWhere = Join-Path "${InstallerLocation}" "vswhere.exe"
+          $InstallPath = (& "$VSWhere" -latest -products * -format json | ConvertFrom-Json).installationPath
+          $MSVCDir = Join-Path $InstallPath "VC" "Tools" "MSVC" $BuildToolsVersion
+          if (Test-Path -Path $MSVCDir) {
+            Write-Output "✅ MSVC version `"${env:TEST_MSVC_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::MSVC directory not found: `"${MSVCDir}`"."
+            $HasError = $true
+          }
+
+          # Check that cl.exe was not set.
+          $CLExe = Get-Command -Name cl.exe -ErrorAction Ignore
+          if ($CLExe) {
+            Write-Output "::error::cl.exe was unexpectedly found in the PATH: `"${CLExe.Path}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ cl.exe is not set in the PATH, as expected."
+          }
+
+          # Check that the VS Dev Environment was not set.
+          if ($env:UCRTVersion) {
+            Write-Output "::error::UCRTVersion environment variable was set to `"${env:UCRTVersion}`"."
+            $HasError = $true
+          } else {
+            Write-Output "✅ UCRTVersion environment variable is set to `"${env:TEST_WIN_SDK_VERSION}`"."
+          }
+
+          if ($HasError) {
+            Write-Output "::error::There were errors in the environment setup. Check the logs for details."
+            exit 1
+          } else {
+            Write-Output "🎉 All environment checks passed successfully."
+          }
+
+  test-incorrect-windows-sdk-version:
+    name: Incorrect Windows SDK Version
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build with incorrect Windows SDK version
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          windows-sdk-version: "99.99.9999.0"  # Intentionally incorrect version
+        continue-on-error: true
+
+      - name: Download log file
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.job }}-windows-sdk-installer-log
+          path: ${{ github.workspace }}/windows-sdk-installer-log
+
+      - name: Check the log file existence
+        run: |
+          $LogFile = Get-ChildItem -Path "${{ github.workspace }}/windows-sdk-installer-log"
+          if (-Not (Test-Path -Path $LogFile)) {
+            Write-Output "::error::Log file not found."
+            exit 1
+          } else {
+            Write-Output "✅ Log file found. File contents:"
+            Get-Content -Path "$LogFile"
+          }
+
+  test-incorrect-msvc-version:
+    name: Incorrect MSVC Version
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build with incorrect MSVC version
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          msvc-version: "14.99"  # Intentionally incorrect version
+        continue-on-error: true
+
+      - name: Download log file
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.job }}-msvc-installer-log
+          path: ${{ github.workspace }}/msvc-installer-log
+
+      - name: Check the log file existence
+        run: |
+          $LogFile = Get-ChildItem -Path "${{ github.workspace }}/msvc-installer-log"
+          if (-Not (Test-Path -Path $LogFile)) {
+            Write-Output "::error::Log file not found."
+            exit 1
+          } else {
+            Write-Output "✅ Log file found. File contents:"
+            Get-Content -Path "$LogFile"
+          }
+
+  test-upstream-swift-install:
+    name: Upstream Swift Installation
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build with upstream Swift
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          swift-version: ${{ env.TEST_UPSTREAM_SWIFT_VERSION }}
+
+      - name: Check Swift installation
+        run: |
+          $SwiftVersion = & swift --version
+          if ($SwiftVersion -match "Swift version ${env:TEST_UPSTREAM_SWIFT_VERSION}") {
+            Write-Output "✅ Upstream Swift version `"$env:TEST_UPSTREAM_SWIFT_VERSION`" is installed."
+          } else {
+            Write-Output "::error::Expected to find Swift version `"$env:TEST_UPSTREAM_SWIFT_VERSION`" in output:"
+            Write-Output "$SwiftVersion"
+            exit 1
+          }
+
+  test-bcny-swift-install:
+    name: BCNY Swift Installation
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+      - name: Set up build with BCNY Swift
+        id: setup-build
+        uses: ./.github/actions/setup-build
+        with:
+          swift-version: ${{ env.TEST_BCNY_SWIFT_VERSION }}
+          swift-repo: ${{ env.TEST_BCNY_SWIFT_REPO }}
+
+      - name: Check Swift installation
+        run: |
+          # Get the expected Swift version from the environment variable (i.e. "6.0" for "6.0.0-20241216.0")
+          $ExpectedSwiftVersion = ${env:TEST_BCNY_SWIFT_VERSION} -replace '-.*$', '' | ForEach-Object { ($_ -split '\.')[0..1] -join '.' }
+          $SwiftVersionOutput = & swift --version
+          if (${SwiftVersionOutput} -match "Swift version ${ExpectedSwiftVersion}") {
+            Write-Output "✅ BCNY Swift version `"${env:TEST_BCNY_SWIFT_VERSION}`" is installed."
+          } else {
+            Write-Output "::error::Expected to find Swift version `"${ExpectedSwiftVersion}`" in output:"
+            Write-Output "${SwiftVersionOutput}"
+            exit 1
+          }
