@@ -203,3 +203,13 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 . $Profile
 Set-SwiftEnv
 ```
+
+## Troubleshooting
+
+If you run into build failures with the following errors:
+```
+clang: error: no such file or directory: '\INCREMENTAL:NO'
+clang: error: no such file or directory: '\OPT:REF'
+clang: error: no such file or directory: '\OPT:ICF'
+```
+the reason is that the CMake on your system is too _new_. The latest version of CMake you should use is [CMake 3.29.x](https://cmake.org/files/v3.29/). 
