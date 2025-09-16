@@ -4354,6 +4354,10 @@ jobs:
     name: Package Windows SDK & Runtime
     needs: [stdlib, sdk, experimental-sdk]
     runs-on: ${{ inputs.default_build_runner }}
+    outputs:
+      expected-dlls-amd64: ${{ steps.write-expectations.outputs.expected-dlls-amd64}}
+      expected-dlls-arm64: ${{ steps.write-expectations.outputs.expected-dlls-arm64}}
+      expected-dlls-x86: ${{ steps.write-expectations.outputs.expected-dlls-x86}}
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -4626,6 +4630,20 @@ jobs:
               -p:WindowsExperimentalRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64" `
               -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
+      - name: Write DLL Expectations
+        id: write-expectations
+        run: |
+          $runtimes_amd64 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64/usr/bin"
+          $dlls_amd64 = Get-ChildItem -Path $runtimes_amd64 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
+          "expected-dlls-amd64=$dlls_amd64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $runtimes_arm64 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64/usr/bin"
+          $dlls_arm64 = Get-ChildItem -Path $runtimes_arm64 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
+          "expected-dlls-arm64=$dlls_arm64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $runtimes_x86 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686/usr/bin"
+          $dlls_x86 = Get-ChildItem -Path $runtimes_x86 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
+          "expected-dlls-x86=$dlls_x86" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
@@ -5123,6 +5141,59 @@ jobs:
 
       - run: swift test -Xswiftc -DENABLE_TESTING
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
+
+  # Ensures redistributables contain all expected DLLs.
+  redistributable_smoke_test:
+    if: inputs.build_os == 'Windows'
+    needs: [package_windows_platform]
+    runs-on: ${{ inputs.default_build_runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ["amd64", "arm64", "x86"]
+        variant: ["static", "shared"]
+    env:
+      MSM_ARTIFACT_NAME: Windows-${{ matrix.arch }}-rtl-${{ matrix.variant }}-msm
+      MSM_FILE_NAME: rtl.${{ matrix.variant }}.${{ matrix.arch }}.msm
+
+      EXPECTED: >
+        ${{ matrix.variant == 'shared' && (
+          matrix.arch == 'amd64' && needs.package_windows_platform.outputs.expected-dlls-amd64 ||
+          matrix.arch == 'arm64' && needs.package_windows_platform.outputs.expected-dlls-arm64 ||
+          matrix.arch == 'x86' && needs.package_windows_platform.outputs.expected-dlls-x86
+        ) || '["BlocksRuntime.dll", "dispatch.dll"]' }}
+    steps:
+      - name: Download MSM
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.MSM_ARTIFACT_NAME }}
+          path: ${{ github.workspace }}/tmp
+      - name: Test ${{ matrix.variant }} ${{ matrix.arch }}
+        run: |
+          $tmp = Join-Path $env:GITHUB_WORKSPACE 'tmp'
+          $msmPath = Join-Path $tmp $env:MSM_FILE_NAME
+
+          $installer = New-Object -ComObject WindowsInstaller.Installer
+          $db = $installer.OpenDatabase($msmPath, 0)
+          $view = $db.OpenView("SELECT FileName FROM ``File``")
+          $view.Execute()
+
+          $dlls = @()
+          while ($record = $view.Fetch()) {
+            $data = $record.StringData(1)
+            $file = $data.Split('|')[-1]
+            if ($file.EndsWith('.dll')) {
+              $dlls += $file
+            }
+          }
+
+          $actual = [System.Collections.Generic.HashSet[string]]::new([string[]]$dlls)
+          $expected = $env:EXPECTED | ConvertFrom-Json
+          $missing = $expected | Where-Object { -not $actual.Contains($_) }
+          if ($missing.Count -gt 0) {
+            $missing | ForEach-Object { Write-Host "::error:: '$_' not found in '$env:MSM_FILE_NAME'" }
+            exit 1
+          }
 
   smoke_test_android:
     # TODO: Run this job on macOS or make an equivalent Mac-only job
