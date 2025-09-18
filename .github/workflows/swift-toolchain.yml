@@ -5075,10 +5075,10 @@ jobs:
     
       - name: Generate online installer download URL
         if: ${{ inputs.release }}
-        id: generate-base-release-download-prefix
+        id: generate-base-release-download-subcomponent
         run: |
-          $BaseReleaseDownloadUrlPrefix = "${{ inputs.swift_tag }}/${{ matrix.arch }}/${{ github.run_id }}"
-          echo "url_prefix=$BaseReleaseDownloadUrlPrefix" >> $env:GITHUB_OUTPUT
+          $BaseReleaseDownloadUrlSubcomponent = "${{ inputs.swift_tag }}/${{ matrix.arch }}/${{ github.run_id }}"
+          echo "url_subcomponent=$BaseReleaseDownloadUrlSubcomponent" >> $env:GITHUB_OUTPUT
 
       - name: Build installer bundle (online)
         if: ${{ inputs.release }}
@@ -5087,7 +5087,7 @@ jobs:
           if ("${{ inputs.build_android }}" -eq "true") {
             $Platforms=@("android") + $Platforms
           }
-          $BaseReleaseDownloadUrl = "https://swift-toolchain.thebrowserco.com/${{ steps.generate-base-release-download-prefix.outputs.url_prefix }}"
+          $BaseReleaseDownloadUrl = "https://swift-toolchain.thebrowserco.com/${{ steps.generate-base-release-download-subcomponent.outputs.url_subcomponent }}"
 
           msbuild -nologo -restore -maxCpuCount `
               /t:rebuild `
@@ -5141,7 +5141,7 @@ jobs:
         if: ${{ inputs.release }}
         env:
           SOURCE_DIR: ${{ steps.prepare-layout.outputs.LayoutDir }}
-          DESTINATION_PREFIX: ${{ steps.generate-base-release-download-prefix.outputs.url_prefix }}
+          DESTINATION_PREFIX: ${{ steps.generate-base-release-download-subcomponent.outputs.url_subcomponent }}
           R2_BUCKET: swift-toolchain
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
