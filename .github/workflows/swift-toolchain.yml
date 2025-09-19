@@ -4633,18 +4633,18 @@ jobs:
       - name: Write DLL Expectations
         id: write-expectations
         run: |
-          $runtimes_amd64 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64/usr/bin"
-          $dlls_amd64 = Get-ChildItem -Path $runtimes_amd64 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
-          "expected-dlls-amd64=$dlls_amd64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-          $runtimes_arm64 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64/usr/bin"
-          $dlls_arm64 = Get-ChildItem -Path $runtimes_arm64 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
-          "expected-dlls-arm64=$dlls_arm64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-          $runtimes_x86 = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686/usr/bin"
-          $dlls_x86 = Get-ChildItem -Path $runtimes_x86 -Filter *.dll -File | ForEach-Object Name | ConvertTo-Json -Compress
-          "expected-dlls-x86=$dlls_x86" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
+          @(
+            @("amd64", "x86_64"),
+            @("arm64", "aarch64"),
+            @("x86", "i686")
+          )} | ForEach-Object {
+            $arch, $suffix = $_
+            $runtimes = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-$suffix/usr/bin"
+            Get-ChildItem -Path $runtimes -Filter *.dll -File |
+              # A flat list collapses down to a space-separated string, so we need to convert to JSON so we can read it later.
+              ForEach-Object Name | ConvertTo-Json -Compress | ForEach-Object { "expected-dlls-$arch=$_" } |
+              Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
         with:
