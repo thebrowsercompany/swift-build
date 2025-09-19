@@ -203,42 +203,6 @@ on:
         required: true
         type: string
 
-      WINDOWS_CMAKE_C_FLAGS:
-        required: true
-        type: string
-
-      WINDOWS_CMAKE_CXX_FLAGS:
-        required: true
-        type: string
-
-      WINDOWS_CMAKE_EXE_LINKER_FLAGS:
-        required: true
-        type: string
-
-      WINDOWS_CMAKE_SHARED_LINKER_FLAGS:
-        required: true
-        type: string
-
-      ANDROID_CMAKE_C_FLAGS:
-        required: true
-        type: string
-
-      ANDROID_CMAKE_CXX_FLAGS:
-        required: true
-        type: string
-
-      ANDROID_CMAKE_EXE_LINKER_FLAGS:
-        required: true
-        type: string
-
-      ANDROID_CMAKE_SHARED_LINKER_FLAGS:
-        required: true
-        type: string
-
-      CMAKE_Swift_FLAGS:
-        required: true
-        type: string
-
       debug_info:
         required: true
         type: boolean
@@ -282,6 +246,12 @@ on:
       CERTIFICATE:
         required: true
       PASSPHRASE:
+        required: true
+      R2_ACCOUNT_ID:
+        required: true
+      R2_ACCESS_KEY_ID:
+        required: true
+      R2_SECRET_ACCESS_KEY:
         required: true
 
 env:
@@ -880,7 +850,7 @@ jobs:
             --configuration release `
             --package-path ${{ github.workspace }}/SourceCache/swift-driver `
             --build-path ${{ github.workspace }}/BinaryCache/swift-driver `
-            --triple ${{ matrix.compiler_target }} `
+            --triple ${{ matrix.triple }} `
             @ExtraFlags
 
       - name: Copy binaries
@@ -1638,6 +1608,27 @@ jobs:
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
+      - name: Compute workspace hash
+        if: matrix.os != 'Android' || inputs.build_android
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        if: matrix.os != 'Android' || inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 500M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stdlib
+
 
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
@@ -1688,88 +1679,63 @@ jobs:
 
       - name: Configure LLVM
         if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          if ("${{ matrix.os }}" -eq "Android") {
-            $NDKPATH = cygpath -m "${{ steps.setup-ndk.outputs.ndk-path }}"
-          }
-
-          cmake -B ${{ github.workspace }}/BinaryCache/llvm `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${{ matrix.cc }} `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}" `
-                -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_INSTALL_PREFIX=${{ matrix.sdk_install_dir }} `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                ${{ matrix.llvm_cmake_flags }} `
-                ${{ matrix.extra_flags }} `
-                ${{ matrix.cmake_ndk_flags }} `
-                ${{ matrix.stdlib_cmake_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/llvm-project/llvm `
-                -D LLVM_ENABLE_ASSERTIONS=YES
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: llvm
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/llvm 
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          msvc-compilers: '@("ASM_MASM", "C", "CXX")'
+          cmake-defines: |
+            @{
+              'LLVM_ENABLE_ASSERTIONS' = "YES";
+              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
+             }
 
       - name: Configure Swift Standard Library
         if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          if ("${{ matrix.os }}" -eq "Windows") {
-            # NOTE: clang-cl is required to build the Swift Standard Library on Windows.
-            $CC = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang-cl.exe"
-            $CXX = $CC
-          } elseif ("${{ matrix.os }}" -eq "Darwin") {
-            $CC = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang"
-            $CXX = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/clang++"
-          } else {
-            $CC = "${{ matrix.cc }}"
-            $CXX = "${{ matrix.cxx }}"
-          }
-
-          if ("${{ inputs.build_os }}" -eq "Windows") {
-            $SWIFTC = cygpath -m "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc.exe"
-            Remove-Item env:\SDKROOT
-          } else {
-            $SWIFTC = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/swiftc"
-          }
-
-          if ("${{ matrix.os }}" -eq "Android") {
-            # NOTE: Used by matrix definitions.
-            $NDKPATH = cygpath -m "${{ steps.setup-ndk.outputs.ndk-path }}"
-          }
-
-          cmake -B ${{ github.workspace }}/BinaryCache/swift `
-                -C ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-${{ matrix.platform }}-${{ matrix.cpu }}.cmake `
-                -D CMAKE_BUILD_TYPE=Release `
-                -D CMAKE_C_COMPILER=${CC} `
-                -D CMAKE_C_FLAGS="${{ matrix.cflags }}"  `
-                -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_CXX_COMPILER=${CXX} `
-                -D CMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" `
-                -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} `
-                -D CMAKE_INSTALL_PREFIX=${{ matrix.sdk_install_dir }} `
-                -D CMAKE_SYSTEM_NAME=${{ matrix.os }} `
-                -D CMAKE_Swift_COMPILER=${SWIFTC} `
-                -D CMAKE_Swift_COMPILER_WORKS=YES `
-                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.triple_no_api_level }} `
-                -D CMAKE_Swift_FLAGS="-resource-dir ${{ github.workspace }}/BinaryCache/swift/lib/swift ${{ matrix.swiftflags }}" `
-                ${{ matrix.cmake_linker_flags }} `
-                ${{ matrix.extra_flags }} `
-                ${{ matrix.cmake_ndk_flags }} `
-                ${{ matrix.stdlib_cmake_flags }} `
-                -G Ninja `
-                -S ${{ github.workspace }}/SourceCache/swift `
-                -D LLVM_DIR=${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm `
-                -D SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION=YES `
-                -D SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING=YES `
-                -D SWIFT_ENABLE_SYNCHRONIZATION=YES `
-                -D SWIFT_ENABLE_VOLATILE=YES `
-                -D SWIFT_NATIVE_SWIFT_TOOLS_PATH=${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin `
-                -D SWIFT_PATH_TO_LIBDISPATCH_SOURCE=${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch `
-                -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE=${{ github.workspace }}/SourceCache/swift-syntax `
-                -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE=${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with: 
+          project-name: swift-runtime
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          built-compilers: '@("C", "CXX", "Swift")'
+          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-${{ matrix.os == 'Darwin' && 'MacOSX' || matrix.os }}-${{ matrix.cpu }}.cmake
+          cmake-defines: |
+            @{
+              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
+              'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
+              'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
+              'SWIFT_ENABLE_VOLATILE' = "YES";
+              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
+              'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
+              'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+            }
       - name: Build Swift Standard Library
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -2827,6 +2793,7 @@ jobs:
           local-cache: true
 
       - name: Configure libdispatch
+        if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: libdispatch
@@ -2855,6 +2822,7 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/libdispatch
 
       - name: Configure Foundation
+        if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Foundation
@@ -2899,6 +2867,7 @@ jobs:
 
       # TODO(compnerd) correctly version XCTest
       - name: Configure XCTest
+        if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: XCTest
@@ -2932,6 +2901,7 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
       - name: Configure Testing
+        if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Testing
@@ -4752,7 +4722,7 @@ jobs:
         with:
           name: Windows-x86-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
 
   package_android_platform:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -5068,7 +5038,7 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
-      - name: Build installer bundle
+      - name: Build installer bundle (offline)
         run: |
           $Platforms=@("windows")
           if ("${{ inputs.build_android }}" -eq "true") {
@@ -5091,15 +5061,97 @@ jobs:
               -p:ToolchainVariants="`"asserts;noasserts`"" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
-      - if: ${{ inputs.release }}
+      - name: Generate Build Provenance (offline installer)
+        if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload installer (offline)
+        uses: actions/upload-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-installer
+          name: Windows-${{ matrix.arch }}-installer-offline
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
+    
+      - name: Generate online installer download URL
+        if: ${{ inputs.release }}
+        id: generate-base-release-download-subcomponent
+        run: |
+          $BaseReleaseDownloadUrlSubcomponent = "${{ inputs.swift_tag }}/${{ matrix.arch }}/${{ github.run_id }}"
+          echo "url_subcomponent=$BaseReleaseDownloadUrlSubcomponent" >> $env:GITHUB_OUTPUT
+
+      - name: Build installer bundle (online)
+        if: ${{ inputs.release }}
+        run: |
+          $Platforms=@("windows")
+          if ("${{ inputs.build_android }}" -eq "true") {
+            $Platforms=@("android") + $Platforms
+          }
+          $BaseReleaseDownloadUrl = "https://swift-toolchain.thebrowserco.com/${{ steps.generate-base-release-download-subcomponent.outputs.url_subcomponent }}"
+
+          msbuild -nologo -restore -maxCpuCount `
+              /t:rebuild `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:BuildProjectReferences=false `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:BundleFlavor=online `
+              -p:BaseReleaseDownloadUrl=$BaseReleaseDownloadUrl `
+              -p:Platforms="`"$($Platforms -Join ';')`"" `
+              -p:AndroidArchitectures="`"aarch64;armv7;i686;x86_64`"" `
+              -p:WindowsArchitectures="`"aarch64;i686;x86_64`"" `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              -p:ToolchainVariants="`"asserts;noasserts`"" `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
+
+      - name: Prepare layout for upload
+        id: prepare-layout
+        if: ${{ inputs.release }}
+        run: |
+          # Create the target folder.
+          $SourceDir = "${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}"
+          $LayoutDir = "${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/layout"
+          New-Item -ItemType Directory -Path $LayoutDir -Force | Out-Null
+
+          # Copy all .txt files from src to the filtered directory
+          Copy-Item -Path "$SourceDir/installer.exe" -Destination "$LayoutDir" -Force
+          Copy-Item -Path "$SourceDir/*.cab" -Destination "$LayoutDir" -Force
+          Copy-Item -Path "$SourceDir/*.msi" -Destination "$LayoutDir" -Force
+
+          echo "LayoutDir=$LayoutDir"
+          echo "LayoutDir=$LayoutDir" >> $env:GITHUB_OUTPUT
+
+      - name: Generate Build Provenance (online installer)
+        if: ${{ inputs.release }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
+
+      - name: Upload installer (online)
+        if: ${{ inputs.release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-installer-online
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
+
+      - name: Upload msi's and cab's 
+        if: ${{ inputs.release }}
+        env:
+          SOURCE_DIR: ${{ steps.prepare-layout.outputs.LayoutDir }}
+          DESTINATION_PREFIX: ${{ steps.generate-base-release-download-subcomponent.outputs.url_subcomponent }}
+          R2_BUCKET: swift-toolchain
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3 sync "${env:SOURCE_DIR}" "s3://${env:R2_BUCKET}/${env:DESTINATION_PREFIX}/" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --acl private
 
   smoke_test:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -5108,9 +5160,10 @@ jobs:
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
+        uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ inputs.build_arch }}-installer
+          name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
@@ -5172,10 +5225,10 @@ jobs:
         arch: [ x86_64, aarch64 ]
 
     steps:
-      - name: Download Swift SDK
+      - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
         uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ inputs.build_arch }}-installer
+          name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
