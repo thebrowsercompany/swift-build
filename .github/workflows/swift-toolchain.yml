@@ -247,6 +247,12 @@ on:
         required: true
       PASSPHRASE:
         required: true
+      R2_ACCOUNT_ID:
+        required: true
+      R2_ACCESS_KEY_ID:
+        required: true
+      R2_SECRET_ACCESS_KEY:
+        required: true
 
 env:
   PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.1.2
@@ -5032,7 +5038,7 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
-      - name: Build installer bundle
+      - name: Build installer bundle (offline)
         run: |
           $Platforms=@("windows")
           if ("${{ inputs.build_android }}" -eq "true") {
@@ -5055,15 +5061,97 @@ jobs:
               -p:ToolchainVariants="`"asserts;noasserts`"" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
-      - if: ${{ inputs.release }}
+      - name: Generate Build Provenance (offline installer)
+        if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload installer (offline)
+        uses: actions/upload-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-installer
+          name: Windows-${{ matrix.arch }}-installer-offline
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
+    
+      - name: Generate online installer download URL
+        if: ${{ inputs.release }}
+        id: generate-base-release-download-subcomponent
+        run: |
+          $BaseReleaseDownloadUrlSubcomponent = "${{ inputs.swift_tag }}/${{ matrix.arch }}/${{ github.run_id }}"
+          echo "url_subcomponent=$BaseReleaseDownloadUrlSubcomponent" >> $env:GITHUB_OUTPUT
+
+      - name: Build installer bundle (online)
+        if: ${{ inputs.release }}
+        run: |
+          $Platforms=@("windows")
+          if ("${{ inputs.build_android }}" -eq "true") {
+            $Platforms=@("android") + $Platforms
+          }
+          $BaseReleaseDownloadUrl = "https://swift-toolchain.thebrowserco.com/${{ steps.generate-base-release-download-subcomponent.outputs.url_subcomponent }}"
+
+          msbuild -nologo -restore -maxCpuCount `
+              /t:rebuild `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:BuildProjectReferences=false `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:BundleFlavor=online `
+              -p:BaseReleaseDownloadUrl=$BaseReleaseDownloadUrl `
+              -p:Platforms="`"$($Platforms -Join ';')`"" `
+              -p:AndroidArchitectures="`"aarch64;armv7;i686;x86_64`"" `
+              -p:WindowsArchitectures="`"aarch64;i686;x86_64`"" `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              -p:ToolchainVariants="`"asserts;noasserts`"" `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
+
+      - name: Prepare layout for upload
+        id: prepare-layout
+        if: ${{ inputs.release }}
+        run: |
+          # Create the target folder.
+          $SourceDir = "${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}"
+          $LayoutDir = "${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/layout"
+          New-Item -ItemType Directory -Path $LayoutDir -Force | Out-Null
+
+          # Copy all .txt files from src to the filtered directory
+          Copy-Item -Path "$SourceDir/installer.exe" -Destination "$LayoutDir" -Force
+          Copy-Item -Path "$SourceDir/*.cab" -Destination "$LayoutDir" -Force
+          Copy-Item -Path "$SourceDir/*.msi" -Destination "$LayoutDir" -Force
+
+          echo "LayoutDir=$LayoutDir"
+          echo "LayoutDir=$LayoutDir" >> $env:GITHUB_OUTPUT
+
+      - name: Generate Build Provenance (online installer)
+        if: ${{ inputs.release }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
+
+      - name: Upload installer (online)
+        if: ${{ inputs.release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-installer-online
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/installer.exe
+
+      - name: Upload msi's and cab's 
+        if: ${{ inputs.release }}
+        env:
+          SOURCE_DIR: ${{ steps.prepare-layout.outputs.LayoutDir }}
+          DESTINATION_PREFIX: ${{ steps.generate-base-release-download-subcomponent.outputs.url_subcomponent }}
+          R2_BUCKET: swift-toolchain
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3 sync "${env:SOURCE_DIR}" "s3://${env:R2_BUCKET}/${env:DESTINATION_PREFIX}/" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --acl private
 
   smoke_test:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -5072,9 +5160,10 @@ jobs:
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
+        uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ inputs.build_arch }}-installer
+          name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
@@ -5136,10 +5225,10 @@ jobs:
         arch: [ x86_64, aarch64 ]
 
     steps:
-      - name: Download Swift SDK
+      - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
         uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ inputs.build_arch }}-installer
+          name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
