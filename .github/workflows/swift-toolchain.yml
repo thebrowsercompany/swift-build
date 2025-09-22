@@ -278,26 +278,12 @@ jobs:
     steps:
       - name: Download artifact from run
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # PAT if cross-repo/private; else GITHUB_TOKEN works in same repo
-          OWNER: thebrowsercompany
-          REPO: swift-build
-          RUN_ID: 17897150946                                  # the run you linked
-          ARTIFACT_NAME: Windows-${{ inputs.build_arch }}-installer-online # change to the exact artifact name
-          ARTIFACT_ID: 4067034995
-          DEST: ${{ github.workspace }}/tmp
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-              $owner = $env:OWNER
-              $repo = $env:REPO
-              $runId = $env:RUN_ID
-              $name = $env:ARTIFACT_NAME
-              $dest = $env:DEST
-              $id = $env:ARTIFACT_ID
-
+              $dest = '${{ github.workspace }}/tmp'
               New-Item -ItemType Directory -Force -Path $dest | Out-Null
-
               gh run download 17897150946 -n Windows-${{ inputs.build_arch }}-installer-online -R thebrowsercompany/swift-build --dir $dest
 
-              Write-Host "Downloaded '$name' to $dest"
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
       - run: |
@@ -357,12 +343,13 @@ jobs:
         arch: [ x86_64, aarch64 ]
 
     steps:
-      - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
-        uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
-          path: ${{ github.workspace }}/tmp
-          run-id: 17897150946
+      - name: Download artifact from run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+              $dest = '${{ github.workspace }}/tmp'
+              New-Item -ItemType Directory -Force -Path $dest | Out-Null
+              gh run download 17897150946 -n Windows-${{ inputs.build_arch }}-installer-online -R thebrowsercompany/swift-build --dir $dest
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
       - name: Install Swift SDK
