@@ -5247,7 +5247,22 @@ jobs:
             }
           }
 
+          function Test-MsiBusy {
+              $msiProcs = Get-Process -Name msiexec -ErrorAction SilentlyContinue
+              if ($msiProcs) { return $true }
+              $inProgress = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\Installer\InProgress" -ErrorAction SilentlyContinue
+              if ($inProgress) { return $true }
+              return $false
+          }
+          
           try {
+            if (Test-MsiBusy) { 
+                Write-Host "MSI busy"; 
+                Start-Sleep -Seconds 5
+                if (Test-MsiBusy) { 
+                    Write-Host "MSI is still busy";
+                } else { Write-Host "MSI idle";}
+            } else { Write-Host "MSI idle";}
             Write-Host "Starting Install installer.exe..."
             $Process = Start-Process -FilePath ${{ github.workspace }}/tmp/installer.exe -ArgumentList ("-q") -Wait -PassThru
             $ExitCode = $Process.ExitCode
