@@ -1083,6 +1083,7 @@ jobs:
               'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
               'SWIFT_BUILD_REMOTE_MIRROR' = "NO";
               'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/0/bin";
+              'CMAKE_Swift_FLAGS' = "${{ matrix.arch == 'arm64' && '-use-ld=lld-link' || '' }}";
               'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}";
               'CLANG_TIDY_CONFUSABLE_CHARS_GEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}";
               'LibXml2_DIR' = "${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
@@ -1098,6 +1099,7 @@ jobs:
               'LLVM_NATIVE_TOOL_DIR' = "${{ github.workspace }}/BinaryCache/0/bin";
               'LLVM_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}";
               'LLVM_USE_HOST_TOOLS' = "NO";
+              'LLVM_USE_LINKER' = "lld-link";
               'Python3_EXECUTABLE' = "${{ steps.python.outputs.python-path }}";
               'Python3_INCLUDE_DIR' = "${{ steps.setup-context.outputs.python-include-dir }}";
               'Python3_LIBRARY' = "${{ steps.setup-context.outputs.libpython-path }}";
@@ -1128,7 +1130,19 @@ jobs:
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
             }
-
+      - name: Dump PATH
+        run: |
+          if ( "${{ matrix.os }}" -eq "Windows" ) {
+            $PathLength = $env:PATH.Length
+            Write-Output "DEBUG DEBUG: Path length: $PathLength"
+            $env:Path =  ($env:Path -split ';' | Where-Object { $_.Trim() -ne '' } | Select-Object -Unique) -join ';'
+            $PathLength = $env:PATH.Length
+            Write-Output "DEBUG DEBUG: New Path length: $PathLength"
+            foreach ($path in $env:Path -split ';') {
+              Write-Output "DEBUG DEBUG: Path: $path"
+            }
+            where.exe link
+          }
       - name: Build Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/1 --target distribution
 
