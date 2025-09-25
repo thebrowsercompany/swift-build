@@ -5178,15 +5178,19 @@ jobs:
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: compnerd/swift-win32
+          ref: refs/heads/main
+          path: ${{ github.workspace }}/SourceCache/swift-win32
+          show-progress: false
+
       - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
         uses: actions/download-artifact@v4
         with:
           name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
 
-      - name: Sleep
-        run: |
-         Start-Sleep -Seconds 120
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
       - run: |
           function Update-EnvironmentVariables {
@@ -5220,13 +5224,6 @@ jobs:
           # Reset Path and environment
           echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
           Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
-
-      - uses: actions/checkout@v4.2.2
-        with:
-          repository: compnerd/swift-win32
-          ref: refs/heads/main
-          path: ${{ github.workspace }}/SourceCache/swift-win32
-          show-progress: false
 
       - run: swift build
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
@@ -5298,15 +5295,26 @@ jobs:
         arch: [ x86_64, aarch64 ]
 
     steps:
+      - name: Checkout cassowary project
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: compnerd/cassowary
+          ref: 0.0.2
+          path: ${{ github.workspace }}/SourceCache/cassowary
+
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
       - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
         uses: actions/download-artifact@v4
         with:
           name: Windows-${{ inputs.build_arch }}-installer-${{ inputs.release && 'online' || 'offline' }}
           path: ${{ github.workspace }}/tmp
 
-      - name: Sleep
-        run: |
-          Start-Sleep -Seconds 120
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
       - name: Install Swift SDK
         run: |
@@ -5342,26 +5350,12 @@ jobs:
           echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
           Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
 
-      - name: Install Android NDK
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
-          local-cache: true
-
       - name: Setup Swift environment
         id: android-swift-env
         run: |
           echo "sysroot=$(resolve-path ${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\windows-x86_64\sysroot)" >> $env:GITHUB_OUTPUT
           echo "sdkroot=$(resolve-path $env:SDKROOT\..\..\..\..\Android.platform\Developer\SDKs\Android.sdk)" >> $env:GITHUB_OUTPUT
           echo "clang-resource-dir=$(& $(resolve-path "${{ steps.setup-ndk.outputs.ndk-path }}\toolchains\llvm\prebuilt\windows-x86_64\bin\clang.exe") -print-resource-dir)" >> $env:GITHUB_OUTPUT
-
-      - name: Checkout cassowary project
-        uses: actions/checkout@v4.2.2
-        with:
-          repository: compnerd/cassowary
-          ref: 0.0.2
-          path: ${{ github.workspace }}/SourceCache/cassowary
 
       - name: Build cassowary project
         run: |
