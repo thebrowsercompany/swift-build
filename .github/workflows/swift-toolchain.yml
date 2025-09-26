@@ -3933,9 +3933,6 @@ jobs:
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
       uses_trusted_signing: ${{ steps.test_trusted_signing.outputs.uses_trusted_signing }}
-    env:
-      USES_TRUSTED_SIGNING: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
-
     steps:
       - name: Debug secret availability
         env:
@@ -3948,7 +3945,7 @@ jobs:
       - name: Test whether we're using trusted signing
         id: test_trusted_signing
         run: |
-          "uses_trusted_signing=${env:USES_TRUSTED_SIGNING}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+          "uses_trusted_signing=${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
       - uses: nuget/setup-nuget@v2
         if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
       - run: |
