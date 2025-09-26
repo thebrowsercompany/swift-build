@@ -3926,13 +3926,6 @@ jobs:
 #
 #  # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
 #  # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
-  - name: Debug secret availability
-    env:
-      ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
-    run: |
-      echo "Secret length: $($env:ACCOUNT.Length)"
-      echo "Secret is null or empty: $([string]::IsNullOrEmpty($env:ACCOUNT))"
-      echo "Secret exists: $($null -ne $env:ACCOUNT)"
 
   configure_signing:
     if: inputs.build_os == 'Windows'
@@ -3944,6 +3937,13 @@ jobs:
       USES_TRUSTED_SIGNING: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
 
     steps:
+      - name: Debug secret availability
+        env:
+          ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+        run: |
+          echo "Secret length: $($env:ACCOUNT.Length)"
+          echo "Secret is null or empty: $([string]::IsNullOrEmpty($env:ACCOUNT))"
+          echo "Secret exists: $($null -ne $env:ACCOUNT)"
       - name: Test whether we're using trusted signing
         id: test_trusted_signing
         run: |
