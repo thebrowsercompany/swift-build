@@ -240,6 +240,11 @@ on:
         required: true
         type: string
 
+      build_compilers_with_llvm:
+        required: false
+        type: boolean
+        default: true
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -1074,8 +1079,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/1
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
-          msvc-compilers: '@("C", "CXX")'
-          pinned-compilers: '@("Swift")'
+          msvc-compilers: ${{ inputs.build_compilers_with_llvm && '@()' || '@("C", "CXX")' }}
+          pinned-compilers: ${{ inputs.build_compilers_with_llvm && '@("C", "CXX", "Swift")' || '@("Swift")' }}
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
             @{
@@ -1130,7 +1135,7 @@ jobs:
               'LLVM_VERSION_SUFFIX' = "";
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
-              'CMAKE_Swift_FLAGS' = "${{ inputs.build_compilers_with_llvm && '-use-ld=lld' || '' }}";
+              'CMAKE_Swift_FLAGS' = "${{ inputs.build_compilers_with_llvm && '-use-ld=lld-link' || '' }}";
             }
 
       - name: Build Compiler Distribution
