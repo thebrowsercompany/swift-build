@@ -4240,7 +4240,7 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/legacy/msi/rtlmsi.wixproj
 
       - name: Package Experimental Shared Runtime
         run: |
@@ -4281,8 +4281,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -4351,8 +4351,8 @@ jobs:
         with:
           name: Windows-${{ matrix.arch }}-rtl-shared-msi
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -4684,6 +4684,7 @@ jobs:
               -p:WindowsExperimentalRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64" `
               -p:WindowsExperimentalRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64" `
               -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686" `
+              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
       - name: Write DLL Expectations
         id: write-expectations
@@ -5126,6 +5127,7 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
+              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - name: Generate Build Provenance (offline installer)
@@ -5172,6 +5174,7 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
+              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - name: Prepare layout for upload
