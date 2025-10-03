@@ -4237,7 +4237,7 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/msi/rtlmsi.wixproj
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/legacy/msi/rtlmsi.wixproj
 
       - name: Package Experimental Shared Runtime
         run: |
@@ -4278,8 +4278,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -4348,8 +4348,8 @@ jobs:
         with:
           name: Windows-${{ matrix.arch }}-rtl-shared-msi
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.shared.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -4387,6 +4387,18 @@ jobs:
         with:
           name: Windows-amd64-shared-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-amd64-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-amd64-curl-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-amd64-zlib-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib
   
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/" -ItemType Directory -Force | Out-Null
@@ -4406,6 +4418,10 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libswiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/
@@ -4457,6 +4473,18 @@ jobs:
         with:
           name: Windows-arm64-shared-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-arm64-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-arm64-curl-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-arm64-zlib-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib
 
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/" -ItemType Directory -Force
@@ -4476,6 +4504,10 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libswiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/
@@ -4527,6 +4559,19 @@ jobs:
         with:
           name: Windows-x86-shared-experimental-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x86-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x86-curl-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x86-zlib-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib
+
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/" -ItemType Directory -Force
 
@@ -4545,6 +4590,10 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libswiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/
@@ -4632,6 +4681,7 @@ jobs:
               -p:WindowsExperimentalRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64" `
               -p:WindowsExperimentalRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64" `
               -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686" `
+              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
       - name: Write DLL Expectations
         id: write-expectations
@@ -5074,6 +5124,7 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
+              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - name: Generate Build Provenance (offline installer)
@@ -5120,6 +5171,7 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
+              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - name: Prepare layout for upload
