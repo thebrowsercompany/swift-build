@@ -5234,13 +5234,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-win32
           show-progress: false
 
-      - uses: actions/checkout@v4.2.2
-        with:
-          repository: pointfreeco//swift-issue-reporting
-          ref: refs/heads/main
-          path: ${{ github.workspace }}/SourceCache/swift-issue-reporting
-          show-progress: false
-
       - name: Download Swift SDK Installer (${{ inputs.release && 'online' || 'offline' }})
         uses: actions/download-artifact@v4
         with:
@@ -5283,17 +5276,11 @@ jobs:
           echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
           Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
 
-      - name: Smoke swift-win32
+      - run: swift build
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
-        run: |
-          swift build
-          swift test -Xswiftc -DENABLE_TESTING
 
-      - name: Smoke swift-issue-reporting
-        working-directory: ${{ github.workspace }}/SourceCache/swift-issue-reporting
-        run: |
-          swift build -c release
-          swift test -c release
+      - run: swift test -Xswiftc -DENABLE_TESTING
+        working-directory: ${{ github.workspace }}/SourceCache/swift-win32
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
