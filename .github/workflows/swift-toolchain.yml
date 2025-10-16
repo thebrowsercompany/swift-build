@@ -1440,7 +1440,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
-    needs: [zlib]
+    needs: [zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1493,6 +1493,11 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'
         id: setup-ndk
@@ -1530,7 +1535,7 @@ jobs:
               'CURL_CA_BUNDLE' = "none";
               'CURL_CA_FALLBACK' = "NO";
               'CURL_CA_PATH' = "none";
-              'CURL_BROTLI' = "NO";
+              'CURL_BROTLI' = "YES";
               'CURL_DISABLE_ALTSVC' = "NO";
               'CURL_DISABLE_AWS' = "YES";
               'CURL_DISABLE_BASIC_AUTH' = "NO";
@@ -1608,6 +1613,9 @@ jobs:
               'USE_WIN32_LDAP' = "NO";
               'ZLIB_ROOT' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr";
               'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/zlibstatic.lib";
+              'BROTLI_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/include";
+              'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/brotlicommon.lib";
+              'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/brotlidec.lib";
               'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build curl
@@ -2173,6 +2181,11 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - uses: actions/download-artifact@v4
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
@@ -2751,7 +2764,7 @@ jobs:
   sdk:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
-    needs: [libxml2, curl, zlib, compilers, cmark_gfm, stdlib, macros]
+    needs: [libxml2, curl, zlib, brotli, compilers, cmark_gfm, stdlib, macros]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2834,6 +2847,11 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - uses: actions/download-artifact@v4
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
@@ -4643,6 +4661,11 @@ jobs:
         with:
           name: Windows-amd64-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-amd64-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli/
+
   
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/" -ItemType Directory -Force | Out-Null
@@ -4666,6 +4689,8 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/
@@ -4729,6 +4754,10 @@ jobs:
         with:
           name: Windows-arm64-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-arm64-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli
 
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/" -ItemType Directory -Force
@@ -4752,6 +4781,8 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/
@@ -4815,6 +4846,10 @@ jobs:
         with:
           name: Windows-x86-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x86-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli
 
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/" -ItemType Directory -Force
@@ -4838,6 +4873,8 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/
