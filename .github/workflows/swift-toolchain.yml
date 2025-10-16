@@ -248,6 +248,11 @@ on:
         required: true
         type: string
 
+      use_host_toolchain:
+        required: false
+        type: boolean
+        default: true
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -350,10 +355,12 @@ jobs:
           install-dir: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          msvc-compilers: '@("C")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
@@ -434,8 +441,14 @@ jobs:
           arch: ${{ inputs.build_arch }}
           src-dir: ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2
           bin-dir: ${{ github.workspace }}/BinaryCache/RegsGen2
-          msvc-compilers: '@("C", "CXX")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C", "CXX")' }}
           cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
+          cmake-defines: |
+            @{
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+            }
       - name: Build RegsGen2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/RegsGen2 --config Release
@@ -632,12 +645,15 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/cmark-gfm
           bin-dir: ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
           install-dir: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-          msvc-compilers: '@("C", "CXX")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C", "CXX")' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
               'BUILD_TESTING' = "NO";
               'CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP' = "YES";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build cmark-gfm
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
@@ -725,7 +741,8 @@ jobs:
           arch: ${{ matrix.arch }}
           src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
           bin-dir: ${{ github.workspace }}/BinaryCache/0
-          msvc-compilers: '@("ASM_MASM", "C", "CXX")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("ASM_MASM", "C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("ASM_MASM", "C", "CXX")' }}
           cmake-defines: |
             @{
               'CMAKE_CROSSCOMPILING' = "NO";
@@ -755,6 +772,8 @@ jobs:
               'SWIFT_INCLUDE_DOCS' = "NO";
               'SWIFT_INCLUDE_TESTS' = "NO";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
@@ -1087,8 +1106,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/1
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
-          msvc-compilers: '@("C", "CXX")'
-          pinned-compilers: '@("Swift")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@("Swift")' || '@("C", "CXX", "Swift")' }}
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
             @{
@@ -1106,6 +1125,7 @@ jobs:
               'LLDB_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}";
               'LLVM_CONFIG_PATH' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}";
               'LLVM_ENABLE_ASSERTIONS' = ${{ matrix.variant == 'Asserts' && '"YES"' || '"NO"' }};
+              'LLVM_ENABLE_LLD' = "${{ inputs.use_host_toolchain && 'NO' || 'YES' }}";
               'LLVM_EXTERNAL_SWIFT_SOURCE_DIR' = "${{ github.workspace }}/SourceCache/swift";
               'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
               'LLVM_NATIVE_TOOL_DIR' = "${{ github.workspace }}/BinaryCache/0/bin";
@@ -1140,6 +1160,9 @@ jobs:
               'LLVM_VERSION_SUFFIX' = "";
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_Swift_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-use-ld=lld' }}";
             }
 
       - name: Build Compiler Distribution
@@ -1308,11 +1331,13 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          msvc-compilers: '@("C")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build zlib
         run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
@@ -1396,11 +1421,13 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          msvc-compilers: '@("C")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build brotli
         run: cmake --build ${{ github.workspace }}/BinaryCache/brotli-${{ inputs.brotli_version }}
@@ -1413,7 +1440,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
-    needs: [zlib]
+    needs: [zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1466,6 +1493,11 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'
         id: setup-ndk
@@ -1490,7 +1522,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          msvc-compilers: '@("C")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -1502,7 +1535,7 @@ jobs:
               'CURL_CA_BUNDLE' = "none";
               'CURL_CA_FALLBACK' = "NO";
               'CURL_CA_PATH' = "none";
-              'CURL_BROTLI' = "NO";
+              'CURL_BROTLI' = "YES";
               'CURL_DISABLE_ALTSVC' = "NO";
               'CURL_DISABLE_AWS' = "YES";
               'CURL_DISABLE_BASIC_AUTH' = "NO";
@@ -1580,6 +1613,10 @@ jobs:
               'USE_WIN32_LDAP' = "NO";
               'ZLIB_ROOT' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr";
               'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/zlibstatic.lib";
+              'BROTLI_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/include";
+              'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/brotlicommon.lib";
+              'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/brotlidec.lib";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build curl
         run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }}
@@ -1663,7 +1700,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          msvc-compilers: '@("C", "CXX")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C", "CXX")' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -1675,6 +1713,8 @@ jobs:
               'LIBXML2_WITH_TESTS' = "NO";
               'LIBXML2_WITH_THREADS' = "YES";
               'LIBXML2_WITH_ZLIB' = "NO";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }}
@@ -1795,11 +1835,14 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          msvc-compilers: '@("ASM_MASM", "C", "CXX")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("ASM_MASM", "C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("ASM_MASM", "C", "CXX")' }}
           cmake-defines: |
             @{
               'LLVM_ENABLE_ASSERTIONS' = "YES";
               'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
              }
 
       - name: Configure Swift Standard Library
@@ -2138,6 +2181,11 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - uses: actions/download-artifact@v4
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
@@ -2716,7 +2764,7 @@ jobs:
   sdk:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
-    needs: [libxml2, curl, zlib, compilers, cmark_gfm, stdlib, macros]
+    needs: [libxml2, curl, zlib, brotli, compilers, cmark_gfm, stdlib, macros]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2799,6 +2847,11 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - uses: actions/download-artifact@v4
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
@@ -3706,7 +3759,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-format
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          msvc-compilers: '@("C")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
           built-compilers: '@("Swift")'
           cmake-defines: |
             @{
@@ -3715,6 +3769,7 @@ jobs:
               'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
             }
       - name: Build swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
@@ -3733,7 +3788,12 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift-lmdb
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-lmdb
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          msvc-compilers: '@("C")'
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
+          cmake-defines: |
+            @{
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+            }
       - name: Build swift-lmdb
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-lmdb
 
@@ -4601,6 +4661,11 @@ jobs:
         with:
           name: Windows-amd64-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-amd64-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli/
+
   
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/" -ItemType Directory -Force | Out-Null
@@ -4624,6 +4689,8 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/
@@ -4687,6 +4754,10 @@ jobs:
         with:
           name: Windows-arm64-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-arm64-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli
 
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/" -ItemType Directory -Force
@@ -4710,6 +4781,8 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/
@@ -4773,6 +4846,10 @@ jobs:
         with:
           name: Windows-x86-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x86-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli
 
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/" -ItemType Directory -Force
@@ -4796,6 +4873,8 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
 
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/
