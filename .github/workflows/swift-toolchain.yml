@@ -1330,6 +1330,13 @@ jobs:
           python-version: ${{ inputs.python_version }}
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
+      - name: Get lit version
+        id: get-llvm-version
+        run: |
+          $litOutput = python ${{ github.workspace }}/SourceCache/llvm-project/llvm/utils/lit/lit.py --version
+          $litVersion = ($litOutput | Select-String -Pattern 'lit (\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value })
+          echo "llvm-version=$litVersion" >> $env:GITHUB_OUTPUT
+
       - name: Configure LLVM
         if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
@@ -1373,7 +1380,7 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/clang/21
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/clang/${{ steps.get-llvm-version.outputs.llvm-version }}
           built-compilers: '@("ASM", "C", "CXX")'
           cmake-defines: |
             @{
@@ -1402,7 +1409,7 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/clang/21
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/clang/${{ steps.get-llvm-version.outputs.llvm-version }}
           built-compilers: '@("ASM", "C", "CXX")'
           cmake-defines: |
             @{
