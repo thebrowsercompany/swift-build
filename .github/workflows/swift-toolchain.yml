@@ -1339,33 +1339,6 @@ jobs:
           $litVersion = ($litOutput | Select-String -Pattern 'lit (\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value })
           echo "llvm-version=$litVersion" >> $env:GITHUB_OUTPUT
 
-      - name: Configure LLVM
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: llvm
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
-          bin-dir: ${{ github.workspace }}/BinaryCache/llvm 
-          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
-          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          msvc-compilers: ${{ inputs.use_host_toolchain && '@("ASM_MASM", "C", "CXX")' || '@()' }}
-          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("ASM_MASM", "C", "CXX")' }}
-          cmake-defines: |
-            @{
-              'LLVM_ENABLE_ASSERTIONS' = "YES";
-              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-             }
-
       - name: Configure ClangBuiltins
         if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
@@ -1387,7 +1360,6 @@ jobs:
           built-compilers: '@("ASM", "C", "CXX")'
           cmake-defines: |
             @{
-              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
               'LLVM_ENABLE_PER_TARGET_RUNTIME_DIR' = "YES";
               'COMPILER_RT_DEFAULT_TARGET_ONLY' = "YES";
             }
