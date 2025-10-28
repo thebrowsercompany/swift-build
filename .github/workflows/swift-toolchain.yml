@@ -1260,6 +1260,208 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
           searchPattern: '**/*.exe'
 
+  compiler-rt:
+    needs: [compilers]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.target_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Compiler Runtime
+    
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
+          host-arch: ${{ matrix.arch }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
+        if: inputs.build_os == 'Darwin'
+      - name: Compute workspace hash
+        if: matrix.os != 'Android' || inputs.build_android
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        if: matrix.os != 'Android' || inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 500M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-compiler-rt
+
+      - name: Download Compilers
+        if: matrix.os != 'Android' || inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-Asserts-compilers
+          path: ${{ github.workspace }}/BinaryCache/Library
+      - uses: actions/checkout@v4.2.2
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          repository: swiftlang/llvm-project
+          ref: ${{ inputs.llvm_project_revision }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+          show-progress: false
+
+      - uses: nttld/setup-ndk@v1
+        if: matrix.os == 'Android' && inputs.build_android
+        id: setup-ndk
+        with:
+          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      - uses: actions/setup-python@v5
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - name: Get LLVM version
+        if: matrix.os != 'Android' || inputs.build_android
+        id: get-llvm-version
+        run: |
+          $litOutput = python ${{ github.workspace }}/SourceCache/llvm-project/llvm/utils/lit/lit.py --version
+          $litVersion = ($litOutput | Select-String -Pattern 'lit (\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value })
+          echo "llvm-version=$litVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Configure LLVM
+        if: matrix.os != 'Android' || inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: llvm
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/llvm 
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("ASM_MASM", "C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("ASM_MASM", "C", "CXX")' }}
+          cmake-defines: |
+            @{
+              'LLVM_ENABLE_ASSERTIONS' = "YES";
+              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
+              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+             }
+
+      - name: Configure ClangBuiltins
+        if: matrix.os != 'Android' || inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ClangBuiltins
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/compiler-rt/lib/builtins
+          bin-dir: ${{ github.workspace }}/BinaryCache/ClangBuiltins
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/clang/${{ steps.get-llvm-version.outputs.llvm-version }}
+          built-compilers: '@("ASM", "C", "CXX")'
+          cmake-defines: |
+            @{
+              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
+              'LLVM_ENABLE_PER_TARGET_RUNTIME_DIR' = "YES";
+              'COMPILER_RT_DEFAULT_TARGET_ONLY' = "YES";
+            }
+      - name: Build ClangBuiltins
+        if: matrix.os != 'Android' || inputs.build_android
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ClangBuiltins
+      - name: Install ClangBuiltins
+        if: matrix.os != 'Android' || inputs.build_android
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ClangBuiltins --target install-compiler-rt
+      
+      - name: Configure ClangRuntime
+        if: matrix.os != 'Android' || inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ClangRuntime
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/compiler-rt
+          bin-dir: ${{ github.workspace }}/BinaryCache/ClangRuntime
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/clang/${{ steps.get-llvm-version.outputs.llvm-version }}
+          built-compilers: '@("ASM", "C", "CXX")'
+          cmake-defines: |
+            @{
+              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
+              'LLVM_ENABLE_PER_TARGET_RUNTIME_DIR' = "YES";
+              'COMPILER_RT_DEFAULT_TARGET_ONLY' = "YES";
+              'COMPILER_RT_BUILD_BUILTINS' = "NO";
+              'COMPILER_RT_BUILD_CRT' = "NO";
+              'COMPILER_RT_BUILD_LIBFUZZER' = "NO";
+              'COMPILER_RT_BUILD_ORC' = "NO";
+              'COMPILER_RT_BUILD_XRAY' = "NO";
+              'COMPILER_RT_BUILD_PROFILE' = "YES";
+              'COMPILER_RT_BUILD_SANITIZERS' = "YES";
+            }
+      - name: Build ClangRuntime
+        if: matrix.os != 'Android' || inputs.build_android
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ClangRuntime
+      - name: Install ClangRuntime
+        if: matrix.os != 'Android' || inputs.build_android
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ClangRuntime --target install-compiler-rt
+
+      - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+        if: matrix.os != 'Android' || inputs.build_android
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Upload PDBs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '**/*.pdb'
+
+      - name: Upload DLLs to Azure
+        uses: microsoft/action-publish-symbols@v2.1.6
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '**/*.dll'
+
+
   zlib:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4091,7 +4293,7 @@ jobs:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     name: Package Tools
-    needs: [compilers, macros, debugging_tools, devtools, stdlib, sdk, configure_signing]
+    needs: [compilers, compiler-rt, macros, debugging_tools, devtools, stdlib, sdk, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -4127,6 +4329,46 @@ jobs:
           name: Windows-${{ matrix.arch }}-NoAsserts-compilers
           path: ${{ github.workspace }}/BuildRoot/Library
       
+      - name: Download Compilers Runtime (Windows-amd64)
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-amd64-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download Compilers Runtime (Windows-arm64)
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-arm64-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download Compilers Runtime (Windows-x86)
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-x86-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download Compilers Runtime (Android-arm64)
+        if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Android-arm64-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download Compilers Runtime (Android-armv7)
+        if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Android-armv7-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download Compilers Runtime (Android-x86_64)
+        if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Android-x86_64-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+      - name: Download Compilers Runtime (Android-i686)
+        if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Android-i686-compiler-rt
+          path: ${{ github.workspace }}/BuildRoot/Library
+
       - name: Download Developer Tools
         uses: actions/download-artifact@v4
         with:
