@@ -360,7 +360,7 @@ jobs:
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
@@ -446,8 +446,8 @@ jobs:
           cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
           cmake-defines: |
             @{
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build RegsGen2
         if: inputs.build_android
@@ -652,8 +652,8 @@ jobs:
               'BUILD_SHARED_LIBS' = "YES";
               'BUILD_TESTING' = "NO";
               'CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP' = "YES";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build cmark-gfm
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
@@ -772,8 +772,8 @@ jobs:
               'SWIFT_INCLUDE_DOCS' = "NO";
               'SWIFT_INCLUDE_TESTS' = "NO";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
@@ -1160,9 +1160,9 @@ jobs:
               'LLVM_VERSION_SUFFIX' = "";
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_Swift_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-use-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_Swift_FLAGS' = "${{ !inputs.use_host_toolchain && '-use-ld=lld' || '' }}";
             }
 
       - name: Build Compiler Distribution
@@ -1337,7 +1337,7 @@ jobs:
             @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build zlib
         run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
@@ -1427,7 +1427,7 @@ jobs:
             @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build brotli
         run: cmake --build ${{ github.workspace }}/BinaryCache/brotli-${{ inputs.brotli_version }}
@@ -1616,7 +1616,7 @@ jobs:
               'BROTLI_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/include";
               'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/$(if ("${{ matrix.os }}" -eq "Windows") { "brotlicommon.lib" } else { "libbrotlicommon.a" })";
               'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/$(if ("${{ matrix.os }}" -eq "Windows") { "brotlidec.lib" } else { "libbrotlidec.a" })";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build curl
         run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }}
@@ -1713,8 +1713,8 @@ jobs:
               'LIBXML2_WITH_TESTS' = "NO";
               'LIBXML2_WITH_THREADS' = "YES";
               'LIBXML2_WITH_ZLIB' = "NO";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }}
@@ -1841,8 +1841,8 @@ jobs:
             @{
               'LLVM_ENABLE_ASSERTIONS' = "YES";
               'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
              }
 
       - name: Configure Swift Standard Library
@@ -3769,7 +3769,7 @@ jobs:
               'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
@@ -3792,7 +3792,7 @@ jobs:
           pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
           cmake-defines: |
             @{
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build swift-lmdb
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-lmdb
