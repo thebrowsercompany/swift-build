@@ -772,7 +772,7 @@ jobs:
         with:
           name: Windows-arm64-installer-online
           path: ${{ github.workspace }}/tmp/online/arm64
-      
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-amd64-installer-offline
@@ -782,7 +782,7 @@ jobs:
         with:
           name: Windows-arm64-installer-offline
           path: ${{ github.workspace }}/tmp/offline/arm64
-    
+
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -790,10 +790,10 @@ jobs:
           function upload_installer() {
             local input_file=$1
             local output_name=$2
-            
+
             mv "${input_file}" "${output_name}"
             gh release upload ${{ needs.context.outputs.swift_tag }} "${output_name}" -R ${{ github.repository }}
-            
+
             shasum -a 256 "${output_name}" > "${output_name}.sha256"
             gh release upload ${{ needs.context.outputs.swift_tag }} "${output_name}.sha256" -R ${{ github.repository }}
           }
@@ -804,7 +804,7 @@ jobs:
           else
             latest="false"
           fi
-          
+
           # Create Release
           gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }} --latest=${latest}
 
