@@ -179,6 +179,10 @@ on:
         required: true
         type: string
 
+      swift_tools_protocols_revision:
+        required: true
+        type: string
+
       swift_tools_support_core_revision:
         required: true
         type: string
@@ -360,7 +364,7 @@ jobs:
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
@@ -446,8 +450,8 @@ jobs:
           cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
           cmake-defines: |
             @{
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build RegsGen2
         if: inputs.build_android
@@ -652,8 +656,8 @@ jobs:
               'BUILD_SHARED_LIBS' = "YES";
               'BUILD_TESTING' = "NO";
               'CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP' = "YES";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build cmark-gfm
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
@@ -772,8 +776,8 @@ jobs:
               'SWIFT_INCLUDE_DOCS' = "NO";
               'SWIFT_INCLUDE_TESTS' = "NO";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/0 --target llvm-tblgen
@@ -1160,9 +1164,9 @@ jobs:
               'LLVM_VERSION_SUFFIX' = "";
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_Swift_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-use-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_Swift_FLAGS' = "${{ !inputs.use_host_toolchain && '-use-ld=lld' || '' }}";
             }
 
       - name: Build Compiler Distribution
@@ -1337,7 +1341,7 @@ jobs:
             @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build zlib
         run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
@@ -1427,7 +1431,7 @@ jobs:
             @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build brotli
         run: cmake --build ${{ github.workspace }}/BinaryCache/brotli-${{ inputs.brotli_version }}
@@ -1616,7 +1620,7 @@ jobs:
               'BROTLI_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/include";
               'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/$(if ("${{ matrix.os }}" -eq "Windows") { "brotlicommon.lib" } else { "libbrotlicommon.a" })";
               'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/$(if ("${{ matrix.os }}" -eq "Windows") { "brotlidec.lib" } else { "libbrotlidec.a" })";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build curl
         run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }}
@@ -1713,8 +1717,8 @@ jobs:
               'LIBXML2_WITH_TESTS' = "NO";
               'LIBXML2_WITH_THREADS' = "YES";
               'LIBXML2_WITH_ZLIB' = "NO";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }}
@@ -1841,8 +1845,8 @@ jobs:
             @{
               'LLVM_ENABLE_ASSERTIONS' = "YES";
               'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
-              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
              }
 
       - name: Configure Swift Standard Library
@@ -3321,6 +3325,12 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
+          repository: swiftlang/swift-tools-protocols
+          ref: ${{ inputs.swift_tools_protocols_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-tools-protocols
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: swiftlang/swift-build
           ref: ${{ inputs.swift_build_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-build
@@ -3642,6 +3652,30 @@ jobs:
       - name: Build swift-certificates
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-certificates
 
+      - name: Configure swift-tools-protocols
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: swift-tools-protocols
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-tools-protocols
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift-tools-protocols
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          built-compilers: '@("C", "CXX", "Swift")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+            }
+      - name: Build swift-tools-protocols
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-protocols
+
       - name: Configure swift-build
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -3670,6 +3704,7 @@ jobs:
               'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
               'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
               'CMAKE_Swift_FLAGS' = "${{ matrix.arch == 'arm64' && '-use-ld=lld-link' || '' }}";
+              'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
             }
       - name: Build swift-build
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build
@@ -3714,6 +3749,7 @@ jobs:
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules"
               'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
               'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
+              'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
             }
       - name: Build swift-package-manager
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager
@@ -3769,7 +3805,7 @@ jobs:
               'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
@@ -3792,7 +3828,7 @@ jobs:
           pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
           cmake-defines: |
             @{
-              'CMAKE_C_FLAGS' = "${{ inputs.use_host_toolchain && '' || '-fuse-ld=lld' }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
       - name: Build swift-lmdb
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-lmdb
@@ -3873,6 +3909,8 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core --target install
       - name: Install swift-driver
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver --target install
+      - name: Install swift-tools-protocols
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-protocols --target install
       - name: Install swift-build
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build --target install
       - name: Install swift-subprocess
