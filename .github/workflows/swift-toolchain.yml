@@ -111,6 +111,18 @@ on:
         required: true
         type: string
 
+      swift_docc_render_artifact_revision:
+        required: true
+        type: string
+
+      swift_docc_revision:
+        required: true
+        type: string
+
+      swift_docc_symbolkit_revision:
+        required: true
+        type: string
+
       swift_driver_revision:
         required: true
         type: string
@@ -3295,6 +3307,24 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
+          repository: swiftlang/swift-docc-render-artifact
+          ref: ${{ inputs.swift_docc_render_artifact_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-docc-render-artifact
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-docc
+          ref: ${{ inputs.swift_docc_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-docc
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-docc-symbolkit
+          ref: ${{ inputs.swift_docc_symbolkit_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-docc-symbolkit
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: swiftlang/swift-driver
           ref: ${{ inputs.swift_driver_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-driver
@@ -3898,6 +3928,62 @@ jobs:
       - name: Build sourcekit-lsp
         run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp
 
+      - name: Configure swift-docc-symbolkit
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: swift-docc-symbolkit
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-docc-symbolkit
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          built-compilers: '@("C", "Swift")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+            }
+      - name: Build swift-docc-symbolkit
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
+
+      - name: Configure swift-docc
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: swift-docc
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-docc
+          bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          built-compilers: '@("C", "Swift")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+              'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
+              'SwiftCrypto_DIR' = "${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
+              'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
+              'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
+              'IndexStoreDB_DIR' = "${{ github.workspace }}/BinaryCache/indexstore-db/cmake/modules";
+              'SymbolKit_DIR' = "${{ github.workspace }}/BinaryCache/swift-docc-symbolkit/cmake/modules";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+            }
+      - name: Build swift-docc
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc
+
       - name: Install swift-argument-parser
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser --target install
       - name: Install swift-collections
@@ -3922,6 +4008,8 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp --target install
       - name: Install swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format --target install
+      - name: Install swift-docc
+        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc --target install
 
       - uses: actions/upload-artifact@v4
         with:
@@ -4142,6 +4230,14 @@ jobs:
         with:
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-docc-render-artifact
+          ref: ${{ inputs.swift_docc_render_artifact_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-docc-render-artifact
+          show-progress: false
+
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
           setup-vs-dev-env: true
@@ -4428,6 +4524,7 @@ jobs:
               -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
               -p:SignToolPath=${env:SIGNTOOL_PATH} `
               -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
               -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
@@ -4444,6 +4541,7 @@ jobs:
               -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
               -p:SignToolPath=${env:SIGNTOOL_PATH} `
               -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
               -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
@@ -5413,6 +5511,14 @@ jobs:
         with:
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-docc-render-artifact
+          ref: ${{ inputs.swift_docc_render_artifact_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-docc-render-artifact
+          show-progress: false
+
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
           setup-vs-dev-env: true
@@ -5618,6 +5724,7 @@ jobs:
               -p:SignOutput=${{ inputs.signed }} `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
               -p:SignToolPath=${env:SIGNTOOL_PATH} `
               -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
               -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
