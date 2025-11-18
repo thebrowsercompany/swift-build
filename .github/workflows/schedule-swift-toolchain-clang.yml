@@ -1,27 +1,14 @@
-name: Release Main Branch Toolchains - Clang
+name: Schedule - Main Branch Toolchains - Clang
 
 on:
   workflow_dispatch:
-  # Schedule to build a new release toolchain nightly.
+  # Schedule to build a new toolchain nightly.
   schedule:
     - cron: "0 1 * * *"
 
 jobs:
-  generate-tag:
-    runs-on: ubuntu-latest
-    outputs:
-      swift_tag: ${{ steps.tag.outputs.swift_tag }}
-    steps:
-      - name: Generate Tag
-        id: tag
-        run: |
-          date_part=$(date +%Y%m%d)
-          swift_tag="${date_part}-clang"
-          echo "swift_tag=${swift_tag}" >> $GITHUB_OUTPUT
-          echo "Generated tag: ${swift_tag}"
 
   build-release-clang:
-    needs: generate-tag
     uses: ./.github/workflows/build-toolchain.yml
     with:
       windows_build_arch: amd64
@@ -31,10 +18,10 @@ jobs:
       windows_arm64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-arm64-64--{0}', github.run_id) || 'swift-build-windows-arm64-latest-32-cores' }}
       android_api_level: 28
       build_android: true
-      swift_tag: ${{ needs.generate-tag.outputs.swift_tag }}
       use_host_toolchain: false
+      create_release: false
+      create_snapshot: false
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
       PASSPHRASE: ${{ secrets.PASSPHRASE }}
-      SWIFT_TOOLCHAIN_UPLOADER_ROLE_ARN: ${{ secrets.SWIFT_TOOLCHAIN_UPLOADER_ROLE_ARN }}
