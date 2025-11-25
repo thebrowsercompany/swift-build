@@ -5582,29 +5582,6 @@ jobs:
 
       - name: Download and expand Python
         run: |
-          $KnownPythons = @{
-            "3.9.10" = @{
-              AMD64 = @{
-                URL = "https://www.nuget.org/api/v2/package/python/3.9.10";
-                SHA256 = "ac43b491e9488ac926ed31c5594f0c9409a21ecbaf99dc7a93f8c7b24cf85867";
-              };
-              ARM64 = @{
-                URL = "https://www.nuget.org/api/v2/package/pythonarm64/3.9.10";
-                SHA256 = "429ada77e7f30e4bd8ff22953a1f35f98b2728e84c9b1d006712561785641f69";
-              };
-            };
-            "3.10.1" = @{
-              AMD64 = @{
-                URL = "https://www.nuget.org/api/v2/package/python/3.10.1";
-                SHA256 = "987a0e446d68900f58297bc47dc7a235ee4640a49dace58bc9f573797d3a8b33";
-              };
-              ARM64 = @{
-                URL = "https://www.nuget.org/api/v2/package/pythonarm64/3.10.1";
-                SHA256 = "16becfccedf1269ff0b8695a13c64fac2102a524d66cecf69a8f9229a43b10d3";
-              };
-            };
-          }
-
           function DownloadAndVerify($URL, $Destination, $Hash) {
             $ExpectedHash = $Hash.ToUpperInvariant()
 
@@ -5625,38 +5602,37 @@ jobs:
             }
           }
 
-          if (-not (Get-Command -Name Expand-ZipFile -ErrorAction SilentlyContinue)) {
-            function Expand-ZipFile {
-              param(
-                [Parameter(Mandatory = $true)][string]$ZipFile,
-                [Parameter(Mandatory = $true)][string]$Destination
-              )
-              Add-Type -AssemblyName System.IO.Compression.FileSystem
-              [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipFile, $Destination)
-            }
+          $KnownPythons = @{
+            "3.10.1" = @{
+              AMD64 = @{
+                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-amd64.zip";
+                SHA256 = "502670dcdff0083847abf6a33f30be666594e7e5201cd6fccd4a523b577403de";
+              };
+              ARM64 = @{
+                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-arm64.zip";
+                SHA256 = "1f9e215fe4e8f22a8e8fba1859efb1426437044fb3103ce85794630e3b511bc2";
+              };
+            };
           }
 
           $version = "${{ inputs.python_version }}"
-          $archKey = switch ("${{ matrix.arch }}".ToLower()) {
-            "amd64" { "AMD64" }
-            "arm64" { "ARM64" }
-            default { throw "Unsupported architecture '${{ matrix.arch }}' for Python download" }
-          }
-
+          $archKey = "${{ matrix.arch }}".ToUpper()
           $pythonInfo = $KnownPythons[$version][$archKey]
           if ($null -eq $pythonInfo) {
             throw "No python download info for version $version and architecture $archKey"
           }
+          Write-Host "Downloading Python $version for $archKey"
 
-          $packagePath = [IO.Path]::Combine("${{ github.workspace }}", "BinaryCache", "Downloads", "python-$version-$archKey.nupkg")
+          # Download the Python package
+          $packagePath = "${{ github.workspace }}\BinaryCache\Python-$archKey-$version.zip"
           DownloadAndVerify -URL $pythonInfo.URL -Destination $packagePath -Hash $pythonInfo.SHA256
-
-          $extractRoot = [IO.Path]::Combine("${{ github.workspace }}", "BuildRoot", "Library", "Developer", "Python-$version")
-          if (Test-Path $extractRoot) {
-            Remove-Item -Path $extractRoot -Recurse -Force
-          }
+          Write-Host "Downloaded Python $version for $archKey to $packagePath"
+  
+          # Extract the Python package
+          $extractRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Python-$version"
           New-Item -ItemType Directory -Path $extractRoot -ErrorAction Ignore | Out-Null
-          Expand-ZipFile -ZipFile $packagePath -Destination $extractRoot
+          Expand-Archive -Path $packagePath -DestinationPath $extractRoot -Force
+          Write-Host "Extracted Python $version for $archKey to $extractRoot"
 
       - name: Package Python
         run: |
@@ -5672,6 +5648,7 @@ jobs:
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:PythonVersion=${{ inputs.python_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/python/python.wixproj
 
       - if: ${{ inputs.release }}
