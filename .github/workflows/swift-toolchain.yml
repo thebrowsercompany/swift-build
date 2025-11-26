@@ -263,6 +263,9 @@ on:
       python_version:
         required: true
         type: string
+      python_download_locations:
+        required: true
+        type: string
 
       use_host_toolchain:
         required: false
@@ -680,55 +683,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
-  configure_python:
-    name: Configure Python downloads
-    runs-on: ${{ inputs.default_build_runner }}
-    outputs:
-      versions: ${{ steps.export_known_pythons.outputs.versions }}
-
-    steps:
-      - name: Export known Python downloads
-        id: export_known_pythons
-        shell: pwsh
-        run: |
-          $KnownPythons = @{
-            "3.9.10" = @{
-              AMD64 = @{
-                URL = "https://www.nuget.org/api/v2/package/python/3.9.10";
-                SHA256 = "ac43b491e9488ac926ed31c5594f0c9409a21ecbaf99dc7a93f8c7b24cf85867";
-              };
-              ARM64 = @{
-                URL = "https://www.nuget.org/api/v2/package/pythonarm64/3.9.10";
-                SHA256 = "429ada77e7f30e4bd8ff22953a1f35f98b2728e84c9b1d006712561785641f69";
-              };
-            };
-            "3.10.1" = @{
-              AMD64 = @{
-                URL = "https://www.nuget.org/api/v2/package/python/3.10.1";
-                SHA256 = "987a0e446d68900f58297bc47dc7a235ee4640a49dace58bc9f573797d3a8b33";
-              };
-              AMD64_Embedded = @{
-                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-amd64.zip";
-                SHA256 = "502670dcdff0083847abf6a33f30be666594e7e5201cd6fccd4a523b577403de";
-              };
-              ARM64 = @{
-                URL = "https://www.nuget.org/api/v2/package/pythonarm64/3.10.1";
-                SHA256 = "16becfccedf1269ff0b8695a13c64fac2102a524d66cecf69a8f9229a43b10d3";
-              };
-              ARM64_Embedded = @{
-                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-arm64.zip";
-                SHA256 = "1f9e215fe4e8f22a8e8fba1859efb1426437044fb3103ce85794630e3b511bc2";
-              };
-            };
-          }
-
-          $Json = $KnownPythons | ConvertTo-Json -Depth 4
-          $Delimiter = [Guid]::NewGuid().ToString()
-
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "versions<<$Delimiter"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value $Json
-          Add-Content -Path $env:GITHUB_OUTPUT -Value $Delimiter
-        
   build_tools:
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
@@ -979,7 +933,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot
 
   compilers:
-    needs: [libxml2, build_tools, cmark_gfm, early_swift_driver, configure_python]
+    needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
       fail-fast: false
@@ -1098,11 +1052,11 @@ jobs:
           }
 
           $KnownPythons = @"
-          ${{ needs.configure_python.outputs.versions }}
+          ${{ inputs.python_download_locations }}
           "@ | ConvertFrom-Json
           $version = "${{ inputs.python_version }}"
           $archKey = "${{ matrix.arch }}".ToUpper()
-          $pythonInfo = $KnownPythons."$version"."$archKey"
+          $pythonInfo = $KnownPythons["$version"]["$archKey"]
           if ($null -eq $pythonInfo) {
             throw "No python download info for version $version and architecture $archKey"
           }
@@ -5560,7 +5514,7 @@ jobs:
   package_python:
     if: inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
-    needs: [configure_signing, configure_python]
+    needs: [configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -5654,11 +5608,11 @@ jobs:
           }
 
           $KnownPythons = @"
-          ${{ needs.configure_python.outputs.versions }}
+          ${{ inputs.python_download_locations }}
           "@ | ConvertFrom-Json
           $version = "${{ inputs.python_version }}"
           $archKey = "${{ matrix.arch }}".ToUpper()
-          $pythonInfo = $KnownPythons."$version"."${archKey}_Embedded"
+          $pythonInfo = $KnownPythons["$version"]["${archKey}_Embedded"]
           if ($null -eq $pythonInfo) {
             throw "No python download info for version $version and architecture $archKey"
           }
