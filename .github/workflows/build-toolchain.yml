@@ -237,6 +237,7 @@ jobs:
       windows_x64_compilers_runner: ${{ steps.context.outputs.windows_x64_compilers_runner }}
       mac_build_runner: ${{ steps.context.outputs.mac_build_runner }}
       python_version: ${{ steps.context.outputs.python_version }}
+      python_download_locations: ${{ steps.context.outputs.python_download_locations }}
       windows_arm64_build_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_build_matrix }}
       windows_arm64_host_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_host_matrix }}
       windows_arm64_compilers_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_compilers_matrix }}
@@ -252,6 +253,38 @@ jobs:
     steps:
       - id: context
         name: Generate Build Context
+        env:
+          PYTHON_DOWNLOAD_LOCATIONS: >-
+            {
+              "3.9.10": {
+                "AMD64": {
+                  "URL": "https://www.nuget.org/api/v2/package/python/3.9.10",
+                  "SHA256": "ac43b491e9488ac926ed31c5594f0c9409a21ecbaf99dc7a93f8c7b24cf85867"
+                },
+                "ARM64": {
+                  "URL": "https://www.nuget.org/api/v2/package/pythonarm64/3.9.10",
+                  "SHA256": "429ada77e7f30e4bd8ff22953a1f35f98b2728e84c9b1d006712561785641f69"
+                }
+              },
+              "3.10.1": {
+                "AMD64": {
+                  "URL": "https://www.nuget.org/api/v2/package/python/3.10.1",
+                  "SHA256": "987a0e446d68900f58297bc47dc7a235ee4640a49dace58bc9f573797d3a8b33"
+                },
+                "AMD64_Embedded": {
+                  "URL": "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-amd64.zip",
+                  "SHA256": "502670dcdff0083847abf6a33f30be666594e7e5201cd6fccd4a523b577403de"
+                },
+                "ARM64": {
+                  "URL": "https://www.nuget.org/api/v2/package/pythonarm64/3.10.1",
+                  "SHA256": "16becfccedf1269ff0b8695a13c64fac2102a524d66cecf69a8f9229a43b10d3"
+                },
+                "ARM64_Embedded": {
+                  "URL": "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-arm64.zip",
+                  "SHA256": "1f9e215fe4e8f22a8e8fba1859efb1426437044fb3103ce85794630e3b511bc2"
+                }
+              }
+            }
         run: |
           # TODO(compnerd) can we make this more silent?
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update -yq
@@ -374,6 +407,9 @@ jobs:
 
           # Set Python version used in the build
           echo python_version=3.10.1 >> ${GITHUB_OUTPUT}
+
+          # Set Python download locations
+          echo python_download_locations=$(jq -c '.' <<< "${PYTHON_DOWNLOAD_LOCATIONS}") >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
         if: inputs.create_snapshot == true
@@ -652,6 +688,7 @@ jobs:
       compilers_build_runner: ${{ needs.context.outputs[format('windows_{0}_compilers_runner', needs.context.outputs.windows_build_cpu)] }}
       build_android: ${{ inputs.build_android }}
       python_version: ${{ needs.context.outputs.python_version }}
+      python_download_locations: ${{ needs.context.outputs.python_download_locations }}
       use_host_toolchain: ${{ inputs.use_host_toolchain }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -741,6 +778,7 @@ jobs:
       default_build_runner: ${{ needs.context.outputs.mac_build_runner }}
       compilers_build_runner: ${{ needs.context.outputs.mac_build_runner }}
       python_version: ${{ needs.context.outputs.python_version }}
+      python_download_locations: ${{ needs.context.outputs.python_download_locations }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
