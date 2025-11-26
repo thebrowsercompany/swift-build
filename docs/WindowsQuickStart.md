@@ -132,7 +132,7 @@ The full toolchain can be built in an automated fashion.  The following script
 will perform a build and package of the toolchain.
 
 ```
-S:\SourceCache\swift\utils\build.cmd
+S:\SourceCache\swift\utils\build.cmd -Windows
 ```
 
 ### Building for local debugging and testing
@@ -143,7 +143,7 @@ will build the toolchain with PDB debug information, and will also skip the
 installer packaging, which is rarely needed for local development.
 
 ```
-S:\SourceCache\swift\utils\build.cmd -DebugInfo -SkipPackaging
+S:\SourceCache\swift\utils\build.cmd -Windows -DebugInfo -SkipPackaging
 ```
 
 The `-Test` flag can be used to build the tests for a toolchain component. For instance,
@@ -151,7 +151,7 @@ the following script invocation will ensure that the test targets for all compon
 that support testing are built:
 
 ```
-S:\SourceCache\swift\utils\build.cmd -DebugInfo -SkipPackaging -Test '*'
+S:\SourceCache\swift\utils\build.cmd -Windows -DebugInfo -SkipPackaging -Test '*'
 ```
 
 ### Speeding up the build with sccache
@@ -161,7 +161,7 @@ SCCache before building. Note that this flag will help speed up the build of the
 but not the Swift code as `sccache` doesn't currently support Swift.
 
 ```
-S:\SourceCache\swift\utils\build.cmd -EnableCaching
+S:\SourceCache\swift\utils\build.cmd -Windows -EnableCaching
 ```
 
 ## Using the Toolchain
