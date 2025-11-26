@@ -930,7 +930,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot
 
   compilers:
-    needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
+    needs: [libxml2, build_tools, cmark_gfm, early_swift_driver, configure_python]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
       fail-fast: false
@@ -1021,39 +1021,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
 
-      - name: Install Python ${{ inputs.python_version }} (Host)
-        if: matrix.os == 'Darwin'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '${{ inputs.python_version }}'
-
-      - name: Install Python ${{ inputs.python_version }} (Host)
-        if: matrix.os == 'Windows' && (matrix.arch == 'amd64' || inputs.build_arch == 'amd64')
-        uses: actions/setup-python@v5
-        id: python
-        with:
-          python-version: '${{ inputs.python_version }}'
-          architecture: x64 
-
-      - uses: nuget/setup-nuget@v2
-        if: inputs.build_os == 'Windows' && (matrix.arch == 'arm64' || inputs.build_arch == 'arm64')
-
-      # TODO(lxbndr) use actions/cache to improve this step timings
-      - name: Install Python ${{ inputs.python_version}} (Windows arm64)
-        if: inputs.build_os == 'Windows' && (matrix.arch == 'arm64' || inputs.build_arch == 'arm64')
-        run: |
-          $NugetSources=[string](nuget Sources List -Format short)
-          if (-Not ($NugetSources.contains("api.nuget.org"))) {
-            nuget sources Add -Name api.nuget.org -Source https://api.nuget.org/v3/index.json -NonInteractive
-          }
-          nuget install pythonarm64 -Version ${{ inputs.python_version}}
-
-      - name: Export Python Location (Windows)
-        if: inputs.build_os == 'Windows'
-        run: |
-          echo "PYTHON_LOCATION_amd64=$env:pythonLocation" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ inputs.python_version }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
       - uses: nttld/setup-ndk@v1
         if: matrix.os == 'Android'
         id: setup-ndk
@@ -1062,25 +1029,68 @@ jobs:
           local-cache: true
 
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: ${{ inputs.python_version }}
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
+      - name: Download and expand Python
+        if: inputs.build_os == 'Windows'
+        run: |
+          function DownloadAndVerify($URL, $Destination, $Hash) {
+            New-Item -ItemType Directory (Split-Path -Path $Destination -Parent) -ErrorAction Ignore | Out-Null
+            $WebClient = New-Object Net.WebClient
+            $WebClient.DownloadFile($URL, $Destination)
+            $ExpectedHash = $Hash.ToUpperInvariant()
+            $SHA256 = (Get-FileHash -Path $Destination -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($SHA256 -ne $ExpectedHash) {
+              throw "SHA256 mismatch ($SHA256 vs $Hash)"
+            }
+          }
+
+          $KnownPythons = @"
+          ${{ needs.configure_python.outputs.versions }}
+          "@ | ConvertFrom-Json
+          $version = "${{ inputs.python_version }}"
+          $archKey = "${{ matrix.arch }}".ToUpper()
+          $pythonInfo = $KnownPythons."$version"."$archKey"
+          if ($null -eq $pythonInfo) {
+            throw "No python download info for version $version and architecture $archKey"
+          }
+          Write-Host "Downloading Python $version for $archKey"
+
+          # Download the Python package
+          $packagePath = "${{ github.workspace }}\BinaryCache\Python-$archKey-$version.zip"
+          DownloadAndVerify -URL $pythonInfo.URL -Destination $packagePath -Hash $pythonInfo.SHA256
+          Write-Host "Downloaded Python $version for $archKey to $packagePath"
+  
+          # Extract the Python package
+          $extractRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Python-${{ matrix.arch }}-${{ inputs.python_version }}"
+          New-Item -ItemType Directory -Path $extractRoot -ErrorAction Ignore | Out-Null
+          Expand-Archive -Path $packagePath -DestinationPath $extractRoot -Force
+          Write-Host "Extracted Python $version for $archKey to $extractRoot"
+
+          # Export Python Location
+          echo "PYTHON_LOCATION=$extractRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Setup context
         id: setup-context
         run: |
+          $PythonVersion = "${{ inputs.python_version }}"
+          $PythonMajor = ([System.Version]$PythonVersion).Major
+          $PythonMinor = ([System.Version]$PythonVersion).Minor
           if ( "${{ matrix.os }}" -eq "Windows" ) {
             $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
             $SDKROOT = cygpath -m ${env:SDKROOT}
-            $LIBPYTHON_PATH = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/libs/python310.lib"
-            $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/include"
+            $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
+            $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
             $PYTHON_BINARY="python.exe"
           } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
             $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}-RELEASE.xctoolchain/usr/bin"
             $SDKROOT = xcrun --sdk macosx --show-sdk-path
-            $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python3.10/config-3.10-darwin/libpython3.10.a"
-            $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python3.10"
-            $PYTHON_BINARY="python3"
+            $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python${PythonMajor}.${PythonMinor}/config-${PythonMajor}.${PythonMinor}-darwin/libpython${PythonMajor}.${PythonMinor}.a"
+            $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python${PythonMajor}.${PythonMinor}"
+            $PYTHON_BINARY="python${PythonMajor}"
           }
 
           # Compute the number of parallel jobs to use for the build.
@@ -1102,6 +1112,7 @@ jobs:
           libpython-path=${LIBPYTHON_PATH}
           python-include-dir=${PYTHON_INCLUDE_DIR}
           python-binary=${PYTHON_BINARY}
+          python-executable=${PYTHON_EXECUTABLE}
           sdkroot=${SDKROOT}
           link-jobs=${LinkJobs}
           "@
@@ -4213,6 +4224,55 @@ jobs:
           # TODO: Update with more info once we've filed a bug against Microsoft.
           path: ${{ github.workspace }}/Microsoft.Trusted.Signing.Client/bin/x64
 
+  configure_python:
+    name: Configure Python downloads
+    runs-on: ${{ inputs.default_build_runner }}
+    outputs:
+      versions: ${{ steps.export_known_pythons.outputs.versions }}
+
+    steps:
+      - name: Export known Python downloads
+        id: export_known_pythons
+        shell: pwsh
+        run: |
+          $KnownPythons = @{
+            "3.9.10" = @{
+              AMD64 = @{
+                URL = "https://www.nuget.org/api/v2/package/python/3.9.10";
+                SHA256 = "ac43b491e9488ac926ed31c5594f0c9409a21ecbaf99dc7a93f8c7b24cf85867";
+              };
+              ARM64 = @{
+                URL = "https://www.nuget.org/api/v2/package/pythonarm64/3.9.10";
+                SHA256 = "429ada77e7f30e4bd8ff22953a1f35f98b2728e84c9b1d006712561785641f69";
+              };
+            };
+            "3.10.1" = @{
+              AMD64 = @{
+                URL = "https://www.nuget.org/api/v2/package/python/3.10.1";
+                SHA256 = "987a0e446d68900f58297bc47dc7a235ee4640a49dace58bc9f573797d3a8b33";
+              };
+              AMD64_Embedded = @{
+                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-amd64.zip";
+                SHA256 = "502670dcdff0083847abf6a33f30be666594e7e5201cd6fccd4a523b577403de";
+              };
+              ARM64 = @{
+                URL = "https://www.nuget.org/api/v2/package/pythonarm64/3.10.1";
+                SHA256 = "16becfccedf1269ff0b8695a13c64fac2102a524d66cecf69a8f9229a43b10d3";
+              };
+              ARM64_Embedded = @{
+                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-arm64.zip";
+                SHA256 = "1f9e215fe4e8f22a8e8fba1859efb1426437044fb3103ce85794630e3b511bc2";
+              };
+            };
+          }
+
+          $Json = $KnownPythons | ConvertTo-Json -Depth 4
+          $Delimiter = [Guid]::NewGuid().ToString()
+
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "versions<<$Delimiter"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value $Json
+          Add-Content -Path $env:GITHUB_OUTPUT -Value $Delimiter
+
   package_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
@@ -5500,7 +5560,7 @@ jobs:
   package_python:
     if: inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
-    needs: [configure_signing]
+    needs: [configure_signing, configure_python]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -5583,41 +5643,22 @@ jobs:
       - name: Download and expand Python
         run: |
           function DownloadAndVerify($URL, $Destination, $Hash) {
-            $ExpectedHash = $Hash.ToUpperInvariant()
-
-            if (Test-Path $Destination) {
-              $ExistingHash = (Get-FileHash -Path $Destination -Algorithm SHA256).Hash.ToUpperInvariant()
-              if ($ExistingHash -eq $ExpectedHash) {
-                return
-              }
-              Remove-Item -Path $Destination -Force
-            }
-
             New-Item -ItemType Directory (Split-Path -Path $Destination -Parent) -ErrorAction Ignore | Out-Null
             $WebClient = New-Object Net.WebClient
             $WebClient.DownloadFile($URL, $Destination)
+            $ExpectedHash = $Hash.ToUpperInvariant()
             $SHA256 = (Get-FileHash -Path $Destination -Algorithm SHA256).Hash.ToUpperInvariant()
             if ($SHA256 -ne $ExpectedHash) {
               throw "SHA256 mismatch ($SHA256 vs $Hash)"
             }
           }
 
-          $KnownPythons = @{
-            "3.10.1" = @{
-              AMD64 = @{
-                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-amd64.zip";
-                SHA256 = "502670dcdff0083847abf6a33f30be666594e7e5201cd6fccd4a523b577403de";
-              };
-              ARM64 = @{
-                URL = "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-arm64.zip";
-                SHA256 = "1f9e215fe4e8f22a8e8fba1859efb1426437044fb3103ce85794630e3b511bc2";
-              };
-            };
-          }
-
+          $KnownPythons = @"
+          ${{ needs.configure_python.outputs.versions }}
+          "@ | ConvertFrom-Json
           $version = "${{ inputs.python_version }}"
           $archKey = "${{ matrix.arch }}".ToUpper()
-          $pythonInfo = $KnownPythons[$version][$archKey]
+          $pythonInfo = $KnownPythons."$version"."${archKey}_Embedded"
           if ($null -eq $pythonInfo) {
             throw "No python download info for version $version and architecture $archKey"
           }
