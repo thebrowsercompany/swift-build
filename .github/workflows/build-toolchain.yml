@@ -250,6 +250,38 @@ jobs:
     steps:
       - id: context
         name: Generate Build Context
+        env:
+          PYTHON_DOWNLOAD_LOCATIONS: >-
+            {
+              "3.9.10": {
+                "AMD64": {
+                  "URL": "https://www.nuget.org/api/v2/package/python/3.9.10",
+                  "SHA256": "ac43b491e9488ac926ed31c5594f0c9409a21ecbaf99dc7a93f8c7b24cf85867"
+                },
+                "ARM64": {
+                  "URL": "https://www.nuget.org/api/v2/package/pythonarm64/3.9.10",
+                  "SHA256": "429ada77e7f30e4bd8ff22953a1f35f98b2728e84c9b1d006712561785641f69"
+                }
+              },
+              "3.10.1": {
+                "AMD64": {
+                  "URL": "https://www.nuget.org/api/v2/package/python/3.10.1",
+                  "SHA256": "987a0e446d68900f58297bc47dc7a235ee4640a49dace58bc9f573797d3a8b33"
+                },
+                "AMD64_Embedded": {
+                  "URL": "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-amd64.zip",
+                  "SHA256": "502670dcdff0083847abf6a33f30be666594e7e5201cd6fccd4a523b577403de"
+                },
+                "ARM64": {
+                  "URL": "https://www.nuget.org/api/v2/package/pythonarm64/3.10.1",
+                  "SHA256": "16becfccedf1269ff0b8695a13c64fac2102a524d66cecf69a8f9229a43b10d3"
+                },
+                "ARM64_Embedded": {
+                  "URL": "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-arm64.zip",
+                  "SHA256": "1f9e215fe4e8f22a8e8fba1859efb1426437044fb3103ce85794630e3b511bc2"
+                }
+              }
+            }
         run: |
           # TODO(compnerd) can we make this more silent?
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update -yq
@@ -372,38 +404,8 @@ jobs:
 
           # Set Python version used in the build
           echo python_version=3.10.1 >> ${GITHUB_OUTPUT}
-          read -r -d '' PYTHON_DOWNLOAD_LOCATIONS <<'EOF'
-          {
-            "3.9.10": {
-              "AMD64": {
-                "URL": "https://www.nuget.org/api/v2/package/python/3.9.10",
-                "SHA256": "ac43b491e9488ac926ed31c5594f0c9409a21ecbaf99dc7a93f8c7b24cf85867"
-              },
-              "ARM64": {
-                "URL": "https://www.nuget.org/api/v2/package/pythonarm64/3.9.10",
-                "SHA256": "429ada77e7f30e4bd8ff22953a1f35f98b2728e84c9b1d006712561785641f69"
-              }
-            },
-            "3.10.1": {
-              "AMD64": {
-                "URL": "https://www.nuget.org/api/v2/package/python/3.10.1",
-                "SHA256": "987a0e446d68900f58297bc47dc7a235ee4640a49dace58bc9f573797d3a8b33"
-              },
-              "AMD64_Embedded": {
-                "URL": "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-amd64.zip",
-                "SHA256": "502670dcdff0083847abf6a33f30be666594e7e5201cd6fccd4a523b577403de"
-              },
-              "ARM64": {
-                "URL": "https://www.nuget.org/api/v2/package/pythonarm64/3.10.1",
-                "SHA256": "16becfccedf1269ff0b8695a13c64fac2102a524d66cecf69a8f9229a43b10d3"
-              },
-              "ARM64_Embedded": {
-                "URL": "https://www.python.org/ftp/python/3.10.1/python-3.10.1-embed-arm64.zip",
-                "SHA256": "1f9e215fe4e8f22a8e8fba1859efb1426437044fb3103ce85794630e3b511bc2"
-              }
-            }
-          }
-          EOF
+
+          # Set Python download locations
           echo python_download_locations=$(jq -c '.' <<< "${PYTHON_DOWNLOAD_LOCATIONS}") >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
