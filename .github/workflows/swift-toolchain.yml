@@ -4356,14 +4356,6 @@ jobs:
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/usr"
 
-      - run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil.exe -decode $CertificatePath $PFXPath
-          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
-
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
@@ -4382,20 +4374,6 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/Block ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
-
-      - run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil -decode $CertificatePath $PFXPath
-          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - name: Complete NoAsserts layout
         run: |
@@ -4465,46 +4443,16 @@ jobs:
             & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$Exe"
           }
 
-      - uses: azure/login@v2
+      - name: Setup signing inputs
+        id: setup_signing
+        if: inputs.signed
+        uses: ./SourceCache/ci-build/.github/actions/setup-windows-signing
         with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+          uses-trusted-signing: ${{ needs.configure_signing.outputs.uses_trusted_signing }}
+          certificate: ${{ secrets.CERTIFICATE }}
+          azure-sp-credentials: ${{ secrets.AZURE_SP_CREDENTIALS }}
+          trusted-signing-account: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          trusted-signing-prod-profile: ${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}
 
       - name: Package Build Tools (Asserts)
         run: |
@@ -4512,11 +4460,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
               -p:ProductVersion=${{ inputs.swift_version }} `
@@ -4529,11 +4477,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
               -p:ProductVersion=${{ inputs.swift_version }} `
@@ -4546,12 +4494,12 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4563,12 +4511,12 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4580,11 +4528,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4596,11 +4544,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4612,11 +4560,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4628,11 +4576,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4644,11 +4592,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4664,11 +4612,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -5078,14 +5026,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      - run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil.exe -decode $CertificatePath $PFXPath
-          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
-
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
@@ -5105,46 +5045,16 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
 
-      - uses: azure/login@v2
+      - name: Setup signing inputs
+        id: setup_signing
+        if: inputs.signed
+        uses: ./SourceCache/ci-build/.github/actions/setup-windows-signing
         with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+          uses-trusted-signing: ${{ needs.configure_signing.outputs.uses_trusted_signing }}
+          certificate: ${{ secrets.CERTIFICATE }}
+          azure-sp-credentials: ${{ secrets.AZURE_SP_CREDENTIALS }}
+          trusted-signing-account: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          trusted-signing-prod-profile: ${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}
 
       - name: Package Platform
         run: |
@@ -5152,11 +5062,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ inputs.build_arch }} `
@@ -5409,14 +5319,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      - if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
-        run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil.exe -decode $CertificatePath $PFXPath
-          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
       - if: inputs.build_android
         name: Install WixToolset.Sdk
         run: |
@@ -5439,46 +5341,16 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include
 
-      - uses: azure/login@v2
+      - name: Setup signing inputs
+        id: setup_signing
+        if: inputs.build_android && inputs.signed 
+        uses: ./SourceCache/ci-build/.github/actions/setup-windows-signing
         with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+          uses-trusted-signing: ${{ needs.configure_signing.outputs.uses_trusted_signing }}
+          certificate: ${{ secrets.CERTIFICATE }}
+          azure-sp-credentials: ${{ secrets.AZURE_SP_CREDENTIALS }}
+          trusted-signing-account: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          trusted-signing-prod-profile: ${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}
 
       - if: inputs.build_android
         name: Package SDK
@@ -5488,11 +5360,11 @@ jobs:
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
               -p:ANDROID_INCLUDE_DS2=true `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ inputs.build_arch }} `
@@ -5550,60 +5422,22 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      - run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil.exe -decode $CertificatePath $PFXPath
-          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
-
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
-      - uses: azure/login@v2
+      - name: Setup signing inputs
+        id: setup_signing
+        if: inputs.signed
+        uses: ./SourceCache/ci-build/.github/actions/setup-windows-signing
         with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+          uses-trusted-signing: ${{ needs.configure_signing.outputs.uses_trusted_signing }}
+          certificate: ${{ secrets.CERTIFICATE }}
+          azure-sp-credentials: ${{ secrets.AZURE_SP_CREDENTIALS }}
+          trusted-signing-account: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          trusted-signing-prod-profile: ${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}
   
 
       - name: Download and expand Python
@@ -5647,11 +5481,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:PythonVersion=${{ inputs.python_version }} `
@@ -5776,55 +5610,16 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      - run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil -decode $CertificatePath $PFXPath
-          Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
-
-      - name: Authenticate with Azure
-        uses: azure/login@v2
+      - name: Setup signing inputs
+        id: setup_signing
+        if: inputs.signed
+        uses: ./SourceCache/ci-build/.github/actions/setup-windows-signing
         with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+          uses-trusted-signing: ${{ needs.configure_signing.outputs.uses_trusted_signing }}
+          certificate: ${{ secrets.CERTIFICATE }}
+          azure-sp-credentials: ${{ secrets.AZURE_SP_CREDENTIALS }}
+          trusted-signing-account: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          trusted-signing-prod-profile: ${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
@@ -5834,11 +5629,11 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
@@ -5855,11 +5650,11 @@ jobs:
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:BundleFlavor=offline `
               -p:Platforms="`"$($Platforms -Join ';')`"" `
               -p:AndroidArchitectures="`"aarch64;armv7;i686;x86_64`"" `
@@ -5904,12 +5699,12 @@ jobs:
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:CERTIFICATE=${{ steps.setup_signing.outputs.certificate-path }} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:SignToolPath=${{ steps.setup_signing.outputs.signtool-path }} `
+              -p:AzureSignMetadata=${{ steps.setup_signing.outputs.trusted-signing-metadata-path }} `
+              -p:AzureSignDlib=${{ steps.setup_signing.outputs.trusted-signing-dll-path }} `
               -p:BundleFlavor=online `
               -p:BaseReleaseDownloadUrl=$BaseReleaseDownloadUrl `
               -p:Platforms="`"$($Platforms -Join ';')`"" `
