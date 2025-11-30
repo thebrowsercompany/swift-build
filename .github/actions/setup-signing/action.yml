@@ -1,0 +1,93 @@
+name: Setup Windows signing
+description: Import the signing certificate or configure Azure trusted signing inputs for Windows builds.
+inputs:
+  uses-trusted-signing:
+    description: Whether to use Azure trusted signing.
+    required: true
+  certificate:
+    description: Base64-encoded PFX certificate for classic signing.
+    required: false
+  azure-sp-credentials:
+    description: Azure service principal credentials used for trusted signing.
+    required: false
+  trusted-signing-account:
+    description: Azure trusted signing account name.
+    required: false
+  trusted-signing-prod-profile:
+    description: Azure trusted signing production certificate profile name.
+    required: false
+outputs:
+  certificate-path:
+    description: Path to the decoded PFX when classic signing is used.
+    value: ${{ steps.import_certificate.outputs.certificate-path }}
+  signtool-path:
+    description: Path to the signtool directory when using trusted signing.
+    value: ${{ steps.prepare_trusted_signing.outputs.signtool-path }}
+  trusted-signing-dll-path:
+    description: Path to the Azure trusted signing DLL.
+    value: ${{ steps.prepare_trusted_signing.outputs.trusted-signing-dll-path }}
+  trusted-signing-metadata-path:
+    description: Path to the Azure trusted signing metadata file.
+    value: ${{ steps.prepare_trusted_signing.outputs.trusted-signing-metadata-path }}
+runs:
+  using: composite
+  steps:
+    - name: Import certificate
+      id: import_certificate
+      if: inputs.uses-trusted-signing == 'false'
+      shell: pwsh
+      run: |
+        $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+        $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+        Set-Content -Path $CertificatePath -Value '${{ inputs.certificate }}'
+        certutil.exe -decode $CertificatePath $PFXPath
+        Write-Host "certificate-path=$PFXPath"
+        "certificate-path=$PFXPath" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+
+    - name: Authenticate with Azure
+      if: inputs.uses-trusted-signing == 'true'
+      uses: azure/login@v2
+      with:
+        creds: ${{ inputs.azure-sp-credentials }}
+
+    - name: Download trusted signing dll
+      if: inputs.uses-trusted-signing == 'true'
+      uses: actions/download-artifact@v4
+      with:
+        name: trusted-signing-dll
+        path: ${{ runner.temp }}/trusted-signing-dll
+
+    - name: Prepare trusted signing arguments
+      id: prepare_trusted_signing
+      if: inputs.uses-trusted-signing == 'true'
+      shell: pwsh
+      run: |
+        # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
+        # TODO: Update with more info once we've filed a bug against Microsoft.
+        $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
+        Write-Host "signtool-path=$signtoolPath"
+        "signtool-path=$signtoolPath" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+
+        $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
+        Write-Host "trusted-signing-dll-path=$trustedSigningDllPath"
+        "trusted-signing-dll-path=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+
+        $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
+        '{
+          "Endpoint": "https://eus.codesigning.azure.net",
+          "CodeSigningAccountName": "${{ inputs.trusted-signing-account }}",
+          "CertificateProfileName": "${{ inputs.trusted-signing-prod-profile }}",
+          "ExcludeCredentials": [
+            "ManagedIdentityCredential",
+            "WorkloadIdentityCredential",
+            "SharedTokenCacheCredential",
+            "VisualStudioCredential",
+            "VisualStudioCodeCredential",
+            "EnvironmentCredential",
+            "AzurePowerShellCredential",
+            "AzureDeveloperCliCredential",
+            "InteractiveBrowserCredential"
+          ]
+        }' | Out-File -FilePath $metadataPath -Encoding utf8
+        Write-Host "trusted-signing-metadata-path=$metadataPath"
+        "trusted-signing-metadata-path=$metadataPath" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
