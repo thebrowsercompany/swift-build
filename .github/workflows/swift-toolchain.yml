@@ -6087,6 +6087,9 @@ jobs:
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
+    env:
+      ANDROID_ABI: ${{ matrix.arch == 'aarch64' && 'arm64-v8a' || 'x86_64' }}
+
     strategy:
       fail-fast: false
       matrix:
@@ -6099,6 +6102,13 @@ jobs:
           repository: compnerd/cassowary
           ref: 0.0.2
           path: ${{ github.workspace }}/SourceCache/cassowary
+
+      - name: Checkout swift-firebase project
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: compnerd/swift-firebase
+          ref: main
+          path: ${{ github.workspace }}/SourceCache/swift-firebase
 
       - name: Install Android NDK
         uses: nttld/setup-ndk@v1
@@ -6165,3 +6175,60 @@ jobs:
             -Xswiftc -sysroot -Xswiftc "${{ steps.android-swift-env.outputs.sysroot }}" `
             -Xswiftc -I -Xswiftc "${{ steps.android-swift-env.outputs.sdkroot }}\usr\include" `
             -Xswiftc -Xclang-linker -Xswiftc -resource-dir -Xswiftc -Xclang-linker -Xswiftc ${{ steps.android-swift-env.outputs.clang-resource-dir }}
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - uses: android-actions/setup-android@00854ea68c109d98c75d956347303bf7c45b0277 # v3.2.1
+        with:
+          packages: 'platforms;android-28'
+
+      - name: Fetch firebase-cpp-sdk release
+        uses: dsaltares/fetch-gh-release-asset@a40c8b4a0471f9ab81bdf73a010f74cc51476ad4 # v1.1.1
+        with:
+          repo: thebrowsercompany/firebase-cpp-sdk
+          version: tags/20240909.0
+          file: firebase-android-${{ env.ANDROID_ABI }}.zip
+          target: ${{ github.workspace }}/SourceCache/swift-firebase/firebase-android-${{ env.ANDROID_ABI }}.zip
+
+      - name: Expand firebase-cpp-sdk release
+        working-directory: ${{ github.workspace }}/SourceCache/swift-firebase
+        run: |
+          Expand-Archive -Path firebase-android-${{ env.ANDROID_ABI }}.zip -DestinationPath third_party
+          Rename-Item -Path third_party/firebase-android-${{ env.ANDROID_ABI }} -NewName firebase-development
+
+      # TODO: Remove the workaround step below, due to `std::__voidify()` not being accessible
+      #       with the current combination of Swift toolchain and Andoird NDK versions.
+      - name: Patch out private symbol std::__voidify() in construct_at.h
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          $construct_at_h_path="${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\include\c++\v1\__memory\construct_at.h"
+          (Get-Content $construct_at_h_path) -replace "std::__voidify","(void *) &" | Set-Content $construct_at_h_path
+
+      - name: Configure firebase-swift
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          # TODO: Remove the following workaround from `SWIFT_OPTIONS`, due to missing `libclang_rt.builtins.a`
+          #       and `libunwind.a` libraries in the Swift toolchain:
+          #       -Xclang-linker -resource-dir -Xclang-linker ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\lib\clang\18
+          SWIFT_OPTIONS: -sdk ${env:SDKROOT}..\..\..\..\Android.platform\Developer\SDKs\Android.sdk -sysroot ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\sysroot -Xclang-linker -resource-dir -Xclang-linker ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\lib\clang\18 -I${env:SDKROOT}\..\..\..\..\..\..\Toolchains\0.0.0+Asserts\usr\include -I${env:SDKROOT}\usr\include -Xlinker -zdefs
+        working-directory: ${{ github.workspace }}/SourceCache/swift-firebase
+        run: |
+          cmake -B out `
+                -D CMAKE_BUILD_TYPE=RelWithDebInfo `
+                -G Ninja `
+                -S . `
+                -D CMAKE_SYSTEM_NAME=Android `
+                -D CMAKE_ANDROID_ARCH_ABI=${{ env.ANDROID_ABI }} `
+                -D CMAKE_ANDROID_API=28 `
+                -D CMAKE_Swift_COMPILER_TARGET=${{ matrix.arch }}-unknown-linux-android28 `
+                -D CMAKE_Swift_COMPILER_WORKS=YES `
+                -D CMAKE_Swift_FLAGS="${{ env.SWIFT_OPTIONS }}" `
+                -D SWIFT_FIREBASE_BUILD_EXAMPLES=NO
+
+      - name: Build firebase-swift
+        working-directory: ${{ github.workspace }}/SourceCache/swift-firebase
+        run: cmake --build out
