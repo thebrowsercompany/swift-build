@@ -1,6 +1,33 @@
 name: Configure CMake Project
 description: Configure a CMake project using the specified build type and configuration.
 
+# DISCREPANCY vs Build-CMakeProject in swift/utils/build.ps1:
+# This action only configures CMake projects; Build-CMakeProject also builds
+# them (via $BuildTargets parameter) and installs them (if $InstallTo is set
+# and $BuildTargets is empty).
+#
+# The following features are present in Build-CMakeProject but missing here:
+#   - $Generator parameter (this action hardcodes "Ninja")
+#   - $AddAndroidCMakeEnv for setting NDKPATH environment variable
+#   - CMAKE_MAKE_PROGRAM define (set to $ninja in the cmdlet)
+#   - DWARF debug format support on Windows ($CDebugFormat, $SwiftDebugFormat)
+#   - CAS (Content-Addressed Storage) support ($EnableCAS, $CASPath)
+#   - PATH setup for Swift runtime when using built/pinned Swift compilers
+#   - Extra Swift linker library path for Android SDK (-Xclang-linker -L ...)
+#   - VS Developer Shell invocation (Invoke-VsDevShell)
+#   - /IGNORE:longsections linker flag for DWARF on Windows
+#
+# The following features are present here but not in Build-CMakeProject:
+#   - CMAKE_Swift_COMPILER_USE_OLD_DRIVER (not set in the cmdlet)
+#   - Explicit Android caching exclusion (cmdlet doesn't check OS for caching)
+#   - Darwin support (cmdlet only handles Windows and Android)
+#
+# Other behavioral differences:
+#   - Cross-compilation check: This action checks ($OS -ne $BuildOS -or $Arch -ne $BuildArch);
+#     the cmdlet checks (($Platform.OS -ne [OS]::Windows) -or ($Platform.Architecture.CMakeName -ne $BuildPlatform.Architecture.CMakeName))
+#   - Android C/CXX debug: This action uses "-gsplit-dwarf"; cmdlet uses "-gdwarf"
+#   - Pinned compiler paths: This action assumes they're in PATH; cmdlet uses Get-PinnedToolchainToolsDir
+
 inputs:
   project-name:
     description: Name of the CMake project to build.
@@ -184,6 +211,9 @@ runs:
 
         # Avoid specifying `CMAKE_SYSTEM_NAME` and `CMAKE_SYSTEM_PROCESSOR` on
         # Windows and in the case that we are not cross-compiling.
+        # DISCREPANCY: Build-CMakeProject uses a different condition:
+        # (($Platform.OS -ne [OS]::Windows) -or ($Platform.Architecture.CMakeName -ne $BuildPlatform.Architecture.CMakeName))
+        # which specifically excludes Windows native builds rather than checking for any cross-compile scenario.
         if ($OS -ne $BuildOS -or $Arch -ne $BuildArch) {
           Add-KeyValueIfNew $Defines CMAKE_SYSTEM_NAME $OS
           Add-KeyValueIfNew $Defines CMAKE_SYSTEM_PROCESSOR $CMakeArch
@@ -209,6 +239,8 @@ runs:
               Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
 
               if ($DebugInfo) {
+                # DISCREPANCY: Build-CMakeProject supports both DWARF and codeview debug formats
+                # via $CDebugFormat; this action only supports codeview.
                 $ASMDebugFlags = if ($UseGNUDriver) { @("-gcodeview") } else { @("-clang:-gcodeview") }
 
                 # CMake does not set a default value for the ASM compiler debug
@@ -255,6 +287,11 @@ runs:
                 @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
               }
 
+              # DISCREPANCY: Build-CMakeProject adds CAS flags here when $EnableCAS is true:
+              # @("-fdepscan=inline", "-fdepscan-include-tree", "-Xclang", "-fcas-path", "-Xclang", $CASPath)
+              # DISCREPANCY: Build-CMakeProject adds DWARF debug flags here when $CDebugFormat -eq "dwarf":
+              # @("-gdwarf") or @("-clang:-gdwarf")
+
               Add-FlagsDefine $Defines CMAKE_C_FLAGS $CFLAGS
             }
 
@@ -284,6 +321,11 @@ runs:
                 @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
               }
 
+              # DISCREPANCY: Build-CMakeProject adds CAS flags here when $EnableCAS is true:
+              # @("-fdepscan=inline", "-fdepscan-include-tree", "-Xclang", "-fcas-path", "-Xclang", $CASPath)
+              # DISCREPANCY: Build-CMakeProject adds DWARF debug flags here when $CDebugFormat -eq "dwarf":
+              # @("-gdwarf") or @("-clang:-gdwarf")
+
               Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFLAGS
             }
 
@@ -302,6 +344,7 @@ runs:
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_TARGET $Triple
 
               # TODO(compnerd): remove this once we have the early swift-driver
+              # DISCREPANCY: Build-CMakeProject does NOT set CMAKE_Swift_COMPILER_USE_OLD_DRIVER
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_USE_OLD_DRIVER "YES"
 
               [string[]] $SwiftFlags = if ($SwiftSDK) {
@@ -310,6 +353,9 @@ runs:
                 @()
               }
 
+              # DISCREPANCY: Build-CMakeProject supports DWARF debug format via $SwiftDebugFormat:
+              # @("-g", "-debug-info-format=dwarf", "-use-ld=lld-link", "-Xlinker", "/DEBUG:DWARF")
+              # This action only supports codeview.
               $SwiftFlags += if ($DebugInfo) {
                 @("-g", "-debug-info-format=codeview", "-Xlinker", "/DEBUG")
               } else {
@@ -351,6 +397,8 @@ runs:
               }
             }
 
+            # DISCREPANCY: Build-CMakeProject adds /IGNORE:longsections linker flag when
+            # $SwiftDebugFormat -eq "dwarf" and using lld-link; this action doesn't support DWARF.
             Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS $LinkerFlags
             Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS $LinkerFlags
           }
@@ -384,6 +432,8 @@ runs:
 
               $CFLAGS = @("--sysroot=${AndroidSysroot}", "-ffunction-sections", "-fdata-sections")
               if ($DebugInfo) {
+                # DISCREPANCY: Build-CMakeProject uses @("-gdwarf") without split;
+                # this action uses @("-g", "-gsplit-dwarf").
                 $CFLAGS += @("-g", "-gsplit-dwarf")
               }
               Add-FlagsDefine $Defines CMAKE_C_FLAGS $CFLAGS
@@ -394,6 +444,8 @@ runs:
 
               $CXXFLAGS = @("--sysroot=${AndroidSysroot}", "-ffunction-sections", "-fdata-sections")
               if ($DebugInfo) {
+                # DISCREPANCY: Build-CMakeProject uses @("-gdwarf") without split;
+                # this action uses @("-g", "-gsplit-dwarf").
                 $CXXFLAGS += @("-g", "-gsplit-dwarf")
               }
               Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFLAGS
@@ -417,6 +469,7 @@ runs:
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_TARGET $Triple
 
               # TODO(compnerd) remove this once we have the early swift-driver
+              # DISCREPANCY: Build-CMakeProject does NOT set CMAKE_Swift_COMPILER_USE_OLD_DRIVER
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_USE_OLD_DRIVER "YES"
 
               $SwiftFlags = if ($SwiftSDK) {
@@ -430,6 +483,9 @@ runs:
                 "-Xclang-linker", "--sysroot", "-Xclang-linker", $AndroidSysroot,
                 "-Xclang-linker", "-resource-dir", "-Xclang-linker", "${AndroidPrebuiltRoot}\lib\clang\${AndroidClangVersion}"
               )
+
+              # DISCREPANCY: Build-CMakeProject adds an extra linker library path when $SwiftSDK is set:
+              # @("-Xclang-linker", "-L", "-Xclang-linker", [IO.Path]::Combine($SwiftSDK, "usr", "lib", "swift", "android", $Platform.Architecture.LLVMName))
 
               $SwiftFlags += if ($DebugInfo) { @("-g") } else { @("-gnone") }
 
@@ -461,6 +517,8 @@ runs:
         }
 
         # TODO(steelskin): sccache does not work with "-gsplit-dwarf".
+        # DISCREPANCY: Build-CMakeProject does not have the Android exclusion check;
+        # it enables caching regardless of OS. This action excludes Android due to -gsplit-dwarf.
         if ($EnableCaching -and $OS -ne "Android") {
           if ($UseC) {
             Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER "sccache"
@@ -474,6 +532,10 @@ runs:
         if ($InstallDir) {
           Add-KeyValueIfNew $Defines CMAKE_INSTALL_PREFIX $InstallDir
         }
+
+        # DISCREPANCY: Build-CMakeProject sets CMAKE_MAKE_PROGRAM to $ninja; this action does not.
+        # DISCREPANCY: Build-CMakeProject has a $Generator parameter (defaults to "Ninja");
+        # this action hardcodes "Ninja".
 
         # Generate the project
         $cmakeGenerateArgs = @("-B", $BinDir, "-S", $SrcDir, "-G", "Ninja")
@@ -529,6 +591,10 @@ runs:
         }
         Write-Host "`n"
 
+        # DISCREPANCY: Build-CMakeProject sets up $env:Path with Swift runtime directories
+        # before invoking cmake when using built or pinned Swift compilers. This action does not.
+        # DISCREPANCY: Build-CMakeProject builds the project after configuration (via $BuildTargets
+        # parameter or implicit install target). This action only configures.
         & cmake @cmakeGenerateArgs
         if ($LASTEXITCODE -ne 0) {
           throw "CMake generation failed for project ${ProjectName} with exit code $LASTEXITCODE."
