@@ -1,0 +1,275 @@
+name: Publish Symbols to R2
+description: Uploads PDB files to a public symbol server hosted on R2 using symstore.exe
+
+inputs:
+  symbolsFolder:
+    description: The path to the folder containing PDB files to upload
+    required: true
+    type: string
+  searchPattern:
+    description: The search pattern for PDB files (e.g., '**/*.pdb')
+    required: true
+    type: string
+  swift-version:
+    description: The Swift version for symstore metadata
+    required: true
+    type: string
+  arch:
+    description: The architecture for symstore metadata (e.g., 'amd64', 'arm64')
+    required: true
+    type: string
+  variant:
+    description: The build variant for symstore metadata
+    required: false
+    type: string
+    default: ''
+  r2-access-key-id:
+    description: R2 access key ID
+    required: true
+    type: string
+  r2-secret-access-key:
+    description: R2 secret access key
+    required: true
+    type: string
+  r2-account-id:
+    description: R2 account ID
+    required: true
+    type: string
+  r2-bucket:
+    description: R2 bucket name
+    required: false
+    type: string
+    default: 'swift-toolchain'
+
+runs:
+  using: composite
+  steps:
+    - name: Check for symstore.exe
+      id: check-symstore
+      shell: pwsh
+      run: |
+        $SymstorePaths = @(
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\symstore.exe",
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x86\symstore.exe",
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\arm64\symstore.exe",
+          "${env:ProgramFiles}\Windows Kits\10\Debuggers\x64\symstore.exe"
+        )
+
+        $SymstoreExe = $null
+        foreach ($path in $SymstorePaths) {
+          if (Test-Path $path) {
+            $SymstoreExe = $path
+            Write-Output "✓ Found symstore.exe at: $path"
+            break
+          }
+        }
+
+        if ($null -eq $SymstoreExe) {
+          Write-Output "⚠️ symstore.exe not found in standard locations"
+          "needs-install=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        } else {
+          "symstore-path=$SymstoreExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "needs-install=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        }
+
+    - name: Install Debugging Tools for Windows
+      if: steps.check-symstore.outputs.needs-install == 'true'
+      id: install-debugtools
+      shell: pwsh
+      run: |
+        Write-Output "ℹ️ Downloading Windows SDK installer..."
+
+        # Download the Windows SDK installer
+        Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2120843' -OutFile winsdksetup.exe -UseBasicParsing
+
+        Write-Output "ℹ️ Installing Debugging Tools for Windows..."
+
+        # Install only the Windows Desktop Debuggers feature
+        Start-Process -FilePath ".\winsdksetup.exe" `
+          -ArgumentList "/features OptionId.WindowsDesktopDebuggers /q /norestart" `
+          -Wait
+
+        Write-Output "ℹ️ Installation complete. Searching for symstore.exe..."
+
+        # Find symstore.exe after installation
+        $SymstorePaths = @(
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\symstore.exe",
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x86\symstore.exe",
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\arm64\symstore.exe",
+          "${env:ProgramFiles}\Windows Kits\10\Debuggers\x64\symstore.exe"
+        )
+
+        $SymstoreExe = $null
+        foreach ($path in $SymstorePaths) {
+          if (Test-Path $path) {
+            $SymstoreExe = $path
+            Write-Output "✓ Debugging Tools installed successfully. Found symstore.exe at: $path"
+            break
+          }
+        }
+
+        if ($null -eq $SymstoreExe) {
+          Write-Output "::error::Failed to install Debugging Tools for Windows. symstore.exe not found after installation."
+
+          # Search for symstore.exe in Windows Kits directory
+          Write-Output "ℹ️ Searching for symstore.exe in Windows Kits directory..."
+          $Found = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits" -Filter "symstore.exe" -Recurse -ErrorAction SilentlyContinue
+          if ($Found) {
+            $SymstoreExe = $Found[0].FullName
+            Write-Output "✓ Found symstore.exe at: $SymstoreExe"
+          } else {
+            Write-Output "::error::symstore.exe not found anywhere in Windows Kits directory"
+            exit 1
+          }
+        }
+
+        # Clean up installer
+        Remove-Item -Path ".\winsdksetup.exe" -Force -ErrorAction SilentlyContinue
+
+        "symstore-path=$SymstoreExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    - name: Prepare local symbol store
+      id: prepare-store
+      shell: pwsh
+      run: |
+        # Create a temporary directory for the local symbol store
+        $TempRoot = Join-Path $env:TEMP "symstore-$(New-Guid)"
+        New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
+        Write-Output "ℹ️ Created temp symbol store at: $TempRoot"
+
+        # Create 000Admin subdirectory
+        $AdminDir = Join-Path $TempRoot "000Admin"
+        New-Item -ItemType Directory -Path $AdminDir -Force | Out-Null
+
+        "temp-root=$TempRoot" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        "admin-dir=$AdminDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    - name: Download symbol store state from R2
+      shell: pwsh
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+        AWS_DEFAULT_REGION: auto
+        R2_ENDPOINT_URL: https://${{ inputs.r2-account-id }}.r2.cloudflarestorage.com
+        R2_BUCKET: ${{ inputs.r2-bucket }}
+        ADMIN_DIR: ${{ steps.prepare-store.outputs.admin-dir }}
+      run: |
+        Write-Output "ℹ️ Downloading symbol store state files from R2..."
+
+        $AdminFiles = @("history.txt", "server.txt", "lastid.txt")
+        $AllSuccess = $true
+
+        foreach ($file in $AdminFiles) {
+          $s3Path = "s3://${env:R2_BUCKET}/symbols/000Admin/$file"
+          $localPath = Join-Path $env:ADMIN_DIR $file
+
+          Write-Output "  Downloading $file..."
+          aws s3 cp "$s3Path" "$localPath" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --only-show-errors
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::Failed to download $file from R2"
+            $AllSuccess = $false
+          } else {
+            Write-Output "  ✓ Downloaded $file"
+          }
+        }
+
+        if (-not $AllSuccess) {
+          Write-Output "::error::Failed to download all required admin files from R2"
+          exit 1
+        }
+
+        Write-Output "✓ All symbol store state files downloaded successfully"
+
+    - name: Add symbols to store
+      shell: pwsh
+      env:
+        SYMBOLS_FOLDER: ${{ inputs.symbolsFolder }}
+        SEARCH_PATTERN: ${{ inputs.searchPattern }}
+        TEMP_ROOT: ${{ steps.prepare-store.outputs.temp-root }}
+        SWIFT_VERSION: ${{ inputs.swift-version }}
+        ARCH: ${{ inputs.arch }}
+        VARIANT: ${{ inputs.variant }}
+      run: |
+        $SymstoreExe = "${{ steps.check-symstore.outputs.symstore-path }}"
+        if (-not $SymstoreExe) {
+          $SymstoreExe = "${{ steps.install-debugtools.outputs.symstore-path }}"
+        }
+
+        Write-Output "ℹ️ Using symstore.exe at: $SymstoreExe"
+
+        # Build the comment string
+        $Comment = "Swift ${env:SWIFT_VERSION} - ${env:ARCH}"
+        if ($env:VARIANT -ne "") {
+          $Comment += " - ${env:VARIANT}"
+        }
+
+        # Find all PDB files matching the search pattern
+        $SymbolsPath = Resolve-Path $env:SYMBOLS_FOLDER
+        $SearchPath = Join-Path $SymbolsPath $env:SEARCH_PATTERN
+        $PdbFiles = Get-ChildItem -Path $SearchPath -File
+
+        if ($PdbFiles.Count -eq 0) {
+          Write-Output "::warning::No PDB files found matching pattern: ${env:SEARCH_PATTERN} in ${env:SYMBOLS_FOLDER}"
+          exit 0
+        }
+
+        Write-Output "ℹ️ Found $($PdbFiles.Count) PDB file(s) to add to symbol store"
+        Write-Output "ℹ️ Product: Swift-Toolchain"
+        Write-Output "ℹ️ Version: ${env:SWIFT_VERSION}"
+        Write-Output "ℹ️ Comment: $Comment"
+
+        # Run symstore.exe add
+        & "$SymstoreExe" add `
+          /r `
+          /f "$SearchPath" `
+          /s "$env:TEMP_ROOT" `
+          /t "Swift-Toolchain" `
+          /v "$env:SWIFT_VERSION" `
+          /c "$Comment" `
+          /compress `
+          /o
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Output "::error::symstore.exe failed with exit code $LASTEXITCODE"
+          exit 1
+        }
+
+        Write-Output "✓ Symbols added successfully to local store"
+
+    - name: Upload updated symbol store to R2
+      shell: pwsh
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+        AWS_DEFAULT_REGION: auto
+        R2_ENDPOINT_URL: https://${{ inputs.r2-account-id }}.r2.cloudflarestorage.com
+        R2_BUCKET: ${{ inputs.r2-bucket }}
+        TEMP_ROOT: ${{ steps.prepare-store.outputs.temp-root }}
+      run: |
+        Write-Output "ℹ️ Uploading updated symbol store to R2..."
+
+        aws s3 sync "$env:TEMP_ROOT" "s3://${env:R2_BUCKET}/symbols/" `
+          --endpoint-url "${env:R2_ENDPOINT_URL}" `
+          --no-progress `
+          --acl private
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Output "::error::Failed to upload symbol store to R2"
+          exit 1
+        }
+
+        Write-Output "✓ Symbol store uploaded successfully to R2"
+
+    - name: Cleanup
+      if: always()
+      shell: pwsh
+      run: |
+        $TempRoot = "${{ steps.prepare-store.outputs.temp-root }}"
+        if ($TempRoot -and (Test-Path $TempRoot)) {
+          Write-Output "ℹ️ Cleaning up temporary directory: $TempRoot"
+          Remove-Item -Path $TempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }

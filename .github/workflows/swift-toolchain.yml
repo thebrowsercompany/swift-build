@@ -1214,8 +1214,6 @@ jobs:
             Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/lib/swift/host/compiler"
           }
 
-
-
       - uses: jannekem/run-python-script-action@v1
         with:
           script: |
@@ -1268,6 +1266,19 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
           searchPattern: '**/*.pdb'
+
+      - name: Upload PDBs to Public Symbol Server
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/1
+          searchPattern: '*.pdb'
+          swift-version: ${{ inputs.swift_version }}
+          arch: ${{ matrix.arch }}
+          variant: ${{ matrix.variant }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
@@ -1941,6 +1952,19 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.pdb'
 
+      - name: Upload PDBs to Public Symbol Server
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '*.pdb'
+          swift-version: ${{ inputs.swift_version }}
+          arch: ${{ matrix.arch }}
+          variant: ${{ matrix.variant }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
         if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
@@ -2092,6 +2116,19 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
           searchPattern: '**/*.pdb'
+
+      - name: Upload PDBs to Public Symbol Server
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        if: ${{ inputs.debug_info }}
+        with:
+          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          searchPattern: '*.pdb'
+          swift-version: ${{ inputs.swift_version }}
+          arch: ${{ matrix.arch }}
+          variant: ${{ matrix.variant }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
@@ -2783,6 +2820,19 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.pdb'
 
+      - name: Upload PDBs to Public Symbol Server
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '*.pdb'
+          swift-version: ${{ inputs.swift_version }}
+          arch: ${{ matrix.arch }}
+          variant: ${{ matrix.static && 'static' || 'shared' }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+
       - name: Upload DLLs to Azure
         if: matrix.os == 'Windows' && inputs.debug_info
         uses: microsoft/action-publish-symbols@v2.1.6
@@ -3194,6 +3244,19 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.pdb'
+
+      - name: Upload PDBs to Public Symbol Server
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        with:
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '*.pdb'
+          swift-version: ${{ inputs.swift_version }}
+          arch: ${{ matrix.arch }}
+          variant: 'sdk'
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
@@ -4045,6 +4108,19 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.pdb'
+
+      - name: Upload PDBs to Public Symbol Server
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        if: ${{ inputs.debug_info }}
+        with:
+          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          searchPattern: '*.pdb'
+          swift-version: ${{ inputs.swift_version }}
+          arch: ${{ matrix.arch }}
+          variant: 'devtools'
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
 
       - name: Upload DLLs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
