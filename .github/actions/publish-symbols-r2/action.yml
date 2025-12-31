@@ -67,16 +67,10 @@ runs:
           "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\arm64\symstore.exe"
         )
 
-        $SymstoreExe = $null
-        foreach ($path in $SymstorePaths) {
-          if (Test-Path $path) {
-            $SymstoreExe = $path
-            Write-Output "✓ Debugging Tools installed successfully. Found symstore.exe at: $path"
-            break
-          }
-        }
-
-        if ($null -eq $SymstoreExe) {
+        $SymstoreExe = $SymstorePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if ($SymstoreExe) {
+          Write-Output "✓ Debugging Tools installed successfully. Found symstore.exe at: $SymstoreExe"
+        } else {
           Write-Output "::error::Failed to install Debugging Tools for Windows. symstore.exe not found after installation."
           exit 1
         }
@@ -112,13 +106,6 @@ runs:
         $SymstoreExe = "${{ steps.install-debugtools.outputs.symstore-path }}"
         Write-Output "ℹ️ Using symstore.exe at: $SymstoreExe"
 
-        # Build the comment string
-        $Comment = "Swift ${env:SWIFT_VERSION} - ${env:ARCH}"
-        if ($env:VARIANT -ne "") {
-          $Comment += " - ${env:VARIANT}"
-        }
-        $Comment += " - ${env:BUILD_REVISION}"
-
         # Find all PDB files matching the search pattern
         $SymbolsPath = Resolve-Path $env:SYMBOLS_FOLDER
         $SearchPath = Join-Path $SymbolsPath $env:SEARCH_PATTERN
@@ -130,9 +117,8 @@ runs:
         }
 
         Write-Output "ℹ️ Found $($PdbFiles.Count) PDB file(s) to add to symbol store"
-        Write-Output "ℹ️ Product: Swift-Toolchain"
-        Write-Output "ℹ️ Version: ${env:SWIFT_VERSION}"
-        Write-Output "ℹ️ Comment: $Comment"
+        $Product = "Swift-Toolchain - $env:ARCH" + ($(if ($env:VARIANT) { " ($env:VARIANT)" } else { "" }))
+        $Comment = "$env:BUILD_REVISION"
 
         # Symstore.exe is ment to manage a local symbolstore or one on a network share. 
         # Since we are using R2 directelly to write, we need to do some extra steps to manage the state of the store in the face of concurrent writes. 
@@ -147,36 +133,28 @@ runs:
         #    - If failed with PreconditionFailed (412), someone else updated it - retry
         # 5. Retry up to 5 times with random delay (1-30 seconds) between attempts     
         $MaxRetries = 5
-        $Attempt = 0
-        $Success = $false
 
-        while ($Attempt -lt $MaxRetries -and -not $Success) {
-          $Attempt++
+        for ($Attempt = 1; $Attempt -le $MaxRetries; $Attempt++) {
           Write-Output ""
           Write-Output "ℹ️ Attempt $Attempt of $MaxRetries..."
 
-          # Step 1: Get ETag of server.txt (our "lock")
+          # 1. Get current ETag of server.txt as our lock
           Write-Output "ℹ️ Getting current ETag of server.txt..."
-          $ServerTxtPath = "s3://${env:R2_BUCKET}/symbols/000Admin/server.txt"
-
           $HeadOutput = aws s3api head-object `
             --bucket "${env:R2_BUCKET}" `
             --key "symbols/000Admin/server.txt" `
             --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
 
-          if ($LASTEXITCODE -ne 0) {
+          if ($LASTEXITCODE) {
             Write-Output "::error::Failed to get ETag of server.txt"
             Write-Output $HeadOutput
             exit 1
           }
-
-          $HeadJson = $HeadOutput | ConvertFrom-Json
-          $CurrentETag = $HeadJson.ETag
+          $CurrentETag = ($HeadOutput | ConvertFrom-Json).ETag
           Write-Output "✓ Current ETag: $CurrentETag"
 
-          # Step 2: Download admin files
-          Write-Output "ℹ️ Downloading symbol store state files from R2..."
-          
+          # 2. Download admin files
+          Write-Output "ℹ️ Downloading symbol store admin files from R2..."
           aws s3 cp "s3://${env:R2_BUCKET}/symbols/000Admin" "$AdminDir" `
             --endpoint-url "${env:R2_ENDPOINT_URL}" `
             --recursive `
@@ -186,33 +164,17 @@ runs:
             --include "lastid.txt" `
             --no-progress `
             --only-show-errors
+          if ($LASTEXITCODE) { Write-Output "::error::Failed to download admin files from R2"; exit 1 }
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "::error::Failed to download symbol store state files from R2"
-            exit 1
-          }
-
-          # Step 3: Add symbols to local store
+          # 3. Add symbols
           Write-Output "ℹ️ Adding symbols to local store..."
-          & "$SymstoreExe" add `
-            /r `
-            /f "$SearchPath" `
-            /s "$TempRoot" `
-            /t "Swift-Toolchain" `
-            /v "$env:SWIFT_VERSION" `
-            /c "$Comment" `
-            /o
+          & "$SymstoreExe" add /r /o /f "$SearchPath" /s "$TempRoot" /t "Swift-Toolchain" /v "$env:SWIFT_VERSION" /c "$Comment"
+          if ($LASTEXITCODE) { Write-Output "::error::symstore.exe failed ($LASTEXITCODE)"; exit 1 }
+          Write-Output "✓ Symbols added successfully"
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "::error::symstore.exe failed with exit code $LASTEXITCODE"
-            exit 1
-          }
-          Write-Output "✓ Symbols added successfully to local store"
-
-          # Step 4: Try to upload server.txt with ETag condition
-          Write-Output "ℹ️ Attempting conditional upload of server.txt (ETag: $CurrentETag)..."
+          # 4. Conditional upload of server.txt (with ETag)
           $ServerTxtLocal = Join-Path $AdminDir "server.txt"
-
+          Write-Output "ℹ️ Attempting conditional upload of server.txt (ETag: $CurrentETag)..."
           $UploadOutput = aws s3api put-object `
             --bucket "${env:R2_BUCKET}" `
             --key "symbols/000Admin/server.txt" `
@@ -220,42 +182,34 @@ runs:
             --if-match "$CurrentETag" `
             --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
 
-          if ($LASTEXITCODE -eq 0) {
-            Write-Output "✓ server.txt uploaded successfully - no concurrent modification detected"
-            $Success = $true
-
-            # Step 5: Upload all other files (we have the "lock")
+          if (!$LASTEXITCODE) {
+            Write-Output "✓ server.txt uploaded successfully (no concurrent modification)"
+            
+            # 5. Upload remaining store files
             Write-Output "ℹ️ Uploading all symbol store files to R2..."
-
             aws s3 sync "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
               --endpoint-url "${env:R2_ENDPOINT_URL}" `
               --no-progress `
               --acl private
-
-            if ($LASTEXITCODE -ne 0) {
-              Write-Output "::error::Failed to upload symbol store to R2"
-              exit 1
-            }
-            # Success!
+            if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol store to R2"; exit 1 }
             Write-Output "✓ Symbol store uploaded successfully to R2"
             exit 0
-          } else {
-            if ($UploadOutput -match "PreconditionFailed" -or $UploadOutput -match "412") {
-              Write-Output "⚠️ Concurrent modification detected (ETag mismatch) - retrying..."
-              if ($Attempt -lt $MaxRetries) {
-                $Delay = Get-Random -Minimum 1 -Maximum 31
-                Write-Output "ℹ️ Waiting $Delay seconds before retry..."
-                Start-Sleep -Seconds $Delay
-              }
-            } else {
-              Write-Output "::error::Failed to upload server.txt with unexpected error:"
-              Write-Output $UploadOutput
-              exit 1
+          }
+
+          # Handle concurrency / retry
+          if ($UploadOutput -match "PreconditionFailed" -or $UploadOutput -match "412") {
+            Write-Output "⚠️ Concurrent modification detected (ETag mismatch) - retrying..."
+            if ($Attempt -lt $MaxRetries) {
+              $Delay = Get-Random -Minimum 1 -Maximum 31
+              Write-Output "ℹ️ Waiting $Delay seconds before retry..."
+              Start-Sleep -Seconds $Delay
             }
+          } else {
+            Write-Output "::error::Failed to upload server.txt with unexpected error:"
+            Write-Output $UploadOutput
+            exit 1
           }
         }
 
-        if (-not $Success) {
-          Write-Output "::error::Failed to upload server.txt after $MaxRetries attempts due to concurrent modifications"
-          exit 1
-        }
+        Write-Output "::error::Failed to upload server.txt after $MaxRetries attempts (concurrent modifications)"
+        exit 1
