@@ -23,6 +23,10 @@ inputs:
     required: false
     type: string
     default: ''
+  build-revision:
+    description: The swift-build repository revision/hash
+    required: true
+    type: string
   r2-access-key-id:
     description: R2 access key ID
     required: true
@@ -78,10 +82,24 @@ runs:
         }
         "symstore-path=$SymstoreExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-    - name: Prepare local symbol store
-      id: prepare-store
+    - name: Add symbols and upload to R2
       shell: pwsh
-      run: |
+      env:
+        SYMBOLS_FOLDER: ${{ inputs.symbolsFolder }}
+        SEARCH_PATTERN: ${{ inputs.searchPattern }}
+        SWIFT_VERSION: ${{ inputs.swift-version }}
+        ARCH: ${{ inputs.arch }}
+        VARIANT: ${{ inputs.variant }}
+        BUILD_REVISION: ${{ inputs.build-revision }}
+        AWS_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+        AWS_SESSION_TOKEN: '' # required to clear any AWS state was set by sccache
+        AWS_SECURITY_TOKEN: '' # required to clear any AWS state was set by sccache
+        AWS_REGION: auto
+        AWS_DEFAULT_REGION: auto
+        R2_ENDPOINT_URL: https://${{ inputs.r2-account-id }}.r2.cloudflarestorage.com
+        R2_BUCKET: ${{ inputs.r2-bucket }}
+      run: |   
         # Create a temporary directory for the local symbol store
         $TempRoot = Join-Path $env:TEMP "symstore-$(New-Guid)"
         New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
@@ -91,91 +109,7 @@ runs:
         $AdminDir = Join-Path $TempRoot "000Admin"
         New-Item -ItemType Directory -Path $AdminDir -Force | Out-Null
 
-        "temp-root=$TempRoot" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-        "admin-dir=$AdminDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-    - name: Download symbol store state from R2
-      shell: pwsh
-      env:
-        AWS_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
-        AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
-        AWS_SESSION_TOKEN: ''
-        AWS_SECURITY_TOKEN: ''
-        AWS_REGION: auto
-        AWS_DEFAULT_REGION: auto
-        R2_ENDPOINT_URL: https://${{ inputs.r2-account-id }}.r2.cloudflarestorage.com
-        R2_BUCKET: ${{ inputs.r2-bucket }}
-        ADMIN_DIR: ${{ steps.prepare-store.outputs.admin-dir }}
-      run: |
-        Write-Output "ℹ️ Effective AWS env at start of R2 download:"
-        Get-ChildItem Env:AWS_* | ForEach-Object {
-          Write-Output "  $($_.Name)=$($_.Value)"
-        }
-
-        Write-Output "ℹ️ Downloading symbol store state files from R2..."
-        write-Output 'aws s3 cp s3://${env:R2_BUCKET}/symbols/000Admin $env:ADMIN_DIR --endpoint-url ${env:R2_ENDPOINT_URL} --recursive --exclude "*" --include "history.txt" --include "server.txt" --include "lastid.txt" --no-progress --only-show-errors'
-
-        aws s3 cp "s3://${env:R2_BUCKET}/symbols/000Admin" "$env:ADMIN_DIR" `
-          --endpoint-url "${env:R2_ENDPOINT_URL}" `
-          --recursive `
-          --exclude "*" `
-          --include "history.txt" `
-          --include "server.txt" `
-          --include "lastid.txt" `
-          --no-progress `
-          --only-show-errors
-
-        if ($LASTEXITCODE -ne 0) {
-          Write-Output "::error::Failed to download symbol store state files from R2"
-          exit 1
-        }
-
-    - name: Add symbols and upload to R2 with optimistic concurrency
-      shell: pwsh
-      env:
-        SYMBOLS_FOLDER: ${{ inputs.symbolsFolder }}
-        SEARCH_PATTERN: ${{ inputs.searchPattern }}
-        TEMP_ROOT: ${{ steps.prepare-store.outputs.temp-root }}
-        ADMIN_DIR: ${{ steps.prepare-store.outputs.admin-dir }}
-        SWIFT_VERSION: ${{ inputs.swift-version }}
-        ARCH: ${{ inputs.arch }}
-        VARIANT: ${{ inputs.variant }}
-        AWS_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
-        AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
-        AWS_SESSION_TOKEN: ''
-        AWS_SECURITY_TOKEN: ''
-        AWS_REGION: auto
-        AWS_DEFAULT_REGION: auto
-        R2_ENDPOINT_URL: https://${{ inputs.r2-account-id }}.r2.cloudflarestorage.com
-        R2_BUCKET: ${{ inputs.r2-bucket }}
-      run: |
-        # ===================================================================
-        # OPTIMISTIC CONCURRENCY MODEL FOR SYMBOL STORE UPDATES
-        # ===================================================================
-        # This step implements optimistic concurrency control to prevent
-        # corruption when multiple jobs attempt to upload symbols simultaneously.
-        #
-        # How it works:
-        # 1. Use server.txt as a "lock" by tracking its ETag
-        # 2. Download current state (get ETag of server.txt and download admin files)
-        # 3. Add symbols locally using symstore.exe
-        # 4. Attempt to upload server.txt with --if-match using the ETag we captured
-        #    - If successful (ETag matches), no one else modified it - proceed with full upload
-        #    - If failed with PreconditionFailed (412), someone else updated it - retry
-        # 5. Retry up to 5 times with random delay (1-30 seconds) between attempts
-        #
-        # Why we need this:
-        # Without this mechanism, concurrent jobs could:
-        # - Overwrite each other's admin files (history.txt, server.txt, lastid.txt)
-        # - Corrupt the transaction ID sequence
-        # - Create inconsistent symbol store state
-        # ===================================================================
-
-        $SymstoreExe = "${{ steps.check-symstore.outputs.symstore-path }}"
-        if (-not $SymstoreExe) {
-          $SymstoreExe = "${{ steps.install-debugtools.outputs.symstore-path }}"
-        }
-
+        $SymstoreExe = "${{ steps.install-debugtools.outputs.symstore-path }}"
         Write-Output "ℹ️ Using symstore.exe at: $SymstoreExe"
 
         # Build the comment string
@@ -183,6 +117,7 @@ runs:
         if ($env:VARIANT -ne "") {
           $Comment += " - ${env:VARIANT}"
         }
+        $Comment += " - ${env:BUILD_REVISION}"
 
         # Find all PDB files matching the search pattern
         $SymbolsPath = Resolve-Path $env:SYMBOLS_FOLDER
@@ -199,7 +134,18 @@ runs:
         Write-Output "ℹ️ Version: ${env:SWIFT_VERSION}"
         Write-Output "ℹ️ Comment: $Comment"
 
-        # Retry loop with optimistic concurrency
+        # Symstore.exe is ment to manage a local symbolstore or one on a network share. 
+        # Since we are using R2 directelly to write, we need to do some extra steps to manage the state of the store in the face of concurrent writes. 
+        # This step implements optimistic concurrency control to update the symbols store state in R2.
+        # corruption when multiple jobs attempt to upload symbols simultaneously.
+        # How it works:
+        # 1. Use 000Admin/server.txt as a "lock" by tracking its ETag
+        # 2. Download current state (get ETag of 000Admin/server.txt and download admin files)
+        # 3. Add symbols locally using symstore.exe
+        # 4. Attempt to upload 000Admin/server.txt with --if-match using the ETag we captured
+        #    - If successful (ETag matches), no one else modified it - proceed with full upload
+        #    - If failed with PreconditionFailed (412), someone else updated it - retry
+        # 5. Retry up to 5 times with random delay (1-30 seconds) between attempts     
         $MaxRetries = 5
         $Attempt = 0
         $Success = $false
@@ -209,122 +155,107 @@ runs:
           Write-Output ""
           Write-Output "ℹ️ Attempt $Attempt of $MaxRetries..."
 
-          try {
-            # Step 1: Get ETag of server.txt (our "lock")
-            Write-Output "ℹ️ Getting current ETag of server.txt..."
-            $ServerTxtPath = "s3://${env:R2_BUCKET}/symbols/000Admin/server.txt"
+          # Step 1: Get ETag of server.txt (our "lock")
+          Write-Output "ℹ️ Getting current ETag of server.txt..."
+          $ServerTxtPath = "s3://${env:R2_BUCKET}/symbols/000Admin/server.txt"
 
-            $HeadOutput = aws s3api head-object `
-              --bucket "${env:R2_BUCKET}" `
-              --key "symbols/000Admin/server.txt" `
-              --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
+          $HeadOutput = aws s3api head-object `
+            --bucket "${env:R2_BUCKET}" `
+            --key "symbols/000Admin/server.txt" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
 
-            if ($LASTEXITCODE -ne 0) {
-              Write-Output "::error::Failed to get ETag of server.txt"
-              Write-Output $HeadOutput
-              exit 1
-            }
-
-            $HeadJson = $HeadOutput | ConvertFrom-Json
-            $CurrentETag = $HeadJson.ETag
-            Write-Output "✓ Current ETag: $CurrentETag"
-
-            # Step 2: Download admin files
-            Write-Output "ℹ️ Downloading admin files from R2..."
-            $AdminFiles = @("history.txt", "server.txt", "lastid.txt")
-
-            foreach ($file in $AdminFiles) {
-              $s3Path = "s3://${env:R2_BUCKET}/symbols/000Admin/$file"
-              $localPath = Join-Path $env:ADMIN_DIR $file
-
-              aws s3 cp "$s3Path" "$localPath" `
-                --endpoint-url "${env:R2_ENDPOINT_URL}" `
-                --no-progress `
-                --only-show-errors
-
-              if ($LASTEXITCODE -ne 0) {
-                Write-Output "::error::Failed to download $file from R2"
-                exit 1
-              }
-            }
-            Write-Output "✓ Downloaded all admin files"
-
-            # Step 3: Add symbols to local store
-            Write-Output "ℹ️ Adding symbols to local store..."
-            & "$SymstoreExe" add `
-              /r `
-              /f "$SearchPath" `
-              /s "$env:TEMP_ROOT" `
-              /t "Swift-Toolchain" `
-              /v "$env:SWIFT_VERSION" `
-              /c "$Comment" `
-              /compress `
-              /o
-
-            if ($LASTEXITCODE -ne 0) {
-              Write-Output "::error::symstore.exe failed with exit code $LASTEXITCODE"
-              exit 1
-            }
-            Write-Output "✓ Symbols added successfully to local store"
-
-            # Step 4: Try to upload server.txt with ETag condition
-            Write-Output "ℹ️ Attempting conditional upload of server.txt (ETag: $CurrentETag)..."
-            $ServerTxtLocal = Join-Path $env:ADMIN_DIR "server.txt"
-
-            $UploadOutput = aws s3api put-object `
-              --bucket "${env:R2_BUCKET}" `
-              --key "symbols/000Admin/server.txt" `
-              --body "$ServerTxtLocal" `
-              --if-match "$CurrentETag" `
-              --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
-
-            if ($LASTEXITCODE -eq 0) {
-              Write-Output "✓ server.txt uploaded successfully - no concurrent modification detected"
-              $Success = $true
-
-              # Step 5: Upload all other files (we have the "lock")
-              Write-Output "ℹ️ Uploading all symbol store files to R2..."
-
-              aws s3 sync "$env:TEMP_ROOT" "s3://${env:R2_BUCKET}/symbols/" `
-                --endpoint-url "${env:R2_ENDPOINT_URL}" `
-                --no-progress `
-                --acl private
-
-              if ($LASTEXITCODE -ne 0) {
-                Write-Output "::error::Failed to upload symbol store to R2"
-                exit 1
-              }
-
-              Write-Output "✓ Symbol store uploaded successfully to R2"
-            } else {
-              # Check if this is a precondition failed error (412)
-              if ($UploadOutput -match "PreconditionFailed" -or $UploadOutput -match "412") {
-                Write-Output "⚠️ Concurrent modification detected (ETag mismatch) - retrying..."
-
-                if ($Attempt -lt $MaxRetries) {
-                  # Random delay between 1-30 seconds
-                  $Delay = Get-Random -Minimum 1 -Maximum 31
-                  Write-Output "ℹ️ Waiting $Delay seconds before retry..."
-                  Start-Sleep -Seconds $Delay
-                }
-              } else {
-                # Other error - fail immediately
-                Write-Output "::error::Failed to upload server.txt with unexpected error:"
-                Write-Output $UploadOutput
-                exit 1
-              }
-            }
-          } catch {
-            Write-Output "::error::Unexpected error during attempt $Attempt"
-            Write-Output $_.Exception.Message
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::Failed to get ETag of server.txt"
+            Write-Output $HeadOutput
             exit 1
+          }
+
+          $HeadJson = $HeadOutput | ConvertFrom-Json
+          $CurrentETag = $HeadJson.ETag
+          Write-Output "✓ Current ETag: $CurrentETag"
+
+          # Step 2: Download admin files
+          Write-Output "ℹ️ Downloading symbol store state files from R2..."
+          
+          aws s3 cp "s3://${env:R2_BUCKET}/symbols/000Admin" "$AdminDir" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --recursive `
+            --exclude "*" `
+            --include "history.txt" `
+            --include "server.txt" `
+            --include "lastid.txt" `
+            --no-progress `
+            --only-show-errors
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::Failed to download symbol store state files from R2"
+            exit 1
+          }
+
+          # Step 3: Add symbols to local store
+          Write-Output "ℹ️ Adding symbols to local store..."
+          & "$SymstoreExe" add `
+            /r `
+            /f "$SearchPath" `
+            /s "$TempRoot" `
+            /t "Swift-Toolchain" `
+            /v "$env:SWIFT_VERSION" `
+            /c "$Comment" `
+            /o
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::symstore.exe failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+          Write-Output "✓ Symbols added successfully to local store"
+
+          # Step 4: Try to upload server.txt with ETag condition
+          Write-Output "ℹ️ Attempting conditional upload of server.txt (ETag: $CurrentETag)..."
+          $ServerTxtLocal = Join-Path $AdminDir "server.txt"
+
+          $UploadOutput = aws s3api put-object `
+            --bucket "${env:R2_BUCKET}" `
+            --key "symbols/000Admin/server.txt" `
+            --body "$ServerTxtLocal" `
+            --if-match "$CurrentETag" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Output "✓ server.txt uploaded successfully - no concurrent modification detected"
+            $Success = $true
+
+            # Step 5: Upload all other files (we have the "lock")
+            Write-Output "ℹ️ Uploading all symbol store files to R2..."
+
+            aws s3 sync "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
+              --endpoint-url "${env:R2_ENDPOINT_URL}" `
+              --no-progress `
+              --acl private
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Output "::error::Failed to upload symbol store to R2"
+              exit 1
+            }
+            # Success!
+            Write-Output "✓ Symbol store uploaded successfully to R2"
+            exit 0
+          } else {
+            if ($UploadOutput -match "PreconditionFailed" -or $UploadOutput -match "412") {
+              Write-Output "⚠️ Concurrent modification detected (ETag mismatch) - retrying..."
+              if ($Attempt -lt $MaxRetries) {
+                $Delay = Get-Random -Minimum 1 -Maximum 31
+                Write-Output "ℹ️ Waiting $Delay seconds before retry..."
+                Start-Sleep -Seconds $Delay
+              }
+            } else {
+              Write-Output "::error::Failed to upload server.txt with unexpected error:"
+              Write-Output $UploadOutput
+              exit 1
+            }
           }
         }
 
         if (-not $Success) {
-          Write-Output "::error::Failed to upload symbols after $MaxRetries attempts due to concurrent modifications"
+          Write-Output "::error::Failed to upload server.txt after $MaxRetries attempts due to concurrent modifications"
           exit 1
         }
-
-        Write-Output ""
-        Write-Output "✅ Symbol store update completed successfully on attempt $Attempt"
