@@ -944,7 +944,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.compilers_matrix) }}
 
-
     name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.variant }} Toolchain
 
     steps:
@@ -1214,8 +1213,6 @@ jobs:
             Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr/lib/swift/host/compiler"
           }
 
-
-
       - uses: jannekem/run-python-script-action@v1
         with:
           script: |
@@ -1259,14 +1256,6 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
-
-      # TODO(compnerd) this takes ~1h due to the size, see if we can compress first
-      - uses: actions/upload-artifact@v4
-        if: false # ${{ inputs.debug_info }}
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compilers-debug-info
-          path: |
-            ${{ github.workspace }}/BinaryCache/1/**/*.pdb
 
       - name: Upload PDBs to Azure
         uses: microsoft/action-publish-symbols@v2.1.6
@@ -1809,7 +1798,6 @@ jobs:
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stdlib
 
-
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -1983,7 +1971,6 @@ jobs:
       - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
         with:
           cmakeVersion: 3.29.9
-
 
       - name: Download Compilers
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -2159,7 +2146,6 @@ jobs:
             arch: x86_64
             triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
             static: true
-
 
     name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} Experimental SDK
 
@@ -4827,7 +4813,6 @@ jobs:
           name: Windows-amd64-brotli-${{ inputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli/
 
-
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/" -ItemType Directory -Force | Out-Null
 
@@ -5432,7 +5417,6 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include
 
-
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/dispatch ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/os ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/Block ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include/
@@ -5522,7 +5506,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
 
-
   package_python:
     if: inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
@@ -5604,7 +5587,6 @@ jobs:
             ]
           }' | Out-File -FilePath $metadataPath -Encoding utf8
           echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-  
 
       - name: Download and expand Python
         run: |
