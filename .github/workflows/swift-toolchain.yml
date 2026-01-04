@@ -5055,6 +5055,19 @@ jobs:
           azure-sp-credentials: ${{ secrets.AZURE_SP_CREDENTIALS }}
           trusted-signing-account: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
           trusted-signing-prod-profile: ${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}
+    
+      - name: Debug Azure CLI auth
+        if: inputs.signed
+        shell: pwsh
+        run: |
+          Write-Host "az version:"
+          az version || echo "az failed"
+      
+          Write-Host "Current Azure account:"
+          az account show || echo "no account"
+      
+          Write-Host "Try get-access-token:"
+          az account get-access-token --resource=https://vault.azure.net/.default --output json || echo "get-access-token failed: $LASTEXITCODE"
 
       - name: Package Platform
         run: |
