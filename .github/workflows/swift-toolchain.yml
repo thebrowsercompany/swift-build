@@ -1043,6 +1043,9 @@ jobs:
 
       - name: Download and expand Python
         if: inputs.build_os == 'Windows'
+        env:
+          INPUT_PYTHON_DOWNLOAD_LOCATIONS: ${{ inputs.python_download_locations }}
+          INPUT_PYTHON_VERSION: ${{ inputs.python_version }}
         run: |
           function DownloadAndVerify($URL, $Destination, $Hash) {
             New-Item -ItemType Directory (Split-Path -Path $Destination -Parent) -ErrorAction Ignore | Out-Null
@@ -1055,10 +1058,8 @@ jobs:
             }
           }
 
-          $KnownPythons = @"
-          ${{ inputs.python_download_locations }}
-          "@ | ConvertFrom-Json
-          $version = "${{ inputs.python_version }}"
+          $KnownPythons = $env:INPUT_PYTHON_DOWNLOAD_LOCATIONS | ConvertFrom-Json
+          $version = $env:INPUT_PYTHON_VERSION
           $archKey = "${{ matrix.arch }}".ToUpper()
           $pythonInfo = $KnownPythons."$version"."$archKey"
           if ($null -eq $pythonInfo) {
@@ -1082,8 +1083,10 @@ jobs:
 
       - name: Setup context
         id: setup-context
+        env:
+          INPUT_PYTHON_VERSION: ${{ inputs.python_version }}
         run: |
-          $PythonVersion = "${{ inputs.python_version }}"
+          $PythonVersion = $env:INPUT_PYTHON_VERSION
           $PythonMajor = ([System.Version]$PythonVersion).Major
           $PythonMinor = ([System.Version]$PythonVersion).Minor
           if ( "${{ matrix.os }}" -eq "Windows" ) {
@@ -5589,6 +5592,9 @@ jobs:
           echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - name: Download and expand Python
+        env:
+          INPUT_PYTHON_DOWNLOAD_LOCATIONS: ${{ inputs.python_download_locations }}
+          INPUT_PYTHON_VERSION: ${{ inputs.python_version }}
         run: |
           function DownloadAndVerify($URL, $Destination, $Hash) {
             New-Item -ItemType Directory (Split-Path -Path $Destination -Parent) -ErrorAction Ignore | Out-Null
@@ -5601,10 +5607,8 @@ jobs:
             }
           }
 
-          $KnownPythons = @"
-          ${{ inputs.python_download_locations }}
-          "@ | ConvertFrom-Json
-          $version = "${{ inputs.python_version }}"
+          $KnownPythons = $env:INPUT_PYTHON_DOWNLOAD_LOCATIONS | ConvertFrom-Json
+          $version = $env:INPUT_PYTHON_VERSION
           $archKey = "${{ matrix.arch }}".ToUpper()
           $pythonInfo = $KnownPythons."$version"."${archKey}_Embedded"
           if ($null -eq $pythonInfo) {
@@ -5867,15 +5871,19 @@ jobs:
       - name: Generate online installer download URL
         if: ${{ inputs.release }}
         id: generate-base-release-download-subcomponent
+        env:
+          INPUT_SWIFT_TAG: ${{ inputs.swift_tag }}
         run: |
-          $BaseReleaseDownloadUrlSubcomponent = "${{ inputs.swift_tag }}/${{ matrix.arch }}/${{ github.run_id }}"
+          $BaseReleaseDownloadUrlSubcomponent = "${env:INPUT_SWIFT_TAG}/${{ matrix.arch }}/${{ github.run_id }}"
           echo "url_subcomponent=$BaseReleaseDownloadUrlSubcomponent" >> $env:GITHUB_OUTPUT
 
       - name: Build installer bundle (online)
         if: ${{ inputs.release }}
+        env:
+          INPUT_BUILD_ANDROID: ${{ inputs.build_android }}
         run: |
           $Platforms=@("windows")
-          if ("${{ inputs.build_android }}" -eq "true") {
+          if ($env:INPUT_BUILD_ANDROID -eq "true") {
             $Platforms=@("android") + $Platforms
           }
           $BaseReleaseDownloadUrl = "https://swift-toolchain.thebrowserco.com/${{ steps.generate-base-release-download-subcomponent.outputs.url_subcomponent }}"

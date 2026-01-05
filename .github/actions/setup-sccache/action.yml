@@ -27,13 +27,18 @@ runs:
   steps:
     - name: Configure caching enviornment
       shell: pwsh
+      env:
+        INPUT_AWS_ARN: ${{ inputs.aws-arn }}
+        INPUT_S3_BUCKET: ${{ inputs.s3-bucket }}
+        INPUT_S3_BUCKET_ENCRYPTION: ${{ inputs.s3-bucket-encryption }}
+        INPUT_AWS_REGION: ${{ inputs.aws-region }}
       run: |
-        $AWSArn = '${{ inputs.aws-arn }}'
+        $AWSArn = $env:INPUT_AWS_ARN
         if ($AWSArn) {
           $requiredParams = @{
-              's3-bucket' = '${{ inputs.s3-bucket }}'
-              's3-bucket-encryption' = '${{ inputs.s3-bucket-encryption }}'
-              'aws-region' = '${{ inputs.aws-region }}'
+              's3-bucket' = $env:INPUT_S3_BUCKET
+              's3-bucket-encryption' = $env:INPUT_S3_BUCKET_ENCRYPTION
+              'aws-region' = $env:INPUT_AWS_REGION
           }
 
           foreach ($param in $requiredParams.GetEnumerator()) {
@@ -42,10 +47,10 @@ runs:
               }
           }
 
-          Write-Host "Using S3 bucket ${{ inputs.s3-bucket }} for cache storage."
-          "SCCACHE_BUCKET=${{ inputs.s3-bucket }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "SCCACHE_REGION=${{ inputs.aws-region }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "SCCACHE_S3_SERVER_SIDE_ENCRYPTION=${{ inputs.s3-bucket-encryption }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Using S3 bucket $env:INPUT_S3_BUCKET for cache storage."
+          "SCCACHE_BUCKET=$env:INPUT_S3_BUCKET" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SCCACHE_REGION=$env:INPUT_AWS_REGION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SCCACHE_S3_SERVER_SIDE_ENCRYPTION=$env:INPUT_S3_BUCKET_ENCRYPTION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         } else {
           Write-Host "Using local disk cache."
           "SCCACHE_DIRECT=on" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
