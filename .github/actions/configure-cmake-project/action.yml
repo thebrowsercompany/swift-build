@@ -87,30 +87,45 @@ runs:
   steps:
     - name: Configure ${{ inputs.project-name }}
       shell: pwsh
+      env:
+        INPUT_PROJECT_NAME: ${{ inputs.project-name }}
+        INPUT_SWIFT_VERSION: ${{ inputs.swift-version }}
+        INPUT_BUILD_OS: ${{ inputs.build-os }}
+        INPUT_BUILD_ARCH: ${{ inputs.build-arch }}
+        INPUT_OS: ${{ inputs.os }}
+        INPUT_ARCH: ${{ inputs.arch }}
+        INPUT_SRC_DIR: ${{ inputs.src-dir }}
+        INPUT_BIN_DIR: ${{ inputs.bin-dir }}
+        INPUT_INSTALL_DIR: ${{ inputs.install-dir }}
+        INPUT_ANDROID_API_LEVEL: ${{ inputs.android-api-level }}
+        INPUT_ANDROID_CLANG_VERSION: ${{ inputs.android-clang-version }}
+        INPUT_NDK_PATH: ${{ inputs.ndk-path }}
+        INPUT_SWIFT_SDK_PATH: ${{ inputs.swift-sdk-path }}
+        INPUT_CACHE_SCRIPT: ${{ inputs.cache-script }}
       run: |
         Remove-Item env:\SDKROOT -ErrorAction SilentlyContinue
         $ExeSuffix = if ($IsWindows) { ".exe" } else { "" }
 
-        $ProjectName = '${{ inputs.project-name }}'
-        $SwiftVersion = '${{ inputs.swift-version }}'
+        $ProjectName = $env:INPUT_PROJECT_NAME
+        $SwiftVersion = $env:INPUT_SWIFT_VERSION
         $EnableCaching = ${{ inputs.enable-caching == 'true' && '$True' || '$False' }}
         $DebugInfo = ${{ inputs.debug-info == 'true' && '$True' || '$False' }}
-        $BuildOS = '${{ inputs.build-os }}'
-        $BuildArch = '${{ inputs.build-arch }}'
-        $OS = '${{ inputs.os }}'
-        $Arch = '${{ inputs.arch }}'
-        $SrcDir = '${{ inputs.src-dir }}'
-        $BinDir = '${{ inputs.bin-dir }}'
-        $InstallDir = '${{ inputs.install-dir }}'
-        $AndroidAPILevel = '${{ inputs.android-api-level }}'
-        $AndroidClangVersion = '${{ inputs.android-clang-version }}'
-        $NDKPath = '${{ inputs.ndk-path }}'
-        $SwiftSDK = '${{ inputs.swift-sdk-path }}'
+        $BuildOS = $env:INPUT_BUILD_OS
+        $BuildArch = $env:INPUT_BUILD_ARCH
+        $OS = $env:INPUT_OS
+        $Arch = $env:INPUT_ARCH
+        $SrcDir = $env:INPUT_SRC_DIR
+        $BinDir = $env:INPUT_BIN_DIR
+        $InstallDir = $env:INPUT_INSTALL_DIR
+        $AndroidAPILevel = $env:INPUT_ANDROID_API_LEVEL
+        $AndroidClangVersion = $env:INPUT_ANDROID_CLANG_VERSION
+        $NDKPath = $env:INPUT_NDK_PATH
+        $SwiftSDK = $env:INPUT_SWIFT_SDK_PATH
         $UseMSVCCompilers = ${{ inputs.msvc-compilers }}
         $UseBuiltCompilers = ${{ inputs.built-compilers }}
         $UsePinnedCompilers = ${{ inputs.pinned-compilers }}
         $UseGNUDriver = ${{ inputs.use-gnu-driver == 'true' && '$True' || '$False' }}
-        $CacheScript = '${{ inputs.cache-script }}'
+        $CacheScript = $env:INPUT_CACHE_SCRIPT
         $CMakeDefines = ${{ inputs.cmake-defines }}
 
         function Add-KeyValueIfNew([hashtable]$Hashtable, [string]$Key, [string]$Value) {
