@@ -260,6 +260,13 @@ on:
         default: false
         type: boolean
 
+      python_version:
+        required: true
+        type: string
+      python_download_locations:
+        required: true
+        type: string
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -655,6 +662,11 @@ jobs:
           key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-build_tools
           variant: sccache
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
       - name: Configure Tools
         run: |
           $LLVM_EXTERNAL_SWIFT_SOURCE_DIR = cygpath -m ${{ github.workspace }}/SourceCache/swift
@@ -842,15 +854,6 @@ jobs:
   compilers:
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
-
-    env:
-      # This will grab the latest Python 3.9 version available for setup-python. It is necessary to
-      # specify in this manner for Mac where actions/setup-python does not have version 3.9.10.
-      # Once the Python version is upgraded to 3.12, these should be kept in sync.
-      PYTHON_VERSION_MACOS: 3.9
-      # Must be a full version string from https://www.nuget.org/packages/pythonarm64
-      PYTHON_VERSION_WINDOWS: 3.9.10
-
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.host_matrix) }}
@@ -906,48 +909,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
 
-      - name: Install Python ${{ env.PYTHON_VERSION_MACOS }} (Host)
-        if: matrix.os == 'Darwin'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '${{ env.PYTHON_VERSION_MACOS }}'
-
-      - name: Install Python ${{ env.PYTHON_VERSION_WINDOWS }} (Host)
-        if: matrix.os == 'Windows' && (matrix.arch == 'amd64' || inputs.build_arch == 'amd64')
-        uses: actions/setup-python@v5
-        id: python
-        with:
-          python-version: '${{ env.PYTHON_VERSION_WINDOWS }}'
-          architecture: x64
-
-      - uses: nuget/setup-nuget@v2
-        if: inputs.build_os == 'Windows' && (matrix.arch == 'arm64' || inputs.build_arch == 'arm64')
-
-      # TODO(lxbndr) use actions/cache to improve this step timings
-      - name: Install Python ${{ env.PYTHON_VERSION_WINDOWS }} (Windows arm64)
-        if: inputs.build_os == 'Windows' && (matrix.arch == 'arm64' || inputs.build_arch == 'arm64')
-        run: |
-          $NugetSources=[string](nuget Sources List -Format short)
-          if (-Not ($NugetSources.contains("api.nuget.org"))) {
-            nuget sources Add -Name api.nuget.org -Source https://api.nuget.org/v3/index.json -NonInteractive
-          }
-          nuget install pythonarm64 -Version ${{ env.PYTHON_VERSION_WINDOWS }}
-
-      - name: Export Python Location (Windows)
-        if: inputs.build_os == 'Windows'
-        run: |
-          echo "PYTHON_LOCATION_amd64=$env:pythonLocation" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "PYTHON_LOCATION_arm64=${{ github.workspace }}\pythonarm64.${{ env.PYTHON_VERSION_WINDOWS }}\tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557 # main
-        with:
-          host_arch: ${{ inputs.build_arch }}
-          components: 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64;Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-          arch: ${{ matrix.arch }}
-
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Install Swift Toolchain
         if: inputs.build_os == 'Windows'
         uses: compnerd/gha-setup-swift@6c9f2db7c3155c57fe35f160bcd5cf5859b9c1ba # main
@@ -989,6 +950,51 @@ jobs:
           key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-compilers
           variant: sccache
 
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - name: Download and expand Python
+        if: inputs.build_os == 'Windows'
+        run: |
+          function DownloadAndVerify($URL, $Destination, $Hash) {
+            New-Item -ItemType Directory (Split-Path -Path $Destination -Parent) -ErrorAction Ignore | Out-Null
+            $WebClient = New-Object Net.WebClient
+            $WebClient.DownloadFile($URL, $Destination)
+            $ExpectedHash = $Hash.ToUpperInvariant()
+            $SHA256 = (Get-FileHash -Path $Destination -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($SHA256 -ne $ExpectedHash) {
+              throw "SHA256 mismatch ($SHA256 vs $Hash) for $URL"
+            }
+          }
+
+          $KnownPythons = @"
+          ${{ inputs.python_download_locations }}
+          "@ | ConvertFrom-Json
+          $version = "${{ inputs.python_version }}"
+          $archKey = "${{ matrix.arch }}".ToUpper()
+          $pythonInfo = $KnownPythons."$version"."$archKey"
+          if ($null -eq $pythonInfo) {
+            throw "No python download info for version $version and architecture $archKey"
+          }
+          Write-Host "Downloading Python $version for $archKey"
+
+          # Download the Python package
+          $packagePath = "${{ github.workspace }}\BinaryCache\Python-$archKey-$version.zip"
+          DownloadAndVerify -URL $pythonInfo.URL -Destination $packagePath -Hash $pythonInfo.SHA256
+          Write-Host "Downloaded Python $version for $archKey to $packagePath"
+  
+          # Extract the Python package
+          $extractRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Python-$archKey-$version"
+          New-Item -ItemType Directory -Path $extractRoot -ErrorAction Ignore | Out-Null
+          Expand-Archive -Path $packagePath -DestinationPath $extractRoot -Force
+          Write-Host "Extracted Python $version for $archKey to $extractRoot"
+
+          # Export Python Location
+          echo "PYTHON_LOCATION=$extractRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Setup context
         id: setup-context
         run: |
@@ -996,6 +1002,9 @@ jobs:
           $SwiftFlags = ""
           $ExtraFlags = "${{ matrix.extra_flags }}"
 
+          $PythonVersion = "${{ inputs.python_version }}"
+          $PythonMajor = ([System.Version]$PythonVersion).Major
+          $PythonMinor = ([System.Version]$PythonVersion).Minor
           if ( "${{ matrix.os }}" -eq "Windows" ) {
             # Use toolchain clang to avoid broken __prefetch intrinsic on arm64 in Clang 18.
             # TODO: Use llvm-19 when available. See https://github.com/compnerd/swift-build/issues/846
@@ -1010,8 +1019,8 @@ jobs:
             $CxxFlags += " -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
             $SwiftFlags += " -Xcc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
 
-            $LIBPYTHON_PATH = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/libs/python39.lib"
-            $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION_${{ matrix.arch }}}/include"
+            $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
+            $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
             $PYTHON_BINARY="python.exe"
 
             Remove-Item env:\SDKROOT
@@ -1027,9 +1036,9 @@ jobs:
 
             # TODO: Use early-swift-driver on Windows too.
             $ExtraFlags += " -D SWIFT_EARLY_SWIFT_DRIVER_BUILD=${{ github.workspace }}/BinaryCache/swift-driver/bin"
-            $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python3.9/config-3.9-darwin/libpython3.9.a"
-            $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python3.9"
-            $PYTHON_BINARY="python3"
+            $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python${PythonMajor}.${PythonMinor}/config-${PythonMajor}.${PythonMinor}-darwin/libpython${PythonMajor}.${PythonMinor}.a"
+            $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python${PythonMajor}.${PythonMinor}"
+            $PYTHON_BINARY="python${PythonMajor}"
           }
 
           $SwiftFlags += " -sdk `"${SDKROOT}`""
@@ -1046,6 +1055,7 @@ jobs:
           libpython_path=${LIBPYTHON_PATH}
           python_include_dir=${PYTHON_INCLUDE_DIR}
           python_binary=${PYTHON_BINARY}
+          python_executable=${PYTHON_EXECUTABLE}
           sdkroot=${SDKROOT}
           "@
           Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -1140,7 +1150,8 @@ jobs:
             Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/lib/swift/host/compiler"
           }
 
-      - uses: actions/setup-python@v5
+
+
       - uses: jannekem/run-python-script-action@v1
         with:
           script: |
@@ -1651,6 +1662,11 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - name: Configure LLVM
         if: matrix.os != 'Android' || inputs.build_android
@@ -2439,6 +2455,10 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/libdispatch --target install
 
       - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
       - uses: jannekem/run-python-script-action@v1
         if: matrix.os != 'Android' || inputs.build_android
         with:
@@ -3983,10 +4003,160 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
 
+
+  package_python:
+    if: inputs.build_os == 'Windows'
+    name: Package Embedded Python runtime
+    needs: [configure_signing]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
+  
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ inputs.swift_installer_scripts_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+          show-progress: false
+
+      - run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil.exe -decode $CertificatePath $PFXPath
+          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+
+      - name: Install WixToolset.Sdk
+        run: |
+          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
+            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
+          }
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
+
+      - uses: actions/download-artifact@v4
+        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
+        with:
+          name: trusted-signing-dll
+          path: ${{ runner.temp }}/trusted-signing-dll
+
+      - name: Prepare trusted signing arguments
+        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
+        run: |
+          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
+          # TODO: Update with more info once we've filed a bug against Microsoft.
+          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
+          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
+          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
+          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
+          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
+          '{
+            "Endpoint": "https://eus.codesigning.azure.net",
+            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
+            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
+            "ExcludeCredentials": [
+              "ManagedIdentityCredential",
+              "WorkloadIdentityCredential",
+              "SharedTokenCacheCredential",
+              "VisualStudioCredential",
+              "VisualStudioCodeCredential",
+              "EnvironmentCredential",
+              "AzurePowerShellCredential",
+              "AzureDeveloperCliCredential",
+              "InteractiveBrowserCredential"
+            ]
+          }' | Out-File -FilePath $metadataPath -Encoding utf8
+          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+  
+
+      - name: Download and expand Python
+        run: |
+          function DownloadAndVerify($URL, $Destination, $Hash) {
+            New-Item -ItemType Directory (Split-Path -Path $Destination -Parent) -ErrorAction Ignore | Out-Null
+            $WebClient = New-Object Net.WebClient
+            $WebClient.DownloadFile($URL, $Destination)
+            $ExpectedHash = $Hash.ToUpperInvariant()
+            $SHA256 = (Get-FileHash -Path $Destination -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($SHA256 -ne $ExpectedHash) {
+              throw "SHA256 mismatch ($SHA256 vs $Hash) for $URL"
+            }
+          }
+
+          $KnownPythons = @"
+          ${{ inputs.python_download_locations }}
+          "@ | ConvertFrom-Json
+          $version = "${{ inputs.python_version }}"
+          $archKey = "${{ matrix.arch }}".ToUpper()
+          $pythonInfo = $KnownPythons."$version"."${archKey}_Embedded"
+          if ($null -eq $pythonInfo) {
+            throw "No python download info for version $version and architecture $archKey"
+          }
+          Write-Host "Downloading Python $version for $archKey"
+
+          # Download the Python package
+          $packagePath = "${{ github.workspace }}\BinaryCache\Python-$archKey-$version.zip"
+          DownloadAndVerify -URL $pythonInfo.URL -Destination $packagePath -Hash $pythonInfo.SHA256
+          Write-Host "Downloaded Python $version for $archKey to $packagePath"
+  
+          # Extract the Python package
+          $extractRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Python-$version"
+          New-Item -ItemType Directory -Path $extractRoot -ErrorAction Ignore | Out-Null
+          Expand-Archive -Path $packagePath -DestinationPath $extractRoot -Force
+          Write-Host "Extracted Python $version for $archKey to $extractRoot"
+
+      - name: Package Python
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignToolPath=${env:SIGNTOOL_PATH} `
+              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
+              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:PythonVersion=${{ inputs.python_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/python/python.wixproj
+
+      - if: ${{ inputs.release }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-python-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
+
   installer:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
-    needs: [package_tools, package_windows_platform, package_android_platform]
+    needs: [package_tools, package_windows_platform, package_android_platform, package_python]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -4009,6 +4179,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-ide-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-python-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
       - uses: actions/download-artifact@v4
