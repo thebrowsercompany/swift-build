@@ -254,6 +254,17 @@ jobs:
       - id: context
         name: Generate Build Context
         env:
+          INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
+          INPUT_REPO_URL: ${{ inputs.repo_url }}
+          INPUT_SWIFT_TAG: ${{ inputs.swift_tag }}
+          INPUT_DEBUG_INFO: ${{ inputs.debug_info }}
+          INPUT_SIGNED: ${{ inputs.signed }}
+          INPUT_WINDOWS_X64_DEFAULT_RUNNER: ${{ inputs.windows_x64_default_runner }}
+          INPUT_WINDOWS_X64_COMPILERS_RUNNER: ${{ inputs.windows_x64_compilers_runner }}
+          INPUT_WINDOWS_ARM64_DEFAULT_RUNNER: ${{ inputs.windows_arm64_default_runner }}
+          INPUT_WINDOWS_ARM64_COMPILERS_RUNNER: ${{ inputs.windows_arm64_compilers_runner }}
+          INPUT_WINDOWS_BUILD_ARCH: ${{ inputs.windows_build_arch }}
+          INPUT_ANDROID_API_LEVEL: ${{ inputs.android_api_level }}
           PYTHON_DOWNLOAD_LOCATIONS: >-
             {
               "3.9.10": {
@@ -291,51 +302,51 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 install -yq repo libxml2-utils
 
           # Which branch is this workflow based on
-          branch_version_string=${{ inputs.swift_version || '0.0.0' }}
+          branch_version_string="${INPUT_SWIFT_VERSION}"
           if [[ $branch_version_string == *.* ]]; then
             branch_name=$(echo ${branch_version_string} | awk -F. '{ ver=$1"."$2; print (ver == "0.0") ? "main" : "release/"ver }')
           else
             branch_name="release/$branch_version_string"
           fi
 
-          repo init --quiet --groups default --depth 1 -u ${{ inputs.repo_url }} -b $branch_name
+          repo init --quiet --groups default --depth 1 -u "${INPUT_REPO_URL}" -b "$branch_name"
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
-          if [[ "${{ inputs.swift_tag }}" != "" ]] ; then
+          if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
             tee -a "${GITHUB_OUTPUT}" <<-EOF
-          indexstore_db_revision=refs/tags/${{ inputs.swift_tag }}
-          llvm_project_revision=refs/tags/${{ inputs.swift_tag }}
+          indexstore_db_revision=refs/tags/${INPUT_SWIFT_TAG}
+          llvm_project_revision=refs/tags/${INPUT_SWIFT_TAG}
           mimalloc_revision=refs/tags/v3.0.1
-          sourcekit_lsp_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_revision=refs/tags/${{ inputs.swift_tag }}
+          sourcekit_lsp_revision=refs/tags/${INPUT_SWIFT_TAG}
+          swift_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_argument_parser_revision=refs/tags/1.4.0
           swift_asn1_revision=refs/tags/1.0.0
           swift_atomics_revision=refs/tags/1.2.0
           swift_build_revision=refs/heads/main
           swift_certificates_revision=refs/tags/1.0.1
-          swift_cmark_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_cmark_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_collections_revision=refs/tags/1.1.3
-          swift_corelibs_foundation_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_corelibs_libdispatch_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_corelibs_xctest_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_corelibs_foundation_revision=refs/tags/${INPUT_SWIFT_TAG}
+          swift_corelibs_libdispatch_revision=refs/tags/${INPUT_SWIFT_TAG}
+          swift_corelibs_xctest_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_crypto_revision=refs/tags/3.12.5
-          swift_driver_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_experimental_string_processing_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_driver_revision=refs/tags/${INPUT_SWIFT_TAG}
+          swift_experimental_string_processing_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_format_revision=refs/heads/main
           swift_foundation_revison=refs/heads/main
           swift_foundation_icu_revision=refs/heads/main
           swift_installer_scripts_revision=refs/heads/main
-          swift_llbuild_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_llbuild_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_lmdb_revision=refs/heads/main
-          swift_markdown_revision=refs/tags/${{ inputs.swift_tag }}
-          swift_package_manager_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_markdown_revision=refs/tags/${INPUT_SWIFT_TAG}
+          swift_package_manager_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_subprocess_revision=refs/heads/main
-          swift_syntax_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_syntax_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_system_revision=refs/tags/1.3.0
           swift_testing_revision=refs/heads/main
           swift_toolchain_sqlite_revision=refs/tags/1.0.1
           swift_tools_protocols_revision=refs/tags/0.0.9
-          swift_tools_support_core_revision=refs/tags/${{ inputs.swift_tag }}
+          swift_tools_support_core_revision=refs/tags/${INPUT_SWIFT_TAG}
           curl_revision=refs/tags/curl-8_9_1
           ds2_revision=refs/tags/nightly-2024-11-07
           libxml2_revision=refs/tags/v2.11.5
@@ -363,21 +374,21 @@ jobs:
 
           # FIXME(z2oh): Remove /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR when GitHub runner image updates to 20240610.1.
           #  see: https://github.com/actions/runner-images/issues/10004
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.debug_info }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "schedule" || "${INPUT_DEBUG_INFO}" == "true" ]]; then
             echo debug_info=true >> ${GITHUB_OUTPUT}
           else
             echo debug_info=false >> ${GITHUB_OUTPUT}
           fi
 
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ inputs.signed }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "schedule" || "${INPUT_SIGNED}" == "true" ]]; then
             echo signed=true >> ${GITHUB_OUTPUT}
           else
             echo signed=false >> ${GITHUB_OUTPUT}
           fi
 
-          echo swift_version=${{ inputs.swift_version || '0.0.0' }} | tee -a ${GITHUB_OUTPUT}
-          if [[ -n "${{ inputs.swift_tag }}" ]] ; then
-            echo swift_tag=${{ inputs.swift_tag }} | tee -a ${GITHUB_OUTPUT}
+          echo "swift_version=${INPUT_SWIFT_VERSION}" | tee -a ${GITHUB_OUTPUT}
+          if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
+            echo "swift_tag=${INPUT_SWIFT_TAG}" | tee -a ${GITHUB_OUTPUT}
           else
             if [[ "$branch_name" == "main" ]] ; then
               echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
@@ -386,11 +397,11 @@ jobs:
             fi
           fi
 
-          echo windows_x64_build_runner=${{ inputs.windows_x64_default_runner || vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo windows_x64_compilers_runner=${{ inputs.windows_x64_compilers_runner || inputs.windows_x64_default_runner || vars.WINDOWS_X64_COMPILERS_BUILD_RUNNER || vars.WINDOWS_X64_DEFAULT_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo windows_arm64_build_runner=${{ inputs.windows_arm64_default_runner || vars.WINDOWS_ARM64_DEFAULT_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          echo windows_arm64_compilers_runner=${{ inputs.windows_arm64_compilers_runner || inputs.windows_arm64_default_runner || vars.WINDOWS_ARM64_COMPILERS_BUILD_RUNNER || vars.WINDOWS_ARM64_DEFAULT_BUILD_RUNNER || 'windows-latest' }} >> ${GITHUB_OUTPUT}
-          if [[ "${{ inputs.windows_build_arch }}" == "arm64" ]] ; then
+          echo "windows_x64_build_runner=${INPUT_WINDOWS_X64_DEFAULT_RUNNER:-${{ vars.WINDOWS_BUILD_RUNNER || 'windows-latest' }}}" >> ${GITHUB_OUTPUT}
+          echo "windows_x64_compilers_runner=${INPUT_WINDOWS_X64_COMPILERS_RUNNER:-${INPUT_WINDOWS_X64_DEFAULT_RUNNER:-${{ vars.WINDOWS_X64_COMPILERS_BUILD_RUNNER || vars.WINDOWS_X64_DEFAULT_BUILD_RUNNER || 'windows-latest' }}}}" >> ${GITHUB_OUTPUT}
+          echo "windows_arm64_build_runner=${INPUT_WINDOWS_ARM64_DEFAULT_RUNNER:-${{ vars.WINDOWS_ARM64_DEFAULT_BUILD_RUNNER || 'windows-latest' }}}" >> ${GITHUB_OUTPUT}
+          echo "windows_arm64_compilers_runner=${INPUT_WINDOWS_ARM64_COMPILERS_RUNNER:-${INPUT_WINDOWS_ARM64_DEFAULT_RUNNER:-${{ vars.WINDOWS_ARM64_COMPILERS_BUILD_RUNNER || vars.WINDOWS_ARM64_DEFAULT_BUILD_RUNNER || 'windows-latest' }}}}" >> ${GITHUB_OUTPUT}
+          if [[ "${INPUT_WINDOWS_BUILD_ARCH}" == "arm64" ]] ; then
             echo windows_build_arch=arm64 >> ${GITHUB_OUTPUT}
             echo windows_build_cpu=arm64 >> ${GITHUB_OUTPUT}
           else
@@ -401,7 +412,7 @@ jobs:
           # TODO: Make the mac runner configurable.
           echo mac_build_runner=macos-latest >> ${GITHUB_OUTPUT}
 
-          echo ANDROID_API_LEVEL=${{ inputs.android_api_level }} >> ${GITHUB_OUTPUT}
+          echo "ANDROID_API_LEVEL=${INPUT_ANDROID_API_LEVEL}" >> ${GITHUB_OUTPUT}
           echo ANDROID_NDK_VERSION=r27c >> ${GITHUB_OUTPUT}
           echo ANDROID_CLANG_VERSION=18 >> ${GITHUB_OUTPUT}
 
@@ -421,6 +432,7 @@ jobs:
       - name: Setup matrix
         id: setup-matrix
         env:
+          INPUT_ANDROID_API_LEVEL: ${{ inputs.android_api_level }}
           WINDOWS_X64_HOST_MATRIX: >-
             {
               "include": [
@@ -496,25 +508,25 @@ jobs:
                   "arch": "arm64",
                   "cpu": "aarch64",
                   "os": "Android",
-                  "triple": "aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}"
+                  "triple": "aarch64-unknown-linux-android__ANDROID_API_LEVEL__"
                 },
                 {
                   "arch": "armv7",
                   "cpu": "armv7",
                   "os": "Android",
-                  "triple": "armv7-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}"
+                  "triple": "armv7-unknown-linux-androideabi__ANDROID_API_LEVEL__"
                 },
                 {
                   "arch": "i686",
                   "cpu": "i686",
                   "os": "Android",
-                  "triple": "i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}"
+                  "triple": "i686-unknown-linux-android__ANDROID_API_LEVEL__"
                 },
                 {
                   "arch": "x86_64",
                   "cpu": "x86_64",
                   "os": "Android",
-                  "triple": "x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}"
+                  "triple": "x86_64-unknown-linux-android__ANDROID_API_LEVEL__"
                 }
               ]
             }
@@ -585,6 +597,9 @@ jobs:
               ]
             }
         run: |
+          # Substitute the Android API level placeholder in the target matrix
+          WINDOWS_X64_TARGET_MATRIX="${WINDOWS_X64_TARGET_MATRIX//__ANDROID_API_LEVEL__/${INPUT_ANDROID_API_LEVEL}}"
+
           create_compilers_matrix() {
             local host_matrix=$1
             jq -n --argjson host_matrix "${host_matrix}" '
@@ -801,12 +816,14 @@ jobs:
         with:
           name: stable.xml
 
-      - run: |
+      - env:
+          SWIFT_TAG: ${{ needs.context.outputs.swift_tag }}
+        run: |
           git config --global user.name 'github-action[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           if ! git diff --exit-code ; then
             git add stable.xml
-            git commit -m "repo: update stable revision snapshot ${{ needs.context.outputs.swift_tag }}"
+            git commit -m "repo: update stable revision snapshot ${SWIFT_TAG}"
             git push origin HEAD:main
           fi
 
@@ -838,19 +855,23 @@ jobs:
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
+          SWIFT_TAG: ${{ needs.context.outputs.swift_tag }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKSPACE: ${{ github.workspace }}
         run: |
           function upload_installer() {
             local input_file=$1
             local output_name=$2
 
             mv "${input_file}" "${output_name}"
-            gh release upload ${{ needs.context.outputs.swift_tag }} "${output_name}" -R ${{ github.repository }}
+            gh release upload "${SWIFT_TAG}" "${output_name}" -R "${GITHUB_REPOSITORY}"
 
             shasum -a 256 "${output_name}" > "${output_name}.sha256"
-            gh release upload ${{ needs.context.outputs.swift_tag }} "${output_name}.sha256" -R ${{ github.repository }}
+            gh release upload "${SWIFT_TAG}" "${output_name}.sha256" -R "${GITHUB_REPOSITORY}"
           }
 
-          branch_version_string=${{ inputs.swift_version || '0.0.0' }}
+          branch_version_string="${INPUT_SWIFT_VERSION}"
           if [[ $branch_version_string == "0.0.0" ]]; then
             latest="true"
           else
@@ -858,13 +879,13 @@ jobs:
           fi
 
           # Create Release
-          gh release create ${{ needs.context.outputs.swift_tag }} -R ${{ github.repository }} --latest=${latest}
+          gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
 
           # Upload all installer variants
-          upload_installer "${{ github.workspace }}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
-          upload_installer "${{ github.workspace }}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
-          upload_installer "${{ github.workspace }}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
-          upload_installer "${{ github.workspace }}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
+          upload_installer "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
+          upload_installer "${WORKSPACE}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
+          upload_installer "${WORKSPACE}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
+          upload_installer "${WORKSPACE}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
 
   binary-size:
     needs: [context, release]

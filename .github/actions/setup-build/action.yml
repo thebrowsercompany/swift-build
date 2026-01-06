@@ -48,6 +48,12 @@ runs:
     - name: Sanitize input
       id: sanitize-input
       shell: pwsh
+      env:
+        INPUT_MSVC_VERSION: ${{ inputs.msvc-version }}
+        INPUT_SETUP_VS_DEV_ENV: ${{ inputs.setup-vs-dev-env }}
+        INPUT_HOST_ARCH: ${{ inputs.host-arch }}
+        INPUT_SWIFT_VERSION: ${{ inputs.swift-version }}
+        INPUT_SWIFT_REPO: ${{ inputs.swift-repo }}
       run: |
         if ($IsWindows) {
           $BuildOS = "windows"
@@ -72,7 +78,7 @@ runs:
         # If specified, it is expected to have a format "major.minor", without the build and
         # revision numbers. When a value such as "14.42" is parsed as a `System.Version`, the build
         # and revision numbers in that object are set to -1.
-        $MSVCVersion = "${{ inputs.msvc-version }}"
+        $MSVCVersion = $env:INPUT_MSVC_VERSION
         if ($MSVCVersion -ne "") {
           $ParsedMSVCVersion = [System.Version]::Parse($MSVCVersion)
           if ($ParsedMSVCVersion -eq $null) {
@@ -93,14 +99,14 @@ runs:
           }
         }
 
-        if ("${{ inputs.setup-vs-dev-env }}" -eq "true") {
-          switch ("${{ inputs.host-arch }}") {
+        if ($env:INPUT_SETUP_VS_DEV_ENV -eq "true") {
+          switch ($env:INPUT_HOST_ARCH) {
             "x86" { $HostArch = "x86" }
             "amd64" { $HostArch = "amd64" }
             "arm64" { $HostArch = "arm64" }
             "" { $HostArch = $BuildArch }
             default {
-              Write-Output "::error::Unsupported host architecture: `"${{ inputs.host-arch }}`""
+              Write-Output "::error::Unsupported host architecture: `"$($env:INPUT_HOST_ARCH)`""
               exit 1
             }
           }
@@ -108,8 +114,8 @@ runs:
           $HostArch = $BuildArch
         }
 
-        ${SwiftVersion} = "${{ inputs.swift-version }}"
-        ${SwiftRepo} = "${{ inputs.swift-repo }}"
+        ${SwiftVersion} = $env:INPUT_SWIFT_VERSION
+        ${SwiftRepo} = $env:INPUT_SWIFT_REPO
         if ($SwiftRepo -ne "" -and $SwiftVersion -eq "") {
           Write-Output "::error::The `swift-repo` input was specified, but the `swift-version` input was not. Please specify a Swift toolchain version to use."
           exit 1
@@ -147,8 +153,10 @@ runs:
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.windows-sdk-version != ''
       id: setup-windows-sdk
       shell: pwsh
+      env:
+        INPUT_WINDOWS_SDK_VERSION: ${{ inputs.windows-sdk-version }}
       run: |
-        $WinSdkVersionString = "${{ inputs.windows-sdk-version }}"
+        $WinSdkVersionString = $env:INPUT_WINDOWS_SDK_VERSION
         $WinSdkVersion = [System.Version]::Parse($WinSdkVersionString)
         $WinSdkVersionBuild = $WinSdkVersion.Build
 
@@ -219,11 +227,13 @@ runs:
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.msvc-version != ''
       id: setup-msvc
       shell: pwsh
+      env:
+        INPUT_MSVC_VERSION: ${{ inputs.msvc-version }}
       run: |
         # This is assuming a VS2022 toolchain. e.g.
         # MSVC 14.42 corresponds to the 14.42.17.12 package.
         # MSVC 14.43 corresponds to the 14.43.17.13 package.
-        $MSVCVersionString = "${{ inputs.msvc-version }}"
+        $MSVCVersionString = $env:INPUT_MSVC_VERSION
 
         $InstallerLocation = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio" "Installer"
         $VSWhere = Join-Path "${InstallerLocation}" "VSWhere.exe"
