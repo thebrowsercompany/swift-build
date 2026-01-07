@@ -4265,7 +4265,6 @@ jobs:
   package_python:
     if: inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
-    needs: [configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -4289,60 +4288,11 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      - run: |
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil.exe -decode $CertificatePath $PFXPath
-          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
-
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
-
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - name: Download and expand Python
         run: |
@@ -4395,13 +4345,6 @@ jobs:
               -p:PythonVersion=${{ inputs.python_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/python/python.wixproj
-
-      - if: ${{ inputs.release }}
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
 
       - uses: actions/upload-artifact@v4
         with:
