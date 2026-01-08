@@ -295,11 +295,7 @@ on:
         required: false
 
 env:
-  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.1.2
-
-  # Workaround to build the early swift-driver without the workaround for the MSVC version.
-  WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_REPO: thebrowsercompany/swift-build
-  WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_VERSION: 6.2.0-20250630.0
+  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: DEVELOPMENT-SNAPSHOT-2025-12-01-a
 
 defaults:
   run:
@@ -859,8 +855,7 @@ jobs:
         id: setup-build
         with:
           host-arch: ${{ matrix.arch }}
-          swift-version: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_VERSION || env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-          swift-repo: ${{ inputs.build_os == 'Windows' && env.WORKAROUND_WINDOWS_EARLY_SWIFT_DRIVER_TOOLCHAIN_REPO || '' }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -1154,6 +1149,7 @@ jobs:
               'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/0/bin";
               'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}";
               'CLANG_TIDY_CONFUSABLE_CHARS_GEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'LibXml2_DIR' = "${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
               'LLDB_LIBXML2_VERSION' = "${{ inputs.libxml2_version }}";
               'LLDB_PYTHON_EXE_RELATIVE_PATH' = "${{ steps.setup-context.outputs.python-binary }}";

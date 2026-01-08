@@ -128,8 +128,15 @@ runs:
         # Derive the Swift version and repository from the inputs.
         if ($SwiftVersion -ne "") {
           if ($SwiftRepo -eq "") {
-            $SwiftBranch = "swift-${SwiftVersion}-release"
-            $SwiftTag = "${SwiftVersion}-RELEASE"
+            if ($SwiftVersion.StartsWith("DEVELOPMENT-SNAPSHOT-")) {
+              # Development snapshot version.
+              $SwiftBranch = "development"
+              $SwiftTag = "${SwiftVersion}"
+            } else {
+              # Release version.
+              $SwiftBranch = "swift-${SwiftVersion}-release"
+              $SwiftTag = "${SwiftVersion}-RELEASE"
+            }
             Write-Output "ℹ️ Using upstream Swift toolchain: $SwiftVersion (branch: $SwiftBranch, tag: $SwiftTag)"
           } else {
             # Note: This only supports Windows for now.
