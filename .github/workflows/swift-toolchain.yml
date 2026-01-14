@@ -4078,6 +4078,28 @@ jobs:
       - name: Install swift-docc
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc --target install
 
+      - name: Copy build outputs to the NoAsserts layout
+        run: |
+          $AssertToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
+          $NoAssertToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+NoAsserts"
+          # Use robocopy for robust recursive copying with optimizations
+          #   /E : Copy subdirectories, including empty ones
+          #   /XC: Exclude existing files with same timestamp but different file sizes
+          #   /XN: Exclude newer destination files
+          #   /XO: Exclude older destination files
+          #   /NFL: Do not list files
+          #   /NDL: Do not list directories
+          #   /NJH: No job header
+          #   /NC: No class
+          #   /NS: No size
+          #   /NP: No progress
+          $exitCode = &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
+          if ($LastExitCode -gt 8) {
+            Write-Error "robocopy failed with exit code $LastExitCode"
+            exit $LastExitCode
+          }
+          exit 0
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-devtools
