@@ -117,10 +117,7 @@ runs:
           Write-Output "::warning::No PDB files found matching pattern: ${env:SEARCH_PATTERN} in ${env:SYMBOLS_FOLDER}"
           exit 0
         }
-
         Write-Output "ℹ️ Found $($PdbFiles.Count) PDB file(s) to add to symbol store"
-        $Product = "Swift-Toolchain - $env:ARCH" + ($(if ($env:VARIANT) { " ($env:VARIANT)" } else { "" }))
-        $Comment = "$env:BUILD_REVISION"
 
         # Symstore.exe is ment to manage a local symbolstore or one on a network share. 
         # Since we are using R2 directelly to write, we need to do some extra steps to manage the state of the store in the face of concurrent writes. 
@@ -170,7 +167,7 @@ runs:
 
           # 3. Add symbols
           Write-Output "ℹ️ Adding symbols to local store..."
-          & "$SymstoreExe" add /r /o /f "$SearchPath" /s "$TempRoot" /t "Swift-Toolchain" /v "$env:SWIFT_VERSION" /c "$Comment"
+          & "$SymstoreExe" add /r /o /f "$SearchPath" /s "$TempRoot" /t "Swift-Toolchain" /v "$env:SWIFT_VERSION" /c "$env:BUILD_REVISION"
           if ($LASTEXITCODE) { Write-Output "::error::symstore.exe failed ($LASTEXITCODE)"; exit 1 }
           Write-Output "✓ Symbols added successfully"
 
@@ -186,7 +183,7 @@ runs:
 
           if (!$LASTEXITCODE) {
             Write-Output "✓ server.txt uploaded successfully (no concurrent modification)"
-            
+
             # 5. Upload remaining store files
             Write-Output "ℹ️ Uploading all symbol store files to R2..."
             aws s3 sync "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
