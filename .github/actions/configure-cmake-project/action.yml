@@ -1,5 +1,24 @@
 name: Configure CMake Project
-description: Configure a CMake project using the specified build type and configuration.
+description: |
+  Configure a CMake project using the specified build type and configuration.
+  This is meant to mimic what the `Build-CMakeProject` cmdlet does in the Swift
+  repository, in `utils\build.ps1`. As far as possible, we use the same code as
+  in `build.ps1` to configure the project. However, because the environments
+  differ, there are some differences.
+  Most of these differences are documented inline, in comments that start with
+  `# Note: On GHA, ...`. Here is an overview of the differences:
+    - This action only configures the project, it does not build it. The Build
+      step is expected to be done in a separate step.
+    - This action does not modify the environment. Notably, the `SDKROOT` and
+      `NDKPATH` environment variables are not set as these are set up by other
+      steps in the `swift-toolchain` workflow.
+    - The only Debug information format supported on Windows is `codeview`,
+      `dwarf` is not supported.
+    - On Android, we build with `-gsplit-dwarf` for debug information.
+      This is not supported by `sccache`, so caching is disabled when building
+      for Android.
+    - The pinned Swift toolchain is assumed to already be in the PATH on GHA.
+      This is configured by the `setup-build` action.
 
 inputs:
   project-name:
@@ -142,6 +161,8 @@ runs:
           }
         }
 
+        # Note: On GHA, we do not use the `$Platform` variable as in `build.ps1` so these values
+        # have to be computed directly here.
         $CMakeArch = switch ($OS) {
           'Windows' {
             switch ($Arch) {
@@ -215,7 +236,7 @@ runs:
               $ASM = if ($UseBuiltCompilers.Contains("ASM")) {
                 "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/${Driver}"
               } elseif ($UsePinnedCompilers.Contains("ASM")) {
-                # The pinned toolchain is already in the path.
+                # Note: On GHA, the pinned toolchain is already in the path.
                 $Driver
               }
 
@@ -224,6 +245,7 @@ runs:
               Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
 
               if ($DebugInfo) {
+                # Note: On GHA, we do not support the "dwarf" format.
                 $ASMDebugFlags = if ($UseGNUDriver) { @("-gcodeview") } else { @("-clang:-gcodeview") }
 
                 # CMake does not set a default value for the ASM compiler debug
@@ -252,7 +274,7 @@ runs:
                 if ($UseBuiltCompilers.Contains("C")) {
                   "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/${Driver}"
                 } elseif ($UsePinnedCompilers.Contains("C")) {
-                  # The pinned toolchain is already in the path.
+                  # Note: On GHA, the pinned toolchain is already in the path.
                   $Driver
                 }
               }
@@ -270,6 +292,11 @@ runs:
                 @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
               }
 
+              # Note: On GHA, we do not support CAS yet.
+              # if ($EnableCAS) { ... }
+              # Note: On GHA, we do not support the "dwarf" format.
+              # if ($CDebugFormat -eq "dwarf") { ... }
+
               Add-FlagsDefine $Defines CMAKE_C_FLAGS $CFLAGS
             }
 
@@ -281,7 +308,7 @@ runs:
                 if ($UseBuiltCompilers.Contains("CXX")) {
                   "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/${Driver}"
                 } elseif ($UsePinnedCompilers.Contains("CXX")) {
-                  # The pinned toolchain is already in the path.
+                  # Note: On GHA, the pinned toolchain is already in the path.
                   $Driver
                 }
               }
@@ -299,6 +326,11 @@ runs:
                 @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
               }
 
+              # Note: On GHA, we do not support CAS yet.
+              # if ($EnableCAS) { ... }
+              # Note: On GHA, we do not support the "dwarf" format.
+              # if ($CDebugFormat -eq "dwarf") { ... }
+
               Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFLAGS
             }
 
@@ -310,19 +342,23 @@ runs:
               $SWIFTC = if ($UseBuiltCompilers.Contains("Swift")) {
                 "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
               } elseif ($UsePinnedCompilers.Contains("Swift")) {
+                # Note: On GHA, the pinned toolchain is already in the path.
                 "swiftc.exe"
               }
 
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER $SWIFTC
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_TARGET $Triple
 
-              [string[]] $SwiftFlags = if ($SwiftSDK) {
+              [string[]] $SwiftFlags = @();
+
+              $SwiftFlags += if ($SwiftSDK) {
                 @("-sdk", $SwiftSDK)
               } else {
                 @()
               }
 
               $SwiftFlags += if ($DebugInfo) {
+                # Note: On GHA, we do not support the "dwarf" format.
                 @("-g", "-debug-info-format=codeview", "-Xlinker", "/DEBUG")
               } else {
                 @("-gnone")
@@ -360,6 +396,8 @@ runs:
                   @("/DEBUG")
                 }
 
+                # Note: On GHA, we do not support the "dwarf" format.
+                # if ($SwiftDebugFormat -eq "dwarf") { ... }
               }
             }
 
@@ -368,6 +406,8 @@ runs:
           }
 
           'Android' {
+            # Note: On GHA, we do not use the `$Platform` variable as in `build.ps1` so these values
+            # have to be computed directly here.
             $AndroidArchABI = switch ($Arch) {
               'i686' { "x86" }
               'x86_64' { "x86_64" }
@@ -396,6 +436,7 @@ runs:
 
               $CFLAGS = @("--sysroot=${AndroidSysroot}", "-ffunction-sections", "-fdata-sections")
               if ($DebugInfo) {
+                # Note: On GHA, we build Android with `-gsplit-dwarf`.
                 $CFLAGS += @("-g", "-gsplit-dwarf")
               }
               Add-FlagsDefine $Defines CMAKE_C_FLAGS $CFLAGS
@@ -406,6 +447,7 @@ runs:
 
               $CXXFLAGS = @("--sysroot=${AndroidSysroot}", "-ffunction-sections", "-fdata-sections")
               if ($DebugInfo) {
+                # Note: On GHA, we build Android with `-gsplit-dwarf`.
                 $CXXFLAGS += @("-g", "-gsplit-dwarf")
               }
               Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFLAGS
@@ -422,13 +464,15 @@ runs:
               $SWIFTC = if ($UseBuiltCompilers.Contains("Swift")) {
                 "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
               } else {
-                # The pinned toolchain is already in the path.
+                # Note: On GHA, the pinned toolchain is already in the path.
                 "swiftc.exe"
               }
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER $SWIFTC
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_TARGET $Triple
 
-              $SwiftFlags = if ($SwiftSDK) {
+              [string[]] $SwiftFlags = @()
+
+              $SwiftFlags += if ($SwiftSDK) {
                 @("-sdk", $SwiftSDK, "-sysroot", $AndroidSysroot)
               } else {
                 @()
@@ -469,7 +513,7 @@ runs:
           }
         }
 
-        # TODO(steelskin): sccache does not work with "-gsplit-dwarf".
+        # Note: On GHA, we build Android with `-gsplit-dwarf`, which is not supported by sccache.
         if ($EnableCaching -and $OS -ne "Android") {
           if ($UseC) {
             Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER "sccache"
@@ -521,6 +565,8 @@ runs:
           $cmakeGenerateArgs += @("-D", "$($Define.Key)=$Value")
         }
 
+        # Note: On GHA, we do a "pretty-print" of the cmake command for
+        # debugging purposes and call cmake directly.
         Write-Host "ℹ️ Configuring project ${ProjectName}:"
         Write-Host 'cmake `'
         for ($i = 0; $i -lt $cmakeGenerateArgs.Length; $i += 1) {
