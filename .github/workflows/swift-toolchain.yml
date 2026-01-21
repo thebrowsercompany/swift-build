@@ -2413,7 +2413,53 @@ jobs:
       - name: Build Experimental Overlay
         if: matrix.os != 'Android' || inputs.build_android
         run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay
+          $objDir = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/clang/CMakeFiles/swift_Builtin_float.dir"
+          Write-Host "=== Before build ==="
+          if (Test-Path $objDir) {
+            Get-ChildItem $objDir -Recurse | Format-Table Name, Length, LastWriteTime
+          } else {
+            Write-Host "Object dir doesn't exist yet: $objDir"
+          }
+
+          Write-Host "=== Running cmake --build with verbose ==="
+          $env:VERBOSE = "1"
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay -- -v 2>&1 | Tee-Object -FilePath build_overlay.log
+          $buildExitCode = $LASTEXITCODE
+          Write-Host "=== Build exit code: $buildExitCode ==="
+
+          Write-Host "=== After build ==="
+          if (Test-Path $objDir) {
+            Get-ChildItem $objDir -Recurse | Format-Table Name, Length, LastWriteTime
+          } else {
+            Write-Host "Object dir still doesn't exist: $objDir"
+          }
+
+          Write-Host "=== Last 200 lines of build log ==="
+          Get-Content build_overlay.log -Tail 200
+
+          if ($buildExitCode -ne 0) {
+            Write-Host "Build failed with exit code $buildExitCode"
+            exit $buildExitCode
+          }
+      - name: Check for crash dumps (Windows)
+        if: (matrix.os == 'Windows' || matrix.os == 'Windows11') && (failure() || success())
+        run: |
+          $crashDir = "$env:LOCALAPPDATA\CrashDumps"
+          Write-Host "=== Checking for crash dumps in $crashDir ==="
+          if (Test-Path $crashDir) {
+            $dumps = Get-ChildItem $crashDir -Filter "*.dmp" -ErrorAction SilentlyContinue
+            if ($dumps) {
+              Write-Host "Found crash dumps:"
+              $dumps | Format-Table Name, Length, LastWriteTime
+              foreach ($dump in $dumps) {
+                Write-Host "=== Crash dump: $($dump.Name) ==="
+              }
+            } else {
+              Write-Host "No crash dumps found"
+            }
+          } else {
+            Write-Host "CrashDumps directory doesn't exist"
+          }
       - name: Install Experimental Overlay
         if: matrix.os != 'Android' || inputs.build_android
         run: |
