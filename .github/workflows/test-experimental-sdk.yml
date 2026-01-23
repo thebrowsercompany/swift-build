@@ -1,0 +1,595 @@
+name: Test Experimental SDK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  experimental-sdk:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Windows
+            arch: amd64
+            triple: x86_64-unknown-windows-msvc
+            static: true
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} Experimental SDK
+
+    env:
+      # Build configuration
+      BUILD_OS: Windows
+      BUILD_ARCH: amd64
+      SWIFT_VERSION: '6.3.0'
+      DEBUG_INFO: 'true'
+      PYTHON_VERSION: '3.10.1'
+      # Library versions
+      LIBXML2_VERSION: '2.11.5'
+      CURL_VERSION: '8.9.1'
+      ZLIB_VERSION: '1.3'
+      BROTLI_VERSION: '1.1.0'
+      # Repository revisions from run 21299596048
+      SWIFT_REVISION: '1843c1e5d847d82823cf1a02bebafdb4c8229947'
+      LLVM_PROJECT_REVISION: '729313f61db343f0acea2d5a59033ff0162d5b70'
+      SWIFT_COLLECTIONS_REVISION: 'c11818f3cae0780656baa430b49e7f163f08dffd'
+      SWIFT_CORELIBS_LIBDISPATCH_REVISION: 'ac3302ce7f18aee7c9325ff96ccfd9d0b055686a'
+      SWIFT_CORELIBS_FOUNDATION_REVISION: '23d8f2167f379e60055bf4594bf4689baa39bef7'
+      SWIFT_FOUNDATION_REVISION: 'be3a507df352b61edcc0591bd378b31e2bba16fa'
+      SWIFT_FOUNDATION_ICU_REVISION: '2e2854eee567589ed44c5f3c85c7343e6d91978d'
+      SWIFT_EXPERIMENTAL_STRING_PROCESSING_REVISION: 'efe8986824694c53fd5e94a4c634f20b3682baeb'
+      # Artifact source run
+      ARTIFACT_RUN_ID: '21299596048'
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
+          host-arch: ${{ matrix.arch }}
+      # FIXME(compnerd): workaround CMake 3.30+ issue
+      - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
+        with:
+          cmakeVersion: 3.29.9
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: x64
+
+      - name: Compute workspace hash
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 500M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ env.LIBXML2_VERSION }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ env.LIBXML2_VERSION }}/usr
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ env.CURL_VERSION }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ env.CURL_VERSION }}/usr
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ env.ZLIB_VERSION }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ env.ZLIB_VERSION }}/usr
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ env.BROTLI_VERSION }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ env.BROTLI_VERSION }}/usr
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+
+      - name: Download Compilers
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BUILD_OS }}-${{ env.BUILD_ARCH }}-Asserts-compilers
+          path: ${{ github.workspace }}/BinaryCache/compilers-tar
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+      - name: Extract Compilers
+        run: |
+          tar -xf ${{ github.workspace }}/BinaryCache/compilers-tar/*.tar -C ${{ github.workspace }}/BinaryCache/Library
+          Remove-Item -Recurse -Force ${{ github.workspace }}/BinaryCache/compilers-tar
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BUILD_OS }}-${{ env.BUILD_ARCH }}-macros
+          path: ${{ github.workspace }}/BinaryCache/Library
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+      - name: Download target stdlib
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
+          path: ${{ github.workspace }}/BinaryCache/target-stdlib-tar
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+      - name: Extract target stdlib
+        run: |
+          tar -xf ${{ github.workspace }}/BinaryCache/target-stdlib-tar/*.tar -C ${{ github.workspace }}/BinaryCache/Library
+          Remove-Item -Recurse -Force ${{ github.workspace }}/BinaryCache/target-stdlib-tar
+      - name: Download host stdlib
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BUILD_OS }}-${{ env.BUILD_ARCH }}-stdlib
+          path: ${{ github.workspace }}/BinaryCache/host-stdlib-tar
+          github-token: ${{ github.token }}
+          run-id: ${{ env.ARTIFACT_RUN_ID }}
+      - name: Extract host stdlib
+        run: |
+          tar -xf ${{ github.workspace }}/BinaryCache/host-stdlib-tar/*.tar -C ${{ github.workspace }}/BinaryCache/Library
+          Remove-Item -Recurse -Force ${{ github.workspace }}/BinaryCache/host-stdlib-tar
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift
+          ref: ${{ env.SWIFT_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/llvm-project
+          ref: ${{ env.LLVM_PROJECT_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-collections
+          ref: ${{ env.SWIFT_COLLECTIONS_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-corelibs-libdispatch
+          ref: ${{ env.SWIFT_CORELIBS_LIBDISPATCH_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-corelibs-foundation
+          ref: ${{ env.SWIFT_CORELIBS_FOUNDATION_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-foundation
+          ref: ${{ env.SWIFT_FOUNDATION_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-foundation-icu
+          ref: ${{ env.SWIFT_FOUNDATION_ICU_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ env.SWIFT_EXPERIMENTAL_STRING_PROCESSING_REVISION }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+          show-progress: false
+
+      - name: Setup environment
+        run: |
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run Resync
+        run: |
+          cd ${{ github.workspace }}/SourceCache/swift/Runtimes
+          cmake -P Resync.cmake
+
+      - name: Configure Dispatch (C parts only)
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: libdispatch-c
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          bin-dir: ${{ github.workspace }}/BinaryCache/libdispatch-c
+          built-compilers: '@("C", "CXX")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'BUILD_TESTING' = "NO";
+              'ENABLE_SWIFT' = "NO";
+            }
+      - name: Build Dispatch (C parts only)
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/libdispatch-c
+
+      - name: Configure Experimental Runtime
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalRuntime
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Core
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalRuntime
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch-c/cmake/modules";
+              'SwiftCore_ENABLE_CONCURRENCY' = "YES";
+              'SwiftCore_ENABLE_REMOTE_MIRROR' = "YES";
+              'SwiftCore_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Experimental Runtime
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalRuntime
+      - name: Install Experimental Runtime
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalRuntime --target install
+
+      - name: Configure Experimental Overlay
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalOverlay
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Overlay
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalOverlay
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
+               'SwiftOverlay_ENABLE_CXX_INTEROP' = "YES";
+            }
+      - name: Build Experimental Overlay
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay
+      - name: Install Experimental Overlay
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay --target install
+
+      - name: Configure Experimental String Processing
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalStringProcessing
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StringProcessing
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalStringProcessing
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftStringProcessing_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Experimental String Processing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalStringProcessing
+      - name: Install Experimental String Processing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalStringProcessing --target install
+
+      - name: Configure Experimental Synchronization
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalSynchronization
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Synchronization
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalSynchronization
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+               'SwiftSynchronization_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Experimental Synchronization
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalSynchronization
+      - name: Install Experimental Synchronization
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalSynchronization --target install
+
+      - name: Configure Experimental Distributed
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalDistributed
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Distributed
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalDistributed
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/ExperimentalRuntime/include";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+               'SwiftDistributed_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Experimental Distributed
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalDistributed
+      - name: Install Experimental Distributed
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalDistributed --target install
+
+      - name: Configure Experimental Observation
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalObservation
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Observation
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalObservation
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/ExperimentalRuntime/include"
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+               'SwiftObservation_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Experimental Observation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalObservation
+      - name: Install Experimental Observation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalObservation --target install
+
+      - name: Configure Experimental Volatile
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalVolatile
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Volatile
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalVolatile
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+               'SwiftVolatile_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Experimental Volatile
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalVolatile
+      - name: Install Experimental Volatile
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalVolatile --target install
+
+      - name: Configure Experimental Differentiation
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalDifferentiation
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Differentiation
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalDifferentiation
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+               'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+               'SwiftDifferentiation_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Experimental Differentiation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalDifferentiation
+      - name: Install Experimental Differentiation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalDifferentiation --target install
+
+      - name: Configure Experimental Dispatch
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalDispatch
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalDispatch
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("C", "CXX", "Swift")'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
+               CMAKE_FIND_PACKAGE_PREFER_CONFIG = "${{ matrix.static && 'NO' || 'YES' }}";
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'ENABLE_SWIFT' = "YES";
+              }
+      - name: Build Experimental Dispatch
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalDispatch
+      - name: Install Experimental Dispatch
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalDispatch --target install
+
+      - name: Configure Experimental Foundation
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalFoundation
+          swift-version: ${{ env.SWIFT_VERSION }}
+          enable-caching: true
+          debug-info: ${{ env.DEBUG_INFO }}
+          build-os: ${{ env.BUILD_OS }}
+          build-arch: ${{ env.BUILD_ARCH }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalFoundation
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          built-compilers: '@("ASM","C", "CXX", "Swift")'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+              'CMAKE_NINJA_FORCE_RESPONSE_FILE' = "YES";
+              'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'ENABLE_TESTING' = "NO";
+              'FOUNDATION_BUILD_TOOLS' = "${{ matrix.static && matrix.os == 'Windows' && 'YES' || 'NO' }}";
+              'CURL_DIR' = "${{ github.workspace }}/BuildRoot/Library/curl-${{ env.CURL_VERSION }}/usr/lib/cmake/CURL";
+              'LibXml2_DIR' = "${{ github.workspace }}/BuildRoot/Library/libxml2-${{ env.LIBXML2_VERSION }}/usr/lib/cmake/libxml2-${{ env.LIBXML2_VERSION }}";
+              'ZLIB_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ env.ZLIB_VERSION }}/usr/include";
+              'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ env.ZLIB_VERSION }}/usr/lib/${{ matrix.os == 'Windows' && 'zlibstatic.lib' || 'libz.a' }}";
+              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalDispatch/cmake/modules";
+              '_SwiftFoundation_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation";
+              '_SwiftFoundationICU_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation-icu";
+              '_SwiftCollections_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-collections";
+              'SwiftFoundation_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ env.SWIFT_VERSION }}+Asserts/usr/bin";
+            }
+      - name: Build Experimental Foundation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalFoundation
+      - name: Install Experimental Foundation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalFoundation --target install
+
+      - uses: actions/setup-python@v5
+      - uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            import os
+            import plistlib
+
+            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Info.plist'
+            with open(os.path.normpath(info_plist), 'wb') as plist:
+              # TODO(compnerd) derive this from the install directory
+              plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ env.SWIFT_VERSION }}', 'TESTING_VERSION': '${{ env.SWIFT_VERSION }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
+
+            sdk_settings_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/SDKSettings.plist'
+            with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
+              # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
+              # runtime.
+              plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
+
+      - name: Create SDKSettings.json
+        run: |
+          $SDKSettings = @{
+            CanonicalName = "${{ matrix.triple }}"
+            DisplayName = "${{ matrix.os }}"
+            IsBaseSDK = "NO"
+            Version = "${{ env.SWIFT_VERSION }}"
+            VersionMap = @{}
+            DefaultProperties = @{
+              PLATFORM_NAME = "${{ matrix.os }}"
+              DEFAULT_COMPILER = [string]::Format(".org.compnerd.dt.toolchain.{0}.{1}-asserts", (Get-Date -Format "yyyymmdd"), ((Get-Date).Hour % 6))
+            }
+          }
+          if ("${{ matrix.os }}" -eq "Windows") {
+            $SDKSettings.DefaultProperties.DEFAULT_USE_RUNTIME = "MD"
+          }
+          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk" -Force | Out-Null
+          $SDKSettings | ConvertTo-JSON | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/SDKSettings.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
