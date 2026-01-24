@@ -8,6 +8,10 @@ on:
     paths:
       - '.github/workflows/test-experimental-sdk.yml'
 
+permissions:
+  id-token: write
+  attestations: write
+
 jobs:
   experimental-sdk:
     runs-on: windows-latest
@@ -79,9 +83,9 @@ jobs:
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
         with:
-          # s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          # aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          # aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
 
