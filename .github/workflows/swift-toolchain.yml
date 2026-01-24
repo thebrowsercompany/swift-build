@@ -2126,42 +2126,42 @@ jobs:
             arch: amd64
             triple: x86_64-unknown-windows-msvc
             static: true
-          - os: Windows
-            arch: amd64
-            triple: x86_64-unknown-windows-msvc
-            static: false
-          - os: Windows
-            arch: arm64
-            triple: aarch64-unknown-windows-msvc
-            static: true
-          - os: Windows
-            arch: arm64
-            triple: aarch64-unknown-windows-msvc
-            static: false
-          - os: Windows
-            arch: x86
-            triple: i686-unknown-windows-msvc
-            static: true
-          - os: Windows
-            arch: x86
-            triple: i686-unknown-windows-msvc
-            static: false
-          - os: Android
-            arch: arm64
-            triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
-          - os: Android
-            arch: armv7
-            triple: 'armv7-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
-          - os: Android
-            arch: i686
-            triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
-          - os: Android
-            arch: x86_64
-            triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
+          # - os: Windows
+          #   arch: amd64
+          #   triple: x86_64-unknown-windows-msvc
+          #   static: false
+          # - os: Windows
+          #   arch: arm64
+          #   triple: aarch64-unknown-windows-msvc
+          #   static: true
+          # - os: Windows
+          #   arch: arm64
+          #   triple: aarch64-unknown-windows-msvc
+          #   static: false
+          # - os: Windows
+          #   arch: x86
+          #   triple: i686-unknown-windows-msvc
+          #   static: true
+          # - os: Windows
+          #   arch: x86
+          #   triple: i686-unknown-windows-msvc
+          #   static: false
+          # - os: Android
+          #   arch: arm64
+          #   triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+          #   static: true
+          # - os: Android
+          #   arch: armv7
+          #   triple: 'armv7-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
+          #   static: true
+          # - os: Android
+          #   arch: i686
+          #   triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+          #   static: true
+          # - os: Android
+          #   arch: x86_64
+          #   triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+          #   static: true
 
 
     name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} Experimental SDK
@@ -2441,8 +2441,12 @@ jobs:
       - name: Build Experimental Overlay
         if: matrix.os != 'Android' || inputs.build_android
         run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay  --verbose
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay --verbose
+          $cmake_exit = $LASTEXITCODE
           sccache --show-stats
+          Get-ChildItem -Recurse .
+          type clang\CMakeFiles\swift_Builtin_float.dir\Release\output-file-map.json
+          exit $cmake_exit
         env:
           SCCACHE_LOG: trace
           SCCACHE_RECACHE: "1"
