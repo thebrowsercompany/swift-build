@@ -2103,7 +2103,7 @@ jobs:
 
   experimental-sdk:
     if: inputs.build_os == 'Windows'
-    needs: [compilers, stdlib, macros]
+    #needs: [compilers, stdlib, macros]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2201,43 +2201,51 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+          run-id: 21309215901
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
+          run-id: 21309215901
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+          run-id: 21309215901
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+          run-id: 21309215901
 
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        uses: thebrowsercompany/gha-download-tar-artifact@a3face786250a6087d9991bd4a9a4627dd766e54 # main
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-Asserts-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
+          run-id: 21309215901
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-macros
           path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+          run-id: 21309215901
+      - uses: thebrowsercompany/gha-download-tar-artifact@a3face786250a6087d9991bd4a9a4627dd766e54 # main
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+          run-id: 21309215901
+      - uses: thebrowsercompany/gha-download-tar-artifact@a3face786250a6087d9991bd4a9a4627dd766e54 # main
         if: matrix.os != 'Android' || inputs.build_android
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
+          run-id: 21309215901
 
       - uses: actions/checkout@v4.2.2
         if: matrix.os != 'Android' || inputs.build_android
@@ -2413,8 +2421,10 @@ jobs:
       - name: Build Experimental Overlay
         if: matrix.os != 'Android' || inputs.build_android
         run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalOverlay  --verbose
+          sccache --show-stats
         env:
+          SCCACHE_LOG: trace
           SCCACHE_RECACHE: "1"
       - name: Install Experimental Overlay
         if: matrix.os != 'Android' || inputs.build_android
