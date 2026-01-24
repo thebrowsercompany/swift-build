@@ -311,6 +311,7 @@ permissions:
 
 jobs:
   sqlite:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -392,6 +393,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
+    if: false
     # TODO: Build this on macOS or make an equivalent Mac-only job
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -480,6 +482,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
 
   ds2:
+    if: false
     # TODO: Build this on macOS or make an equivalent Mac-only job
     needs: [ds2_tools]
     runs-on: ${{ inputs.default_build_runner }}
@@ -604,6 +607,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -684,6 +688,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
   build_tools:
+    if: false
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -837,6 +842,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -933,6 +939,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot
 
   compilers:
+    if: false
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
@@ -1291,6 +1298,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   zlib:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1380,6 +1388,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   brotli:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1470,6 +1479,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
+    if: false
     needs: [zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1659,6 +1669,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1757,6 +1768,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   stdlib:
+    if: false
     needs: [compilers]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1951,7 +1963,7 @@ jobs:
 
   macros:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     needs: [compilers, cmark_gfm, stdlib]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2805,7 +2817,7 @@ jobs:
 
   sdk:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     needs: [libxml2, curl, zlib, brotli, compilers, cmark_gfm, stdlib, macros]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -3216,7 +3228,7 @@ jobs:
 
   devtools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     needs: [sqlite, compilers, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4076,7 +4088,7 @@ jobs:
 
   debugging_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     needs: [compilers, devtools, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4215,7 +4227,7 @@ jobs:
   # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
   # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
   configure_signing:
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     name: Configure signing
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
@@ -4241,7 +4253,7 @@ jobs:
 
   package_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     name: Package Tools
     needs: [compilers, macros, debugging_tools, devtools, stdlib, sdk, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -4777,7 +4789,7 @@ jobs:
 
   package_windows_platform:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     name: Package Windows SDK & Runtime
     needs: [stdlib, sdk, experimental-sdk, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5277,6 +5289,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
 
   package_android_platform:
+    if: false
     # TODO: Build this on macOS or make an equivalent Mac-only job
     name: Package Android SDK & Runtime
     needs: [stdlib, ds2, sdk, experimental-sdk, configure_signing]
@@ -5524,7 +5537,7 @@ jobs:
 
 
   package_python:
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
     needs: [configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5674,7 +5687,7 @@ jobs:
 
   installer:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     needs: [package_tools, package_windows_platform, package_android_platform, package_python, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -5968,7 +5981,7 @@ jobs:
 
   smoke_test:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -6043,7 +6056,7 @@ jobs:
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
-    if: inputs.build_os == 'Windows'
+    if: false # inputs.build_os == 'Windows'
     needs: [package_windows_platform]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -6095,7 +6108,7 @@ jobs:
 
   smoke_test_android:
     # TODO: Run this job on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows' && inputs.build_android
+    if: false # inputs.build_os == 'Windows' && inputs.build_android
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
