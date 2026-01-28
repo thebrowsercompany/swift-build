@@ -62,9 +62,15 @@ on:
 
   workflow_call:
     inputs:
+      # Source/Repository Configuration
       repo_url:
         description: 'Repo Manifest URL'
         default: 'https://github.com/compnerd/swift-build'
+        required: false
+        type: string
+
+      ci_build_branch:
+        description: 'Branch to use for ci-build repository checkout. If not provided, will be derived from event type and swift_version'
         required: false
         type: string
 
@@ -74,16 +80,34 @@ on:
         required: false
         type: string
 
+      swift_tag:
+        description: 'Swift Build Tag'
+        required: false
+        type: string
+
+      # Build Configuration
+      windows_build_arch:
+        description: 'Windows build architecture'
+        required: false
+        type: string
+
+      build_android:
+        description: 'Build Android SDK'
+        required: false
+        default: false
+        type: boolean
+
       android_api_level:
         description: 'Android API Level'
         default: 28
         required: false
         type: number
 
-      swift_tag:
-        description: 'Swift Build Tag'
+      use_host_toolchain:
+        description: 'Use host toolchain (MSVC) instead of clang-cl/lld-link'
+        type: boolean
+        default: true
         required: false
-        type: string
 
       debug_info:
         description: 'Emit PDBs (Debug Info)'
@@ -107,13 +131,9 @@ on:
         default: true
         required: false
 
+      # Infrastructure/Runners
       windows_x64_default_runner:
         description: 'X64 Build runner'
-        required: false
-        type: string
-
-      windows_arm64_default_runner:
-        description: 'ARM64 Build runner'
         required: false
         type: string
 
@@ -122,27 +142,15 @@ on:
         required: false
         type: string
 
+      windows_arm64_default_runner:
+        description: 'ARM64 Build runner'
+        required: false
+        type: string
+
       windows_arm64_compilers_runner:
         description: 'ARM64 Build runner for `compilers` job'
         required: false
         type: string
-
-      windows_build_arch:
-        description: 'Windows build architecture'
-        required: false
-        type: string
-
-      build_android:
-        description: 'Build Android SDK'
-        required: false
-        default: false
-        type: boolean
-
-      use_host_toolchain:
-        description: 'Use host toolchain (MSVC) instead of clang-cl/lld-link'
-        type: boolean
-        default: true
-        required: false
 
     secrets:
       SYMBOL_SERVER_PAT:
@@ -219,6 +227,7 @@ jobs:
       swift_tools_support_core_revision: ${{ steps.context.outputs.swift_tools_support_core_revision }}
       zlib_revision: ${{ steps.context.outputs.zlib_revision }}
       zlib_version: ${{ steps.context.outputs.zlib_version }}
+      ci_build_revision: ${{ steps.context.outputs.ci_build_revision }}
       ANDROID_API_LEVEL: ${{ steps.context.outputs.ANDROID_API_LEVEL }}
       ANDROID_CLANG_VERSION: ${{ steps.context.outputs.ANDROID_CLANG_VERSION }}
       ANDROID_NDK_VERSION: ${{ steps.context.outputs.ANDROID_NDK_VERSION }}
@@ -293,6 +302,26 @@ jobs:
             branch_name=$(echo ${branch_version_string} | awk -F. '{ ver=$1"."$2; print (ver == "0.0") ? "main" : "release/"ver }')
           else
             branch_name="release/$branch_version_string"
+          fi
+
+          # Determine which branch to use for ci-build (this repository's actions).
+          #
+          # Priority order:
+          # 1. If ci_build_branch input is provided, use it (allows caller to explicitly specify)
+          # 2. For workflow_dispatch (Web UI), use github.ref (allows testing on feature branches)
+          # 3. Otherwise, derive from swift_version (e.g., swift_version=6.3 -> release/6.3)
+          #
+          # Examples:
+          #   - workflow_call with ci_build_branch=refs/heads/foo/6.3 -> refs/heads/foo/6.3
+          #   - workflow_dispatch on branch/feature -> refs/heads/branch/feature
+          #   - schedule with swift_version=6.3 -> refs/heads/release/6.3
+          #   - schedule with swift_version=0.0.0 -> refs/heads/main
+          if [[ -n "${{ inputs.ci_build_branch }}" ]]; then
+            echo "ci_build_revision=${{ inputs.ci_build_branch }}" >> ${GITHUB_OUTPUT}
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "ci_build_revision=${{ github.ref }}" >> ${GITHUB_OUTPUT}
+          else
+            echo "ci_build_revision=refs/heads/${branch_name}" >> ${GITHUB_OUTPUT}
           fi
 
           repo init --quiet --groups default --depth 1 -u ${{ inputs.repo_url }} -b $branch_name
@@ -631,6 +660,7 @@ jobs:
       ds2_revision: ${{ needs.context.outputs.ds2_revision }}
       brotli_revision: ${{ needs.context.outputs.brotli_revision }}
       brotli_version: ${{ needs.context.outputs.brotli_version }}
+      ci_build_revision: ${{ needs.context.outputs.ci_build_revision }}
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
       libxml2_version: ${{ needs.context.outputs.libxml2_version }}
@@ -722,6 +752,7 @@ jobs:
       ds2_revision: ${{ needs.context.outputs.ds2_revision }}
       brotli_revision: ${{ needs.context.outputs.brotli_revision }}
       brotli_version: ${{ needs.context.outputs.brotli_version }}
+      ci_build_revision: ${{ needs.context.outputs.ci_build_revision }}
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
       libxml2_version: ${{ needs.context.outputs.libxml2_version }}
