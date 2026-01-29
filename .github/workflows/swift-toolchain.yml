@@ -318,6 +318,7 @@ on:
         required: false
 
 env:
+  BASE_RUN_ID: 21314888297
   PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: DEVELOPMENT-SNAPSHOT-2025-12-01-a
 
 defaults:
@@ -330,6 +331,7 @@ permissions:
 
 jobs:
   sqlite:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -414,6 +416,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
+    if: false
     # TODO: Build this on macOS or make an equivalent Mac-only job
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -505,6 +508,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
 
   ds2:
+    if: false
     # TODO: Build this on macOS or make an equivalent Mac-only job
     needs: [ds2_tools]
     runs-on: ${{ inputs.default_build_runner }}
@@ -632,6 +636,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -715,6 +720,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
 
   build_tools:
+    if: false
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -871,6 +877,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
     needs: [sqlite]
 
@@ -1015,6 +1022,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot
 
   compilers:
+    if: false
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
@@ -1384,6 +1392,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   zlib:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1476,6 +1485,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   brotli:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1569,6 +1579,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
+    if: false
     needs: [zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1761,6 +1772,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1862,6 +1874,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   stdlib:
+    if: false
     needs: [compilers]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2071,7 +2084,7 @@ jobs:
 
   macros:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     needs: [compilers, cmark_gfm, stdlib]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2238,7 +2251,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   experimental-sdk:
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     needs: [compilers, stdlib, macros]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2971,7 +2984,7 @@ jobs:
 
   sdk:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     needs: [libxml2, curl, zlib, brotli, compilers, cmark_gfm, stdlib, macros]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -3437,7 +3450,7 @@ jobs:
   devtools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
-    needs: [sqlite, compilers, stdlib, sdk]
+    # needs: [sqlite, compilers, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -3483,32 +3496,42 @@ jobs:
         with:
           name: Windows-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.BASE_RUN_ID }}
 
       - name: Download Compilers
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        uses: thebrowsercompany/gha-download-tar-artifact@2cdc70ecdee66f79c963aa2a8b8aa81c4469aa81 # main
         with:
           name: Windows-${{ inputs.build_arch }}-Asserts-compilers
           path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+          run-id: ${{ env.BASE_RUN_ID }}
+      - uses: thebrowsercompany/gha-download-tar-artifact@2cdc70ecdee66f79c963aa2a8b8aa81c4469aa81 # main
         with:
           name: Windows-${{ matrix.arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
+          run-id: ${{ env.BASE_RUN_ID }}
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.BASE_RUN_ID }}
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ inputs.build_arch }}-macros
           path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.BASE_RUN_ID }}
+      - uses: thebrowsercompany/gha-download-tar-artifact@2cdc70ecdee66f79c963aa2a8b8aa81c4469aa81 # main
         with:
           name: Windows-${{ matrix.arch }}-Asserts-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+          run-id: ${{ env.BASE_RUN_ID }}
+      - uses: thebrowsercompany/gha-download-tar-artifact@2cdc70ecdee66f79c963aa2a8b8aa81c4469aa81 # main
         with:
           name: Windows-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+          run-id: ${{ env.BASE_RUN_ID }}
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -3651,169 +3674,172 @@ jobs:
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # Download host libraries for the windows amd64 host, after moving the target libraries to the target-specific directory.
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - uses: thebrowsercompany/gha-download-tar-artifact@2cdc70ecdee66f79c963aa2a8b8aa81c4469aa81 # main
         with:
           name: Windows-${{ inputs.build_arch }}-stdlib
           path: ${{ github.workspace }}/BinaryCache/Library
+          run-id: ${{ env.BASE_RUN_ID }}
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ inputs.build_arch }}-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.BASE_RUN_ID }}
 
-      # build.ps1: Build-ArgumentParser
-      - name: Configure swift-argument-parser
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-argument-parser
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-argument-parser
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-argument-parser
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'BUILD_TESTING' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-            }
-      - name: Build swift-argument-parser
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser
+      # # build.ps1: Build-ArgumentParser
+      # - name: Configure swift-argument-parser
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-argument-parser
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-argument-parser
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-argument-parser
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'BUILD_TESTING' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #       }
+      # - name: Build swift-argument-parser
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
-      # build.ps1: Build-Collections
-      - name: Configure swift-collections
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-collections
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-collections
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-collections
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-            }
-      - name: Build swift-collections
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections
+      # # build.ps1: Build-Collections
+      # - name: Configure swift-collections
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-collections
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-collections
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-collections
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #       }
+      # - name: Build swift-collections
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections
 
-      # build.ps1: Build-ASN1
-      - name: Configure swift-asn1
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-asn1
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-asn1
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-asn1
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-            }
-      - name: Build swift-asn1
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-asn1
+      # # build.ps1: Build-ASN1
+      # - name: Configure swift-asn1
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-asn1
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-asn1
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-asn1
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #       }
+      # - name: Build swift-asn1
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-asn1
 
-      # build.ps1: Build-Crypto
-      - name: Configure swift-crypto
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-crypto
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-crypto
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-crypto
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("ASM", "C", "CXX", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
-            }
-      - name: Build swift-crypto
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-crypto
+      # # build.ps1: Build-Crypto
+      # - name: Configure swift-crypto
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-crypto
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-crypto
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-crypto
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("ASM", "C", "CXX", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
+      #       }
+      # - name: Build swift-crypto
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-crypto
 
-      # build.ps1: Build-LLBuild
-      - name: Configure swift-llbuild
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-llbuild
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-llbuild
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-llbuild
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          msvc-compilers: ${{ inputs.use_host_toolchain && '@("CXX")' || '@()' }}
-          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("CXX")' }}
-          built-compilers: '@("Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'LLBUILD_SUPPORT_BINDINGS' = "Swift";
-              'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
-              'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
-            }  
-      - name: Build swift-llbuild
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild
+      # # build.ps1: Build-LLBuild
+      # - name: Configure swift-llbuild
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-llbuild
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-llbuild
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-llbuild
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     msvc-compilers: ${{ inputs.use_host_toolchain && '@("CXX")' || '@()' }}
+      #     pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("CXX")' }}
+      #     built-compilers: '@("Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'LLBUILD_SUPPORT_BINDINGS' = "Swift";
+      #         'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
+      #         'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
+      #       }  
+      # - name: Build swift-llbuild
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild
 
-      # build.ps1: Build-System
-      - name: Configure swift-system
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-system
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-system
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-system
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-            }
-      - name: Build swift-system
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-system
+      # # build.ps1: Build-System
+      # - name: Configure swift-system
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-system
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-system
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-system
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #       }
+      # - name: Build swift-system
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-system
 
       # build.ps1: Build-Subprocess
       - name: Configure swift-subprocess
@@ -3841,509 +3867,509 @@ jobs:
       - name: Build swift-subprocess
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-subprocess
 
-      # build.ps1: Build-ToolsSupportCore
-      - name: Configure swift-tools-support-core
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-tools-support-core
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-tools-support-core
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-tools-support-core
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'Foundation_DIR' = "${{ github.workspace }}/BinaryCache/foundation/cmake/modules";
-              'XCTest_DIR' = "${{ github.workspace }}/BinaryCache/xctest/cmake/modules";
-            }
-      - name: Build swift-tools-support-core
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core
+      # # build.ps1: Build-ToolsSupportCore
+      # - name: Configure swift-tools-support-core
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-tools-support-core
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-tools-support-core
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-tools-support-core
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'Foundation_DIR' = "${{ github.workspace }}/BinaryCache/foundation/cmake/modules";
+      #         'XCTest_DIR' = "${{ github.workspace }}/BinaryCache/xctest/cmake/modules";
+      #       }
+      # - name: Build swift-tools-support-core
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core
 
-      # build.ps1: Build-Driver
-      - name: Configure swift-driver
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-driver
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-driver
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-driver
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "CXX", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'TSC_DIR'="${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
-              'LLBuild_DIR'="${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
-              'ArgumentParser_DIR'="${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
-              'SQLite3_INCLUDE_DIR'="${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
-              'SQLite3_LIBRARY'="${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
-              'SWIFT_DRIVER_BUILD_TOOLS' = "NO";
-              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
-              'Clang_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/clang";
-              'Swift_DIR' = "${{ github.workspace }}/BinaryCache/tools/swift/lib/cmake/swift";
-            }
-      - name: Build swift-driver
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver
+      # # build.ps1: Build-Driver
+      # - name: Configure swift-driver
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-driver
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-driver
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-driver
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "CXX", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'TSC_DIR'="${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
+      #         'LLBuild_DIR'="${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
+      #         'ArgumentParser_DIR'="${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+      #         'SQLite3_INCLUDE_DIR'="${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
+      #         'SQLite3_LIBRARY'="${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
+      #         'SWIFT_DRIVER_BUILD_TOOLS' = "NO";
+      #         'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
+      #         'Clang_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/clang";
+      #         'Swift_DIR' = "${{ github.workspace }}/BinaryCache/tools/swift/lib/cmake/swift";
+      #       }
+      # - name: Build swift-driver
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver
 
-      # build.ps1: Build-Certificates
-      - name: Configure swift-certificates
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-certificates
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-certificates
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-certificates
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'SwiftCrypto_DIR'="${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
-              'SwiftASN1_DIR'="${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
-            }
-      - name: Build swift-certificates
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-certificates
+      # # build.ps1: Build-Certificates
+      # - name: Configure swift-certificates
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-certificates
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-certificates
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-certificates
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'SwiftCrypto_DIR'="${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
+      #         'SwiftASN1_DIR'="${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
+      #       }
+      # - name: Build swift-certificates
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-certificates
 
-      # build.ps1: Build-ToolsProtocols
-      - name: Configure swift-tools-protocols
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-tools-protocols
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-tools-protocols
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-tools-protocols
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "CXX", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-            }
-      - name: Build swift-tools-protocols
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-protocols
+      # # build.ps1: Build-ToolsProtocols
+      # - name: Configure swift-tools-protocols
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-tools-protocols
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-tools-protocols
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-tools-protocols
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "CXX", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #       }
+      # - name: Build swift-tools-protocols
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-protocols
 
-      # build.ps1: Build-Build
-      - name: Configure swift-build
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-build
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-build
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-build
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "CXX", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
-              'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
-              'SwiftDriver_DIR' = "${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules";
-              'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
-              'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
-              'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
-              'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
-              'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
-              'CMAKE_Swift_FLAGS' = "${{ matrix.arch == 'arm64' && '-use-ld=lld-link' || '' }}";
-            }
-      - name: Build swift-build
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build
+      # # build.ps1: Build-Build
+      # - name: Configure swift-build
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-build
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-build
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-build
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "CXX", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+      #         'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
+      #         'SwiftDriver_DIR' = "${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules";
+      #         'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
+      #         'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
+      #         'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
+      #         'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
+      #         'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
+      #         'CMAKE_Swift_FLAGS' = "${{ matrix.arch == 'arm64' && '-use-ld=lld-link' || '' }}";
+      #       }
+      # - name: Build swift-build
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build
 
-      - name: extract swift-syntax
-        run: |
-          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
-          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
-          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
+      # - name: extract swift-syntax
+      #   run: |
+      #     $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
+      #     $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
+      #     (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
 
-      # build.ps1: Build-PackageManager
-      - name: Configure swift-package-manager
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-package-manager
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-package-manager
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-package-manager
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'CMAKE_Swift_FLAGS' = @("-DCRYPTO_v2");
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
-              'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
-              'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
-              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
-              'SwiftDriver_DIR' = "${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules";
-              'SwiftBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-build/cmake/modules";
-              'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
-              'SwiftCrypto_DIR' = "${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
-              'SwiftCollections_DIR' = "${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules";
-              'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
-              'SwiftCertificates_DIR' = "${{ github.workspace }}/BinaryCache/swift-certificates/cmake/modules";
-              'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules"
-              'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
-              'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
-            }
-      - name: Build swift-package-manager
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager
+      # # build.ps1: Build-PackageManager
+      # - name: Configure swift-package-manager
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-package-manager
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-package-manager
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-package-manager
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'CMAKE_Swift_FLAGS' = @("-DCRYPTO_v2");
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
+      #         'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
+      #         'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
+      #         'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+      #         'SwiftDriver_DIR' = "${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules";
+      #         'SwiftBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-build/cmake/modules";
+      #         'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
+      #         'SwiftCrypto_DIR' = "${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
+      #         'SwiftCollections_DIR' = "${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules";
+      #         'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
+      #         'SwiftCertificates_DIR' = "${{ github.workspace }}/BinaryCache/swift-certificates/cmake/modules";
+      #         'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules"
+      #         'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
+      #         'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
+      #       }
+      # - name: Build swift-package-manager
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager
 
-      # build.ps1: Build-Markdown
-      - name: Configure Markdown
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-markdown
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-markdown
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-markdown
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
-              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
-            }
-      - name: Build Markdown
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-markdown
+      # # build.ps1: Build-Markdown
+      # - name: Configure Markdown
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-markdown
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-markdown
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-markdown
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+      #         'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+      #       }
+      # - name: Build Markdown
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-markdown
 
-      # build.ps1: Build-Format
-      - name: Configure swift-format
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-format
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-format
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-format
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
-          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
-          built-compilers: '@("Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
-              'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
-              'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
-              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
-              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
-            }
-      - name: Build swift-format
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
+      # # build.ps1: Build-Format
+      # - name: Configure swift-format
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-format
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-format
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-format
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+      #     pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
+      #     built-compilers: '@("Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+      #         'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
+      #         'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
+      #         'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+      #         'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+      #       }
+      # - name: Build swift-format
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
 
-      # build.ps1: Build-LMDB
-      - name: Configure swift-lmdb
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-lmdb
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-lmdb
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-lmdb
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
-          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
-          cmake-defines: |
-            @{
-              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
-            }
-      - name: Build swift-lmdb
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-lmdb
+      # # build.ps1: Build-LMDB
+      # - name: Configure swift-lmdb
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-lmdb
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-lmdb
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-lmdb
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
+      #     pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
+      #     cmake-defines: |
+      #       @{
+      #         'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+      #       }
+      # - name: Build swift-lmdb
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-lmdb
 
-      # build.ps1: Build-IndexStoreDB
-      - name: Configure indexstore-db
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: indexstore-db
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/indexstore-db
-          bin-dir: ${{ github.workspace }}/BinaryCache/indexstore-db
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "CXX", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'CMAKE_C_FLAGS' =  @(
-                "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include",
-                "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/Block");
-              'CMAKE_CXX_FLAGS' = @(
-                "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include",
-                "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/Block");
-              'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
-            }
-      - name: Build indexstore-db
-        run: cmake --build ${{ github.workspace }}/BinaryCache/indexstore-db
+      # # build.ps1: Build-IndexStoreDB
+      # - name: Configure indexstore-db
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: indexstore-db
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/indexstore-db
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/indexstore-db
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "CXX", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'CMAKE_C_FLAGS' =  @(
+      #           "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include",
+      #           "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/Block");
+      #         'CMAKE_CXX_FLAGS' = @(
+      #           "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include",
+      #           "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/Block");
+      #         'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
+      #       }
+      # - name: Build indexstore-db
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/indexstore-db
 
-      # build.ps1: Build-SourceKitLSP
-      - name: Configure sourcekit-lsp
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: sourcekit-lsp
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/sourcekit-lsp
-          bin-dir: ${{ github.workspace }}/BinaryCache/sourcekit-lsp
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
-              'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
-              'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
-              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
-              'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
-              'SwiftCrypto_DIR' = "${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
-              'SwiftCollections_DIR' = "${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules";
-              'SwiftBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-build/cmake/modules";
-              'SwiftPM_DIR' = "${{ github.workspace }}/BinaryCache/swift-package-manager/cmake/modules";
-              'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
-              'IndexStoreDB_DIR' = "${{ github.workspace }}/BinaryCache/indexstore-db/cmake/modules";
-              'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
-            }
-      - name: Build sourcekit-lsp
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp
+      # # build.ps1: Build-SourceKitLSP
+      # - name: Configure sourcekit-lsp
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: sourcekit-lsp
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/sourcekit-lsp
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/sourcekit-lsp
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
+      #         'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
+      #         'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
+      #         'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+      #         'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
+      #         'SwiftCrypto_DIR' = "${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
+      #         'SwiftCollections_DIR' = "${{ github.workspace }}/BinaryCache/swift-collections/cmake/modules";
+      #         'SwiftBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-build/cmake/modules";
+      #         'SwiftPM_DIR' = "${{ github.workspace }}/BinaryCache/swift-package-manager/cmake/modules";
+      #         'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
+      #         'IndexStoreDB_DIR' = "${{ github.workspace }}/BinaryCache/indexstore-db/cmake/modules";
+      #         'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
+      #       }
+      # - name: Build sourcekit-lsp
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp
 
-      # build.ps1: built with SPM as part of swift-docc.
-      # These is no CI for DocC in swift.org, which is why it is not built with CMake in build.ps1.
-      - name: Configure swift-docc-symbolkit
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-docc-symbolkit
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-docc-symbolkit
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-            }
-      - name: Build swift-docc-symbolkit
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
+      # # build.ps1: built with SPM as part of swift-docc.
+      # # These is no CI for DocC in swift.org, which is why it is not built with CMake in build.ps1.
+      # - name: Configure swift-docc-symbolkit
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-docc-symbolkit
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-docc-symbolkit
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "NO";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #       }
+      # - name: Build swift-docc-symbolkit
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
 
-      # build.ps1: built with SPM.
-      # These is no CI for DocC in swift.org, which is why it is not built with CMake in build.ps1.
-      - name: Configure swift-docc
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: swift-docc
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-docc
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("C", "Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
-              'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
-              'SwiftCrypto_DIR' = "${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
-              'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
-              'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
-              'IndexStoreDB_DIR' = "${{ github.workspace }}/BinaryCache/indexstore-db/cmake/modules";
-              'SymbolKit_DIR' = "${{ github.workspace }}/BinaryCache/swift-docc-symbolkit/cmake/modules";
-              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
-            }
-      - name: Build swift-docc
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc
+      # # build.ps1: built with SPM.
+      # # These is no CI for DocC in swift.org, which is why it is not built with CMake in build.ps1.
+      # - name: Configure swift-docc
+      #   uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+      #   with:
+      #     project-name: swift-docc
+      #     swift-version: ${{ inputs.swift_version }}
+      #     enable-caching: true
+      #     debug-info: ${{ inputs.debug_info }}
+      #     build-os: ${{ inputs.build_os }}
+      #     build-arch: ${{ inputs.build_arch }}
+      #     os: ${{ matrix.os }}
+      #     arch: ${{ matrix.arch }}
+      #     src-dir: ${{ github.workspace }}/SourceCache/swift-docc
+      #     bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc
+      #     install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+      #     swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+      #     built-compilers: '@("C", "Swift")'
+      #     cmake-defines: |
+      #       @{
+      #         'BUILD_SHARED_LIBS' = "YES";
+      #         'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+      #         'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
+      #         'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
+      #         'SwiftCrypto_DIR' = "${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
+      #         'SwiftMarkdown_DIR' = "${{ github.workspace }}/BinaryCache/swift-markdown/cmake/modules";
+      #         'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
+      #         'IndexStoreDB_DIR' = "${{ github.workspace }}/BinaryCache/indexstore-db/cmake/modules";
+      #         'SymbolKit_DIR' = "${{ github.workspace }}/BinaryCache/swift-docc-symbolkit/cmake/modules";
+      #         'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+      #       }
+      # - name: Build swift-docc
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc
 
-      - name: Install swift-argument-parser
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser --target install
-      - name: Install swift-collections
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections --target install
-      - name: Install swift-llbuild
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild --target install
-      - name: Install swift-system
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-system --target install
-      - name: Install swift-tools-support-core
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core --target install
-      - name: Install swift-driver
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver --target install
-      - name: Install swift-tools-protocols
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-protocols --target install
-      - name: Install swift-build
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build --target install
+      # - name: Install swift-argument-parser
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser --target install
+      # - name: Install swift-collections
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections --target install
+      # - name: Install swift-llbuild
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild --target install
+      # - name: Install swift-system
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-system --target install
+      # - name: Install swift-tools-support-core
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core --target install
+      # - name: Install swift-driver
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver --target install
+      # - name: Install swift-tools-protocols
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-protocols --target install
+      # - name: Install swift-build
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build --target install
       - name: Install swift-subprocess
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-subprocess --target install
-      - name: Install swift-package-manager
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager --target install
-      - name: Install SourceKit-LSP
-        run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp --target install
-      - name: Install swift-format
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format --target install
-      - name: Install swift-docc
-        run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc --target install
+      # - name: Install swift-package-manager
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager --target install
+      # - name: Install SourceKit-LSP
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp --target install
+      # - name: Install swift-format
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format --target install
+      # - name: Install swift-docc
+      #   run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc --target install
 
-      - name: Copy build outputs to the NoAsserts layout
-        run: |
-          $AssertToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
-          $NoAssertToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+NoAsserts"
-          # Use robocopy for robust recursive copying with optimizations
-          #   /E : Copy subdirectories, including empty ones
-          #   /XC: Exclude existing files with same timestamp but different file sizes
-          #   /XN: Exclude newer destination files
-          #   /XO: Exclude older destination files
-          #   /NFL: Do not list files
-          #   /NDL: Do not list directories
-          #   /NJH: No job header
-          #   /NC: No class
-          #   /NS: No size
-          #   /NP: No progress
-          $exitCode = &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
-          if ($LastExitCode -gt 8) {
-            Write-Error "robocopy failed with exit code $LastExitCode"
-            exit $LastExitCode
-          }
-          exit 0
+      # - name: Copy build outputs to the NoAsserts layout
+      #   run: |
+      #     $AssertToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
+      #     $NoAssertToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+NoAsserts"
+      #     # Use robocopy for robust recursive copying with optimizations
+      #     #   /E : Copy subdirectories, including empty ones
+      #     #   /XC: Exclude existing files with same timestamp but different file sizes
+      #     #   /XN: Exclude newer destination files
+      #     #   /XO: Exclude older destination files
+      #     #   /NFL: Do not list files
+      #     #   /NDL: Do not list directories
+      #     #   /NJH: No job header
+      #     #   /NC: No class
+      #     #   /NS: No size
+      #     #   /NP: No progress
+      #     $exitCode = &robocopy $AssertToolchainRoot $NoAssertToolchainRoot /E /XC /XN /XO /NS /NC /NFL /NDL /NJH
+      #     if ($LastExitCode -gt 8) {
+      #       Write-Error "robocopy failed with exit code $LastExitCode"
+      #       exit $LastExitCode
+      #     }
+      #     exit 0
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-devtools
-          path: ${{ github.workspace }}/BuildRoot/Library
+      # - uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ matrix.os }}-${{ matrix.arch }}-devtools
+      #     path: ${{ github.workspace }}/BuildRoot/Library
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-swift-argument-parser
-          path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
+      # - uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ matrix.os }}-${{ matrix.arch }}-swift-argument-parser
+      #     path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
-      - name: Upload PDBs to Azure
-        uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.pdb'
+      # - name: Upload PDBs to Azure
+      #   uses: microsoft/action-publish-symbols@v2.1.6
+      #   if: ${{ inputs.debug_info }}
+      #   with:
+      #     accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+      #     personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+      #     symbolsFolder: ${{ github.workspace }}/BinaryCache
+      #     searchPattern: '**/*.pdb'
 
-      - name: Upload PDBs to Public Symbol Server
-        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info }}
-        with:
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '*.pdb'
-          swift-version: ${{ inputs.swift_version }}
-          arch: ${{ matrix.arch }}
-          variant: 'devtools'
-          build-revision: ${{ inputs.swift_build_revision }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+      # - name: Upload PDBs to Public Symbol Server
+      #   uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+      #   if: ${{ inputs.debug_info }}
+      #   with:
+      #     symbolsFolder: ${{ github.workspace }}/BinaryCache
+      #     searchPattern: '*.pdb'
+      #     swift-version: ${{ inputs.swift_version }}
+      #     arch: ${{ matrix.arch }}
+      #     variant: 'devtools'
+      #     build-revision: ${{ inputs.swift_build_revision }}
+      #     r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+      #     r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      #     r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
 
-      - name: Upload DLLs to Azure
-        uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.dll'
+      # - name: Upload DLLs to Azure
+      #   uses: microsoft/action-publish-symbols@v2.1.6
+      #   if: ${{ inputs.debug_info }}
+      #   with:
+      #     accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+      #     personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+      #     symbolsFolder: ${{ github.workspace }}/BinaryCache
+      #     searchPattern: '**/*.dll'
 
-      - name: Upload EXEs to Azure
-        uses: microsoft/action-publish-symbols@v2.1.6
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.exe'
+      # - name: Upload EXEs to Azure
+      #   uses: microsoft/action-publish-symbols@v2.1.6
+      #   if: ${{ inputs.debug_info }}
+      #   with:
+      #     accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+      #     personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+      #     symbolsFolder: ${{ github.workspace }}/BinaryCache
+      #     searchPattern: '**/*.exe'
 
   debugging_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     needs: [compilers, devtools, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4466,7 +4492,7 @@ jobs:
   # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
   # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
   configure_signing:
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     name: Configure signing
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
@@ -4492,7 +4518,7 @@ jobs:
 
   package_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     name: Package Tools
     needs: [compilers, macros, debugging_tools, devtools, stdlib, sdk, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5003,7 +5029,7 @@ jobs:
 
   package_windows_platform:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     name: Package Windows SDK & Runtime
     needs: [stdlib, sdk, experimental-sdk, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5456,6 +5482,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
 
   package_android_platform:
+    if: false
     # TODO: Build this on macOS or make an equivalent Mac-only job
     name: Package Android SDK & Runtime
     needs: [stdlib, ds2, sdk, experimental-sdk, configure_signing]
@@ -5697,7 +5724,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
 
   package_python:
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
     needs: [configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5848,7 +5875,7 @@ jobs:
 
   installer:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     needs: [package_tools, package_windows_platform, package_android_platform, package_python, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -6148,7 +6175,7 @@ jobs:
 
   smoke_test:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -6223,7 +6250,7 @@ jobs:
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
-    if: inputs.build_os == 'Windows'
+    if: false && inputs.build_os == 'Windows'
     needs: [package_windows_platform]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -6275,7 +6302,7 @@ jobs:
 
   smoke_test_android:
     # TODO: Run this job on macOS or make an equivalent Mac-only job
-    if: inputs.build_os == 'Windows' && inputs.build_android
+    if: false && inputs.build_os == 'Windows' && inputs.build_android
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
