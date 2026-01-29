@@ -11,14 +11,19 @@ jobs:
   build-release-clang:
     uses: ./.github/workflows/build-toolchain.yml
     with:
+      # Source/Repository Configuration
+      ci_build_branch: ${{ github.ref }}
+      # Build Configuration
       windows_build_arch: amd64
+      build_android: true
+      android_api_level: 28
+      use_host_toolchain: false
+      # Output/Publishing
+      create_release: false
+      create_snapshot: false
+      # Infrastructure/Runners
       windows_x64_default_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-x64-16--{0}', github.run_id) || 'swift-build-windows-latest-8-cores' }}
       windows_x64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-x64-64--{0}', github.run_id) || 'swift-build-windows-latest-64-cores' }}
       windows_arm64_default_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-arm64-16--{0}', github.run_id) || 'swift-build-windows-arm64-latest-8-cores' }}
       windows_arm64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-arm64-64--{0}', github.run_id) || 'swift-build-windows-arm64-latest-32-cores' }}
-      android_api_level: 28
-      build_android: true
-      use_host_toolchain: false
-      create_release: false
-      create_snapshot: false
     secrets: inherit
