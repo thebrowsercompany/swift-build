@@ -1,0 +1,33 @@
+name: Release 6.3 Toolchains
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # Each job builds a release toolchain for a specific Swift version.
+  build-release-6_3:
+    # Use local reference so this workflow can be dispatched directly from the release branch
+    # for testing without any modifications.
+    uses: ./.github/workflows/build-toolchain.yml
+    with:
+      # Source/Repository Configuration
+      ci_build_branch: ${{ github.ref_name }}
+      swift_version: "6.3.0"
+      # Build Configuration
+      windows_build_arch: amd64
+      build_android: true
+      android_api_level: 28
+      # Output/Publishing
+      create_release: ${{ github.event_name == 'schedule' }}
+      create_snapshot: ${{ github.event_name == 'schedule' }}
+      # Infrastructure/Runners
+      windows_x64_default_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-x64-16-2025-10-15--{0}', github.run_id) || 'swift-build-windows-latest-8-cores' }}
+      windows_x64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-x64-64-2025-10-15--{0}', github.run_id) || 'swift-build-windows-latest-64-cores' }}
+      windows_arm64_default_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-arm64-16-2025-10-15--{0}', github.run_id) || 'swift-build-windows-arm64-latest-8-cores' }}
+      windows_arm64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-arm64-64-2025-10-15--{0}', github.run_id) || 'swift-build-windows-arm64-latest-32-cores' }}
+    secrets: inherit
+    permissions:
+      attestations: write
+      contents: write
+      packages: write
+      id-token: write
