@@ -6422,3 +6422,268 @@ jobs:
       - name: Build firebase-swift
         working-directory: ${{ github.workspace }}/SourceCache/swift-firebase
         run: cmake --build out
+
+  swift_test:
+    needs: [compilers]
+    runs-on: ${{ inputs.compilers_build_runner }}
+
+    strategy:
+      fail-fast: false
+      # TODO: maybe refactor without using a matrix
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Asserts Swift Test
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+          host-arch: ${{ matrix.arch }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 500M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-Asserts-compilers
+
+      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
+          path: ${{ github.workspace }}/BinaryCache/0/bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr
+      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
+          path: ${{ github.workspace }}/BinaryCache/swift-driver
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/llvm-project
+          ref: ${{ inputs.llvm_project_revision }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ inputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-syntax
+          ref: ${{ inputs.swift_syntax_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-syntax
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-corelibs-libdispatch
+          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - name: Download and expand Python
+        env:
+          INPUT_PYTHON_DOWNLOAD_LOCATIONS: ${{ inputs.python_download_locations }}
+          INPUT_PYTHON_VERSION: ${{ inputs.python_version }}
+        run: |
+          function DownloadAndVerify($URL, $Destination, $Hash) {
+            New-Item -ItemType Directory (Split-Path -Path $Destination -Parent) -ErrorAction Ignore | Out-Null
+            $WebClient = New-Object Net.WebClient
+            $WebClient.DownloadFile($URL, $Destination)
+            $ExpectedHash = $Hash.ToUpperInvariant()
+            $SHA256 = (Get-FileHash -Path $Destination -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($SHA256 -ne $ExpectedHash) {
+              throw "SHA256 mismatch ($SHA256 vs $Hash) for $URL"
+            }
+          }
+
+          $KnownPythons = $env:INPUT_PYTHON_DOWNLOAD_LOCATIONS | ConvertFrom-Json
+          $version = $env:INPUT_PYTHON_VERSION
+          $archKey = "${{ matrix.arch }}".ToUpper()
+          $pythonInfo = $KnownPythons."$version"."$archKey"
+          if ($null -eq $pythonInfo) {
+            throw "No python download info for version $version and architecture $archKey"
+          }
+          Write-Host "Downloading Python $version for $archKey"
+
+          # Download the Python package
+          $packagePath = "${{ github.workspace }}\BinaryCache\Python-$archKey-$version.zip"
+          DownloadAndVerify -URL $pythonInfo.URL -Destination $packagePath -Hash $pythonInfo.SHA256
+          Write-Host "Downloaded Python $version for $archKey to $packagePath"
+
+          # Extract the Python package
+          $extractRoot = "${{ github.workspace }}\BuildRoot\Library\Developer\Python-$archKey-$version"
+          New-Item -ItemType Directory -Path $extractRoot -ErrorAction Ignore | Out-Null
+          Expand-Archive -Path $packagePath -DestinationPath $extractRoot -Force
+          Write-Host "Extracted Python $version for $archKey to $extractRoot"
+
+          # Export Python Location
+          echo "PYTHON_LOCATION=$extractRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Setup context
+        id: setup-context
+        env:
+          INPUT_PYTHON_VERSION: ${{ inputs.python_version }}
+        run: |
+          $PythonVersion = $env:INPUT_PYTHON_VERSION
+          $PythonMajor = ([System.Version]$PythonVersion).Major
+          $PythonMinor = ([System.Version]$PythonVersion).Minor
+          if ( "${{ matrix.os }}" -eq "Windows" ) {
+            $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
+            $SDKROOT = cygpath -m ${env:SDKROOT}
+            $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
+            $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
+            $PYTHON_BINARY="python.exe"
+          } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
+            $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}-RELEASE.xctoolchain/usr/bin"
+            $SDKROOT = xcrun --sdk macosx --show-sdk-path
+            $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python${PythonMajor}.${PythonMinor}/config-${PythonMajor}.${PythonMinor}-darwin/libpython${PythonMajor}.${PythonMinor}.a"
+            $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python${PythonMajor}.${PythonMinor}"
+            $PYTHON_BINARY="python${PythonMajor}"
+          }
+
+          # Compute the number of parallel jobs to use for the build.
+          $RamBytes = if ($IsWindows) {
+            (Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory
+          } elseif ($IsMacOS) {
+            [int64](sysctl -n hw.memsize)
+          } else {
+              throw "Unsupported OS"
+          }
+          $RamGB = [math]::Round($RamBytes / 1GB)
+
+          # Consider 24 GB per link job, to a minimum of 2 jobs.
+          $LinkJobs = [math]::Max(2, [math]::Floor($RamGB / 24))
+
+          # Output the context for the configure task.
+          $Context = @"
+          clang-location=${CLANG_LOCATION}
+          libpython-path=${LIBPYTHON_PATH}
+          python-include-dir=${PYTHON_INCLUDE_DIR}
+          python-binary=${PYTHON_BINARY}
+          python-executable=${PYTHON_EXECUTABLE}
+          sdkroot=${SDKROOT}
+          link-jobs=${LinkJobs}
+          "@
+          Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      # build.ps1: Test-Compilers, with Get-CompilersDefines with -Test TestSwift
+      - name: Configure Compilers for testing
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Compilers
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/1
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
+          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C", "CXX")' || '@()' }}
+          pinned-compilers: ${{ inputs.use_host_toolchain && '@("Swift")' || '@("C", "CXX", "Swift")' }}
+          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
+          cmake-defines: |
+            @{
+              'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "YES";
+              'SWIFT_BUILD_DYNAMIC_STDLIB' = "YES";
+              'SWIFT_BUILD_REMOTE_MIRROR' = "YES";
+              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "";
+              'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}";
+              'CLANG_TIDY_CONFUSABLE_CHARS_GEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'LibXml2_DIR' = "${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
+              'LLDB_LIBXML2_VERSION' = "${{ inputs.libxml2_version }}";
+              'LLDB_PYTHON_EXE_RELATIVE_PATH' = "${{ steps.setup-context.outputs.python-binary }}";
+              'LLDB_PYTHON_EXT_SUFFIX' = ".pyd";
+              'LLDB_PYTHON_RELATIVE_PATH' = "lib/site-packages";
+              'LLDB_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/lldb-tblgen${ExeSuffix}";
+              'LLVM_CONFIG_PATH' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-config${ExeSuffix}";
+              'LLVM_ENABLE_ASSERTIONS' = "YES";
+              'LLVM_ENABLE_LLD' = "${{ inputs.use_host_toolchain && 'NO' || 'YES' }}";
+              'LLVM_EXTERNAL_SWIFT_SOURCE_DIR' = "${{ github.workspace }}/SourceCache/swift";
+              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
+              'LLVM_NATIVE_TOOL_DIR' = "${{ github.workspace }}/BinaryCache/0/bin";
+              'LLVM_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/llvm-tblgen${ExeSuffix}";
+              'LLVM_USE_HOST_TOOLS' = "NO";
+              'Python3_EXECUTABLE' = "${{ steps.python.outputs.python-path }}";
+              'Python3_INCLUDE_DIR' = "${{ steps.setup-context.outputs.python-include-dir }}";
+              'Python3_LIBRARY' = "${{ steps.setup-context.outputs.libpython-path }}";
+              'Python3_ROOT_DIR' = $env:pythonLocation;
+              'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version}} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
+              'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
+              'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
+              'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
+              'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
+              'SWIFT_ENABLE_VOLATILE' = "YES";
+              'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
+              'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
+              'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
+              'SWIFT_STDLIB_ASSERTIONS' = "NO";
+              'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+
+              # GHA-specific options.
+              'CLANG_VENDOR' = 'compnerd.org';
+              'CLANG_VENDOR_UTI' = 'org.compnerd.dt';
+              'LLVM_APPEND_VC_REV' = "NO";
+              'LLVM_VERSION_SUFFIX' = "";
+              'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+              'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_Swift_FLAGS' = "${{ !inputs.use_host_toolchain && '-use-ld=lld' || '' }}";
+            }
+
+      - name: Test Compiler
+        run: |
+          $env:Path = "${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
