@@ -6174,6 +6174,13 @@ jobs:
 
       - uses: actions/checkout@v4.2.2
         with:
+          repository: compnerd/vigil
+          ref: refs/heads/main
+          path: ${{ github.workspace }}/SourceCache/vigil
+          show-progress: false
+
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: pointfreeco/swift-issue-reporting
           ref: refs/heads/main
           path: ${{ github.workspace }}/SourceCache/swift-issue-reporting
@@ -6224,6 +6231,12 @@ jobs:
         run: |
           swift build
           swift test -Xswiftc -DENABLE_TESTING
+
+      - name: Build compnerd/vigil
+        working-directory: ${{ github.workspace }}/SourceCache/vigil
+        run: |
+          $ExperimentalSDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/WindowsExperimental.sdk"
+          swift build --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib -Xlinker /WX
 
       - name: Build & Test pointfreeco/swift-issue-reporting
         working-directory: ${{ github.workspace }}/SourceCache/swift-issue-reporting
