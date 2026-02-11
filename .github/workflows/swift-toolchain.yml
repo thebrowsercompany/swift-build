@@ -4242,6 +4242,9 @@ jobs:
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
             }
       - name: Build swift-docc
+        #TODO: temporary until DocC has its own CI: https://github.com/compnerd/swift-build/issues/1086
+        id: build-swift-docc
+        continue-on-error: true
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc
 
       - name: Install swift-argument-parser
@@ -4272,6 +4275,9 @@ jobs:
       - name: Install swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format --target install
       - name: Install swift-docc
+        #TODO: temporary until DocC has its own CI: https://github.com/compnerd/swift-build/issues/1086
+        continue-on-error: true
+        if: steps.build-swift-docc.outcome == 'success'
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc --target install
 
       - name: Copy build outputs to the NoAsserts layout
