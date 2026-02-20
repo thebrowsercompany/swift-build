@@ -1035,6 +1035,14 @@ jobs:
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
+      - name: Override the temp directory
+        shell: pwsh
+        run: |
+          $newTemp = "${{ github.workspace }}\Temp"
+          New-Item -ItemType Directory -Force -Path $newTemp
+          echo "TEMP=$newTemp" >> $env:GITHUB_ENV
+          echo "TMP=$newTemp" >> $env:GITHUB_ENV
+
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
 
