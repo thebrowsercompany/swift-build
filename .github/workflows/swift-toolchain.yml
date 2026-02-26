@@ -2019,6 +2019,11 @@ jobs:
               'SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION' = "YES";
               'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
               'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
+              # Disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
+              'SWIFT_ENABLE_BACKTRACING' = "${{ (matrix.os == 'Windows' && matrix.arch == 'x86') && 'NO' || 'YES' }}";
+              # Disabled for Android https://github.com/swiftlang/swift/issues/87445
+              'SWIFT_ENABLE_RUNTIME_MODULE' = "${{ matrix.os == 'Windows' && 'YES' || 'NO' }}";
+              'SWIFT_BUILD_LIBEXEC' = "YES";
               'SWIFT_ENABLE_VOLATILE' = "YES";
               'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
@@ -2516,6 +2521,8 @@ jobs:
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch-c/cmake/modules";
               # FIXME(compnerd) remove this once the default option is flipped to `ON`.
+              'SwiftCore_ENABLE_BACKTRACING' = "YES";
+              # FIXME(compnerd) remove this once the default option is flipped to `ON`.
               'SwiftCore_ENABLE_CONCURRENCY' = "YES";
               # FIXME(compnerd) remove this once the default option is flipped to `ON`.
               'SwiftCore_ENABLE_REMOTE_MIRROR' = "YES";
@@ -2814,6 +2821,96 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalVolatile --target install
+
+      # build.ps1: Build-ExperimentalRuntime
+      - name: Configure Experimental RuntimeModule
+        if: matrix.os != 'Android' # Disabled for Android https://github.com/swiftlang/swift/issues/87445
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalRuntimeModule
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Runtime
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalRuntimeModule
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          built-compilers: '@("C", "CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+              'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/Cxx/cmake/SwiftCxxOverlay";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftVolatile_ENABLE_LIBRARY_EVOLUTION' = "NO";
+              'SwiftRuntime_ENABLE_BACKTRACING' = "YES";
+            }
+      - name: Build Experimental RuntimeModule
+        if: matrix.os != 'Android' # Disabled for Android https://github.com/swiftlang/swift/issues/87445
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalRuntimeModule
+      - name: Install Experimental RuntimeModule
+        if: matrix.os != 'Android' # Disabled for Android https://github.com/swiftlang/swift/issues/87445
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalRuntimeModule --target install
+
+      # build.ps1: Build-ExperimentalRuntime
+      - name: Configure Experimental Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
+        if: matrix.static && matrix.os == 'Windows' && matrix.arch != 'x86'
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: ExperimentalRuntimeBacktrace
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StackWalker
+          bin-dir: ${{ github.workspace }}/BinaryCache/ExperimentalRuntimeBacktrace
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          built-compilers: '@("CXX", "Swift")'
+          use-gnu-driver: true
+          cmake-defines: |
+            @{
+              'CMAKE_Swift_FLAGS' = @("-static-stdlib");
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/cmake/SwiftOverlay";
+              'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalOverlay/Cxx/cmake/SwiftCxxOverlay";
+              'SwiftRuntime_DIR' = "${{ github.workspace }}/BinaryCache/ExperimentalRuntimeModule/cmake/SwiftRuntime";
+            }
+      - name: Build Experimental Runtime Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
+        if: matrix.static && matrix.os == 'Windows' && matrix.arch != 'x86'
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalRuntimeBacktrace
+      - name: Install Experimental Runtime Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
+        if: matrix.static && matrix.os == 'Windows' && matrix.arch != 'x86'
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/ExperimentalRuntimeBacktrace --target install
 
       # build.ps1: Build-ExperimentalSDK
       - name: Configure Experimental Dispatch
@@ -4615,6 +4712,8 @@ jobs:
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr"
 
+          Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr"
+
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/usr"
 
       - run: |
@@ -5117,6 +5216,8 @@ jobs:
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64/usr"
 
+          Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64/usr"
+
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64/usr" -ItemType Directory -Force | Out-Null
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64/usr"
@@ -5195,6 +5296,8 @@ jobs:
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64/usr"
 
+          Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64/usr"
+
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64/usr" -ItemType Directory -Force | Out-Null
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64/usr"
@@ -5272,6 +5375,10 @@ jobs:
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr" -ItemType Directory -Force | Out-Null
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr"
+
+          # swift-backtrace is currently disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
+          # Uncomment the following when it is enabled
+          # Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr"
 
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686/usr" -ItemType Directory -Force | Out-Null
 
