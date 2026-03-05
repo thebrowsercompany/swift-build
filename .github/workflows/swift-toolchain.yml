@@ -2028,15 +2028,9 @@ jobs:
               'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
-              # Use per-language response files to avoid long command line path issues on Windows.
-              # Intentionally excludes ASM_MARMASM: CMAKE_NINJA_FORCE_RESPONSE_FILE causes armasm64
-              # to receive the source file both in the .rsp and on the command line (A2032 error).
-              'CMAKE_C_USE_RESPONSE_FILE_FOR_FLAGS' = "${{ matrix.os == 'Windows' && '1' || '0' }}";
-              'CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES' = "${{ matrix.os == 'Windows' && '1' || '0' }}";
-              'CMAKE_CXX_USE_RESPONSE_FILE_FOR_FLAGS' = "${{ matrix.os == 'Windows' && '1' || '0' }}";
-              'CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES' = "${{ matrix.os == 'Windows' && '1' || '0' }}";
-              'CMAKE_Swift_USE_RESPONSE_FILE_FOR_FLAGS' = "${{ matrix.os == 'Windows' && '1' || '0' }}";
-              'CMAKE_Swift_USE_RESPONSE_FILE_FOR_INCLUDES' = "${{ matrix.os == 'Windows' && '1' || '0' }}";
+              # Use response files to avoid long command line path issues on Windows. Do not use CMAKE_NINJA_FORCE_RESPONSE_FILE as it breaks armasm64
+              'CMAKE_Swift_USE_RESPONSE_FILE_FOR_FLAGS' = "1";
+              'CMAKE_Swift_USE_RESPONSE_FILE_FOR_INCLUDES' = "1";
             }
       - name: Build Swift Standard Library
         if: matrix.os != 'Android' || inputs.build_android
