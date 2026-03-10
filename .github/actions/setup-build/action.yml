@@ -409,15 +409,22 @@ runs:
         Write-Host "::error::swift not found on PATH after 30s of retries"
         exit 1
 
-    - name: Upload Swift installer log
+    - name: Print Swift installer log
       if: always() && steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ github.job }}-swift-installer-log
-        path: |
-          ${{ runner.temp }}\install.log
-          ${{ env.TEMP }}\SwiftToolKit_*.log
-        if-no-files-found: ignore
+      shell: powershell
+      run: |
+        $logs = @()
+        $logs += Get-Item "${{ runner.temp }}\install.log" -ErrorAction SilentlyContinue
+        $logs += Get-Item "$env:TEMP\SwiftToolKit_*.log" -ErrorAction SilentlyContinue
+        if ($logs.Count -eq 0) {
+          Write-Host "No installer log files found"
+          exit 0
+        }
+        foreach ($log in $logs) {
+          Write-Host "::group::$($log.Name) ($($log.Length) bytes)"
+          Get-Content $log.FullName
+          Write-Host "::endgroup::"
+        }
 
     - name: Update Swift toolchain module maps
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
