@@ -3354,42 +3354,6 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/foundation
 
-      # build.ps1: Build-XCTest
-      # TODO(compnerd) correctly version XCTest
-      - name: Configure XCTest
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: XCTest
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
-          bin-dir: ${{ github.workspace }}/BinaryCache/xctest
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-${{ inputs.swift_version }}/usr
-          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
-          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          built-compilers: '@("Swift")'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              'CMAKE_INSTALL_BINDIR' = "${{ matrix.bindir }}";
-              'ENABLE_TESTING' = "NO";
-              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules";
-              'Foundation_DIR' = "${{ github.workspace }}/BinaryCache/foundation/cmake/modules";
-              'XCTest_INSTALL_NESTED_SUBDIR' = "YES";
-            }
-      - name: Build XCTest
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/xctest
-
       # build.ps1: Build-Testing
       - name: Configure Testing
         if: matrix.os != 'Android' || inputs.build_android
@@ -3425,6 +3389,43 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/testing
+
+      # build.ps1: Build-XCTest
+      # TODO(compnerd) correctly version XCTest
+      - name: Configure XCTest
+        if: matrix.os != 'Android' || inputs.build_android
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: XCTest
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: true
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
+          bin-dir: ${{ github.workspace }}/BinaryCache/xctest
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/Library/XCTest-${{ inputs.swift_version }}/usr
+          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          built-compilers: '@("Swift")'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_INSTALL_BINDIR' = "${{ matrix.bindir }}";
+              'ENABLE_TESTING' = "NO";
+              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules";
+              'Foundation_DIR' = "${{ github.workspace }}/BinaryCache/foundation/cmake/modules";
+              'XCTest_INSTALL_NESTED_SUBDIR' = "YES";
+              'SwiftTesting_DIR' = "${{ github.workspace }}/BinaryCache/testing/cmake/modules";
+            }
+      - name: Build XCTest
+        if: matrix.os != 'Android' || inputs.build_android
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/xctest
 
       - name: Install Testing
         if: matrix.os != 'Android' || inputs.build_android
