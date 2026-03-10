@@ -352,6 +352,7 @@ runs:
         swift-version: ${{ steps.sanitize-input.outputs.swift-branch }}
         swift-build: ${{ steps.sanitize-input.outputs.swift-tag }}
         build_arch: ${{ steps.sanitize-input.outputs.build-arch }}
+        installer-args: /log ${{ runner.temp }}\install.log
 
     - name: Setup Swift toolchain (Custom)
       if: inputs.swift-version != '' && inputs.swift-repo != ''
@@ -413,7 +414,9 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ github.job }}-swift-installer-log
-        path: ${{ runner.temp }}/install.log
+        path: |
+          ${{ runner.temp }}\install.log
+          ${{ env.TEMP }}\SwiftToolKit_*.log
         if-no-files-found: ignore
 
     - name: Update Swift toolchain module maps
