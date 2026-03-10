@@ -45,9 +45,14 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: "[diag] before TEMP redirect"
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: Write-Host "timestamp"
+
     - name: Redirect TEMP to D drive
       if: runner.os == 'Windows'
-      shell: pwsh
+      shell: powershell
       run: |
         $TempDir = 'D:\temp'
         New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
@@ -59,6 +64,11 @@ runs:
         $env:TEMP = $TempDir
         Add-Content -Path $env:GITHUB_ENV -Value "TMP=$TempDir"
         Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$TempDir"
+
+    - name: "[diag] after TEMP redirect"
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: Write-Host "timestamp"
 
     - name: Sanitize input
       id: sanitize-input
