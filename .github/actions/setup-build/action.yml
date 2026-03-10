@@ -45,31 +45,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: "[diag] before TEMP redirect"
-      if: runner.os == 'Windows'
-      shell: powershell
-      run: Write-Host "timestamp"
-
-    - name: Redirect TEMP to D drive
-      if: runner.os == 'Windows'
-      shell: powershell
-      run: |
-        $TempDir = 'D:\temp'
-        New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
-        [Environment]::SetEnvironmentVariable('TMP', $TempDir, 'Machine')
-        [Environment]::SetEnvironmentVariable('TEMP', $TempDir, 'Machine')
-        [Environment]::SetEnvironmentVariable('TMP', $TempDir, 'User')
-        [Environment]::SetEnvironmentVariable('TEMP', $TempDir, 'User')
-        $env:TMP = $TempDir
-        $env:TEMP = $TempDir
-        Add-Content -Path $env:GITHUB_ENV -Value "TMP=$TempDir"
-        Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$TempDir"
-
-    - name: "[diag] after TEMP redirect"
-      if: runner.os == 'Windows'
-      shell: powershell
-      run: Write-Host "timestamp"
-
     - name: Sanitize input
       id: sanitize-input
       shell: pwsh
@@ -358,17 +333,6 @@ runs:
       with:
         name: ${{ github.job }}-msvc-installer-log
         path: ${{ steps.setup-msvc.outputs.log-file }}
-
-    - name: "[diag] Pre-setup timing baseline"
-      if: steps.sanitize-input.outputs.build-os == 'windows'
-      shell: pwsh
-      run: |
-        Write-Host "[diag] Timestamp: $(Get-Date -Format o)"
-        Write-Host "[diag] Checking for background processes..."
-        Get-Process | Where-Object { $_.CPU -gt 5 } | Sort-Object CPU -Descending | Select-Object -First 15 Name, Id, CPU, WorkingSet64 | Format-Table -AutoSize
-        Write-Host "[diag] Checking Windows Update service state..."
-        Get-Service wuauserv | Format-Table -AutoSize
-
 
     - name: Setup Visual Studio Developer Environment
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.setup-vs-dev-env == 'true'
