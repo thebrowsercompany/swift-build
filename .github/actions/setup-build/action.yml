@@ -364,6 +364,16 @@ runs:
         release-asset-name: ${{ steps.sanitize-input.outputs.swift-release-asset }}
         release-tag-name: ${{ steps.sanitize-input.outputs.swift-release-tag }}
 
+    - name: Print Swift installer log
+      if: always() && steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
+      shell: powershell
+      run: |
+        $log = Get-Item "$env:TEMP\install.log" -ErrorAction SilentlyContinue
+        if (-not $log) { exit 0 }
+        Write-Host "::group::$($log.Name) ($($log.Length) bytes)"
+        Get-Content $log.FullName
+        Write-Host "::endgroup::"
+
     - name: Update Swift toolchain module maps
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
       shell: pwsh
