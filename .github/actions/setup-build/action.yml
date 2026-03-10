@@ -364,6 +364,14 @@ runs:
         release-asset-name: ${{ steps.sanitize-input.outputs.swift-release-asset }}
         release-tag-name: ${{ steps.sanitize-input.outputs.swift-release-tag }}
 
+    - name: Upload Swift installer log
+      if: always() && steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.job }}-swift-installer-log
+        path: ${{ runner.temp }}/install.log
+        if-no-files-found: ignore
+
     - name: Update Swift toolchain module maps
       if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
       shell: pwsh
