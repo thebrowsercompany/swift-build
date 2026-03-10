@@ -364,6 +364,50 @@ runs:
         release-asset-name: ${{ steps.sanitize-input.outputs.swift-release-asset }}
         release-tag-name: ${{ steps.sanitize-input.outputs.swift-release-tag }}
 
+    - name: Verify Swift on PATH
+      if: steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
+      shell: powershell
+      run: |
+        $found = Get-Command swift -ErrorAction SilentlyContinue
+        if ($found) {
+          Write-Host "swift found on PATH: $($found.Source)"
+          exit 0
+        }
+
+        Write-Host "WARNING: swift not found on PATH after installer completed"
+        Write-Host "Current PATH entries:"
+        $env:PATH -split ';' | ForEach-Object { Write-Host "  $_" }
+
+        for ($i = 1; $i -le 3; $i++) {
+          Write-Host ""
+          Write-Host "=== Retry $i/3: checking running processes ==="
+          Get-Process | Where-Object { $_.Path -ne $null } | Select-Object Id, Name, Path | Sort-Object Name | Format-Table -AutoSize
+
+          Write-Host "Waiting 10 seconds..."
+          Start-Sleep -Seconds 10
+
+          # Re-read PATH from registry in case installer updated it
+          $machinePath = [Environment]::GetEnvironmentVariable('PATH', 'Machine')
+          $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+          $env:PATH = "$machinePath;$userPath"
+
+          $found = Get-Command swift -ErrorAction SilentlyContinue
+          if ($found) {
+            Write-Host "swift found on PATH after retry $i : $($found.Source)"
+            Write-Host "Updated PATH entries:"
+            $env:PATH -split ';' | ForEach-Object { Write-Host "  $_" }
+            Write-Host "::error::swift was not on PATH immediately after install, found after ${i}0s delay"
+            exit 1
+          }
+
+          Write-Host "swift still not on PATH after retry $i"
+          Write-Host "Current PATH entries:"
+          $env:PATH -split ';' | ForEach-Object { Write-Host "  $_" }
+        }
+
+        Write-Host "::error::swift not found on PATH after 30s of retries"
+        exit 1
+
     - name: Upload Swift installer log
       if: always() && steps.sanitize-input.outputs.build-os == 'windows' && inputs.swift-version != ''
       uses: actions/upload-artifact@v4
