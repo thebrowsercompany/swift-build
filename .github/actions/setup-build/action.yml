@@ -45,6 +45,21 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Redirect TEMP to D drive
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $TempDir = 'D:\temp'
+        New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
+        [Environment]::SetEnvironmentVariable('TMP', $TempDir, 'Machine')
+        [Environment]::SetEnvironmentVariable('TEMP', $TempDir, 'Machine')
+        [Environment]::SetEnvironmentVariable('TMP', $TempDir, 'User')
+        [Environment]::SetEnvironmentVariable('TEMP', $TempDir, 'User')
+        $env:TMP = $TempDir
+        $env:TEMP = $TempDir
+        Add-Content -Path $env:GITHUB_ENV -Value "TMP=$TempDir"
+        Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$TempDir"
+
     - name: Sanitize input
       id: sanitize-input
       shell: pwsh
