@@ -318,7 +318,7 @@ on:
         required: false
 
 env:
-  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: DEVELOPMENT-SNAPSHOT-2025-12-01-a
+  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: DEVELOPMENT-SNAPSHOT-2026-03-01-a
 
 defaults:
   run:
@@ -1034,14 +1034,6 @@ jobs:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-
-      - name: Override the temp directory
-        shell: pwsh
-        run: |
-          $newTemp = "${{ github.workspace }}\Temp"
-          New-Item -ItemType Directory -Force -Path $newTemp
-          echo "TEMP=$newTemp" >> $env:GITHUB_ENV
-          echo "TMP=$newTemp" >> $env:GITHUB_ENV
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -4605,7 +4597,7 @@ jobs:
       - uses: nuget/setup-nuget@v2
         if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
       - run: |
-          nuget install -x -OutputDirectory ${{ github.workspace }} Microsoft.Trusted.Signing.Client
+          nuget install -x -OutputDirectory ${{ github.workspace }} Microsoft.ArtifactSigning.Client
         if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
       - uses: actions/upload-artifact@v4
         if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
@@ -4613,7 +4605,7 @@ jobs:
           name: trusted-signing-dll
           # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
           # TODO: Update with more info once we've filed a bug against Microsoft.
-          path: ${{ github.workspace }}/Microsoft.Trusted.Signing.Client/bin/x64
+          path: ${{ github.workspace }}/Microsoft.ArtifactSigning.Client/bin/x64
 
   package_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
