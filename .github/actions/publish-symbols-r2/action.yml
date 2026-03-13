@@ -1,0 +1,214 @@
+name: Publish Symbols to R2
+description: Uploads PDB files to a public symbol server hosted on R2 using symstore.exe
+
+inputs:
+  symbolsFolder:
+    description: The path to the folder containing PDB files to upload
+    required: true
+    type: string
+  searchPattern:
+    description: The search pattern for PDB files (e.g., '**/*.pdb')
+    required: true
+    type: string
+  swift-version:
+    description: The Swift version for symstore metadata
+    required: true
+    type: string
+  arch:
+    description: The architecture for symstore metadata (e.g., 'amd64', 'arm64')
+    required: true
+    type: string
+  variant:
+    description: The build variant for symstore metadata
+    required: false
+    type: string
+    default: ''
+  build-revision:
+    description: The swift-build repository revision/hash
+    required: true
+    type: string
+  r2-access-key-id:
+    description: R2 access key ID
+    required: true
+    type: string
+  r2-secret-access-key:
+    description: R2 secret access key
+    required: true
+    type: string
+  r2-account-id:
+    description: R2 account ID
+    required: true
+    type: string
+  r2-bucket:
+    description: R2 bucket name
+    required: false
+    type: string
+    default: 'swift-toolchain'
+
+runs:
+  using: composite
+  steps:
+    - name: Install Debugging Tools for Windows
+      id: install-debugtools
+      shell: pwsh
+      run: |
+        Write-Output "ℹ️ Downloading Windows SDK installer..."
+        # Download Windows SDK for Windows 10 2004 (10.0.19041.0). 
+        # See https://learn.microsoft.com/en-us/windows/apps/windows-sdk/downloads for full list.
+        Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2120843' -OutFile winsdksetup.exe -UseBasicParsing
+
+        Write-Output "ℹ️ Installing Debugging Tools for Windows..."
+        Start-Process -FilePath ".\winsdksetup.exe" `
+          -ArgumentList "/features OptionId.WindowsDesktopDebuggers /q /norestart" `
+          -Wait
+
+        Write-Output "ℹ️ Installation complete. Searching for symstore.exe..."
+        $SymstorePaths = @(
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\symstore.exe",
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x86\symstore.exe",
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\arm64\symstore.exe"
+        )
+
+        $SymstoreExe = $SymstorePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if ($SymstoreExe) {
+          Write-Output "✓ Debugging Tools installed successfully. Found symstore.exe at: $SymstoreExe"
+        } else {
+          Write-Output "::error::Failed to install Debugging Tools for Windows. symstore.exe not found after installation."
+          exit 1
+        }
+        "symstore-path=$SymstoreExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    - name: Add symbols and upload to R2
+      shell: pwsh
+      env:
+        SYMBOLS_FOLDER: ${{ inputs.symbolsFolder }}
+        SEARCH_PATTERN: ${{ inputs.searchPattern }}
+        SWIFT_VERSION: ${{ inputs.swift-version }}
+        ARCH: ${{ inputs.arch }}
+        VARIANT: ${{ inputs.variant }}
+        BUILD_REVISION: ${{ inputs.build-revision }}
+        AWS_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+        AWS_SESSION_TOKEN: '' # required to clear any AWS state was set by sccache
+        AWS_SECURITY_TOKEN: '' # required to clear any AWS state was set by sccache
+        AWS_REGION: auto
+        AWS_DEFAULT_REGION: auto
+        R2_ENDPOINT_URL: https://${{ inputs.r2-account-id }}.r2.cloudflarestorage.com
+        R2_BUCKET: ${{ inputs.r2-bucket }}
+      run: |   
+        # Create a temporary directory for the local symbol store
+        $TempRoot = Join-Path $env:TEMP "symstore-$(New-Guid)"
+        New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
+        Write-Output "ℹ️ Created temp symbol store at: $TempRoot"
+
+        # Create 000Admin subdirectory
+        $AdminDir = Join-Path $TempRoot "000Admin"
+        New-Item -ItemType Directory -Path $AdminDir -Force | Out-Null
+
+        $SymstoreExe = "${{ steps.install-debugtools.outputs.symstore-path }}"
+        Write-Output "ℹ️ Using symstore.exe at: $SymstoreExe"
+
+        # Find all PDB files matching the search pattern
+        $SymbolsPath = Resolve-Path $env:SYMBOLS_FOLDER
+        $SearchPath = Join-Path $SymbolsPath $env:SEARCH_PATTERN
+        $PdbFiles = Get-ChildItem -Path $SearchPath -Recurse -File
+
+        if ($PdbFiles.Count -eq 0) {
+          Write-Output "::warning::No PDB files found matching pattern: ${env:SEARCH_PATTERN} in ${env:SYMBOLS_FOLDER}"
+          exit 0
+        }
+        Write-Output "ℹ️ Found $($PdbFiles.Count) PDB file(s) to add to symbol store"
+
+        # Symstore.exe is ment to manage a local symbolstore or one on a network share. 
+        # Since we are using R2 directelly to write, we need to do some extra steps to manage the state of the store in the face of concurrent writes. 
+        # This step implements optimistic concurrency control to update the symbols store state in R2.
+        # corruption when multiple jobs attempt to upload symbols simultaneously.
+        # How it works:
+        # 1. Use 000Admin/server.txt as a "lock" by tracking its ETag
+        # 2. Download current state (get ETag of 000Admin/server.txt and download admin files)
+        # 3. Add symbols locally using symstore.exe
+        # 4. Attempt to upload 000Admin/server.txt with --if-match using the ETag we captured
+        #    - If successful (ETag matches), no one else modified it - proceed with full upload
+        #    - If failed with PreconditionFailed (412), someone else updated it - retry
+        # 5. Retry up to 5 times with random delay (1-30 seconds) between attempts     
+        $MaxRetries = 5
+
+        for ($Attempt = 1; $Attempt -le $MaxRetries; $Attempt++) {
+          Write-Output ""
+          Write-Output "ℹ️ Attempt $Attempt of $MaxRetries..."
+
+          # 1. Get current ETag of server.txt as our lock
+          Write-Output "ℹ️ Getting current ETag of server.txt..."
+          $HeadOutput = aws s3api head-object `
+            --bucket "${env:R2_BUCKET}" `
+            --key "symbols/000Admin/server.txt" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
+
+          if ($LASTEXITCODE) {
+            Write-Output "::error::Failed to get ETag of server.txt"
+            Write-Output $HeadOutput
+            exit 1
+          }
+          $CurrentETag = ($HeadOutput | ConvertFrom-Json).ETag
+          Write-Output "✓ Current ETag: $CurrentETag"
+
+          # 2. Download admin files
+          Write-Output "ℹ️ Downloading symbol store admin files from R2..."
+          aws s3 cp "s3://${env:R2_BUCKET}/symbols/000Admin" "$AdminDir" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --recursive `
+            --exclude "*" `
+            --include "history.txt" `
+            --include "server.txt" `
+            --include "lastid.txt" `
+            --no-progress `
+            --only-show-errors
+          if ($LASTEXITCODE) { Write-Output "::error::Failed to download admin files from R2"; exit 1 }
+
+          # 3. Add symbols
+          Write-Output "ℹ️ Adding symbols to local store..."
+          & "$SymstoreExe" add /r /o /f "$SearchPath" /s "$TempRoot" /t "Swift-Toolchain" /v "$env:SWIFT_VERSION" /c "$env:BUILD_REVISION"
+          if ($LASTEXITCODE) { Write-Output "::error::symstore.exe failed ($LASTEXITCODE)"; exit 1 }
+          Write-Output "✓ Symbols added successfully"
+
+          # 4. Conditional upload of server.txt (with ETag)
+          $ServerTxtLocal = Join-Path $AdminDir "server.txt"
+          Write-Output "ℹ️ Attempting conditional upload of server.txt (ETag: $CurrentETag)..."
+          $UploadOutput = aws s3api put-object `
+            --bucket "${env:R2_BUCKET}" `
+            --key "symbols/000Admin/server.txt" `
+            --body "$ServerTxtLocal" `
+            --if-match "$CurrentETag" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
+
+          if (!$LASTEXITCODE) {
+            Write-Output "✓ server.txt uploaded successfully (no concurrent modification)"
+
+            # 5. Upload remaining store files
+            Write-Output "ℹ️ Uploading all symbol store files to R2..."
+            aws s3 sync "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
+              --endpoint-url "${env:R2_ENDPOINT_URL}" `
+              --no-progress `
+              --acl private
+            if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol store to R2"; exit 1 }
+            Write-Output "✓ Symbol store uploaded successfully to R2"
+            exit 0
+          }
+
+          # Handle concurrency / retry
+          if ($UploadOutput -match "PreconditionFailed" -or $UploadOutput -match "412") {
+            Write-Output "⚠️ Concurrent modification detected (ETag mismatch) - retrying..."
+            if ($Attempt -lt $MaxRetries) {
+              $Delay = Get-Random -Minimum 30 -Maximum 60
+              Write-Output "ℹ️ Waiting $Delay seconds before retry..."
+              Start-Sleep -Seconds $Delay
+            }
+          } else {
+            Write-Output "::error::Failed to upload server.txt with unexpected error:"
+            Write-Output $UploadOutput
+            exit 1
+          }
+        }
+
+        Write-Output "::error::Failed to upload server.txt after $MaxRetries attempts (concurrent modifications)"
+        exit 1
