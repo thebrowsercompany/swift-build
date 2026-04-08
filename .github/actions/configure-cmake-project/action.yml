@@ -147,6 +147,10 @@ runs:
         $CacheScript = $env:INPUT_CACHE_SCRIPT
         $CMakeDefines = ${{ inputs.cmake-defines }}
 
+        $CMakeVersion = if ((& cmake --version | Select-Object -First 1) -Match '(\d+\.\d+\.\d+)') {
+          [version]$Matches[1]
+        }
+
         function Add-KeyValueIfNew([hashtable]$Hashtable, [string]$Key, [string]$Value) {
           if (-not $Hashtable.Contains($Key)) {
             $Hashtable.Add($Key, $Value)
@@ -213,8 +217,50 @@ runs:
         $UseCXX = $UseBuiltCompilers.Contains("CXX") -or $UseMSVCCompilers.Contains("CXX") -or $UsePinnedCompilers.Contains("CXX")
         $UseSwift = $UseBuiltCompilers.Contains("Swift") -or $UsePinnedCompilers.Contains("Swift")
 
+        $CMakeSupportsCMP0181 = $CMakeVersion -ge [version]'4.0'
+        enum LinkerFlagHandling {
+          CMP0181
+          XLinkerPrefix
+          None
+        }
+        $FlagHandling = if ($CMakeSupportsCMP0181) {
+          [LinkerFlagHandling]::CMP0181
+        } elseif ($UseMSVCCompilers.Contains("C") -or $UseMSVCCompilers.Contains("CXX")) {
+          [LinkerFlagHandling]::None
+        } else {
+          [LinkerFlagHandling]::XLinkerPrefix
+        }
+
+        # Helper cmdlet to add linker flags with the appropriate handling based on
+        # the linker driver and CMake version.
+        function Add-LinkerFlagsDefine([hashtable]$Defines, [string[]]$Value) {
+          $Value = switch ($FlagHandling) {
+            CMP0181 {
+              $Value | ForEach-Object { "LINKER:$_" }
+            }
+            XLinkerPrefix {
+              $NewValue = @()
+              foreach ($Flag in $Value) {
+                $NewValue += "-Xlinker"
+                $NewValue += $Flag
+              }
+              $NewValue
+            }
+            None {
+              $Value
+            }
+          }
+
+          Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS $Value
+          Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS $Value
+        }
+
         # Add additional defines (unless already present)
         $Defines = $CMakeDefines.Clone()
+
+        if ($CMakeSupportsCMP0181) {
+          Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0181 NEW
+        }
 
         Add-KeyValueIfNew $Defines CMAKE_BUILD_TYPE Release
 
@@ -372,17 +418,14 @@ runs:
               # Swift requires COMDAT folding and de-duplication
               $SwiftFlags += @("-Xlinker", "/OPT:REF", "-Xlinker", "/OPT:ICF")
 
+              Add-KeyValueIfNew $Defines CMAKE_EXE_LINKER_FLAGS_RELEASE ""
+              Add-KeyValueIfNew $Defines CMAKE_SHARED_LINKER_FLAGS_RELEASE ""
               Add-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftFlags
-              # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
               Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
               Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELWITHDEBINFO "-O"
             }
 
-            $LinkerFlags = if ($UseGNUDriver) {
-              @("-Xlinker", "/INCREMENTAL:NO", "-Xlinker", "/OPT:REF", "-Xlinker", "/OPT:ICF")
-            } else {
-              @("/INCREMENTAL:NO", "/OPT:REF", "/OPT:ICF")
-            }
+            Add-LinkerFlagsDefine $Defines @("/INCREMENTAL:NO", "/OPT:REF", "/OPT:ICF")
 
             if ($DebugInfo) {
               if ($UseASM -or $UseC -or $UseCXX) {
@@ -393,19 +436,12 @@ runs:
                 Add-KeyValueIfNew $Defines CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded
                 Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0141 NEW
 
-                $LinkerFlags += if ($UseGNUDriver) {
-                  @("-Xlinker", "/DEBUG")
-                } else {
-                  @("/DEBUG")
-                }
+                Add-LinkerFlagsDefine $Defines @("/DEBUG")
 
                 # Note: On GHA, we do not support the "dwarf" format.
                 # if ($SwiftDebugFormat -eq "dwarf") { ... }
               }
             }
-
-            Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS $LinkerFlags
-            Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS $LinkerFlags
           }
 
           'Android' {
@@ -507,8 +543,25 @@ runs:
               # and not support all required relocations needed by the Swift
               # runtime.
               $ld = "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/ld.lld"
-              Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS "--ld-path=$ld"
-              Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS "--ld-path=$ld"
+
+              if ($UseSwift) {
+                $AndroidLinkerFlags = @(
+                  "-Xlinker", "--build-id=sha1",
+                  "-Xlinker", "--no-rosegment",
+                  "-Xlinker", "--no-undefined-version",
+                  "-Xlinker", "--fatal-warnings",
+                  "-Xlinker", "--gc-sections",
+                  "-Xlinker", "--no-undefined"
+                )
+                Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS $AndroidLinkerFlags
+                Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS ($AndroidLinkerFlags + @("-Xlinker", "--gc-sections"))
+                Add-FlagsDefine $Defines CMAKE_MODULE_LINKER_FLAGS $AndroidLinkerFlags
+                Add-KeyValueIfNew $Defines SWIFT_ANDROID_LD_PATH $ld
+                Add-KeyValueIfNew $Defines CMAKE_PROJECT_INCLUDE "${Env:GITHUB_WORKSPACE}\SourceCache\ci-build\.github\actions\configure-cmake-project\android-overrides.cmake"
+              } else {
+                Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS "--ld-path=$ld"
+                Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS "--ld-path=$ld"
+              }
             }
 
             # TODO(compnerd) we should understand why CMake does not understand
