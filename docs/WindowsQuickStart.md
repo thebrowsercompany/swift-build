@@ -189,7 +189,7 @@ The following content in your Powershell profile file (whose path is stored in t
 function Set-SwiftEnv {
   $SwiftRoot = "S:\Program Files\Swift"
   $env:SDKROOT = "${SwiftRoot}\Platforms\Windows.platform\Developer\SDKs\Windows.sdk"
-  $env:Path = "S:\b\Python${env:PROCESSOR_ARCHITECTURE}-3.10.1\tools;${SwiftRoot}\Runtimes\0.0.0\usr\bin;${SwiftRoot}\Toolchains\0.0.0+Asserts\usr\bin;${env:Path}"
+  $env:Path = "${SwiftRoot}\Runtimes\0.0.0\usr\bin;${SwiftRoot}\Toolchains\0.0.0+Asserts\usr\bin;${env:Path}"
 }
 Set-Alias -Name SwiftEnv -Value Set-SwiftEnv
 ```
