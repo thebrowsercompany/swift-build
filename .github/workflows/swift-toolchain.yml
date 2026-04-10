@@ -3009,30 +3009,81 @@ jobs:
               plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ inputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ inputs.swift_version }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
 
             sdk_settings_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/SDKSettings.plist'
+            sdk_settings = {
+              'CanonicalName': '${{ matrix.os }}'.lower(),
+              'DisplayName': '${{ matrix.os }}',
+              'IsBaseSDK': 'YES',
+              'Version': '${{ inputs.swift_version }}',
+              'VersionMap': {},
+              'HeaderSearchPaths': ['usr/include'],
+              'LibrarySearchPaths': [],
+              'Toolchains': ['org.compnerd.dt.toolchain'],
+              'DefaultProperties': {
+                'PLATFORM_NAME': '${{ matrix.os }}'.lower(),
+                'DEFAULT_COMPILER': 'org.compnerd.dt.toolchain',
+              },
+              'SupportedTargets': {},
+            }
+            os_name = '${{ matrix.os }}'.lower()
+            if os_name == 'windows':
+              sdk_settings['DefaultProperties']['DEFAULT_USE_RUNTIME'] = 'MD'
+              sdk_settings['SupportedTargets']['windows'] = {
+                'PlatformFamilyDisplayName': 'Windows',
+                'PlatformFamilyName': 'Windows',
+                'LLVMTargetVendor': 'unknown',
+                'LLVMTargetSys': 'windows',
+                'LLVMTargetTripleEnvironment': 'msvc',
+                'Archs': ['aarch64', 'i686', 'x86_64'],
+              }
+            elif os_name == 'android':
+              sdk_settings['SupportedTargets']['android'] = {
+                'PlatformFamilyDisplayName': 'Android',
+                'PlatformFamilyName': 'Android',
+                'LLVMTargetVendor': 'unknown',
+                'LLVMTargetSys': 'linux',
+                'LLVMTargetTripleEnvironment': 'android${{ inputs.ANDROID_API_LEVEL }}',
+                'Archs': ['aarch64', 'armv7', 'i686', 'x86_64'],
+              }
             with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
-              # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
-              # runtime.
-              plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
+              plistlib.dump(sdk_settings, plist)
 
       - name: Create SDKSettings.json
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           $SDKSettings = @{
-            CanonicalName = "${{ matrix.triple }}"
+            CanonicalName = "${{ matrix.os }}".ToLowerInvariant()
             DisplayName = "${{ matrix.os }}"
-            IsBaseSDK = "NO"
+            IsBaseSDK = "YES"
             Version = "${{ inputs.swift_version }}"
             VersionMap = @{}
+            HeaderSearchPaths = @( "usr/include" )
+            LibrarySearchPaths = @()
+            Toolchains = @( "org.compnerd.dt.toolchain" )
             DefaultProperties = @{
-              PLATFORM_NAME = "${{ matrix.os }}"
-              DEFAULT_COMPILER = [string]::Format(".org.compnerd.dt.toolchain.{0}.{1}-asserts", (Get-Date -Format "yyyymmdd"), ((Get-Date).Hour % 6))
+              PLATFORM_NAME = "${{ matrix.os }}".ToLowerInvariant()
+              DEFAULT_COMPILER = "org.compnerd.dt.toolchain"
+            }
+            SupportedTargets = @{
+              "${{ matrix.os }}".ToLowerInvariant() = @{
+                PlatformFamilyDisplayName = "${{ matrix.os }}"
+                PlatformFamilyName = "${{ matrix.os }}"
+              }
             }
           }
           if ("${{ matrix.os }}" -eq "Windows") {
             $SDKSettings.DefaultProperties.DEFAULT_USE_RUNTIME = "MD"
+            $SDKSettings.SupportedTargets.windows.LLVMTargetVendor = "unknown"
+            $SDKSettings.SupportedTargets.windows.LLVMTargetSys = "windows"
+            $SDKSettings.SupportedTargets.windows.LLVMTargetTripleEnvironment = "msvc"
+            $SDKSettings.SupportedTargets.windows.Archs = @("aarch64", "i686", "x86_64")
+          } elseif ("${{ matrix.os }}" -eq "Android") {
+            $SDKSettings.SupportedTargets.android.LLVMTargetVendor = "unknown"
+            $SDKSettings.SupportedTargets.android.LLVMTargetSys = "linux"
+            $SDKSettings.SupportedTargets.android.LLVMTargetTripleEnvironment = "android${{ inputs.ANDROID_API_LEVEL }}"
+            $SDKSettings.SupportedTargets.android.Archs = @("aarch64", "armv7", "i686", "x86_64")
           }
           New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk" -Force | Out-Null
-          $SDKSettings | ConvertTo-JSON | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/SDKSettings.json"
+          $SDKSettings | ConvertTo-JSON -Depth 4 | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/SDKSettings.json"
 
       - uses: actions/upload-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
@@ -3454,30 +3505,81 @@ jobs:
               plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ inputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ inputs.swift_version }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
 
             sdk_settings_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.plist'
+            sdk_settings = {
+              'CanonicalName': '${{ matrix.os }}'.lower(),
+              'DisplayName': '${{ matrix.os }}',
+              'IsBaseSDK': 'YES',
+              'Version': '${{ inputs.swift_version }}',
+              'VersionMap': {},
+              'HeaderSearchPaths': ['usr/include'],
+              'LibrarySearchPaths': [],
+              'Toolchains': ['org.compnerd.dt.toolchain'],
+              'DefaultProperties': {
+                'PLATFORM_NAME': '${{ matrix.os }}'.lower(),
+                'DEFAULT_COMPILER': 'org.compnerd.dt.toolchain',
+              },
+              'SupportedTargets': {},
+            }
+            os_name = '${{ matrix.os }}'.lower()
+            if os_name == 'windows':
+              sdk_settings['DefaultProperties']['DEFAULT_USE_RUNTIME'] = 'MD'
+              sdk_settings['SupportedTargets']['windows'] = {
+                'PlatformFamilyDisplayName': 'Windows',
+                'PlatformFamilyName': 'Windows',
+                'LLVMTargetVendor': 'unknown',
+                'LLVMTargetSys': 'windows',
+                'LLVMTargetTripleEnvironment': 'msvc',
+                'Archs': ['aarch64', 'i686', 'x86_64'],
+              }
+            elif os_name == 'android':
+              sdk_settings['SupportedTargets']['android'] = {
+                'PlatformFamilyDisplayName': 'Android',
+                'PlatformFamilyName': 'Android',
+                'LLVMTargetVendor': 'unknown',
+                'LLVMTargetSys': 'linux',
+                'LLVMTargetTripleEnvironment': 'android${{ inputs.ANDROID_API_LEVEL }}',
+                'Archs': ['aarch64', 'armv7', 'i686', 'x86_64'],
+              }
             with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
-              # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
-              # runtime.
-              plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
+              plistlib.dump(sdk_settings, plist)
 
       - name: Create SDKSettings.json
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           $SDKSettings = @{
-            CanonicalName = "${{ matrix.triple }}"
+            CanonicalName = "${{ matrix.os }}".ToLowerInvariant()
             DisplayName = "${{ matrix.os }}"
-            IsBaseSDK = "NO"
+            IsBaseSDK = "YES"
             Version = "${{ inputs.swift_version }}"
             VersionMap = @{}
+            HeaderSearchPaths = @( "usr/include" )
+            LibrarySearchPaths = @()
+            Toolchains = @( "org.compnerd.dt.toolchain" )
             DefaultProperties = @{
-              PLATFORM_NAME = "${{ matrix.os }}"
-              DEFAULT_COMPILER = [string]::Format(".org.compnerd.dt.toolchain.{0}.{1}-asserts", (Get-Date -Format "yyyymmdd"), ((Get-Date).Hour % 6))
+              PLATFORM_NAME = "${{ matrix.os }}".ToLowerInvariant()
+              DEFAULT_COMPILER = "org.compnerd.dt.toolchain"
+            }
+            SupportedTargets = @{
+              "${{ matrix.os }}".ToLowerInvariant() = @{
+                PlatformFamilyDisplayName = "${{ matrix.os }}"
+                PlatformFamilyName = "${{ matrix.os }}"
+              }
             }
           }
           if ("${{ matrix.os }}" -eq "Windows") {
             $SDKSettings.DefaultProperties.DEFAULT_USE_RUNTIME = "MD"
+            $SDKSettings.SupportedTargets.windows.LLVMTargetVendor = "unknown"
+            $SDKSettings.SupportedTargets.windows.LLVMTargetSys = "windows"
+            $SDKSettings.SupportedTargets.windows.LLVMTargetTripleEnvironment = "msvc"
+            $SDKSettings.SupportedTargets.windows.Archs = @("aarch64", "i686", "x86_64")
+          } elseif ("${{ matrix.os }}" -eq "Android") {
+            $SDKSettings.SupportedTargets.android.LLVMTargetVendor = "unknown"
+            $SDKSettings.SupportedTargets.android.LLVMTargetSys = "linux"
+            $SDKSettings.SupportedTargets.android.LLVMTargetTripleEnvironment = "android${{ inputs.ANDROID_API_LEVEL }}"
+            $SDKSettings.SupportedTargets.android.Archs = @("aarch64", "armv7", "i686", "x86_64")
           }
           New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk" -Force | Out-Null
-          $SDKSettings | ConvertTo-JSON | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.json"
+          $SDKSettings | ConvertTo-JSON -Depth 4 | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.json"
 
       - name: Move libraries and headers
         if: matrix.os != 'Android' || inputs.build_android
