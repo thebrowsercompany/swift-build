@@ -1308,7 +1308,7 @@ jobs:
             now = datetime.now()
             info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/ToolchainInfo.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
-              plistlib.dump({ 'Identifier': 'org.compnerd.dt.toolchain.{0}.{1}-asserts'.format(now.strftime('%Y%m%d'), now.timetuple().tm_hour % 6), 'FallbackLibrarySearchPaths': ['usr/bin'], 'Version': '${{ inputs.swift_version }}' }, plist)
+              plistlib.dump({ 'Identifier': 'org.compnerd.dt.toolchain.{0}.{1}-{2}'.format(now.strftime('%Y%m%d'), now.timetuple().tm_hour % 6, "${{ matrix.variant }}"), 'FallbackLibrarySearchPaths': ['usr/bin'], 'Version': '${{ inputs.swift_version }}' }, plist)
 
       - name: Upload Compilers
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
@@ -3012,20 +3012,22 @@ jobs:
             with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
               # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
               # runtime.
-              plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
+              plistlib.dump({
+                'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' },
+                'CanonicalName': "${{ matrix.os }}Experimental".lower()
+              }, plist)
 
       - name: Create SDKSettings.json
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           $SDKSettings = @{
-            CanonicalName = "${{ matrix.triple }}"
+            CanonicalName = "${{ matrix.os }}Experimental".ToLower()
             DisplayName = "${{ matrix.os }}"
             IsBaseSDK = "NO"
             Version = "${{ inputs.swift_version }}"
             VersionMap = @{}
             DefaultProperties = @{
               PLATFORM_NAME = "${{ matrix.os }}"
-              DEFAULT_COMPILER = [string]::Format(".org.compnerd.dt.toolchain.{0}.{1}-asserts", (Get-Date -Format "yyyymmdd"), ((Get-Date).Hour % 6))
             }
           }
           if ("${{ matrix.os }}" -eq "Windows") {
@@ -3457,20 +3459,22 @@ jobs:
             with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
               # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
               # runtime.
-              plistlib.dump({ 'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' } }, plist)
+              plistlib.dump({
+                'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' },
+                'CanonicalName': "${{ matrix.os }}".lower()
+              }, plist)
 
       - name: Create SDKSettings.json
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           $SDKSettings = @{
-            CanonicalName = "${{ matrix.triple }}"
+            CanonicalName = "${{ matrix.os }}".ToLower()
             DisplayName = "${{ matrix.os }}"
             IsBaseSDK = "NO"
             Version = "${{ inputs.swift_version }}"
             VersionMap = @{}
             DefaultProperties = @{
               PLATFORM_NAME = "${{ matrix.os }}"
-              DEFAULT_COMPILER = [string]::Format(".org.compnerd.dt.toolchain.{0}.{1}-asserts", (Get-Date -Format "yyyymmdd"), ((Get-Date).Hour % 6))
             }
           }
           if ("${{ matrix.os }}" -eq "Windows") {
@@ -6544,8 +6548,8 @@ jobs:
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
           # TODO: Remove the following workaround from `SWIFT_OPTIONS`, due to missing `libclang_rt.builtins.a`
           #       and `libunwind.a` libraries in the Swift toolchain:
-          #       -Xclang-linker -resource-dir -Xclang-linker ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\lib\clang\18
-          SWIFT_OPTIONS: -sdk ${env:SDKROOT}..\..\..\..\Android.platform\Developer\SDKs\Android.sdk -sysroot ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\sysroot -Xclang-linker -resource-dir -Xclang-linker ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\lib\clang\18 -I${env:SDKROOT}\..\..\..\..\..\..\Toolchains\0.0.0+Asserts\usr\include -I${env:SDKROOT}\usr\include -Xlinker -zdefs
+          #       -Xclang-linker -resource-dir -Xclang-linker ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\lib\clang\${{ inputs.ANDROID_CLANG_VERSION }}
+          SWIFT_OPTIONS: -sdk ${env:SDKROOT}..\..\..\..\Android.platform\Developer\SDKs\Android.sdk -sysroot ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\sysroot -Xclang-linker -resource-dir -Xclang-linker ${env:ANDROID_NDK_ROOT}\toolchains\llvm\prebuilt\windows-x86_64\lib\clang\${{ inputs.ANDROID_CLANG_VERSION }} -I${env:SDKROOT}\..\..\..\..\..\..\Toolchains\0.0.0+Asserts\usr\include -I${env:SDKROOT}\usr\include -Xlinker -zdefs
         working-directory: ${{ github.workspace }}/SourceCache/swift-firebase
         run: |
           cmake -B out `
