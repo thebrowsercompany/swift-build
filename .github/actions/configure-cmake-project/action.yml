@@ -430,6 +430,7 @@ runs:
             Add-KeyValueIfNew $Defines CMAKE_ANDROID_API "$AndroidAPILevel"
             Add-KeyValueIfNew $Defines CMAKE_ANDROID_ARCH_ABI "$AndroidArchABI"
             Add-KeyValueIfNew $Defines CMAKE_ANDROID_NDK "$AndroidNDKPath"
+            Add-KeyValueIfNew $Defines CMAKE_SYSROOT "$AndroidSysroot"
 
             if ($UseASM) {
             }
@@ -437,7 +438,7 @@ runs:
             if ($UseC) {
               Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_TARGET $Triple
 
-              $CFLAGS = @("--sysroot=${AndroidSysroot}", "-ffunction-sections", "-fdata-sections")
+              $CFLAGS = @("-ffunction-sections", "-fdata-sections")
               if ($DebugInfo) {
                 # Note: On GHA, we build Android with `-gsplit-dwarf`.
                 $CFLAGS += @("-g", "-gsplit-dwarf")
@@ -448,7 +449,7 @@ runs:
             if ($UseCXX) {
               Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_TARGET $Triple
 
-              $CXXFLAGS = @("--sysroot=${AndroidSysroot}", "-ffunction-sections", "-fdata-sections")
+              $CXXFLAGS = @("-ffunction-sections", "-fdata-sections")
               if ($DebugInfo) {
                 # Note: On GHA, we build Android with `-gsplit-dwarf`.
                 $CXXFLAGS += @("-g", "-gsplit-dwarf")
