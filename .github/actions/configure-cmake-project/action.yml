@@ -31,6 +31,10 @@ inputs:
     description: Enable sccache.
     required: false
     default: false
+  enable-cas:
+    description: Enable cas.
+    required: false
+    default: false
   debug-info:
     description: Enable debug information in the build.
     required: false
@@ -128,6 +132,7 @@ runs:
         $ProjectName = $env:INPUT_PROJECT_NAME
         $SwiftVersion = $env:INPUT_SWIFT_VERSION
         $EnableCaching = ${{ inputs.enable-caching == 'true' && '$True' || '$False' }}
+        $EnableCAS = ${{ inputs.enable-cas == 'true' && '$True' || '$False' }}
         $DebugInfo = ${{ inputs.debug-info == 'true' && '$True' || '$False' }}
         $BuildOS = $env:INPUT_BUILD_OS
         $BuildArch = $env:INPUT_BUILD_ARCH
@@ -528,6 +533,36 @@ runs:
 
           if ($UseCXX) {
             Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_LAUNCHER "sccache"
+          }
+        }
+
+        # Note: On GHA, we build Android with `-gsplit-dwarf`, which is not supported by sccache.
+        if ($EnableCAS -and $OS -ne "Android") {
+          $ClangCache = if ($UsePinnedCompilers.Contains("C")) {
+            # Note: On GHA, the pinned toolchain is already in the path.
+            "clang-cache.exe"
+          } elseif ($UseBuiltCompilers.Contains("C")) {
+            "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/clang-cache.exe"
+          } else {
+            throw "Enabling CAS requires that use_host_toolchain is false"
+          }
+
+          if ($UseC) {
+            Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER $ClangCache
+            if ($UseGNUDriver) {
+              Add-FlagsDefine $Defines CMAKE_C_FLAGS "-Xclang -Rcompile-job-cache"
+            } else {
+              Add-FlagsDefine $Defines CMAKE_C_FLAGS "/clang:-Rcompile-job-cache"
+            }
+          }
+
+          if ($UseCXX) {
+            Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_LAUNCHER $ClangCache
+            if ($UseGNUDriver) {
+              Add-FlagsDefine $Defines CMAKE_C_FLAGS "-Xclang -Rcompile-job-cache"
+            } else {
+              Add-FlagsDefine $Defines CMAKE_C_FLAGS "/clang:-Rcompile-job-cache"
+            }
           }
         }
 

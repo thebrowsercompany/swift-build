@@ -318,7 +318,7 @@ on:
         required: false
 
 env:
-  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: DEVELOPMENT-SNAPSHOT-2026-03-01-a
+  PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: DEVELOPMENT-SNAPSHOT-2026-03-16-a
 
 defaults:
   run:
@@ -363,14 +363,14 @@ jobs:
           $stringAsStream.Position = 0
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
-      - name: Setup sccache
-        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          disk-max-size: 100M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sqlite
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-sqlite
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -385,7 +385,7 @@ jobs:
         with:
           project-name: SQLite
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-cas: true
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -412,6 +412,15 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-sqlite
+
 
   ds2_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
