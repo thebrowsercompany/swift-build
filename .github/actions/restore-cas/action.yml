@@ -1,0 +1,88 @@
+name: "Restore CAS"
+description: "Restore CAS with S3"
+
+inputs:
+  cache-key:
+    description: "The cache key."
+    required: true
+  s3-bucket:
+    description: "The s3 bucket to use for cache storage."
+    required: false
+  s3-bucket-encryption:
+    description: "Whether to enable server-side encryption for the S3 bucket."
+    required: false
+    default: "true"
+  aws-arn:
+    description: "The ARN of the AWS role to assume which has read/write access to the S3 bucket."
+    required: false
+  aws-region:
+    description: "The region of the S3 bucket to use for the cache"
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Configure CAS
+      shell: pwsh
+      env:
+        INPUT_AWS_ARN: ${{ inputs.aws-arn }}
+        INPUT_S3_BUCKET: ${{ inputs.s3-bucket }}
+        INPUT_S3_BUCKET_ENCRYPTION: ${{ inputs.s3-bucket-encryption }}
+        INPUT_AWS_REGION: ${{ inputs.aws-region }}
+      run: |
+        $AWSArn = $env:INPUT_AWS_ARN
+        if ($AWSArn) {
+          $requiredParams = @{
+              's3-bucket' = $env:INPUT_S3_BUCKET
+              's3-bucket-encryption' = $env:INPUT_S3_BUCKET_ENCRYPTION
+              'aws-region' = $env:INPUT_AWS_REGION
+          }
+
+          foreach ($param in $requiredParams.GetEnumerator()) {
+              if ([string]::IsNullOrEmpty($param.Value)) {
+                  Write-Error -Message "$($param.Key) input cannot be empty when aws-arn is provided" -ErrorAction Stop
+              }
+          }
+        } else {
+          Write-Host "Error: AWS ARN isn't set."
+          exit(1)
+        }
+
+    - name: Authenticate to AWS
+      id: aws-credentials
+      uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+      if: inputs.aws-arn != ''
+      with:
+        role-to-assume: ${{ inputs.aws-arn }}
+        role-session-name: ToolchainCISccacheAccess
+        aws-region: ${{ inputs.aws-region }}
+        special-characters-workaround: 'true' # special characters in secrets can cause SignatureDoesNotMatch errors
+
+    - name: Restore
+      shell: pwsh
+      run: |
+        $cas_path = "$env:GITHUB_WORKSPACE\cas"
+        $cas_tgz = "cas-${{ inputs.cache-key }}.tgz"
+        $s3_bucket = "${{ inputs.s3-bucket }}"
+        $s3_key = $cas_tgz
+        $s3_path = "s3://$s3_bucket/$s3_key"
+        $temp_dir = Join-Path $env:TEMP ("my-temp-dir-" + [guid]::NewGuid().ToString())
+        New-Item -ItemType Directory -Path "$temp_dir" | Out-Null
+        $temp_path = "$temp_dir\$cas_tgz"
+        aws s3 cp $s3_path $temp_path
+        $code = $LASTEXITCODE
+        $global:LASTEXITCODE = 0
+        if ($code -eq 0) {
+          Write-Host "Downloaded $s3_path to $temp_path"
+          New-Item -ItemType Directory -Path "$cas_path" | Out-Null
+          Push-Location "$cas_path"
+          tar --force-local -xf "$temp_path" -C .
+          Pop-Location
+          Get-ChildItem "$cas_path" -Recurse
+          Write-Host "CAS restored at $cas_path."
+        } else {
+          Write-Host "CAS not found at $s3_path."
+        }
+        $LLVM_CACHE_CAS_PATH = "$cas_path".Replace('\', '/')
+        echo "LLVM_CACHE_CAS_PATH=$LLVM_CACHE_CAS_PATH" >> $env:GITHUB_ENV
+        Write-Host "Set LLVM_CACHE_CAS_PATH=$LLVM_CACHE_CAS_PATH"
