@@ -464,7 +464,7 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
-        if: inputs.build_android
+        if: ${{ inputs.build_android && inputs.use_host_toolchain }}
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
@@ -472,6 +472,14 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2_tools
 
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2_tools only on Windows X64 host only
@@ -497,7 +505,8 @@ jobs:
         with:
           project-name: RegsGen2
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -523,6 +532,14 @@ jobs:
           name: Windows-${{ inputs.build_arch }}-regsgen2
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2_tools
 
   ds2:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -574,7 +591,7 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
-        if: inputs.build_android
+        if: ${{ inputs.build_android && inputs.use_host_toolchain }}
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
@@ -582,6 +599,14 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2
 
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
@@ -620,7 +645,8 @@ jobs:
         with:
           project-name: DS2
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -650,6 +676,15 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-ds2
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
+
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2
 
   cmark_gfm:
     runs-on: ${{ inputs.default_build_runner }}
@@ -686,12 +721,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -706,7 +750,8 @@ jobs:
         with:
           project-name: cmark-gfm
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -733,6 +778,14 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
 
   build_tools:
     needs: [cmark_gfm]
@@ -1438,12 +1491,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-zlib
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-zlib
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -1465,7 +1527,8 @@ jobs:
         with:
           project-name: zlib
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1494,6 +1557,15 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-zlib
 
   brotli:
     runs-on: ${{ inputs.default_build_runner }}
@@ -1531,12 +1603,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-brotli
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-brotli
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -1558,7 +1639,8 @@ jobs:
         with:
           project-name: brotli
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1587,6 +1669,15 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-brotli
 
   curl:
     needs: [zlib, brotli]
@@ -1625,12 +1716,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-curl
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-curl
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -1662,7 +1762,8 @@ jobs:
         with:
           project-name: curl
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1780,6 +1881,15 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-curl
+
   libxml2:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1816,12 +1926,22 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-libxml2
+
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-libxml2
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -1843,7 +1963,8 @@ jobs:
         with:
           project-name: libxml2
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1880,6 +2001,15 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-libxml2
 
   stdlib:
     needs: [compilers]
