@@ -823,12 +823,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-build_tools
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-build_tools
 
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
@@ -859,7 +868,8 @@ jobs:
         with:
           project-name: Build Tools
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -943,6 +953,15 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-build-tools
           path: ${{ github.workspace }}/BuildRoot/bin
 
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-build_tools
+
   early_swift_driver:
     runs-on: ${{ inputs.default_build_runner }}
     needs: [sqlite]
@@ -979,12 +998,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-early-swift-driver
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -1040,7 +1068,8 @@ jobs:
         with:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1086,6 +1115,15 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
           path: ${{ github.workspace }}/BuildRoot
+
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
 
   compilers:
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
