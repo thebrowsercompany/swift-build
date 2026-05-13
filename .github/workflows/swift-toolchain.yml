@@ -3856,12 +3856,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-devtools
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-devtools
       # FIXME(compnerd): workaround CMake 3.30+ issue
       - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
         with:
@@ -4054,7 +4063,8 @@ jobs:
         with:
           project-name: swift-argument-parser
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4080,7 +4090,8 @@ jobs:
         with:
           project-name: swift-collections
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4105,7 +4116,8 @@ jobs:
         with:
           project-name: swift-asn1
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4129,7 +4141,8 @@ jobs:
         with:
           project-name: swift-crypto
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4155,7 +4168,8 @@ jobs:
         with:
           project-name: swift-llbuild
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4184,7 +4198,8 @@ jobs:
         with:
           project-name: swift-system
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4209,7 +4224,8 @@ jobs:
         with:
           project-name: swift-subprocess
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4238,7 +4254,8 @@ jobs:
         with:
           project-name: swift-tools-support-core
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4265,7 +4282,8 @@ jobs:
         with:
           project-name: swift-driver
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4299,7 +4317,8 @@ jobs:
         with:
           project-name: swift-certificates
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4325,7 +4344,8 @@ jobs:
         with:
           project-name: swift-tools-protocols
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4349,7 +4369,8 @@ jobs:
         with:
           project-name: swift-build
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4389,7 +4410,8 @@ jobs:
         with:
           project-name: swift-package-manager
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4429,7 +4451,8 @@ jobs:
         with:
           project-name: swift-markdown
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4456,7 +4479,8 @@ jobs:
         with:
           project-name: swift-format
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4487,7 +4511,8 @@ jobs:
         with:
           project-name: swift-lmdb
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4511,7 +4536,8 @@ jobs:
         with:
           project-name: indexstore-db
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4542,7 +4568,8 @@ jobs:
         with:
           project-name: sourcekit-lsp
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4579,7 +4606,8 @@ jobs:
         with:
           project-name: swift-docc-symbolkit
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4605,7 +4633,8 @@ jobs:
         with:
           project-name: swift-docc
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4741,6 +4770,15 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.exe'
 
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-devtools
+
   debugging_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
@@ -4775,12 +4813,21 @@ jobs:
           echo "hash=$hash" >> $env:GITHUB_OUTPUT
       - name: Setup sccache
         uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
+      - name: Restore CAS
+        uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
 
       - name: Download swift-argument-parser
         uses: actions/download-artifact@v4
@@ -4833,7 +4880,8 @@ jobs:
         with:
           project-name: swift-inspect
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: true
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4862,6 +4910,15 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Save CAS
+        uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ !inputs.use_host_toolchain }}
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
 
   # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
   # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
