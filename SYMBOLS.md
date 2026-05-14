@@ -17,7 +17,7 @@ The most straightforward approach is to set the `_NT_SYMBOL_PATH` environment va
 ```powershell
 [Environment]::SetEnvironmentVariable(
     "_NT_SYMBOL_PATH",
-    "SRV*C:\SymCache*https://swift-toolchain.thebrowserco.com/symbols*https://msdl.microsoft.com/download/symbols",
+    "SRV*C:\SymCache*https://swift-toolchain.thebrowserco.com/symbols;SRV*C:\SymCache*https://msdl.microsoft.com/download/symbols",
     "User"
 )
 ```
