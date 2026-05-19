@@ -69,16 +69,18 @@ runs:
         $temp_dir = Join-Path $env:TEMP ("my-temp-dir-" + [guid]::NewGuid().ToString())
         New-Item -ItemType Directory -Path "$temp_dir" | Out-Null
         $temp_path = "$temp_dir\$cas_tgz"
-        aws s3 cp $s3_path $temp_path
+        aws s3 cp $s3_path $temp_path --no-progress
         $code = $LASTEXITCODE
         $global:LASTEXITCODE = 0
         if ($code -eq 0) {
           Write-Host "Downloaded $s3_path to $temp_path"
+          $FileSize = (Get-Item $temp_path).Length
+          Write-Host "$cas_tgz file size $FileSize bytes"
           New-Item -ItemType Directory -Path "$cas_path" | Out-Null
           Push-Location "$cas_path"
           tar --force-local -xf "$temp_path" -C .
           Pop-Location
-          Get-ChildItem "$cas_path" -Recurse
+          Remove-Item -Force "$temp_path"
           Write-Host "CAS restored at $cas_path."
         } else {
           Write-Host "CAS not found at $s3_path."
