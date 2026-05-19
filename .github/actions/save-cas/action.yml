@@ -5,6 +5,10 @@ inputs:
   cache-key:
     description: "The cache key."
     required: true
+  disk-max-size-mb:
+    description: "The maximum size of the local disk cache in MB (0 means unlimited)."
+    required: false
+    default: "0"
   s3-bucket:
     description: "The s3 bucket to use for cache storage."
     required: false
@@ -87,6 +91,17 @@ runs:
           $FileSize = (Get-Item $temp_path).Length
           Write-Host "$cas_tgz file size $FileSize bytes"
           Write-Host "Archieved CAS to $temp_path"
+          $FileSizeMB = $FileSize / 1MB
+          $MaxFileSizeMB = [int64]"${{ inputs.disk-max-size-mb }}"
+          Write-Host "FileSizeMB $FileSizeMB"
+          Write-Host "MaxFileSizeMB $MaxFileSizeMB"
+          if (($MaxFileSizeMB -ne 0) -and ($FileSizeMB -gt $MaxFileSizeMB)) {
+            Write-Host "The archive is larger than the maximum size: $FileSizeMB (MB) vs $MaxFileSizeMB (MB), creating an empty tarball instead"
+            if (Test-Path "$temp_path") {
+              Remove-Item "$temp_path" -Force
+            }
+            tar --force-local -cf "$temp_path" --files-from $null
+          }
           aws s3 cp $temp_path $s3_path --no-progress
           $code = $LASTEXITCODE
           $global:LASTEXITCODE = 0
