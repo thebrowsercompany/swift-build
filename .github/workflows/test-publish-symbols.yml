@@ -1,0 +1,19 @@
+name: Test Publish Symbols
+
+# Manual-only. Will not fire on push, PR, or schedule.
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Invoke publish-symbols-azure
+        uses: ./.github/actions/publish-symbols-azure
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}
+          searchPattern: '**/*.pdb'
