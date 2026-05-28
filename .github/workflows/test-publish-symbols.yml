@@ -10,10 +10,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: compnerd/gha-setup-vsdevenv@5eb3eae1490d4f7875d574c4973539f69109700d
+        with:
+          host_arch: amd64
+          arch: amd64
+
+      - name: Build a test executable with a PDB
+        shell: cmd
+        run: |
+          mkdir test-symbols
+          echo int main(void) { return 0; } > test-symbols\hello.c
+          cl /nologo /Zi /Fo:test-symbols\ /Fe:test-symbols\hello.exe test-symbols\hello.c /link /DEBUG
+          dir test-symbols
+
       - name: Invoke publish-symbols-azure
         uses: ./.github/actions/publish-symbols-azure
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}
-          searchPattern: '**/*.pdb'
+          symbolsFolder: ${{ github.workspace }}/test-symbols
+          extensions: pdb exe

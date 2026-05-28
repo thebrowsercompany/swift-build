@@ -1,5 +1,5 @@
 name: 'Publish Symbols to Azure'
-description: 'PowerShell-based replacement for microsoft/action-publish-symbols. STUB — does not upload yet.'
+description: 'PowerShell-based replacement for microsoft/action-publish-symbols. Uploads symbol files to an Azure DevOps symbol server.'
 
 inputs:
   accountName:
@@ -9,12 +9,11 @@ inputs:
     required: true
     description: 'Azure DevOps PAT with build scope permission'
   symbolsFolder:
-    required: false
-    description: 'Folder containing symbol files (defaults to GITHUB_WORKSPACE)'
-  searchPattern:
-    required: false
-    description: 'Glob pattern for symbol files'
-    default: '**/bin/**/*.pdb'
+    required: true
+    description: 'Folder containing symbol files'
+  extensions:
+    required: true
+    description: 'Symbol file extensions to publish, space- or comma-separated (e.g. "pdb dll exe"). Matched recursively under symbolsFolder.'
   symbolServiceUrl:
     required: false
     description: 'Symbol server URL'
@@ -23,17 +22,121 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Stub
+    - name: Publish symbols
       shell: pwsh
       env:
         ACCOUNT_NAME: ${{ inputs.accountName }}
+        SYMBOL_PAT_AUTH_TOKEN: ${{ inputs.personalAccessToken }}
         SYMBOLS_FOLDER: ${{ inputs.symbolsFolder }}
-        SEARCH_PATTERN: ${{ inputs.searchPattern }}
+        EXTENSIONS: ${{ inputs.extensions }}
         SYMBOL_SERVICE_URL: ${{ inputs.symbolServiceUrl }}
       run: |
-        Write-Output "publish-symbols-azure stub invoked"
-        Write-Output "accountName       = $env:ACCOUNT_NAME"
-        Write-Output "symbolsFolder     = $env:SYMBOLS_FOLDER"
-        Write-Output "searchPattern     = $env:SEARCH_PATTERN"
-        Write-Output "symbolServiceUrl  = $env:SYMBOL_SERVICE_URL"
-        Write-Output "(stub: no upload performed)"
+        $ErrorActionPreference = 'Stop'
+
+        $MaxAttempts = 3
+        $RetryDelaySeconds = 30
+
+        function Invoke-WithRetry {
+          param([string]$Name, [scriptblock]$Op)
+          for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+            try {
+              return & $Op
+            } catch {
+              if ($attempt -lt $MaxAttempts) {
+                Write-Output "::warning::${Name}: attempt $attempt of $MaxAttempts failed: $_. Retrying in $RetryDelaySeconds s..."
+                Start-Sleep -Seconds $RetryDelaySeconds
+              } else {
+                throw
+              }
+            }
+          }
+        }
+
+        # --- Resolve symbols folder and find files ---
+        $SymbolsFolder = $env:SYMBOLS_FOLDER
+        if (-not (Test-Path $SymbolsFolder)) {
+          throw "symbolsFolder '$SymbolsFolder' does not exist"
+        }
+        $SymbolsFolder = (Resolve-Path $SymbolsFolder).Path
+
+        # Match symbol files by extension, recursively. The action takes a list of extensions rather
+        # than a glob because matching is extension-based only (PowerShell has no '**' globstar, and a
+        # glob input would imply path semantics we don't honor).
+        $Extensions = @($env:EXTENSIONS -split '[\s,]+' | Where-Object { $_ } | ForEach-Object { $_.TrimStart('.') })
+        if ($Extensions.Count -eq 0) {
+          throw "extensions input is required (e.g. 'pdb dll exe')"
+        }
+        $Files = @(foreach ($ext in $Extensions) {
+          Get-ChildItem -Path $SymbolsFolder -Filter "*.$ext" -Recurse -File -ErrorAction SilentlyContinue
+        })
+        Write-Output "Found $($Files.Count) file(s) [$($Extensions -join ', ')] under $SymbolsFolder"
+        if ($Files.Count -eq 0) {
+          Write-Output "::warning::No files to publish"
+          exit 0
+        }
+
+        # --- Download and extract the Azure DevOps symbol client ---
+        $SymbolServerUrl = "$env:SYMBOL_SERVICE_URL/$env:ACCOUNT_NAME"
+        $ClientZipUrl = "$SymbolServerUrl/_apis/symbol/client/task"
+        $WorkDir = Join-Path $env:RUNNER_TEMP "symbol-client-$([guid]::NewGuid())"
+        New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
+        $ClientZip = Join-Path $WorkDir 'symbol.app.buildtask.zip'
+        $ClientDir = Join-Path $WorkDir 'extracted'
+        Invoke-WithRetry 'symbol client download' {
+          Write-Output "ℹ️ Downloading $ClientZipUrl"
+          Invoke-WebRequest -Uri $ClientZipUrl -OutFile $ClientZip -UseBasicParsing
+        }
+        Expand-Archive -Path $ClientZip -DestinationPath $ClientDir -Force
+        $SymbolExe = Get-ChildItem -Path $ClientDir -Filter 'symbol.exe' -Recurse -File | Select-Object -First 1
+        if (-not $SymbolExe) {
+          throw "symbol.exe not found after extracting $ClientZip"
+        }
+        Write-Output "✓ Symbol client extracted to $($SymbolExe.Directory.FullName)"
+
+        # --- Assert the bundled dbghelp/dbgcore are new enough for PDBs >4GB ---
+        # The symbol client historically shipped DLLs too old for >4GB PDBs (the fork overlaid newer
+        # ones). We no longer overlay; we just fail loudly if Azure regresses. If this never fires,
+        # the overlay was unnecessary. https://randomascii.wordpress.com/2023/03/08/when-debug-symbols-get-large/
+        $MinDbgVersion = [version]'10.0.22621.0'
+        function Get-DllVersion([string]$Path) {
+          if (-not (Test-Path $Path)) { return $null }
+          $info = (Get-Item $Path).VersionInfo
+          foreach ($v in @($info.FileVersionRaw, $info.FileVersion, $info.ProductVersion)) {
+            if ($v) { try { return [version]$v } catch { } }
+          }
+          return $null
+        }
+        $dbgDir = $SymbolExe.Directory.FullName
+        $helpVer = Get-DllVersion (Join-Path $dbgDir 'dbghelp.dll')
+        $coreVer = Get-DllVersion (Join-Path $dbgDir 'dbgcore.dll')
+        Write-Output "ℹ️ Bundled dbghelp=$helpVer, dbgcore=$coreVer (min for >4GB: $MinDbgVersion)"
+        if (($null -eq $helpVer -or $helpVer -lt $MinDbgVersion) -or ($null -eq $coreVer -or $coreVer -lt $MinDbgVersion)) {
+          throw "Symbol client bundles dbghelp=$helpVer/dbgcore=$coreVer, older than $MinDbgVersion; PDBs >4GB may fail. The dbghelp overlay is still needed."
+        }
+
+        # --- Write file list and publish ---
+        $FileList = Join-Path $WorkDir 'files.txt'
+        $Files | ForEach-Object { $_.FullName } | Set-Content -Path $FileList -Encoding utf8
+
+        $RequestName = "$env:GITHUB_REPOSITORY/$env:GITHUB_WORKFLOW/$env:GITHUB_RUN_NUMBER/$env:GITHUB_RUN_ID/$([guid]::NewGuid())".ToLower()
+        Write-Output "Symbol Request Name = $RequestName"
+
+        Invoke-WithRetry 'symbol publish' {
+          $publishArgs = @(
+            'publish'
+            '--service',          $SymbolServerUrl
+            '--name',             $RequestName
+            '--directory',        $SymbolsFolder
+            '--fileListFileName', $FileList
+            '--expirationInDays', '36530'
+            '--patAuthEnvVar',    'SYMBOL_PAT_AUTH_TOKEN'
+            '--globalretrycount', '2'
+            '--tracelevel',       'info'
+          )
+          & $SymbolExe.FullName @publishArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw "symbol.exe publish failed with exit code $LASTEXITCODE"
+          }
+        }
+
+        Write-Output "✓ Published $($Files.Count) symbol file(s)"
