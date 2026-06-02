@@ -77,31 +77,34 @@ inputs:
     description: Path to the Swift SDK.
     required: false
     default: ''
-  msvc-compilers:
-    description: List of languages to build with the MSVC compilers (e.g. "C", "CXX", "ASM_MASM").
+
+  assembler:
+    description: The assembler to use (e.g. "$Assemblers.Pinned", "$Assemblers.Stage1").
     required: false
-    default: '@()'
-  built-compilers:
-    description: |
-      List of languages to build with the built compilers (e.g. "C", "CXX", "ASM", "Swift").
+    default: '$null'
+  c-compiler:
+    description: The C compiler to use (e.g. "$Compilers.Pinned.C", "$Compilers.Stage1.C").
     required: false
-    default: '@()'
-  pinned-compilers:
-    description: |
-      List of languages to build with the pinned compilers (e.g. "C", "CXX", "ASM", "Swift").
+    default: '$null'
+  cxx-compiler:
+    description: The C++ compiler to use (e.g. "$Compilers.Pinned.CXX", "$Compilers.Stage1.CXX").
     required: false
-    default: '@()'
-  use-gnu-driver:
-    description: Use the GNU driver for building the project.
+    default: '$null'
+  swift-compiler:
+    description: The Swift compiler to use (e.g. "$Compilers.Pinned.Swift", "$Compilers.Stage1.Swift").
+    required: false
+    default: '$null'
+  use-asm-masm:
+    description: Whether to configure the ASMMASM assembler.
     required: false
     default: false
+
   cache-script:
     description: Optional path to a CMake Cache file.
     required: false
     default: ''
   cmake-defines:
-    description: |
-      Additional CMake definitions to pass to the build system (e.g. "CMAKE_BUILD_TYPE=Release").
+    description: Additional CMake definitions to pass to the build system (e.g. "CMAKE_BUILD_TYPE=Release").
     required: false
     default: '@{}'
 
@@ -145,10 +148,6 @@ runs:
         $AndroidClangVersion = $env:INPUT_ANDROID_CLANG_VERSION
         $NDKPath = $env:INPUT_NDK_PATH
         $SwiftSDK = $env:INPUT_SWIFT_SDK_PATH
-        $UseMSVCCompilers = ${{ inputs.msvc-compilers }}
-        $UseBuiltCompilers = ${{ inputs.built-compilers }}
-        $UsePinnedCompilers = ${{ inputs.pinned-compilers }}
-        $UseGNUDriver = ${{ inputs.use-gnu-driver == 'true' && '$True' || '$False' }}
         $CacheScript = $env:INPUT_CACHE_SCRIPT
         $CMakeDefines = ${{ inputs.cmake-defines }}
 
@@ -166,8 +165,148 @@ runs:
           }
         }
 
-        # Note: On GHA, we do not use the `$Platform` variable as in `build.ps1` so these values
-        # have to be computed directly here.
+        enum DriverStyle {
+          CL
+          ClangCL
+          GNU
+          Swift
+        }
+
+        $Assemblers = @{
+          Pinned = @{
+            Executable        = "clang-cl.exe"
+            DriverStyle       = [DriverStyle]::ClangCL
+            Flags             = @()
+            DebugFlags        = @("-clang:-gcodeview")
+            AssumeFunctional  = $false
+          }
+          Stage1 = @{
+            Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
+            DriverStyle       = [DriverStyle]::ClangCL
+            Flags             = @()
+            DebugFlags        = @("-clang:-gcodeview")
+            AssumeFunctional  = $true
+          }
+        }
+        $Compilers = @{
+          MSVC = @{
+            C = @{
+              Executable        = "cl.exe"
+              DriverStyle       = [DriverStyle]::CL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:preprocessor", "/Zc:inline")
+              DebugFlags        = @()
+              AssumeFunctional  = $false
+            }
+            CXX = @{
+              Executable        = "cl.exe"
+              DriverStyle       = [DriverStyle]::CL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:preprocessor", "/Zc:inline")
+              DebugFlags        = @()
+              AssumeFunctional  = $false
+            }
+          }
+
+          Pinned = @{
+            C = @{
+              Executable        = "clang-cl.exe"
+              DriverStyle       = [DriverStyle]::ClangCL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
+              DebugFlags        = @()
+              AssumeFunctional  = $false
+            }
+            CXX = @{
+              Executable        = "clang-cl.exe"
+              DriverStyle       = [DriverStyle]::ClangCL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
+              DebugFlags        = @()
+              AssumeFunctional  = $false
+            }
+            Swift = @{
+              Executable        = "swiftc.exe"
+              DriverStyle       = [DriverStyle]::Swift
+              Flags             = @()
+              DebugFlags        = @("-g", "-debug-info-format=codeview", "-Xlinker", "/DEBUG")
+              AssumeFunctional  = $false
+            }
+          }
+
+          Stage0 = @{
+            C = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::ClangCL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
+              DebugFlags        = @()
+              AssumeFunctional  = $true
+            }
+            CXX = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::ClangCL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
+              DebugFlags        = @()
+              AssumeFunctional  = $true
+            }
+            GNUC = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::GNU
+              Flags             = @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer", "-finline-functions")
+              DebugFlags        = @("-gcodeview")
+              AssumeFunctional  = $true
+            }
+            GNUCXX = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang++${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::GNU
+              Flags             = @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer", "-finline-functions")
+              DebugFlags        = @("-gcodeview")
+              AssumeFunctional  = $true
+            }
+            Swift = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "swiftc${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::Swift
+              Flags             = @()
+              DebugFlags        = @("-g", "-debug-info-format=codeview", "-Xlinker", "/DEBUG")
+              AssumeFunctional  = $true
+            }
+          }
+
+          Stage1 = @{
+            C = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::ClangCL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
+              DebugFlags        = @()
+              AssumeFunctional  = $true
+            }
+            CXX = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::ClangCL
+              Flags             = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
+              DebugFlags        = @()
+              AssumeFunctional  = $true
+            }
+            GNUC = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::GNU
+              Flags             = @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer", "-finline-functions")
+              DebugFlags        = @("-gcodeview")
+              AssumeFunctional  = $true
+            }
+            GNUCXX = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang++${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::GNU
+              Flags             = @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer", "-finline-functions")
+              DebugFlags        = @("-gcodeview")
+              AssumeFunctional  = $true
+            }
+            Swift = @{
+              Executable        = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "swiftc${ExeSuffix}")
+              DriverStyle       = [DriverStyle]::Swift
+              Flags             = @()
+              DebugFlags        = @("-g", "-debug-info-format=codeview", "-Xlinker", "/DEBUG")
+              AssumeFunctional  = $true
+            }
+          }
+        }
+
         $CMakeArch = switch ($OS) {
           'Windows' {
             switch ($Arch) {
@@ -212,51 +351,80 @@ runs:
           default { throw "Unsupported OS: $OS" }
         }
 
-        $UseASM = $UseBuiltCompilers.Contains("ASM") -or $UsePinnedCompilers.Contains("ASM")
-        $UseASM_MASM = $UseMSVCCompilers.Contains("ASM_MASM")
-        $UseC = $UseBuiltCompilers.Contains("C") -or $UseMSVCCompilers.Contains("C") -or $UsePinnedCompilers.Contains("C")
-        $UseCXX = $UseBuiltCompilers.Contains("CXX") -or $UseMSVCCompilers.Contains("CXX") -or $UsePinnedCompilers.Contains("CXX")
-        $UseSwift = $UseBuiltCompilers.Contains("Swift") -or $UsePinnedCompilers.Contains("Swift")
+        $Assembler = ${{ inputs.assembler }}
+        $CCompiler = ${{ inputs.c-compiler }}
+        $CXXCompiler = ${{ inputs.cxx-compiler }}
+        $SwiftCompiler = ${{ inputs.swift-compiler }}
+        $UseASM_MASM = ${{ inputs.use-asm-masm == 'true' && '$True' || '$False' }}
 
-        # Add additional defines (unless already present)
+
+        $UseASM = $null -ne $Assembler
+        $UseC = $null -ne $CCompiler
+        $UseCXX = $null -ne $CXXCompiler
+        $UseSwift = $null -ne $SwiftCompiler
+
+        enum LinkerFlagHandling {
+          XLinkerPrefix
+          None
+        }
+
+        $UsesDirectMSVCLinker =
+          ($UseC   -and $CCompiler.DriverStyle   -in @([DriverStyle]::CL, [DriverStyle]::ClangCL)) -or
+          ($UseCXX -and $CXXCompiler.DriverStyle -in @([DriverStyle]::CL, [DriverStyle]::ClangCL))
+        $FlagHandling = if ($UsesDirectMSVCLinker) {
+          [LinkerFlagHandling]::None
+        } else {
+          [LinkerFlagHandling]::XLinkerPrefix
+        }
+
+        function Convert-LinkerFlags([string[]]$Value) {
+          switch ($FlagHandling) {
+            XLinkerPrefix {
+              $NewValue = @()
+              foreach ($Flag in $Value) {
+                $NewValue += "-Xlinker"
+                $NewValue += $Flag
+              }
+              $NewValue
+            }
+            None {
+              $Value
+            }
+          }
+        }
+
+        function Add-LinkerFlagsDefine([hashtable]$Defines, [string[]]$Value) {
+          $Value = Convert-LinkerFlags $Value
+          Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS $Value
+          Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS $Value
+        }
+
+        function Add-SharedLinkerFlagsDefine([hashtable]$Defines, [string[]]$Value) {
+          $Value = Convert-LinkerFlags $Value
+          Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS $Value
+          Add-FlagsDefine $Defines CMAKE_MODULE_LINKER_FLAGS $Value
+        }
+
         $Defines = $CMakeDefines.Clone()
 
         Add-KeyValueIfNew $Defines CMAKE_BUILD_TYPE Release
 
-        # Avoid specifying `CMAKE_SYSTEM_NAME` and `CMAKE_SYSTEM_PROCESSOR` on
-        # Windows and in the case that we are not cross-compiling.
         if ($OS -ne $BuildOS -or $Arch -ne $BuildArch) {
           Add-KeyValueIfNew $Defines CMAKE_SYSTEM_NAME $OS
           Add-KeyValueIfNew $Defines CMAKE_SYSTEM_PROCESSOR $CMakeArch
         }
 
-        # Always prefer the CONFIG format for the packages so that we can build
-        # against the build tree.
         Add-KeyValueIfNew $Defines CMAKE_FIND_PACKAGE_PREFER_CONFIG YES
 
         switch ($OS) {
           'Windows' {
             if ($UseASM) {
-              $Driver = $(if ($UseGNUDriver) { "clang.exe" } else { "clang-cl.exe" })
-              $ASM = if ($UseBuiltCompilers.Contains("ASM")) {
-                "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/${Driver}"
-              } elseif ($UsePinnedCompilers.Contains("ASM")) {
-                # Note: On GHA, the pinned toolchain is already in the path.
-                $Driver
-              }
-
-              Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILER $ASM
+              Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILER $Assembler.Executable
               Add-KeyValueIfNew $Defines CMAKE_ASM_FLAGS @("--target=$Triple")
               Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
 
               if ($DebugInfo) {
-                # Note: On GHA, we do not support the "dwarf" format.
-                $ASMDebugFlags = if ($UseGNUDriver) { @("-gcodeview") } else { @("-clang:-gcodeview") }
-
-                # CMake does not set a default value for the ASM compiler debug
-                # information format flags with non-MSVC compilers, so we explicitly
-                # set a default here.
-                Add-FlagsDefine $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_DEBUG_INFORMATION_FORMAT_Embedded $ASMDebugFlags
+                Add-FlagsDefine $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_DEBUG_INFORMATION_FORMAT_Embedded $Assembler.DebugFlags
               }
             }
 
@@ -272,140 +440,70 @@ runs:
             }
 
             if ($UseC) {
-              $CC = if ($UseMSVCCompilers.Contains("C")) {
-                "cl.exe"
-              } else {
-                $Driver = $(if ($UseGNUDriver) { "clang.exe" } else { "clang-cl.exe" })
-                if ($UseBuiltCompilers.Contains("C")) {
-                  "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/${Driver}"
-                } elseif ($UsePinnedCompilers.Contains("C")) {
-                  # Note: On GHA, the pinned toolchain is already in the path.
-                  $Driver
-                }
-              }
-
-              Add-KeyValueIfNew $Defines CMAKE_C_COMPILER $CC
+              Add-KeyValueIfNew $Defines CMAKE_C_COMPILER $CCompiler.Executable
               Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_TARGET $Triple
+              Add-FlagsDefine $Defines CMAKE_C_FLAGS $CCompiler.Flags
 
-              $CFLAGS = if ($UseGNUDriver) {
-                # TODO(compnerd) we should consider enabling stack protector usage for standard libraries.
-                @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer")
-              } elseif ($UseMSVCCompilers.Contains("C")) {
-                @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:preprocessor", "/Zc:inline")
-              } else {
-                # clang-cl does not support the /Zc:preprocessor flag.
-                @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
+              if ($DebugInfo) {
+                Add-FlagsDefine $Defines CMAKE_C_FLAGS $CCompiler.DebugFlags
               }
-
-              # Note: On GHA, we do not support CAS yet.
-              # if ($EnableCAS) { ... }
-              # Note: On GHA, we do not support the "dwarf" format.
-              # if ($CDebugFormat -eq "dwarf") { ... }
-
-              Add-FlagsDefine $Defines CMAKE_C_FLAGS $CFLAGS
             }
 
             if ($UseCXX) {
-              $CXX = if ($UseMSVCCompilers.Contains("CXX")) {
-                "cl.exe"
-              } else {
-                $Driver = $(if ($UseGNUDriver) { "clang++.exe" } else { "clang-cl.exe" })
-                if ($UseBuiltCompilers.Contains("CXX")) {
-                  "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/${Driver}"
-                } elseif ($UsePinnedCompilers.Contains("CXX")) {
-                  # Note: On GHA, the pinned toolchain is already in the path.
-                  $Driver
+              Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER $CXXCompiler.Executable
+              Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_TARGET $Triple
+              Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXCompiler.Flags
+
+              if ($CXXCompiler.DriverStyle -eq [DriverStyle]::ClangCL) {
+                $librarian = [IO.Path]::Combine([IO.Path]::GetDirectoryName($CXXCompiler.Executable), "llvm-lib.exe")
+                if (Test-Path $librarian) {
+                  Add-KeyValueIfNew $Defines CMAKE_AR $librarian
                 }
               }
 
-              Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER $CXX
-              Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_TARGET $Triple
-
-              $CXXFLAGS = if ($UseGNUDriver) {
-                # TODO(compnerd) we should consider enabling stack protector usage for standard libraries.
-                @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer")
-              } elseif ($UseMSVCCompilers.Contains("CXX")) {
-                @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:preprocessor", "/Zc:inline", "/Zc:__cplusplus")
-              } else {
-                # clang-cl does not support the /Zc:preprocessor flag.
-                @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
+              if ($DebugInfo) {
+                Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXCompiler.DebugFlags
               }
-
-              # Note: On GHA, we do not support CAS yet.
-              # if ($EnableCAS) { ... }
-              # Note: On GHA, we do not support the "dwarf" format.
-              # if ($CDebugFormat -eq "dwarf") { ... }
-
-              Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFLAGS
             }
 
             if ($UseSwift) {
-              if ($UseBuiltCompilers.Contains("Swift")) {
+              if ($SwiftCompiler.AssumeFunctional) {
                 Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_WORKS "YES"
               }
 
-              $SWIFTC = if ($UseBuiltCompilers.Contains("Swift")) {
-                "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
-              } elseif ($UsePinnedCompilers.Contains("Swift")) {
-                # Note: On GHA, the pinned toolchain is already in the path.
-                "swiftc.exe"
-              }
-
-              Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER $SWIFTC
+              Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER $SwiftCompiler.Executable
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_TARGET $Triple
-
-              # Skip compiler ID detection: avoids compiling+scanning a multi-MB test binary on every configure.
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_ID "Apple"
 
-              [string[]] $SwiftFlags = @();
-
-              $SwiftFlags += if ($SwiftSDK) {
-                @("-sdk", $SwiftSDK)
+              Add-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftCompiler.Flags
+              if ($SwiftSDK) {
+                Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @("-sdk", $SwiftSDK)
+              }
+              if ($DebugInfo) {
+                Add-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftCompiler.DebugFlags
               } else {
-                @()
+                Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @("-gnone")
               }
 
-              $SwiftFlags += if ($DebugInfo) {
-                # Note: On GHA, we do not support the "dwarf" format.
-                @("-g", "-debug-info-format=codeview", "-Xlinker", "/DEBUG")
-              } else {
-                @("-gnone")
+              if ($CMakePassesSwiftLinkerFlags) {
+                Add-KeyValueIfNew $Defines CMAKE_EXE_LINKER_FLAGS_RELEASE ""
+                Add-KeyValueIfNew $Defines CMAKE_SHARED_LINKER_FLAGS_RELEASE ""
               }
 
-              # Disable EnC as that introduces padding in the conformance tables
-              $SwiftFlags += @("-Xlinker", "/INCREMENTAL:NO")
-              # Swift requires COMDAT folding and de-duplication
-              $SwiftFlags += @("-Xlinker", "/OPT:REF", "-Xlinker", "/OPT:ICF")
-
-              Add-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftFlags
-              # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
               Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
               Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELWITHDEBINFO "-O"
             }
 
-            $LinkerFlags = if ($UseGNUDriver) {
-              @("-Xlinker", "/INCREMENTAL:NO", "-Xlinker", "/OPT:REF", "-Xlinker", "/OPT:ICF")
-            } else {
-              @("/INCREMENTAL:NO", "/OPT:REF", "/OPT:ICF")
-            }
+            Add-LinkerFlagsDefine $Defines @("/INCREMENTAL:NO", "/OPT:REF", "/OPT:ICF")
+            Add-SharedLinkerFlagsDefine $Defines @("/MANIFEST:NO")
+            Add-KeyValueIfNew $Defines CMAKE_USER_MAKE_RULES_OVERRIDE `
+              "${env:GITHUB_WORKSPACE}\SourceCache\ci-build\.github\actions\configure-cmake-project\windows-clang-overrides.cmake"
 
             if ($DebugInfo) {
               if ($UseASM -or $UseC -or $UseCXX) {
-                # Prefer `/Z7` over `/ZI`
-                # By setting the debug information format, the appropriate C/C++
-                # flags will be set for codeview debug information format so there
-                # is no need to set them explicitly above.
                 Add-KeyValueIfNew $Defines CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded
                 Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0141 NEW
-
-                $LinkerFlags += if ($UseGNUDriver) {
-                  @("-Xlinker", "/DEBUG")
-                } else {
-                  @("/DEBUG")
-                }
-
-                # Note: On GHA, we do not support the "dwarf" format.
-                # if ($SwiftDebugFormat -eq "dwarf") { ... }
+                Add-LinkerFlagsDefine $Defines @("/DEBUG")
               }
             }
 
@@ -414,8 +512,6 @@ runs:
           }
 
           'Android' {
-            # Note: On GHA, we do not use the `$Platform` variable as in `build.ps1` so these values
-            # have to be computed directly here.
             $AndroidArchABI = switch ($Arch) {
               'i686' { "x86" }
               'x86_64' { "x86_64" }
@@ -442,24 +538,18 @@ runs:
 
             if ($UseC) {
               Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_TARGET $Triple
-
-              $CFLAGS = @("-ffunction-sections", "-fdata-sections")
+              Add-FlagsDefine $Defines CMAKE_C_FLAGS $CCompiler.Flags
               if ($DebugInfo) {
-                # Note: On GHA, we build Android with `-gsplit-dwarf`.
-                $CFLAGS += @("-g", "-gsplit-dwarf")
+                Add-FlagsDefine $Defines CMAKE_C_FLAGS @('-g', '-gsplit-dwarf')
               }
-              Add-FlagsDefine $Defines CMAKE_C_FLAGS $CFLAGS
             }
 
             if ($UseCXX) {
               Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_TARGET $Triple
-
-              $CXXFLAGS = @("-ffunction-sections", "-fdata-sections")
+              Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXCompiler.Flags
               if ($DebugInfo) {
-                # Note: On GHA, we build Android with `-gsplit-dwarf`.
-                $CXXFLAGS += @("-g", "-gsplit-dwarf")
+                Add-FlagsDefine $Defines CMAKE_CXX_FLAGS @('-g', '-gsplit-dwarf')
               }
-              Add-FlagsDefine $Defines CMAKE_CXX_FLAGS $CXXFLAGS
             }
 
             if ($UseSwift) {
@@ -467,54 +557,65 @@ runs:
                 Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_WORKS "YES"
               }
 
-              # FIXME(compnerd) remove this once the old runtimes build path is removed.
               Add-KeyValueIfNew $Defines SWIFT_ANDROID_NDK_PATH "$AndroidNDKPath"
-
-              $SWIFTC = if ($UseBuiltCompilers.Contains("Swift")) {
-                "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/swiftc.exe"
-              } else {
-                # Note: On GHA, the pinned toolchain is already in the path.
-                "swiftc.exe"
-              }
-              Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER $SWIFTC
+              Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER $SwiftCompiler.Executable
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_TARGET $Triple
-
-              # Skip compiler ID detection: avoids compiling+scanning a multi-MB test binary on every configure.
               Add-KeyValueIfNew $Defines CMAKE_Swift_COMPILER_ID "Apple"
-
-              [string[]] $SwiftFlags = @()
-
-              $SwiftFlags += if ($SwiftSDK) {
-                @("-sdk", $SwiftSDK, "-sysroot", $AndroidSysroot)
-              } else {
-                @()
+              Add-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftCompiler.Flags
+              if ($SwiftSDK) {
+                Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @("-sdk", $SwiftSDK, "-sysroot", $AndroidSysroot)
               }
 
-              $SwiftFlags += @(
+              Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @(
                 "-Xclang-linker", "-target", "-Xclang-linker", $Triple,
                 "-Xclang-linker", "--sysroot", "-Xclang-linker", $AndroidSysroot,
                 "-Xclang-linker", "-resource-dir", "-Xclang-linker", "${AndroidPrebuiltRoot}\lib\clang\${AndroidClangVersion}"
               )
 
-              $SwiftFlags += if ($DebugInfo) { @("-g") } else { @("-gnone") }
+              if ($DebugInfo) {
+                Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @("-g")
+              } else {
+                Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @("-gnone")
+              }
 
-              Add-FlagsDefine $Defines CMAKE_Swift_FLAGS $SwiftFlags
-              # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
               Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
               Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELWITHDEBINFO "-O"
             }
 
-            $UseBuiltASMCompiler = $UseBuiltCompilers.Contains("ASM")
-            $UseBuiltCCompiler = $UseBuiltCompilers.Contains("C")
-            $UseBuiltCXXCompiler = $UseBuiltCompilers.Contains("CXX")
-
-            if ($UseBuiltASMCompiler -or $UseBuiltCCompiler -or $UseBuiltCXXCompiler) {
-              # Use a built lld linker as the Android's NDK linker might be too old
-              # and not support all required relocations needed by the Swift
-              # runtime.
-              $ld = "${Env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/ld.lld"
-              Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS "--ld-path=$ld"
-              Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS "--ld-path=$ld"
+            if (($UseASM -and $Assembler.AssumeFunctional) -or ($UseC -and $CCompiler.AssumeFunctional) -or ($UseCXX -and $CXXCompiler.AssumeFunctional)) {
+              $Executable = if ($UseC) {
+                $CCompiler.Executable
+              } elseif ($UseCXX) {
+                $CXXCompiler.Executable
+              } elseif ($UseASM) {
+                $Assembler.Executable
+              }
+              $ld = Join-Path -Path (Split-Path $Executable) -ChildPath "ld.lld"
+              if ($UseSwift) {
+                $AndroidLinkerFlags = @(
+                  "-Xlinker", "--build-id=sha1",
+                  "-Xlinker", "--no-rosegment",
+                  "-Xlinker", "--no-undefined-version",
+                  "-Xlinker", "--fatal-warnings",
+                  "-Xlinker", "--gc-sections",
+                  "-Xlinker", "--no-undefined"
+                )
+                Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS $AndroidLinkerFlags
+                Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS ($AndroidLinkerFlags + @("-Xlinker", "--gc-sections"))
+                Add-FlagsDefine $Defines CMAKE_MODULE_LINKER_FLAGS $AndroidLinkerFlags
+                Add-KeyValueIfNew $Defines SWIFT_ANDROID_LD_PATH $ld
+                Add-KeyValueIfNew $Defines CMAKE_PROJECT_INCLUDE `
+                    "${env:GITHUB_WORKSPACE}\SourceCache\ci-build\.github\actions\configure-cmake-project\android-overrides.cmake"
+              } else {
+                # Clang Runtime explicitly sets linker flags for every target,
+                # making the `add_link_options()` approach via
+                # `CMAKE_PROJECT_INCLUDE` not viable. Since the problem that the
+                # above block aims to solve only concerns projects that use Swift,
+                # we can get away with just overriding `CMAKE_*_LINKER_FLAGS` for
+                # non-Swift projects.
+                Add-FlagsDefine $Defines CMAKE_SHARED_LINKER_FLAGS "--ld-path=$ld"
+                Add-FlagsDefine $Defines CMAKE_EXE_LINKER_FLAGS "--ld-path=$ld"
+              }
             }
 
             # TODO(compnerd) we should understand why CMake does not understand
@@ -538,28 +639,14 @@ runs:
 
         # Android's compilers are from the NDK and do not support CAS.
         if ($EnableCAS -and $OS -ne "Android") {
-          if ($UseC) {
-            $ClangCache = if ($UsePinnedCompilers.Contains("C")) {
-              # Note: On GHA, the pinned toolchain is already in the path.
-              "clang-cache.exe"
-            } elseif ($UseBuiltCompilers.Contains("C")) {
-              "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/clang-cache.exe"
-            } else {
-              throw "Enabling CAS requires that use_host_toolchain is false"
-            }
-            Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER $ClangCache
+          if ($UseC -and $CCompiler.DriverStyle -ne [DriverStyle]::CL) {
+            Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER `
+                 [IO.Path]::Combine([IO.Path]::GetDirectoryName("clang.exe"), "clang-cache.exe")
           }
 
-          if ($UseCXX) {
-            $ClangCache = if ($UsePinnedCompilers.Contains("CXX")) {
-              # Note: On GHA, the pinned toolchain is already in the path.
-              "clang-cache.exe"
-            } elseif ($UseBuiltCompilers.Contains("CXX")) {
-              "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/clang-cache.exe"
-            } else {
-              throw "Enabling CAS requires that use_host_toolchain is false"
-            }
-            Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_LAUNCHER $ClangCache
+          if ($UseCXX -and $CXXCompiler.DriverStyle -ne [DriverStyle]::CL) {
+            Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_LAUNCHER `
+                 [IO.Path]::Combine([IO.Path]::GetDirectoryName("clang++.exe"), "clang-cache.exe")
           }
 
           if ($UseSwift) {
@@ -584,15 +671,9 @@ runs:
         }
 
         foreach ($Define in ($Defines.GetEnumerator() | Sort-Object Name)) {
-          # The quoting gets tricky to support defines containing compiler flags args,
-          # some of which can contain spaces, for example `-D` `Flags=-flag "C:/Program Files"`
-          # Avoid backslashes since they are going into CMakeCache.txt,
-          # where they are interpreted as escapes.
           if ($Define.Value -is [string]) {
-            # Single token value, no need to quote spaces, the splat operator does the right thing.
             $Value = $Define.Value.Replace("\", "/")
           } else {
-            # Flags array, multiple tokens, quoting needed for tokens containing spaces
             $Value = ""
             foreach ($Arg in $Define.Value) {
               if ($Value.Length -gt 0) {
@@ -601,8 +682,6 @@ runs:
 
               $ArgWithForwardSlashes = $Arg.Replace("\", "/")
               if ($ArgWithForwardSlashes.Contains(" ")) {
-                # Escape the quote so it makes it through. PowerShell 5 and Core
-                # handle quotes differently, so we need to check the version.
                 $quote = if ($PSEdition  -eq "Core") { '"' } else { '\"' }
                 $Value += "$quote$ArgWithForwardSlashes$quote"
               } else {
@@ -614,8 +693,6 @@ runs:
           $cmakeGenerateArgs += @("-D", "$($Define.Key)=$Value")
         }
 
-        # Note: On GHA, we do a "pretty-print" of the cmake command for
-        # debugging purposes and call cmake directly.
         Write-Host "ℹ️ Configuring project ${ProjectName}:"
         Write-Host 'cmake `'
         for ($i = 0; $i -lt $cmakeGenerateArgs.Length; $i += 1) {
@@ -627,7 +704,6 @@ runs:
           }
 
           if ((-not ($Arg -match '^-')) -and ($i -lt ($cmakeGenerateArgs.Length - 1))) {
-            # Write a newline for non-option arguments.
             Write-Host " ``"
           }
         }
