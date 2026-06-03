@@ -1216,7 +1216,11 @@ jobs:
     needs: [stage0-libxml2, cmark_gfm, build_tools, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
-    name: ${{ inputs.build_os }} ${{ inputs.build_arch }} Stage0 Compiler
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Stage0 Compiler
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -1226,7 +1230,7 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          setup-vs-dev-env: ${{ inputs.build_os == 'Windows' }}
+          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ inputs.build_arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
@@ -1817,10 +1821,14 @@ jobs:
 
   # build.ps1: Build-Compilers Stage1Compilers
   stage1-compiler:
-    needs: [stage0-libxml2, cmark_gfm, build_tools, early_swift_driver]
+    needs: [bootstrap-sdk]
     runs-on: ${{ inputs.compilers_build_runner }}
 
-    name: ${{ inputs.build_os }} ${{ inputs.build_arch }} Stage1 Compiler
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Stage1 Compiler
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -1830,8 +1838,8 @@ jobs:
           show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
-          setup-vs-dev-env: ${{ inputs.build_os == 'Windows' }}
-          host-arch: ${{ inputs.build_arch }}
+          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
+          host-arch: ${{ matrix.arch }}
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
@@ -1842,7 +1850,7 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           cache-key: ${{ matrix.os }}-${{ matrix.arch }}-stage1-compiler
 
-      - name: Download Compiler
+      - name: Download Stage0 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-stage0-compiler
