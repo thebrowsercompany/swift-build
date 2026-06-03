@@ -403,7 +403,8 @@ jobs:
           install-dir: ${{ github.workspace }}/BuildRoot/Library/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -500,8 +501,9 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/libxml2
           bin-dir: ${{ github.workspace }}/BinaryCache/stage0-libxml2-${{ inputs.libxml2_version }}
           install-dir: ${{ github.workspace }}/BuildRoot/Library/stage0-libxml2-${{ inputs.libxml2_version }}/usr
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
-          cxx-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.CXX' || '$Compilers.Pinned.CXX' }}
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -613,8 +615,9 @@ jobs:
           arch: ${{ inputs.build_arch }}
           src-dir: ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2
           bin-dir: ${{ github.workspace }}/BinaryCache/RegsGen2
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
-          cxx-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.CXX' || '$Compilers.Pinned.CXX' }}
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
           cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
       - name: Build RegsGen2
         if: inputs.build_android
@@ -751,8 +754,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Pinned.C'
-          cxx-compiler: '$Compilers.Pinned.CXX'
+          c-compiler: 'Pinned.C'
+          cxx-compiler: 'Pinned.CXX'
           cmake-defines: |
             @{
               'DS2_REGSGEN2' = "${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe";
@@ -851,8 +854,9 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/cmark-gfm
           bin-dir: ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
           install-dir: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
-          cxx-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.CXX' || '$Compilers.Pinned.CXX' }}
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -963,8 +967,9 @@ jobs:
           arch: ${{ matrix.arch }}
           src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
           bin-dir: ${{ github.workspace }}/BinaryCache/BuildTools
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
-          cxx-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.CXX' || '$Compilers.Pinned.CXX' }}
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
           use-asm-masm: ${{ inputs.use_host_toolchain }}
           cmake-defines: |
             @{
@@ -1163,9 +1168,9 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift-driver
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-driver
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
-          c-compiler: '$Compilers.Pinned.C'
-          cxx-compiler: '$Compilers.Pinned.CXX'
-          swift-compiler: '$Compilers.Pinned.Swift'
+          c-compiler: 'Pinned.C'
+          cxx-compiler: 'Pinned.CXX'
+          swift-compiler: 'Pinned.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -1416,9 +1421,10 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/stage0/build
           install-dir: ${{ github.workspace }}/BinaryCache/stage0/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
-          cxx-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.CXX' || '$Compilers.Pinned.CXX' }}
-          swift-compiler: '$Compilers.Pinned.Swift'
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
+          swift-compiler: 'Pinned.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-Bootstrap-Stage0-${{ steps.setup-context.outputs.cpu }}.cmake
           cmake-defines: |
             @{
@@ -1593,8 +1599,8 @@ jobs:
           arch: ${{ matrix.arch }}
           src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch 
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/libdispatch-c 
-          c-compiler: '$Compilers.Stage0.GNUC'
-          cxx-compiler: '$Compilers.Stage0.GNUCXX'
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -1621,9 +1627,9 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Core
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Runtime 
           install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          c-compiler: '$Compilers.Stage0.GNUC'
-          cxx-compiler: '$Compilers.Stage0.GNUCXX'
-          swift-compiler: '$Compilers.Stage0.Swift'
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -1662,9 +1668,9 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Overlay
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Overlay
           install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          c-compiler: '$Compilers.Stage0.GNUC'
-          cxx-compiler: '$Compilers.Stage0.GNUCXX'
-          swift-compiler: '$Compilers.Stage0.Swift'
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -1698,9 +1704,9 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StringProcessing
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/StringProcessing
           install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          c-compiler: '$Compilers.Stage0.GNUC'
-          cxx-compiler: '$Compilers.Stage0.GNUCXX'
-          swift-compiler: '$Compilers.Stage0.Swift'
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -1733,7 +1739,7 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch
           install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          swift-compiler: '$Compilers.Stage0.Swift'
+          swift-compiler: 'Stage0.Swift'
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
             @{
@@ -2005,9 +2011,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/stage1/build
           install-dir: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}.sdk
-          c-compiler: '$Compilers.Stage0.C'
-          cxx-compiler: '$Compilers.Stage0.CXX'
-          swift-compiler: '$Compilers.Stage0.Swift'
+          c-compiler: 'Stage0.C'
+          cxx-compiler: 'Stage0.CXX'
+          swift-compiler: 'Stage0.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-Bootstrap-Stage1-${{ steps.setup-context.outputs.cpu }}.cmake
           cmake-defines: |
             @{
@@ -2214,7 +2220,7 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/swift-foundation-macros
           install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage0.Swift'
+          swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/cmake/modules";
@@ -2240,7 +2246,7 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/swift-testing-macros
           install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage0.Swift'
+          swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/cmake/modules";
@@ -2320,7 +2326,7 @@ jobs:
           install-dir: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          c-compiler: '$Compilers.Stage1.C'
+          c-compiler: 'Stage1.C'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -2411,8 +2417,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.C' || '$Compilers.Stage1.GNUC' }}
-          cxx-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.CXX' || '$Compilers.Stage1.GNUCXX' }}
+          c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
+          cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -2505,7 +2511,7 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.C' || '$Compilers.Stage1.GNUC' }}
+          c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -2606,7 +2612,7 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.C' || '$Compilers.Stage1.GNUC' }}
+          c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -2786,8 +2792,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.C' || '$Compilers.Stage1.GNUC' }}
-          cxx-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.CXX' || '$Compilers.Stage1.GNUCXX' }}
+          c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
+          cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -3026,8 +3032,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.C' || '$Compilers.Stage1.GNUC' }}
-          cxx-compiler: ${{ matrix.os == 'Windows' && '$Compilers.Stage1.CXX' || '$Compilers.Stage1.GNUCXX' }}
+          c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
+          cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -3059,9 +3065,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3109,9 +3115,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3151,9 +3157,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3192,8 +3198,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3233,9 +3239,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3276,8 +3282,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3319,9 +3325,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3361,8 +3367,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3403,9 +3409,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3451,8 +3457,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'CMAKE_Swift_FLAGS' = @("-static-stdlib");
@@ -3496,9 +3502,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
             @{
@@ -3536,9 +3542,9 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: '$Compilers.Stage1.GNUC'
-          cxx-compiler: '$Compilers.Stage1.GNUCXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
             @{
@@ -3873,9 +3879,10 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/1
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
-          cxx-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.CXX' || '$Compilers.Pinned.CXX' }}
-          swift-compiler: '$Compilers.Pinned.Swift'
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
+          swift-compiler: 'Pinned.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
             @{
@@ -4136,7 +4143,7 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage1.Swift'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
@@ -4161,7 +4168,7 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-testing-macros
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage1.Swift'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
@@ -4442,7 +4449,7 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-argument-parser
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage1.Swift'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4469,8 +4476,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-collections
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4495,7 +4502,7 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift-asn1
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-asn1
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage1.Swift'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -4521,10 +4528,10 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-crypto
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          assembler: $Assemblers.Stage1
-          c-compiler: '$Compilers.Stage1.C'
-          cxx-compiler: '$Compilers.Stage1.CXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          assembler: 'Stage1'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -4551,8 +4558,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-llbuild
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          cxx-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.CXX' || '$Compilers.Pinned.CXX' }}
-          swift-compiler: '$Compilers.Stage1.Swift'
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          cxx-compiler: 'Host.CXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4580,8 +4588,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-system
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -4607,8 +4615,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-subprocess
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -4638,8 +4646,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-tools-support-core
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4667,9 +4675,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-driver
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          cxx-compiler: '$Compilers.Stage1.CXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4703,7 +4711,7 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift-certificates
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-certificates
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage1.Swift'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -4731,9 +4739,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-tools-protocols
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          cxx-compiler: '$Compilers.Stage1.CXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4758,9 +4766,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-build
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          cxx-compiler: '$Compilers.Stage1.CXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4801,8 +4809,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-package-manager
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4843,8 +4851,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-markdown
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -4872,8 +4880,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-format
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: ${{ inputs.use_host_toolchain && '$Compilers.MSVC.C' || '$Compilers.Pinned.C' }}
-          swift-compiler: '$Compilers.Stage1.Swift'
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -4902,7 +4911,7 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/swift-lmdb
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-lmdb
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
+          c-compiler: 'Stage1.C'
           cmake-defines: |
             @{
               'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
@@ -4926,9 +4935,9 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/indexstore-db
           bin-dir: ${{ github.workspace }}/BinaryCache/indexstore-db
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          cxx-compiler: '$Compilers.Stage1.CXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -4961,9 +4970,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/sourcekit-lsp
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          cxx-compiler: '$Compilers.Stage1.CXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -5001,8 +5010,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "NO";
@@ -5029,8 +5038,8 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/swift-docc
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: '$Compilers.Stage1.C'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'BUILD_SHARED_LIBS' = "YES";
@@ -5250,7 +5259,7 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          swift-compiler: '$Compilers.Stage1.Swift'
+          swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'CMAKE_Swift_FLAGS' =  @(
@@ -7512,9 +7521,9 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/1
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
-          c-compiler: '$Compilers.Stage1.C'
-          cxx-compiler: '$Compilers.Stage1.CXX'
-          swift-compiler: '$Compilers.Stage1.Swift'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
             @{
