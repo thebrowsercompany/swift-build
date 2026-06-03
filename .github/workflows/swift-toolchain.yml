@@ -644,7 +644,7 @@ jobs:
 
   ds2:
     # TODO: Build this on macOS or make an equivalent Mac-only job
-    needs: [ds2_tools]
+    needs: [ds2_tools, stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -680,29 +680,9 @@ jobs:
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
-      - name: Compute workspace hash
-        if: inputs.build_android
-        id: workspace_hash
-        run: |
-          $stringAsStream = [System.IO.MemoryStream]::new()
-          $writer = [System.IO.StreamWriter]::new($stringAsStream)
-          $writer.write("${{ github.workspace }}")
-          $writer.Flush()
-          $stringAsStream.Position = 0
-          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
-          echo "hash=$hash" >> $env:GITHUB_OUTPUT
-      - name: Setup sccache
-        if: ${{ inputs.build_android && inputs.use_host_toolchain }}
-        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          disk-max-size: 1M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        if: inputs.build_android
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -731,6 +711,12 @@ jobs:
         with:
           name: Windows-${{ inputs.build_arch }}-regsgen2
           path: ${{ github.workspace }}/BinaryCache/RegsGen2
+      - name: Download Stage1 compiler
+        if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - uses: nttld/setup-ndk@v1
         if: inputs.build_android
@@ -759,8 +745,8 @@ jobs:
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: 'Pinned.C'
-          cxx-compiler: 'Pinned.CXX'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
           cmake-defines: |
             @{
               'DS2_REGSGEN2' = "${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe";
@@ -1153,7 +1139,7 @@ jobs:
         run: |
           if ("${{ matrix.os }}" -eq "Windows") {
               $sdkRoot = Split-Path -Parent ${env:SDKROOT}
-              $sdkRoot = Join-Path $sdkRoot "Windows.sdk"
+              $sdkRoot = Join-Path $sdkRoot "WindowsExperimental.sdk"
               $sdkRoot = cygpath -m ${sdkRoot}
           } else {
               $sdkRoot = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
@@ -7107,8 +7093,14 @@ jobs:
       - name: Build compnerd/vigil
         working-directory: ${{ github.workspace }}/SourceCache/vigil
         run: |
-          $ExperimentalSDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/Windows.sdk"
-          swift build --build-system native --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib -Xlinker /WX
+          swift build `
+            --build-system native `
+            --triple aarch64-unknown-windows-msvc `
+            -debug-info-format none `
+            -c release `
+            -Xswiftc -sdk -Xswiftc ${env:SDKROOT} `
+            -Xswiftc -static-stdlib `
+            -Xlinker /WX
 
       - name: Build & Test pointfreeco/swift-issue-reporting
         working-directory: ${{ github.workspace }}/SourceCache/swift-issue-reporting
