@@ -642,12 +642,12 @@ if ($EnableCaching -and $OS -ne "Android") {
 if ($EnableCAS -and $OS -ne "Android") {
     if ($UseC -and $CCompiler.DriverStyle -ne [DriverStyle]::CL) {
         Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER `
-            [IO.Path]::Combine([IO.Path]::GetDirectoryName("clang.exe"), "clang-cache.exe")
+            ([IO.Path]::Combine([IO.Path]::GetDirectoryName($CCompiler.Executable), "clang-cache.exe"))
     }
 
     if ($UseCXX -and $CXXCompiler.DriverStyle -ne [DriverStyle]::CL) {
         Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_LAUNCHER `
-            [IO.Path]::Combine([IO.Path]::GetDirectoryName("clang++.exe"), "clang-cache.exe")
+            ([IO.Path]::Combine([IO.Path]::GetDirectoryName($CXXCompiler.Executable), "clang-cache.exe"))
     }
 
     if ($UseSwift) {
