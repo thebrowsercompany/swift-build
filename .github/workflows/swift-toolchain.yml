@@ -1372,12 +1372,25 @@ jobs:
           $PYTHON_BINARY = "python.exe"
 
           # build.ps1: Get-PinnedToolchainRuntime
-          $PinnedRuntimeDir = Get-ChildItem -Path "${env:LOCALAPPDATA}\Programs\Swift\Runtimes" -Directory |
-            Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $PinnedRuntimeDir) {
-            throw "Could not locate pinned toolchain runtime under ${env:LOCALAPPDATA}\Programs\Swift\Runtimes"
+          # Resolve the runtime deterministically from the pinned swiftc we just
+          # installed (on PATH) rather than guessing by lexical sort. The Windows
+          # toolchain layout mirrors Toolchains\<ver> and Runtimes\<ver>, so the
+          # runtime version is exactly the one hosting swiftc.exe — the one the
+          # stage compiler's own Swift components were built against.
+          $SwiftcPath = (Get-Command swiftc -ErrorAction Stop).Source
+          $ToolchainRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $SwiftcPath))
+          $ToolchainVersion = Split-Path -Leaf $ToolchainRoot
+          $SwiftRoot = Split-Path -Parent (Split-Path -Parent $ToolchainRoot)
+          $PINNED_RUNTIME_BIN = Join-Path $SwiftRoot "Runtimes\$ToolchainVersion\usr\bin"
+          Write-Host "Pinned swiftc:         $SwiftcPath"
+          Write-Host "Pinned toolchain ver:  $ToolchainVersion"
+          Write-Host "Pinned runtime bin:    $PINNED_RUNTIME_BIN"
+          Write-Host "Runtimes present under $SwiftRoot\Runtimes:"
+          Get-ChildItem -Path (Join-Path $SwiftRoot "Runtimes") -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  - $($_.Name)" }
+          if (-not (Test-Path $PINNED_RUNTIME_BIN)) {
+            throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath')"
           }
-          $PINNED_RUNTIME_BIN = Join-Path $PinnedRuntimeDir.FullName "usr\bin"
 
           $Cpu = switch ("${{ inputs.build_arch }}") {
             "amd64" { "x86_64" }
@@ -1496,12 +1509,44 @@ jobs:
         run: |
           $Stage0Bin = "${{ github.workspace }}/BinaryCache/stage0/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
           New-Item -ItemType Directory -Path $Stage0Bin -Force | Out-Null
-          $RuntimeFiles = @(Get-ChildItem -Path "${{ steps.setup-context.outputs.pinned-runtime-bin }}" -File | Sort-Object Name)
+          $RuntimeSource = "${{ steps.setup-context.outputs.pinned-runtime-bin }}"
+          Write-Host "Copying Windows runtime"
+          Write-Host "  from: $RuntimeSource"
+          Write-Host "    to: $Stage0Bin"
+          $RuntimeFiles = @(Get-ChildItem -Path $RuntimeSource -File | Sort-Object Name)
           if (-not ($RuntimeFiles | Where-Object { $_.Extension -ieq ".dll" })) {
-            throw "No DLLs found under '${{ steps.setup-context.outputs.pinned-runtime-bin }}'"
+            throw "No DLLs found under '$RuntimeSource'"
+          }
+          # Surface any runtime DLLs the distribution already shipped: overwriting
+          # the stage compiler's own runtime with the pinned one is itself an ABI
+          # mismatch, so we want it visible in the log.
+          $clobbered = @($RuntimeFiles | Where-Object { Test-Path (Join-Path $Stage0Bin $_.Name) })
+          if ($clobbered.Count -gt 0) {
+            Write-Host "WARNING: overwriting $($clobbered.Count) runtime file(s) already present in the distribution:"
+            foreach ($f in $clobbered) {
+              $dst = Get-Item (Join-Path $Stage0Bin $f.Name)
+              Write-Host ("  ! {0,-30} dest {1,12:N0}b v{2}  <=  src {3,12:N0}b v{4}" -f `
+                $f.Name, $dst.Length, $dst.VersionInfo.FileVersion, $f.Length, $f.VersionInfo.FileVersion)
+            }
+          } else {
+            Write-Host "No pre-existing runtime files in destination (pure add)."
           }
           foreach ($File in $RuntimeFiles) {
+            Write-Host ("  copy {0,-30} {1,12:N0}b v{2}" -f $File.Name, $File.Length, $File.VersionInfo.FileVersion)
             Copy-Item -Force -Path $File.FullName -Destination $Stage0Bin
+          }
+          Write-Host "Copied $($RuntimeFiles.Count) runtime file(s)."
+          # ABI cross-check: print the versions of the compiler's own Swift-built
+          # components next to the runtime we dropped in. If swiftCore.dll and
+          # _CompilerSwiftParser.dll disagree, that is the conformance crash.
+          foreach ($probe in @("swiftCore.dll", "_CompilerSwiftParser.dll", "swift-frontend.exe")) {
+            $p = Join-Path $Stage0Bin $probe
+            if (Test-Path $p) {
+              $i = Get-Item $p
+              Write-Host ("  probe {0,-28} {1,12:N0}b v{2}" -f $probe, $i.Length, $i.VersionInfo.FileVersion)
+            } else {
+              Write-Host "  probe $probe (absent)"
+            }
           }
 
       - name: Upload Stage 0 Compilers
@@ -1967,12 +2012,25 @@ jobs:
           $PYTHON_BINARY = "python.exe"
 
           # build.ps1: Get-PinnedToolchainRuntime
-          $PinnedRuntimeDir = Get-ChildItem -Path "${env:LOCALAPPDATA}\Programs\Swift\Runtimes" -Directory |
-            Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $PinnedRuntimeDir) {
-            throw "Could not locate pinned toolchain runtime under ${env:LOCALAPPDATA}\Programs\Swift\Runtimes"
+          # Resolve the runtime deterministically from the pinned swiftc we just
+          # installed (on PATH) rather than guessing by lexical sort. The Windows
+          # toolchain layout mirrors Toolchains\<ver> and Runtimes\<ver>, so the
+          # runtime version is exactly the one hosting swiftc.exe — the one the
+          # stage compiler's own Swift components were built against.
+          $SwiftcPath = (Get-Command swiftc -ErrorAction Stop).Source
+          $ToolchainRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $SwiftcPath))
+          $ToolchainVersion = Split-Path -Leaf $ToolchainRoot
+          $SwiftRoot = Split-Path -Parent (Split-Path -Parent $ToolchainRoot)
+          $PINNED_RUNTIME_BIN = Join-Path $SwiftRoot "Runtimes\$ToolchainVersion\usr\bin"
+          Write-Host "Pinned swiftc:         $SwiftcPath"
+          Write-Host "Pinned toolchain ver:  $ToolchainVersion"
+          Write-Host "Pinned runtime bin:    $PINNED_RUNTIME_BIN"
+          Write-Host "Runtimes present under $SwiftRoot\Runtimes:"
+          Get-ChildItem -Path (Join-Path $SwiftRoot "Runtimes") -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  - $($_.Name)" }
+          if (-not (Test-Path $PINNED_RUNTIME_BIN)) {
+            throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath')"
           }
-          $PINNED_RUNTIME_BIN = Join-Path $PinnedRuntimeDir.FullName "usr\bin"
 
           $Cpu = switch ("${{ inputs.build_arch }}") {
             "amd64" { "x86_64" }
@@ -2089,12 +2147,44 @@ jobs:
         run: |
           $Stage1Bin = "${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
           New-Item -ItemType Directory -Path $Stage1Bin -Force | Out-Null
-          $RuntimeFiles = @(Get-ChildItem -Path "${{ steps.setup-context.outputs.pinned-runtime-bin }}" -File | Sort-Object Name)
+          $RuntimeSource = "${{ steps.setup-context.outputs.pinned-runtime-bin }}"
+          Write-Host "Copying Windows runtime"
+          Write-Host "  from: $RuntimeSource"
+          Write-Host "    to: $Stage1Bin"
+          $RuntimeFiles = @(Get-ChildItem -Path $RuntimeSource -File | Sort-Object Name)
           if (-not ($RuntimeFiles | Where-Object { $_.Extension -ieq ".dll" })) {
-            throw "No DLLs found under '${{ steps.setup-context.outputs.pinned-runtime-bin }}'"
+            throw "No DLLs found under '$RuntimeSource'"
+          }
+          # Surface any runtime DLLs the distribution already shipped: overwriting
+          # the stage compiler's own runtime with the pinned one is itself an ABI
+          # mismatch, so we want it visible in the log.
+          $clobbered = @($RuntimeFiles | Where-Object { Test-Path (Join-Path $Stage1Bin $_.Name) })
+          if ($clobbered.Count -gt 0) {
+            Write-Host "WARNING: overwriting $($clobbered.Count) runtime file(s) already present in the distribution:"
+            foreach ($f in $clobbered) {
+              $dst = Get-Item (Join-Path $Stage1Bin $f.Name)
+              Write-Host ("  ! {0,-30} dest {1,12:N0}b v{2}  <=  src {3,12:N0}b v{4}" -f `
+                $f.Name, $dst.Length, $dst.VersionInfo.FileVersion, $f.Length, $f.VersionInfo.FileVersion)
+            }
+          } else {
+            Write-Host "No pre-existing runtime files in destination (pure add)."
           }
           foreach ($File in $RuntimeFiles) {
+            Write-Host ("  copy {0,-30} {1,12:N0}b v{2}" -f $File.Name, $File.Length, $File.VersionInfo.FileVersion)
             Copy-Item -Force -Path $File.FullName -Destination $Stage1Bin
+          }
+          Write-Host "Copied $($RuntimeFiles.Count) runtime file(s)."
+          # ABI cross-check: print the versions of the compiler's own Swift-built
+          # components next to the runtime we dropped in. If swiftCore.dll and
+          # _CompilerSwiftParser.dll disagree, that is the conformance crash.
+          foreach ($probe in @("swiftCore.dll", "_CompilerSwiftParser.dll", "swift-frontend.exe")) {
+            $p = Join-Path $Stage1Bin $probe
+            if (Test-Path $p) {
+              $i = Get-Item $p
+              Write-Host ("  probe {0,-28} {1,12:N0}b v{2}" -f $probe, $i.Length, $i.VersionInfo.FileVersion)
+            } else {
+              Write-Host "  probe $probe (absent)"
+            }
           }
 
       - name: Upload Stage1 Compiler
