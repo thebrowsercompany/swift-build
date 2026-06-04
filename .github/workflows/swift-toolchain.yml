@@ -1381,15 +1381,28 @@ jobs:
           $ToolchainRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $SwiftcPath))
           $ToolchainVersion = Split-Path -Leaf $ToolchainRoot
           $SwiftRoot = Split-Path -Parent (Split-Path -Parent $ToolchainRoot)
-          $PINNED_RUNTIME_BIN = Join-Path $SwiftRoot "Runtimes\$ToolchainVersion\usr\bin"
+          # The +<variant> suffix (e.g. +Asserts) is a compiler/toolchain thing,
+          # not a runtime one: Toolchains\0.0.0+Asserts maps to Runtimes\0.0.0
+          # (matches build.ps1's $PinnedVersion).
+          $RuntimeVersion = $ToolchainVersion.Split('+')[0]
+          $RuntimesRoot = Join-Path $SwiftRoot "Runtimes"
+          $PINNED_RUNTIME_BIN = Join-Path $RuntimesRoot "$RuntimeVersion\usr\bin"
           Write-Host "Pinned swiftc:         $SwiftcPath"
           Write-Host "Pinned toolchain ver:  $ToolchainVersion"
+          Write-Host "Pinned runtime ver:    $RuntimeVersion"
           Write-Host "Pinned runtime bin:    $PINNED_RUNTIME_BIN"
-          Write-Host "Runtimes present under $SwiftRoot\Runtimes:"
-          Get-ChildItem -Path (Join-Path $SwiftRoot "Runtimes") -Directory -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "  - $($_.Name)" }
+          Write-Host "Runtimes present under ${RuntimesRoot}:"
+          $RuntimeDirs = @(Get-ChildItem -Path $RuntimesRoot -Directory -ErrorAction SilentlyContinue)
+          $RuntimeDirs | ForEach-Object { Write-Host "  - $($_.Name)" }
           if (-not (Test-Path $PINNED_RUNTIME_BIN)) {
-            throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath')"
+            # The runtime dir name may not match the version exactly; if exactly
+            # one runtime is installed use it, otherwise fail loudly.
+            if ($RuntimeDirs.Count -eq 1) {
+              $PINNED_RUNTIME_BIN = Join-Path $RuntimeDirs[0].FullName "usr\bin"
+              Write-Host "Exact match missing; using sole installed runtime: $($RuntimeDirs[0].Name)"
+            } else {
+              throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath'); $($RuntimeDirs.Count) runtime dir(s) present"
+            }
           }
 
           $Cpu = switch ("${{ inputs.build_arch }}") {
@@ -2021,15 +2034,28 @@ jobs:
           $ToolchainRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $SwiftcPath))
           $ToolchainVersion = Split-Path -Leaf $ToolchainRoot
           $SwiftRoot = Split-Path -Parent (Split-Path -Parent $ToolchainRoot)
-          $PINNED_RUNTIME_BIN = Join-Path $SwiftRoot "Runtimes\$ToolchainVersion\usr\bin"
+          # The +<variant> suffix (e.g. +Asserts) is a compiler/toolchain thing,
+          # not a runtime one: Toolchains\0.0.0+Asserts maps to Runtimes\0.0.0
+          # (matches build.ps1's $PinnedVersion).
+          $RuntimeVersion = $ToolchainVersion.Split('+')[0]
+          $RuntimesRoot = Join-Path $SwiftRoot "Runtimes"
+          $PINNED_RUNTIME_BIN = Join-Path $RuntimesRoot "$RuntimeVersion\usr\bin"
           Write-Host "Pinned swiftc:         $SwiftcPath"
           Write-Host "Pinned toolchain ver:  $ToolchainVersion"
+          Write-Host "Pinned runtime ver:    $RuntimeVersion"
           Write-Host "Pinned runtime bin:    $PINNED_RUNTIME_BIN"
-          Write-Host "Runtimes present under $SwiftRoot\Runtimes:"
-          Get-ChildItem -Path (Join-Path $SwiftRoot "Runtimes") -Directory -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "  - $($_.Name)" }
+          Write-Host "Runtimes present under ${RuntimesRoot}:"
+          $RuntimeDirs = @(Get-ChildItem -Path $RuntimesRoot -Directory -ErrorAction SilentlyContinue)
+          $RuntimeDirs | ForEach-Object { Write-Host "  - $($_.Name)" }
           if (-not (Test-Path $PINNED_RUNTIME_BIN)) {
-            throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath')"
+            # The runtime dir name may not match the version exactly; if exactly
+            # one runtime is installed use it, otherwise fail loudly.
+            if ($RuntimeDirs.Count -eq 1) {
+              $PINNED_RUNTIME_BIN = Join-Path $RuntimeDirs[0].FullName "usr\bin"
+              Write-Host "Exact match missing; using sole installed runtime: $($RuntimeDirs[0].Name)"
+            } else {
+              throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath'); $($RuntimeDirs.Count) runtime dir(s) present"
+            }
           }
 
           $Cpu = switch ("${{ inputs.build_arch }}") {
