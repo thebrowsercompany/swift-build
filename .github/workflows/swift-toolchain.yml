@@ -1435,8 +1435,8 @@ jobs:
           project-name: Stage0 Compiler
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
-          debug-info: ${{ inputs.debug_info }}
+          enable-cas: false
+          debug-info: false
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
@@ -1446,8 +1446,8 @@ jobs:
           install-dir: ${{ github.workspace }}/BinaryCache/stage0/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
           use-host-toolchain: ${{ inputs.use_host_toolchain }}
-          c-compiler: 'Host.C'
-          cxx-compiler: 'Host.CXX'
+          c-compiler: 'MSVC.C'
+          cxx-compiler: 'MSVC.CXX'
           swift-compiler: 'Pinned.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-Bootstrap-Stage0-${{ steps.setup-context.outputs.cpu }}.cmake
           cmake-defines: |
@@ -1511,7 +1511,7 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/stage0/build --target distribution
 
       - name: Install Stage 0 Compiler Distribution
-        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0/build --target install-distribution
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0/build --target install-distribution-stripped
 
       - name: Copy cmark-gfm shared libraries
         run: |
@@ -1692,7 +1692,7 @@ jobs:
           swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
-              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/bootstrap/libdispatch-c/cmake/modules";
               # FIXME(compnerd) remove this once the default option is flipped to `ON`.
@@ -1733,7 +1733,7 @@ jobs:
           swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
-              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/bootstrap/Runtime/cmake/SwiftCore";
               'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
@@ -1769,7 +1769,7 @@ jobs:
           swift-compiler: 'Stage0.Swift'
           cmake-defines: |
             @{
-              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/bootstrap/Runtime/cmake/SwiftCore";
               # FIXME(compnerd) this currently causes a build failure on Windows, but
@@ -1803,7 +1803,7 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
             @{
-               'BUILD_SHARED_LIBS' = "NO";
+               'BUILD_SHARED_LIBS' = "YES";
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'ENABLE_SWIFT' = "YES";
                 'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
