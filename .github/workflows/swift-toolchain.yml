@@ -1435,8 +1435,8 @@ jobs:
           project-name: Stage0 Compiler
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
-          debug-info: false
+          enable-cas: ${{ !inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
@@ -1446,8 +1446,8 @@ jobs:
           install-dir: ${{ github.workspace }}/BinaryCache/stage0/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
           use-host-toolchain: ${{ inputs.use_host_toolchain }}
-          c-compiler: 'MSVC.C'
-          cxx-compiler: 'MSVC.CXX'
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
           swift-compiler: 'Pinned.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-Bootstrap-Stage0-${{ steps.setup-context.outputs.cpu }}.cmake
           cmake-defines: |
@@ -1632,6 +1632,16 @@ jobs:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          show-progress: false
+      # Resync.cmake stages the StringProcessing sources from this sibling repo
+      # into the gitignored Runtimes/Supplemental/StringProcessing tree; without
+      # it find_path returns NOTFOUND and the StringProcessing configure later
+      # fails with "Cannot find source file".
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ inputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
 
       - name: Setup environment
