@@ -1971,8 +1971,8 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/swift-driver
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-bootstrap-sdk
-          path: ${{ github.workspace }}/BinaryCache/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-sdk
+          path: ${{ github.workspace }}/BinaryCache/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -2059,44 +2059,9 @@ jobs:
           $PythonMajor = ([System.Version]$PythonVersion).Major
           $PythonMinor = ([System.Version]$PythonVersion).Minor
 
-          $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
           $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
           $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
           $PYTHON_BINARY = "python.exe"
-
-          # build.ps1: Get-PinnedToolchainRuntime
-          # Resolve the runtime deterministically from the pinned swiftc we just
-          # installed (on PATH) rather than guessing by lexical sort. The Windows
-          # toolchain layout mirrors Toolchains\<ver> and Runtimes\<ver>, so the
-          # runtime version is exactly the one hosting swiftc.exe — the one the
-          # stage compiler's own Swift components were built against.
-          $SwiftcPath = (Get-Command swiftc -ErrorAction Stop).Source
-          $ToolchainRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $SwiftcPath))
-          $ToolchainVersion = Split-Path -Leaf $ToolchainRoot
-          $SwiftRoot = Split-Path -Parent (Split-Path -Parent $ToolchainRoot)
-          # The +<variant> suffix (e.g. +Asserts) is a compiler/toolchain thing,
-          # not a runtime one: Toolchains\0.0.0+Asserts maps to Runtimes\0.0.0
-          # (matches build.ps1's $PinnedVersion).
-          $RuntimeVersion = $ToolchainVersion.Split('+')[0]
-          $RuntimesRoot = Join-Path $SwiftRoot "Runtimes"
-          $PINNED_RUNTIME_BIN = Join-Path $RuntimesRoot "$RuntimeVersion\usr\bin"
-          Write-Host "Pinned swiftc:         $SwiftcPath"
-          Write-Host "Pinned toolchain ver:  $ToolchainVersion"
-          Write-Host "Pinned runtime ver:    $RuntimeVersion"
-          Write-Host "Pinned runtime bin:    $PINNED_RUNTIME_BIN"
-          Write-Host "Runtimes present under ${RuntimesRoot}:"
-          $RuntimeDirs = @(Get-ChildItem -Path $RuntimesRoot -Directory -ErrorAction SilentlyContinue)
-          $RuntimeDirs | ForEach-Object { Write-Host "  - $($_.Name)" }
-          if (-not (Test-Path $PINNED_RUNTIME_BIN)) {
-            # The runtime dir name may not match the version exactly; if exactly
-            # one runtime is installed use it, otherwise fail loudly.
-            if ($RuntimeDirs.Count -eq 1) {
-              $PINNED_RUNTIME_BIN = Join-Path $RuntimeDirs[0].FullName "usr\bin"
-              Write-Host "Exact match missing; using sole installed runtime: $($RuntimeDirs[0].Name)"
-            } else {
-              throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath'); $($RuntimeDirs.Count) runtime dir(s) present"
-            }
-          }
 
           $Cpu = switch ("${{ inputs.build_arch }}") {
             "amd64" { "x86_64" }
@@ -2110,11 +2075,9 @@ jobs:
           $LinkJobs = [math]::Max(2, [math]::Floor($RamGB / 24))
 
           $Context = @"
-          clang-location=${CLANG_LOCATION}
           libpython-path=${LIBPYTHON_PATH}
           python-include-dir=${PYTHON_INCLUDE_DIR}
           python-binary=${PYTHON_BINARY}
-          pinned-runtime-bin=${PINNED_RUNTIME_BIN}
           cpu=${Cpu}
           triple=${Triple}
           link-jobs=${LinkJobs}
@@ -2174,7 +2137,6 @@ jobs:
               'Python3_VERSION' = "${{ inputs.python_version }}";
               'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version }} ${{ inputs.swift_tag }}";
               'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
-              'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
               'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
               'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
               'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
@@ -2188,7 +2150,7 @@ jobs:
               'SWIFT_ENABLE_VOLATILE' = "YES";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
-              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr";
+              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ github.workspace }}/BinaryCache/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}.sdk";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
               'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
@@ -2213,7 +2175,7 @@ jobs:
         run: |
           $Stage1Bin = "${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
           New-Item -ItemType Directory -Path $Stage1Bin -Force | Out-Null
-          $RuntimeSource = "${{ steps.setup-context.outputs.pinned-runtime-bin }}"
+          $RuntimeSource = "${{ github.workspace }}/BinaryCache/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}.sdk/usr/bin"
           Write-Host "Copying Windows runtime"
           Write-Host "  from: $RuntimeSource"
           Write-Host "    to: $Stage1Bin"
@@ -2222,7 +2184,7 @@ jobs:
             throw "No DLLs found under '$RuntimeSource'"
           }
           # Surface any runtime DLLs the distribution already shipped: overwriting
-          # the stage compiler's own runtime with the pinned one is itself an ABI
+          # the stage compiler's own runtime with the bootstrap SDK one is itself an ABI
           # mismatch, so we want it visible in the log.
           $clobbered = @($RuntimeFiles | Where-Object { Test-Path (Join-Path $Stage1Bin $_.Name) })
           if ($clobbered.Count -gt 0) {
@@ -2262,19 +2224,19 @@ jobs:
       - name: Extract Stage1 swift-syntax
         run: |
           New-Item -Path ${{ github.workspace }}/BinaryCache/stage1/swift-syntax/lib/swift/host -ItemType Directory | Out-Null
-          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}"
+          $ToolchainRoot = "${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
           if ("${{ matrix.os }}" -eq "Windows") {
-            $bindir = cygpath -m "${{ github.workspace }}/BinaryCache/stage1"
-            Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib"
-            Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host"
+            $bindir = cygpath -m "${{ github.workspace }}/BinaryCache/stage1/build"
+            Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/lib"
+            Copy-Item -Path "${ToolchainRoot}/usr/lib/*.lib" -Destination "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/lib/swift/host"
           } else {
-            $bindir = "${{ github.workspace }}/BinaryCache/stage1"
-            Copy-Item -Path "${ToolchainRoot}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib"
-            Copy-Item -Path "${ToolchainRoot}/usr/lib/swift/host/*.dylib" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host"
+            $bindir = "${{ github.workspace }}/BinaryCache/stage1/build"
+            Copy-Item -Path "${ToolchainRoot}/usr/lib/*.dylib" -Destination "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/lib"
+            Copy-Item -Path "${ToolchainRoot}/usr/lib/swift/host/*.dylib" -Destination "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/lib/swift/host"
           }
-          Copy-Item -Path "${ToolchainRoot}/usr/lib/swift/host/*.swiftmodule" -Destination "${{ github.workspace }}/BinaryCache/swift-syntax/lib/swift/host" -Recurse
+          Copy-Item -Path "${ToolchainRoot}/usr/lib/swift/host/*.swiftmodule" -Destination "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/lib/swift/host" -Recurse
 
-          $module = "${{ github.workspace }}/BinaryCache/stage1/cmake/modules/SwiftSyntaxConfig.cmake"
+          $module = "${{ github.workspace }}/BinaryCache/stage1/build/cmake/modules/SwiftSyntaxConfig.cmake"
           (Get-Content $module).Replace("${bindir}", '<BINARY_DIR>') | Set-Content $module
           New-Item -Path ${{ github.workspace }}/BinaryCache/stage1/swift-syntax/cmake/modules -ItemType Directory | Out-Null
           Copy-Item -Path $module -Destination "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/cmake/modules"
@@ -3842,7 +3804,6 @@ jobs:
         with:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
-          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
       - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
         if: inputs.build_os == 'Darwin'
@@ -3892,6 +3853,16 @@ jobs:
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
           path: ${{ github.workspace }}/BinaryCache/swift-driver
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+      - name: Download host SDK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-shared-experimental-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -3986,8 +3957,6 @@ jobs:
           $PythonMajor = ([System.Version]$PythonVersion).Major
           $PythonMinor = ([System.Version]$PythonVersion).Minor
           if ( "${{ matrix.os }}" -eq "Windows" ) {
-            $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
-            $SDKROOT = cygpath -m ${env:SDKROOT}
             $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
             $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
             $PYTHON_BINARY="python.exe"
@@ -4014,12 +3983,10 @@ jobs:
 
           # Output the context for the configure task.
           $Context = @"
-          clang-location=${CLANG_LOCATION}
           libpython-path=${LIBPYTHON_PATH}
           python-include-dir=${PYTHON_INCLUDE_DIR}
           python-binary=${PYTHON_BINARY}
           python-executable=${PYTHON_EXECUTABLE}
-          sdkroot=${SDKROOT}
           link-jobs=${LinkJobs}
           "@
           Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -4040,11 +4007,11 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
           bin-dir: ${{ github.workspace }}/BinaryCache/1
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant }}/usr
-          swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           use-host-toolchain: ${{ inputs.use_host_toolchain }}
-          c-compiler: 'Host.C'
-          cxx-compiler: 'Host.CXX'
-          swift-compiler: 'Pinned.Swift'
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          swift-compiler: 'Stage1.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
             @{
@@ -4076,7 +4043,6 @@ jobs:
               'Python3_ROOT_DIR' = $env:pythonLocation;
               'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version}} ${{ inputs.swift_tag }}";
               'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
-              'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
               'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
               'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
               'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
@@ -4088,7 +4054,7 @@ jobs:
               'SWIFT_ENABLE_VOLATILE' = "YES";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
-              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
+              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
               'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
