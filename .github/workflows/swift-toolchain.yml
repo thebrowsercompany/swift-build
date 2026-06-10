@@ -1789,40 +1789,6 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/StringProcessing --target install
 
-      # build.ps1: Build-SDK
-      - name: Configure Bootstrap Dispatch
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: Bootstrap Dispatch
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: false
-          enable-cas: false
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
-          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch
-          install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          c-compiler: 'Stage0.GNUC'
-          cxx-compiler: 'Stage0.GNUCXX'
-          swift-compiler: 'Stage0.Swift'
-          swift-sdk-path: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          cmake-defines: |
-            @{
-               'BUILD_SHARED_LIBS' = "YES";
-               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-               'ENABLE_SWIFT' = "YES";
-                'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
-              }
-      - name: Build Bootstrap Dispatch
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch
-      - name: Install Bootstrap Dispatch
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch --target install
-
       - name: Repair SDK Headers
         run: |
           $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk"
@@ -2104,7 +2070,7 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           enable-cas: true
-          debug-info: ${{ inputs.debug_info }}
+          debug-info: false
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ inputs.build_os }}
