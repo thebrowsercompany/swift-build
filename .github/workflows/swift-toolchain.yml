@@ -1789,6 +1789,41 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/StringProcessing --target install
 
+      - name: Configure Bootstrap Dispatch
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Bootstrap Dispatch
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: false
+          enable-cas: false
+          debug-info: false
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch
+          install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          cmake-defines: |
+            @{
+              'BUILD_TESTING' = "NO";
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'ENABLE_SWIFT' = "YES";
+              'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
+            }
+      - name: Build Bootstrap Dispatch
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch
+      - name: Install Bootstrap Dispatch
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch --target install
+
       - name: Repair SDK Headers
         run: |
           $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk"
@@ -1802,6 +1837,27 @@ jobs:
                 Move-Item -Path $ModuleDirectory -Destination $Destination -Force
               }
             }
+          }
+
+      - name: Repair Dispatch VFS Overlay
+        run: |
+          $DispatchVFS = "${{ github.workspace }}/BinaryCache/bootstrap/Dispatch/dispatch-vfs-overlay.yaml"
+          if (Test-Path $DispatchVFS) {
+            $DispatchSrc = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch/dispatch".Replace('\', '/')
+            $InstalledMap = "${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/dispatch/module.modulemap".Replace('\', '/')
+            Set-Content -Path $DispatchVFS -Encoding UTF8 -Value @(
+              '---',
+              'version: 0',
+              'case-sensitive: false',
+              'use-external-names: false',
+              'roots:',
+              "  - name: '$DispatchSrc'",
+              '    type: directory',
+              '    contents:',
+              '      - name: module.modulemap',
+              '        type: file',
+              "        external-contents: '$InstalledMap'"
+            )
           }
 
       - uses: actions/setup-python@v5
