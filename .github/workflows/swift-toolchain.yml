@@ -1796,7 +1796,10 @@ jobs:
             foreach ($ResourceType in ("swift", "swift_static")) {
               $ModuleDirectory = "$SDKRoot\usr\lib\$ResourceType\$Module"
               if (Test-Path $ModuleDirectory) {
-                Move-Directory $ModuleDirectory "$SDKRoot\usr\include\"
+                New-Item -ItemType Directory -Force "$SDKRoot\usr\include" | Out-Null
+                $Destination = "$SDKRoot\usr\include\$Module"
+                if (Test-Path $Destination) { Remove-Item -Recurse -Force $Destination }
+                Move-Item -Path $ModuleDirectory -Destination $Destination -Force
               }
             }
           }
@@ -1839,8 +1842,7 @@ jobs:
           $SDKSettings | ConvertTo-JSON | Out-File -FilePath "${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.json"
 
           $PListFile = "${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.plist"
-          Invoke-Program python3 -c "import plistlib; print(str(plistlib.dumps($(($SDKSettings | ConvertTo-JSON -Compress) -replace '"', "'")), encoding='utf-8'))" `
-            -OutFile $PListFile
+          python3 -c "import plistlib; print(str(plistlib.dumps($(($SDKSettings | ConvertTo-JSON -Compress) -replace '"', "'")), encoding='utf-8'))" | Out-File -FilePath $PListFile -Encoding utf8
 
       - uses: actions/upload-artifact@v4
         with:
