@@ -3058,7 +3058,7 @@ jobs:
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootsrap-macros
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
           path: ${{ github.workspace }}/BinaryCache/Library
 
       - uses: actions/checkout@v4.2.2
@@ -3546,7 +3546,7 @@ jobs:
               'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/Cxx/cmake/SwiftCxxOverlay";
               # FIXME(compnerd) this currently causes a build failure on Windows, but
               # this should be enabled when building the dynamic runtime.
-              'SwiftVolatile_ENABLE_LIBRARY_EVOLUTION' = "NO";
+              'SwiftRuntime_ENABLE_LIBRARY_EVOLUTION' = "NO";
               'SwiftRuntime_ENABLE_BACKTRACING' = "YES";
             }
       - name: Build RuntimeModule
@@ -3633,9 +3633,12 @@ jobs:
           cmake-defines: |
             @{
                'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'BUILD_TESTING' = "NO";
+               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
                'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'ENABLE_SWIFT' = "YES";
+               'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
               }
       - name: Build Dispatch
         if: matrix.os != 'Android' || inputs.build_android
@@ -3696,6 +3699,42 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Foundation --target install
+
+      - name: Repair SDK Headers
+        run: |
+          $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk"
+          foreach ($Module in ("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
+            foreach ($ResourceType in ("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot\usr\lib\$ResourceType\$Module"
+              if (Test-Path $ModuleDirectory) {
+                New-Item -ItemType Directory -Force "$SDKRoot\usr\include" | Out-Null
+                $Destination = "$SDKRoot\usr\include\$Module"
+                if (Test-Path $Destination) { Remove-Item -Recurse -Force $Destination }
+                Move-Item -Path $ModuleDirectory -Destination $Destination -Force
+              }
+            }
+          }
+
+      - name: Repair Dispatch VFS Overlay
+        run: |
+          $DispatchVFS = "${{ github.workspace }}/BinaryCache/Dispatch/dispatch-vfs-overlay.yaml"
+          if (Test-Path $DispatchVFS) {
+            $DispatchSrc = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch/dispatch".Replace('\', '/')
+            $InstalledMap = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/dispatch/module.modulemap".Replace('\', '/')
+            Set-Content -Path $DispatchVFS -Encoding UTF8 -Value @(
+              '---',
+              'version: 0',
+              'case-sensitive: false',
+              'use-external-names: false',
+              'roots:',
+              "  - name: '$DispatchSrc'",
+              '    type: directory',
+              '    contents:',
+              '      - name: module.modulemap',
+              '        type: file',
+              "        external-contents: '$InstalledMap'"
+            )
+          }
 
       - uses: actions/setup-python@v5
       - uses: jannekem/run-python-script-action@v1
