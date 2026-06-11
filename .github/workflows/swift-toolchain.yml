@@ -295,6 +295,11 @@ on:
         type: boolean
         default: true
 
+      enable_cas:
+        required: false
+        type: boolean
+        default: false
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -372,7 +377,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -393,7 +398,7 @@ jobs:
           project-name: Stage0 SQLite
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -422,7 +427,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -473,7 +478,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -494,7 +499,7 @@ jobs:
           project-name: Stage0 libxml2
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -530,7 +535,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -579,7 +584,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        if: ${{ inputs.build_android && inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -611,7 +616,7 @@ jobs:
           project-name: RegsGen2
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -635,7 +640,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        if: ${{ inputs.build_android && inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -682,7 +687,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: inputs.build_android
+        if: ${{ inputs.enable_cas && inputs.build_android }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -733,7 +738,7 @@ jobs:
           project-name: DS2
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -767,7 +772,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
+        if: ${{ inputs.build_android && inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -816,7 +821,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -837,7 +842,7 @@ jobs:
           project-name: cmark-gfm
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -865,7 +870,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -916,7 +921,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-build_tools
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -953,7 +958,7 @@ jobs:
           project-name: Build Tools
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1039,7 +1044,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -1091,7 +1096,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-early-swift-driver
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -1153,7 +1158,7 @@ jobs:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1204,7 +1209,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -1256,7 +1261,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stage0-compiler
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -1435,7 +1440,7 @@ jobs:
           project-name: Stage0 Compiler
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: false
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1570,7 +1575,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -1609,6 +1614,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -1657,7 +1663,7 @@ jobs:
           project-name: Bootstrap libdispatch-c
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1684,7 +1690,7 @@ jobs:
           project-name: Bootstrap Runtime
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1725,7 +1731,7 @@ jobs:
           project-name: Bootstrap Overlay
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1761,7 +1767,7 @@ jobs:
           project-name: Bootstrap String Processing
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1795,7 +1801,7 @@ jobs:
           project-name: Bootstrap Dispatch
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: false
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1907,6 +1913,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -1941,7 +1948,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2090,7 +2097,7 @@ jobs:
           project-name: Stage1 Compiler
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: false
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2249,6 +2256,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2334,7 +2342,7 @@ jobs:
           project-name: Bootstrap Foundation Macros
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2360,7 +2368,7 @@ jobs:
           project-name: Bootstrap Testing Macros
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2413,6 +2421,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2439,7 +2448,7 @@ jobs:
           project-name: SQLite
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2467,6 +2476,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2496,6 +2506,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2529,7 +2540,7 @@ jobs:
           project-name: zlib
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2560,6 +2571,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2590,6 +2602,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2623,7 +2636,7 @@ jobs:
           project-name: brotli
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2653,6 +2666,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2683,6 +2697,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2724,7 +2739,7 @@ jobs:
           project-name: curl
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2842,6 +2857,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2871,6 +2887,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -2904,7 +2921,7 @@ jobs:
           project-name: libxml2
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2942,6 +2959,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -3021,7 +3039,7 @@ jobs:
 
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: matrix.os != 'Android' || inputs.build_android
+        if: ${{ inputs.enable_cas && (matrix.os != 'Android' || inputs.build_android) }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -3145,7 +3163,7 @@ jobs:
           project-name: libdispatch-c
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3177,7 +3195,7 @@ jobs:
           project-name: Runtime
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3227,7 +3245,7 @@ jobs:
           project-name: Overlay
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3269,7 +3287,7 @@ jobs:
           project-name: StringProcessing
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3310,7 +3328,7 @@ jobs:
           project-name: Synchronization
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3351,7 +3369,7 @@ jobs:
           project-name: Distributed
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3394,7 +3412,7 @@ jobs:
           project-name: Observation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3437,7 +3455,7 @@ jobs:
           project-name: Differentiation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3479,7 +3497,7 @@ jobs:
           project-name: Volatile
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3521,7 +3539,7 @@ jobs:
           project-name: RuntimeModule
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3569,7 +3587,7 @@ jobs:
           project-name: RuntimeBacktrace
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3614,7 +3632,7 @@ jobs:
           project-name: Dispatch
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3657,7 +3675,7 @@ jobs:
           project-name: Foundation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3833,7 +3851,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain && (matrix.os != 'Android' || inputs.build_android) }}
+        if: ${{ inputs.enable_cas && (matrix.os != 'Android' || inputs.build_android) }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -3885,7 +3903,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compilers
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -4053,7 +4071,7 @@ jobs:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4228,7 +4246,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -4427,7 +4445,7 @@ jobs:
           host-arch: ${{ matrix.arch }}
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -4622,7 +4640,7 @@ jobs:
           project-name: swift-argument-parser
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4649,7 +4667,7 @@ jobs:
           project-name: swift-collections
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4676,7 +4694,7 @@ jobs:
           project-name: swift-asn1
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4701,7 +4719,7 @@ jobs:
           project-name: swift-crypto
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4731,7 +4749,7 @@ jobs:
           project-name: swift-llbuild
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4761,7 +4779,7 @@ jobs:
           project-name: swift-system
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4788,7 +4806,7 @@ jobs:
           project-name: swift-subprocess
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4819,7 +4837,7 @@ jobs:
           project-name: swift-tools-support-core
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4848,7 +4866,7 @@ jobs:
           project-name: swift-driver
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4885,7 +4903,7 @@ jobs:
           project-name: swift-certificates
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4912,7 +4930,7 @@ jobs:
           project-name: swift-tools-protocols
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4939,7 +4957,7 @@ jobs:
           project-name: swift-build
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4982,7 +5000,7 @@ jobs:
           project-name: swift-package-manager
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5024,7 +5042,7 @@ jobs:
           project-name: swift-markdown
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5053,7 +5071,7 @@ jobs:
           project-name: swift-format
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5085,7 +5103,7 @@ jobs:
           project-name: swift-lmdb
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5109,7 +5127,7 @@ jobs:
           project-name: indexstore-db
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5143,7 +5161,7 @@ jobs:
           project-name: sourcekit-lsp
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5183,7 +5201,7 @@ jobs:
           project-name: swift-docc-symbolkit
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5211,7 +5229,7 @@ jobs:
           project-name: swift-docc
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5350,7 +5368,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -5381,7 +5399,7 @@ jobs:
           host-arch: ${{ matrix.arch }}
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -5432,7 +5450,7 @@ jobs:
           project-name: swift-inspect
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -5464,7 +5482,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -7546,7 +7564,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-Asserts-compilers
       - name: Restore CAS
         uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
@@ -7700,7 +7718,7 @@ jobs:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: false
+          enable-cas: ${{ inputs.enable_cas }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -7781,7 +7799,7 @@ jobs:
 
       - name: Save CAS
         uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
+        if: ${{ inputs.enable_cas }}
         with:
           s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
