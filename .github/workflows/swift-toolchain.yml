@@ -3943,8 +3943,10 @@ jobs:
           searchPattern: '**/*.pdb'
 
       - name: Upload PDBs to Public Symbol Server
+        # XXX: TEMPORARY DO NOT MERGE — R2 PDB upload disabled to save ~20min/job while iterating.
+        # XXX: TEMPORARY DO NOT MERGE — restore: if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
         uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        if: false
         with:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '*.pdb'
@@ -4329,8 +4331,10 @@ jobs:
           searchPattern: '**/*.pdb'
 
       - name: Upload PDBs to Public Symbol Server
+        # XXX: TEMPORARY DO NOT MERGE — R2 PDB upload disabled to save ~20min/job while iterating.
+        # XXX: TEMPORARY DO NOT MERGE — restore: if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
         uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        if: false
         with:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
           searchPattern: '*.pdb'
@@ -4520,8 +4524,10 @@ jobs:
           searchPattern: '**/*.pdb'
 
       - name: Upload PDBs to Public Symbol Server
+        # XXX: TEMPORARY DO NOT MERGE — R2 PDB upload disabled to save ~20min/job while iterating.
+        # XXX: TEMPORARY DO NOT MERGE — restore: if: ${{ inputs.debug_info }}
         uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info }}
+        if: false
         with:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
           searchPattern: '*.pdb'
@@ -5353,6 +5359,11 @@ jobs:
       # build.ps1: built with SPM.
       # These is no CI for DocC in swift.org, which is why it is not built with CMake in build.ps1.
       - name: Configure swift-docc
+        # TODO: temporary until DocC has its own CI: https://github.com/compnerd/swift-build/issues/1086
+        # DocC's CMakeLists can reference sources absent at the pinned revision; keep this best-effort
+        # (matching Build/Install swift-docc) so a configure failure doesn't abort the Developer Tools job.
+        id: configure-swift-docc
+        continue-on-error: true
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: swift-docc
@@ -5387,6 +5398,7 @@ jobs:
         #TODO: temporary until DocC has its own CI: https://github.com/compnerd/swift-build/issues/1086
         id: build-swift-docc
         continue-on-error: true
+        if: steps.configure-swift-docc.outcome == 'success'
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc
 
       - name: Install swift-argument-parser
@@ -5464,8 +5476,10 @@ jobs:
           searchPattern: '**/*.pdb'
 
       - name: Upload PDBs to Public Symbol Server
+        # XXX: TEMPORARY DO NOT MERGE — R2 PDB upload disabled to save ~20min/job while iterating.
+        # XXX: TEMPORARY DO NOT MERGE — restore: if: ${{ inputs.debug_info }}
         uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info }}
+        if: false
         with:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '*.pdb'
@@ -7848,7 +7862,9 @@ jobs:
               'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "YES";
               'SWIFT_BUILD_DYNAMIC_STDLIB' = "YES";
               'SWIFT_BUILD_REMOTE_MIRROR' = "YES";
-              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "";
+              'SWIFT_BUILD_LIBEXEC' = "YES";
+              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/1/bin";
+              'SWIFT_HOST_SDKROOT' = "${{ steps.setup-context.outputs.sdkroot }}";
               'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}";
               'CLANG_TIDY_CONFUSABLE_CHARS_GEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
