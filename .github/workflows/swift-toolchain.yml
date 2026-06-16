@@ -5877,6 +5877,335 @@ jobs:
           }' | Out-File -FilePath $metadataPath -Encoding utf8
           echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
+      # build.ps1: Stage-WindowsToolchainSxS
+      - name: Stage SxS toolchain runtime (per-DLL)
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $RuntimeLocation = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\usr\bin"
+          $ProcArch = "${{ matrix.arch }}"
+          $WxiFiles = @(
+            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\bld\bld.wxi",
+            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\cli\cli.wxi",
+            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\dbg\dbg.wxi",
+            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\ide\ide.wxi"
+          )
+          $ToolchainRoots = @(
+            "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts",
+            "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
+          )
+
+          function ConvertTo-FourPartVersion([string] $Version) {
+            $Numeric = [regex]::Replace($Version, "[-+].*", "")
+            $Parts = @($Numeric.Split('.'))
+            while ($Parts.Count -lt 4) { $Parts += "0" }
+            return ($Parts[0..3] -join ".")
+          }
+
+          # Read the COFF import table via the toolchain's own llvm-readobj.
+          function Get-DLLImports([string] $Path, [string] $ReadObj) {
+            if (-not (Test-Path $Path)) { throw "Get-DLLImports: '$Path' does not exist" }
+            $Output = & $ReadObj --coff-imports $Path 2>$null
+            $Imports = New-Object System.Collections.Generic.List[string]
+            foreach ($Line in $Output) {
+              if ($Line -match '^\s*Name:\s*(\S+)\s*$') { [void]$Imports.Add($Matches[1]) }
+            }
+            $Imports | Sort-Object -Unique
+          }
+
+          function Get-WindowsSxSRuntimeDLLs([string] $RuntimeSourceDir) {
+            $DeveloperDLLs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($DLL in @("Testing", "_Testing_Foundation", "_Testing_WinSDK", "_TestingInterop", "XCTest")) {
+              [void]$DeveloperDLLs.Add($DLL)
+            }
+            Get-ChildItem -Path $RuntimeSourceDir -Filter "*.dll" -File |
+              Where-Object { -not $DeveloperDLLs.Contains([IO.Path]::GetFileNameWithoutExtension($_.Name)) } |
+              Sort-Object Name
+          }
+
+          function Get-DirectRuntimeImports([string] $Path, $RuntimeSet, [string] $ReadObj) {
+            $Imports = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($Raw in (Get-DLLImports -Path $Path -ReadObj $ReadObj)) {
+              $Base = [IO.Path]::GetFileNameWithoutExtension($Raw)
+              if ($RuntimeSet.Contains($Base)) { [void]$Imports.Add($Base) }
+            }
+            $Imports | Sort-Object
+          }
+
+          function Get-StaticRuntimeImports([string] $Path, [string] $BinaryDir, [object] $RuntimeSet, [string] $ReadObj) {
+            $Imports = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $Visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $Queue = [System.Collections.Generic.Queue[string]]::new()
+            $Queue.Enqueue($Path)
+            while ($Queue.Count -gt 0) {
+              $Current = [IO.Path]::GetFullPath($Queue.Dequeue())
+              if (-not $Visited.Add($Current)) { continue }
+              foreach ($Raw in (Get-DLLImports -Path $Current -ReadObj $ReadObj)) {
+                $DLLName = [IO.Path]::GetFileName($Raw)
+                $Base = [IO.Path]::GetFileNameWithoutExtension($DLLName)
+                if ($RuntimeSet.Contains($Base)) { [void]$Imports.Add($Base); continue }
+                $LocalDLL = Join-Path $BinaryDir $DLLName
+                if (Test-Path $LocalDLL -PathType Leaf) { $Queue.Enqueue($LocalDLL) }
+              }
+            }
+            $Imports | Sort-Object
+          }
+
+          function Get-RuntimeImportClosure([string[]] $Roots, [Hashtable] $RuntimeGraph) {
+            $Seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $Queue = New-Object System.Collections.Generic.Queue[string]
+            foreach ($Root in $Roots) { if ($RuntimeGraph.ContainsKey($Root)) { $Queue.Enqueue($Root) } }
+            while ($Queue.Count -gt 0) {
+              $Current = $Queue.Dequeue()
+              if (-not $Seen.Add($Current)) { continue }
+              if ($RuntimeGraph.ContainsKey($Current)) { foreach ($Next in $RuntimeGraph[$Current]) { $Queue.Enqueue($Next) } }
+            }
+            $Seen | Sort-Object
+          }
+
+          # Embed an RT_MANIFEST #1 identity manifest into a staged runtime DLL.
+          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $LogPrefix) {
+            if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
+            if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-assembly-$([guid]::NewGuid().Guid).manifest"
+            try {
+              $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
+                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture) + "`r`n" +
+                ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
+                '</assembly>'
+              Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
+              Write-Host "${LogPrefix}: embedding assembly manifest into '$ImagePath'"
+              $Output = & "mt.exe" -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1" 2>&1
+              $ExitCode = $LASTEXITCODE
+              if ($Output) { $Output | ForEach-Object { Write-Host "${LogPrefix}:   mt: $_" } }
+              if ($ExitCode -ne 0) { throw "${LogPrefix}: mt failed for '$ImagePath' (exit $ExitCode)" }
+            } finally {
+              Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
+            $Doc = New-Object System.Xml.XmlDocument
+            $Doc.Load($ManifestPath)
+            $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
+            if ($null -eq $Assembly) { return $false }
+            $AssemblyIdentity = $Assembly.SelectSingleNode("*[local-name()='assemblyIdentity']")
+            if ($null -eq $AssemblyIdentity) { return $false }
+            $File = $Assembly.SelectSingleNode("*[local-name()='file']")
+            if ($null -eq $File) { return $false }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            return (
+              ($AssemblyIdentity.GetAttribute("type") -ieq "win32") -and
+              ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
+              ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
+              ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
+              ($File.GetAttribute("name") -eq $FileName)
+            )
+          }
+
+          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $LogPrefix) {
+            $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
+            $KeepExistingManifest = $false
+            try {
+              & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
+              if (Test-Path $ExistingManifestPath) {
+                try {
+                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture
+                } catch {
+                  $KeepExistingManifest = $true
+                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
+                }
+                if ($ManifestMatches) { Write-Host "${LogPrefix}: '$ImagePath' already has the expected assembly manifest"; return }
+                $KeepExistingManifest = $true
+                throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST #1, but it is not the expected SxS assembly manifest (extracted to '$ExistingManifestPath'); rebuild the producer without a linker-generated manifest instead of overwriting it"
+              }
+              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -LogPrefix $LogPrefix
+            } finally {
+              if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
+            }
+          }
+
+          function New-WindowsManifestDependency([string] $Name, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
+            return [pscustomobject]@{ Name = $Name; Version = $AssemblyVersion; ProcessorArchitecture = $ProcessorArchitecture }
+          }
+
+          function Set-WindowsExecutableManifestDependencies([string] $ToolPath, [object[]] $Dependencies, [string] $LogPrefix) {
+            if (-not $Dependencies -or $Dependencies.Count -eq 0) { throw "${LogPrefix}: no manifest dependencies provided for '$ToolPath'" }
+            $AsmNS = "urn:schemas-microsoft-com:asm.v1"
+            $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
+            $MergedManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-merged-$([guid]::NewGuid().Guid).manifest"
+            $KeepMergedManifest = $false
+            try {
+              & "mt.exe" -nologo -inputresource:"$ToolPath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
+              $Doc = New-Object System.Xml.XmlDocument
+              if (Test-Path $ExistingManifestPath) {
+                try { $Doc.Load($ExistingManifestPath) }
+                catch { Write-Warning "${LogPrefix}: existing manifest in '$ToolPath' is unparsable ($($_.Exception.Message)); replacing it"; $Doc = New-Object System.Xml.XmlDocument }
+              }
+              if (-not $Doc.DocumentElement) {
+                [void]$Doc.AppendChild($Doc.CreateXmlDeclaration("1.0", "UTF-8", "yes"))
+                $RootNew = $Doc.CreateElement("assembly", $AsmNS)
+                $RootNew.SetAttribute("manifestVersion", "1.0")
+                [void]$Doc.AppendChild($RootNew)
+              }
+              $Root = $Doc.DocumentElement
+              $NSMgr = New-Object System.Xml.XmlNamespaceManager($Doc.NameTable)
+              $NSMgr.AddNamespace("a", $AsmNS)
+              if (-not $Root.SelectSingleNode("a:assemblyIdentity", $NSMgr)) {
+                $AsmId = $Doc.CreateElement("assemblyIdentity", $AsmNS)
+                $AsmId.SetAttribute("type", "win32")
+                $AsmId.SetAttribute("name", [IO.Path]::GetFileNameWithoutExtension($ToolPath))
+                $AsmId.SetAttribute("version", $Dependencies[0].Version)
+                $AsmId.SetAttribute("processorArchitecture", $Dependencies[0].ProcessorArchitecture)
+                [void]$Root.PrependChild($AsmId)
+              }
+              foreach ($Node in @($Root.SelectNodes("a:dependency", $NSMgr))) { [void]$Root.RemoveChild($Node) }
+              foreach ($Dependency in $Dependencies) {
+                $Dep = $Doc.CreateElement("dependency", $AsmNS)
+                $DepAsm = $Doc.CreateElement("dependentAssembly", $AsmNS)
+                $AsmId = $Doc.CreateElement("assemblyIdentity", $AsmNS)
+                $AsmId.SetAttribute("type", "win32")
+                $AsmId.SetAttribute("name", $Dependency.Name)
+                $AsmId.SetAttribute("version", $Dependency.Version)
+                $AsmId.SetAttribute("processorArchitecture", $Dependency.ProcessorArchitecture)
+                $AsmId.SetAttribute("language", "*")
+                [void]$DepAsm.AppendChild($AsmId)
+                [void]$Dep.AppendChild($DepAsm)
+                [void]$Root.AppendChild($Dep)
+              }
+              $Doc.Save($MergedManifestPath)
+              $Output = & "mt.exe" -nologo -manifest $MergedManifestPath "-outputresource:$ToolPath;#1" 2>&1
+              $ExitCode = $LASTEXITCODE
+              if ($Output) { $Output | ForEach-Object { Write-Host "${LogPrefix}:   mt: $_" } }
+              if ($ExitCode -ne 0) { $KeepMergedManifest = $true; throw "${LogPrefix}: mt failed for '$ToolPath' (exit $ExitCode). Merged manifest preserved at '$MergedManifestPath'." }
+            } finally {
+              Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue
+              if (-not $KeepMergedManifest) { Remove-Item -Path $MergedManifestPath -Force -ErrorAction SilentlyContinue }
+            }
+          }
+
+          # Per-toolchain-root staging.
+          function Stage-ToolchainRootSxS([string] $ToolchainRoot, [string] $RuntimeLocation, [string[]] $WxiDeclared, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
+            if (-not (Test-Path $ToolchainRoot)) { Write-Warning "Stage-ToolchainRootSxS: '$ToolchainRoot' not found; skipping"; return }
+            $BinDir = [IO.Path]::Combine($ToolchainRoot, "usr", "bin")
+            if (-not (Test-Path $BinDir)) { throw "Stage-ToolchainRootSxS: BinDir '$BinDir' not found" }
+            $ReadObj = Join-Path $BinDir "llvm-readobj.exe"
+            if (-not (Test-Path $ReadObj)) { throw "Stage-ToolchainRootSxS: toolchain 'llvm-readobj.exe' not found at '$ReadObj'" }
+            if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Stage-ToolchainRootSxS: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
+
+            Write-Host "Stage-ToolchainRootSxS: toolchain root = '$ToolchainRoot'"
+            Write-Host "Stage-ToolchainRootSxS: runtime source = '$RuntimeLocation'"
+
+            $RuntimeDLLs = @(Get-WindowsSxSRuntimeDLLs $RuntimeLocation)
+            if (-not $RuntimeDLLs) { throw "Stage-ToolchainRootSxS: no *.dll found under '$RuntimeLocation'" }
+
+            # BlocksRuntime stays flat; the Swift runtime DLLs use private SxS.
+            $NonSxSRuntimeDLLs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            [void]$NonSxSRuntimeDLLs.Add("BlocksRuntime")
+            $RuntimeBaseNames = @($RuntimeDLLs | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.Name) } | Where-Object { -not $NonSxSRuntimeDLLs.Contains($_) })
+            $RuntimeSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($D in $RuntimeBaseNames) { [void]$RuntimeSet.Add($D) }
+
+            # runtime DLL -> direct runtime imports (the SxS dependency graph).
+            $RuntimeDependencies = @{}
+            foreach ($DLL in $RuntimeBaseNames) {
+              $DLLPath = Join-Path $RuntimeLocation "$DLL.dll"
+              $RuntimeDependencies[$DLL] = @(Get-DirectRuntimeImports -Path $DLLPath -RuntimeSet $RuntimeSet -ReadObj $ReadObj)
+            }
+            Write-Host "Stage-ToolchainRootSxS: built runtime graph with $($RuntimeDependencies.Count) DLL(s)"
+
+            $EXEDependencies = @{}
+            $DLLsNeeded = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $TotalEXEs = 0
+            Get-ChildItem -Path $BinDir -Filter "*.exe" -File | ForEach-Object {
+              $TotalEXEs++
+              $StaticRuntimeDeps = @(Get-StaticRuntimeImports -Path $_.FullName -BinaryDir $BinDir -RuntimeSet $RuntimeSet -ReadObj $ReadObj)
+              $EXEDependencies[$_.FullName] = @(Get-RuntimeImportClosure -Roots $StaticRuntimeDeps -RuntimeGraph $RuntimeDependencies)
+              foreach ($D in $EXEDependencies[$_.FullName]) { [void]$DLLsNeeded.Add($D) }
+            }
+            Get-ChildItem -Path $BinDir -Filter "*.dll" -File -ErrorAction SilentlyContinue | ForEach-Object {
+              $ImageName = [IO.Path]::GetFileNameWithoutExtension($_.Name)
+              if (-not $RuntimeSet.Contains($ImageName)) {
+                $DirectRuntimeDeps = @(Get-DirectRuntimeImports -Path $_.FullName -RuntimeSet $RuntimeSet -ReadObj $ReadObj)
+                foreach ($D in $DirectRuntimeDeps) { [void]$DLLsNeeded.Add($D) }
+              }
+            }
+
+            # Inject set = discovered import closure UNION the runtime DLLs the WiX
+            # packages declare. Seeding with the declared set guarantees every
+            # packaged file exists even if PE import discovery under-detects.
+            $DLLRootImports = @($DLLsNeeded | Sort-Object)
+            $InjectSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($D in (Get-RuntimeImportClosure -Roots $DLLRootImports -RuntimeGraph $RuntimeDependencies)) { [void]$InjectSet.Add($D) }
+            foreach ($D in $WxiDeclared) {
+              if ($RuntimeSet.Contains($D)) { [void]$InjectSet.Add($D) }
+              elseif (Test-Path (Join-Path $RuntimeLocation "$D.dll")) { [void]$InjectSet.Add($D) }
+              else { Write-Warning "Stage-ToolchainRootSxS: WiX-declared SxS DLL '$D' has no source '$D.dll' under '$RuntimeLocation'" }
+            }
+            $DLLsToInject = @($InjectSet | Sort-Object)
+            Write-Host "Stage-ToolchainRootSxS: discovered $TotalEXEs exe(s); $($DLLsToInject.Count) DLL(s) to stage as private SxS assemblies"
+
+            # Remove flat copies that would shadow the private SxS assemblies.
+            $RemovedFlat = New-Object System.Collections.Generic.List[string]
+            Get-ChildItem -Path $BinDir -Filter "*.dll" -File -ErrorAction SilentlyContinue | ForEach-Object {
+              $Base = [IO.Path]::GetFileNameWithoutExtension($_.Name)
+              if ($InjectSet.Contains($Base)) { Remove-Item -LiteralPath $_.FullName -Force; [void]$RemovedFlat.Add($_.Name) }
+            }
+            if ($RemovedFlat.Count -gt 0) { Write-Host "Stage-ToolchainRootSxS: removed flat runtime DLL(s) from '$BinDir': $(@($RemovedFlat) -join ', ')" }
+
+            # Stage one private SxS assembly per runtime DLL.
+            Write-Host "Stage-ToolchainRootSxS: staging $($DLLsToInject.Count) per-DLL assemblies:"
+            $InjectedDLLs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($DLLName in $DLLsToInject) {
+              $SourceDLL = Join-Path $RuntimeLocation "$DLLName.dll"
+              if (-not (Test-Path $SourceDLL)) { throw "Stage-ToolchainRootSxS: '$SourceDLL' not found in source; refusing to bind EXEs to a missing SxS assembly" }
+              $AssemblyDir = Join-Path $BinDir $DLLName
+              New-Item -ItemType Directory -Path $AssemblyDir -Force -ErrorAction Stop | Out-Null
+              $StagedDLL = Join-Path $AssemblyDir "$DLLName.dll"
+              Copy-Item -Path $SourceDLL -Destination $StagedDLL -Force -ErrorAction Stop
+              Ensure-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -LogPrefix "Stage-ToolchainRootSxS"
+              Write-Host ("  [{0,-32}]  ->  {1}" -f "$DLLName.dll", $AssemblyDir)
+              [void]$InjectedDLLs.Add($DLLName)
+            }
+
+            # Bind each EXE to its runtime import closure.
+            $BoundEXECount = 0
+            $SkippedCount = 0
+            foreach ($ToolPath in ($EXEDependencies.Keys | Sort-Object)) {
+              $DirectRuntimeDeps = @($EXEDependencies[$ToolPath])
+              if ($DirectRuntimeDeps.Count -eq 0) { $SkippedCount++; continue }
+              if (-not (Test-Path $ToolPath)) { Write-Warning "Stage-ToolchainRootSxS: tool '$ToolPath' does not exist; skipping"; continue }
+              $MissingDLLs = @($DirectRuntimeDeps | Where-Object { -not $InjectedDLLs.Contains($_) })
+              if ($MissingDLLs.Count -gt 0) { throw "Stage-ToolchainRootSxS: refusing to bind '$ToolPath'; missing injected SxS DLL(s): $($MissingDLLs -join ', ')" }
+              $Dependencies = @(foreach ($DLLName in ($DirectRuntimeDeps | Sort-Object)) { New-WindowsManifestDependency $DLLName $AssemblyVersion $ProcessorArchitecture })
+              Write-Host "Stage-ToolchainRootSxS: binding EXE '$ToolPath' -> [$($DirectRuntimeDeps -join ', ')]"
+              Set-WindowsExecutableManifestDependencies $ToolPath $Dependencies "Stage-ToolchainRootSxS"
+              $BoundEXECount++
+            }
+            Write-Host "Stage-ToolchainRootSxS: bound $BoundEXECount EXE(s); skipped $SkippedCount EXE(s) with no runtime imports"
+          }
+
+          # Parse the per-module SxS DLL names declared in the WiX includes:
+          # references shaped like $(ToolchainRoot)\usr\bin\<name>\<name>.dll.
+          $WxiDeclared = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+          foreach ($WxiPath in $WxiFiles) {
+            if (-not (Test-Path $WxiPath)) { Write-Warning "SxS: WiX include '$WxiPath' not found; skipping"; continue }
+            $WxiText = Get-Content -Raw -LiteralPath $WxiPath
+            foreach ($M in [regex]::Matches($WxiText, '\$\(ToolchainRoot\)[\\/]+usr[\\/]+bin[\\/]+([A-Za-z0-9_+\-\.]+)[\\/]+\1\.dll')) {
+              [void]$WxiDeclared.Add($M.Groups[1].Value)
+            }
+          }
+          Write-Host "SxS: WiX includes declare $($WxiDeclared.Count) per-module runtime assemblies: $(@($WxiDeclared | Sort-Object) -join ', ')"
+
+          $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
+          foreach ($ToolchainRoot in $ToolchainRoots) {
+            Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -WxiDeclared @($WxiDeclared) -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch
+          }
+
       - name: Package Build Tools (Asserts)
         run: |
           msbuild -nologo -restore -maxCpuCount `
