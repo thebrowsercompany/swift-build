@@ -5678,6 +5678,9 @@ jobs:
         with:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
+          # Install the pinned (host-arch x64) toolchain so the SxS step can read target
+          # binaries' PE imports with a host-runnable llvm-readobj (build.ps1: pinned tools dir).
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
       - name: Download Debugging Tools
         uses: actions/download-artifact@v4
@@ -6093,8 +6096,13 @@ jobs:
             if (-not (Test-Path $ToolchainRoot)) { Write-Warning "Stage-ToolchainRootSxS: '$ToolchainRoot' not found; skipping"; return }
             $BinDir = [IO.Path]::Combine($ToolchainRoot, "usr", "bin")
             if (-not (Test-Path $BinDir)) { throw "Stage-ToolchainRootSxS: BinDir '$BinDir' not found" }
-            $ReadObj = Join-Path $BinDir "llvm-readobj.exe"
-            if (-not (Test-Path $ReadObj)) { throw "Stage-ToolchainRootSxS: toolchain 'llvm-readobj.exe' not found at '$ReadObj'" }
+            # Read PE imports with the PINNED (host-arch x64) llvm-readobj, mirroring build.ps1's
+            # Get-PinnedToolchainToolsDir. package_tools runs on an x64 host; the target toolchain's
+            # llvm-readobj is target-arch (arm64 on the arm64 job) and cannot execute here.
+            # llvm-readobj reads any-arch PEs as data, so the host tool is the correct one.
+            $PinnedToolsDir = Split-Path -Parent (Get-Command swiftc -ErrorAction Stop).Source
+            $ReadObj = Join-Path $PinnedToolsDir "llvm-readobj.exe"
+            if (-not (Test-Path $ReadObj)) { throw "Stage-ToolchainRootSxS: pinned 'llvm-readobj.exe' not found at '$ReadObj' (pinned toolchain installed via setup-build swift-version?)" }
             if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Stage-ToolchainRootSxS: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
 
             Write-Host "Stage-ToolchainRootSxS: toolchain root = '$ToolchainRoot'"
@@ -8410,35 +8418,6 @@ jobs:
         run: |
           $env:Path = "${{ github.workspace }}\BuildRoot\Library\Developer\Platforms\${{ matrix.os }}.platform\Developer\SDKs\${{ matrix.os }}.sdk\usr\bin;${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-test-stdlib
-
-      # XXX: TEMPORARY DO NOT MERGE — runtime-resolution diagnostic. After
-      # swift-test-stdlib has repopulated bin\, dump the SHA256 of the SDK
-      # (linked-against), flat-bin (post test-stdlib), and SxS-bundle copies of
-      # swiftCore.dll, plus swift-frontend.exe's embedded manifest. If check-swift
-      # still crashes this proves whether the bind took (manifest present, bundle
-      # != flat) rather than leaving us to re-infer. Remove once swift_test is green.
-      - name: Diagnostic - runtime resolution
-        run: |
-          $BinDir = "${{ github.workspace }}/BinaryCache/1/bin"
-          $RuntimeSource = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/bin"
-          $Bundle = Join-Path $BinDir "swiftToolchainRuntime"
-          foreach ($Entry in @(
-            @{ Label = "SDK runtime (linked-against)"; Path = "$RuntimeSource/swiftCore.dll" },
-            @{ Label = "flat bin (post test-stdlib)";   Path = "$BinDir/swiftCore.dll" },
-            @{ Label = "SxS bundle";                    Path = "$Bundle/swiftCore.dll" }
-          )) {
-            if (Test-Path $Entry.Path) {
-              $Hash = (Get-FileHash -Algorithm SHA256 $Entry.Path).Hash
-              $Size = (Get-Item $Entry.Path).Length
-              Write-Host ("{0,-32} {1}  {2,12:N0}b  {3}" -f $Entry.Label, $Hash.Substring(0, 16), $Size, $Entry.Path)
-            } else {
-              Write-Host ("{0,-32} MISSING  {1}" -f $Entry.Label, $Entry.Path)
-            }
-          }
-          Write-Host "---- swift-frontend.exe embedded manifest ----"
-          $Tmp = Join-Path ([IO.Path]::GetTempPath()) "frontend-manifest-$([guid]::NewGuid().Guid).xml"
-          & "mt.exe" -nologo -inputresource:"$BinDir/swift-frontend.exe;#1" -out:$Tmp 2>&1 | Out-Null
-          if (Test-Path $Tmp) { Get-Content $Tmp | Write-Host; Remove-Item $Tmp -Force -ErrorAction SilentlyContinue }
 
       - name: Test Compiler
         run: |
