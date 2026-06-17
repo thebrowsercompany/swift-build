@@ -7531,6 +7531,25 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
+      # The bundle's bootstrapper-application DLL (baf) is a native project
+      # reference that -p:BuildProjectReferences=false also skips; build it so
+      # baf.dll lands on the bindpath. ProductArchitecture sets both the MSVC
+      # Platform and the OutDir (see installer-scripts Directory.Build.props).
+      - name: Build baf project
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:SignToolPath=${env:SIGNTOOL_PATH} `
+              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
+              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/baf/baf.vcxproj
+
       - name: Build installer bundle (offline)
         run: |
           $Platforms=@("windows")

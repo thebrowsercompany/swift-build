@@ -70,6 +70,12 @@ runs:
           Write-Host "Found CAS at $cas_path"
           $stats = Get-ChildItem "$cas_path" -Recurse -File | Measure-Object Length -Sum
           "CAS: {0} files, {1:N2} MB" -f $stats.Count, ($stats.Sum / 1MB)
+          if ($stats.Sum -gt 50GB) {
+            Write-Host ("CAS is {0:N2} GB (over 50 GB cap); clearing the remote object and skipping save so the next run cold-fills fresh." -f ($stats.Sum / 1GB))
+            aws s3 rm $s3_path
+            $global:LASTEXITCODE = 0
+            return
+          }
           $temp_dir = Join-Path $env:TEMP ("my-temp-dir-" + [guid]::NewGuid().ToString())
           New-Item -ItemType Directory -Path $temp_dir | Out-Null
           $temp_path = "$temp_dir\$cas_tgz"

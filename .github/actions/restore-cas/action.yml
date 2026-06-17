@@ -69,7 +69,7 @@ runs:
         $temp_dir = Join-Path $env:TEMP ("my-temp-dir-" + [guid]::NewGuid().ToString())
         New-Item -ItemType Directory -Path "$temp_dir" | Out-Null
         $temp_path = "$temp_dir\$cas_tgz"
-        aws s3 cp $s3_path $temp_path --no-progress
+        $global:LASTEXITCODE = 1 # TEMP seed short-circuit: skip download to force a fresh CAS cold-fill — remove this line to restore normal restore (aws s3 cp $s3_path $temp_path --no-progress)
         $code = $LASTEXITCODE
         $global:LASTEXITCODE = 0
         if ($code -eq 0) {
