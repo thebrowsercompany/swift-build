@@ -881,6 +881,9 @@ jobs:
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
+    env:
+      LLVM_CACHE_WARNINGS: "1"  # XXX: DO NOT MERGE — CAS cold-ingest diagnostic
+
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.build_matrix) }}
@@ -1012,6 +1015,64 @@ jobs:
         run: cmake --build ${{ github.workspace }}/BinaryCache/BuildTools --target llvm-config
       - name: Build swift-def-to-strings-converter
         run: cmake --build ${{ github.workspace }}/BinaryCache/BuildTools --target swift-def-to-strings-converter
+
+      # XXX: DO NOT MERGE — CAS cold-ingest diagnostic (include-tree CASID does not exist; N=1, seed run 27727465477)
+      - name: Diagnose CAS (cold-ingest)
+        if: ${{ always() && inputs.enable_cas }}
+        run: |
+          $cas = "${{ github.workspace }}/cas"
+          $out = "${{ github.workspace }}/cas-diag"
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          Write-Host "CAS path: $cas (exists: $(Test-Path $cas))"
+          if (Test-Path $cas) {
+            Get-ChildItem -Recurse -Force $cas |
+              Select-Object FullName, Length, LastWriteTime |
+              Out-File -FilePath "$out/listing.txt" -Encoding utf8
+            $size = (Get-ChildItem -Recurse -Force $cas | Measure-Object -Property Length -Sum).Sum
+            "CAS total bytes: $size" | Out-File -FilePath "$out/size.txt" -Encoding utf8
+            Write-Host "CAS total bytes: $size"
+          }
+          # Best-effort: directly query the failing root CASID if an llvm-cas is on the runner.
+          # The on-disk store packs objects into a few data files, so the offline cas tar (below) is authoritative.
+          $rootId = "llvmcas://f6b13606d76108870ed647bae55a92740c864655742dede496f53983bf236607"
+          $llvmcas = $null
+          $cmd = Get-Command llvm-cas -ErrorAction SilentlyContinue
+          if ($cmd) { $llvmcas = $cmd.Source }
+          elseif (Test-Path "${{ github.workspace }}/BinaryCache/BuildTools/bin/llvm-cas.exe") {
+            $llvmcas = "${{ github.workspace }}/BinaryCache/BuildTools/bin/llvm-cas.exe"
+          }
+          if ($llvmcas) {
+            Write-Host "Querying $rootId with $llvmcas"
+            & $llvmcas -cas $cas -ls-tree-recursive $rootId *>&1 | Tee-Object -FilePath "$out/query.txt"
+          } else {
+            "llvm-cas not found on runner; inspect the uploaded cold-cas tar offline." | Out-File -FilePath "$out/query.txt" -Encoding utf8
+            Write-Host "llvm-cas not found on runner; relying on uploaded cold-cas tar."
+          }
+
+      # XXX: DO NOT MERGE — upload diagnostics + the cold CAS store for offline inspection.
+      - name: Upload CAS diagnostics
+        if: ${{ always() && inputs.enable_cas }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cas-diag-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ github.workspace }}/cas-diag
+          if-no-files-found: warn
+      - name: Upload cold CAS store
+        if: ${{ always() && inputs.enable_cas }}
+        uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+        with:
+          name: cold-cas-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ github.workspace }}/cas
+
+      # XXX: DO NOT MERGE — force an early stop so the downstream multi-hour jobs never run.
+      # build_tools is gated by `needs:`, so failing it here halts the rest of the pipeline (~40 min total).
+      # Pass/fail of the converter itself is read from the step log above, not from this job's status.
+      - name: Stop run after build_tools (diagnostic)
+        if: ${{ always() && inputs.enable_cas }}
+        run: |
+          Write-Host "Diagnostic run complete: stopping after build_tools. See CAS diagnostics above and the cas-diag / cold-cas artifacts."
+          exit 1
+
       - name: Build swift-serialize-diagnostics
         run: cmake --build ${{ github.workspace }}/BinaryCache/BuildTools --target swift-serialize-diagnostics
       - name: Build swift-compatibility-symbols
