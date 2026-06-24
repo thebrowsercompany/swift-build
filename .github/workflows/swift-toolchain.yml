@@ -3242,6 +3242,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch-c/cmake/modules";
@@ -3292,6 +3294,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
@@ -3334,6 +3338,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
@@ -3374,6 +3380,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
@@ -3416,6 +3424,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/Runtime/include";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3458,6 +3468,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                # FIXME(#83449): avoid using `SwiftCMakeConfig.h`
               'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/Runtime/include"
@@ -3502,6 +3514,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
@@ -3543,6 +3557,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3586,6 +3602,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3633,6 +3651,8 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'CMAKE_Swift_FLAGS' = @("-static-stdlib");
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
               'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
@@ -5970,7 +5990,7 @@ jobs:
           }
 
           # Embed an RT_MANIFEST #1 identity manifest into a staged runtime DLL.
-          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $LogPrefix) {
+          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
             if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
             if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
             $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
@@ -5979,7 +5999,7 @@ jobs:
             try {
               $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
                 '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
-                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture) + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
                 ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
                 '</assembly>'
               Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
@@ -5993,7 +6013,7 @@ jobs:
             }
           }
 
-          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
+          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
             $Doc = New-Object System.Xml.XmlDocument
             $Doc.Load($ManifestPath)
             $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
@@ -6009,18 +6029,19 @@ jobs:
               ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
               ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
               ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
+              ($AssemblyIdentity.GetAttribute("publicKeyToken") -ieq $PublicKeyToken) -and
               ($File.GetAttribute("name") -eq $FileName)
             )
           }
 
-          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $LogPrefix) {
+          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
             $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
             $KeepExistingManifest = $false
             try {
               & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
               if (Test-Path $ExistingManifestPath) {
                 try {
-                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture
+                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
                 } catch {
                   $KeepExistingManifest = $true
                   throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
@@ -6029,14 +6050,14 @@ jobs:
                 $KeepExistingManifest = $true
                 throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST #1, but it is not the expected SxS assembly manifest (extracted to '$ExistingManifestPath'); rebuild the producer without a linker-generated manifest instead of overwriting it"
               }
-              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -LogPrefix $LogPrefix
+              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
             } finally {
               if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
             }
           }
 
-          function New-WindowsManifestDependency([string] $Name, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
-            return [pscustomobject]@{ Name = $Name; Version = $AssemblyVersion; ProcessorArchitecture = $ProcessorArchitecture }
+          function New-WindowsManifestDependency([string] $Name, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
+            return [pscustomobject]@{ Name = $Name; Version = $AssemblyVersion; ProcessorArchitecture = $ProcessorArchitecture; PublicKeyToken = $PublicKeyToken }
           }
 
           function Set-WindowsExecutableManifestDependencies([string] $ToolPath, [object[]] $Dependencies, [string] $LogPrefix) {
@@ -6078,6 +6099,7 @@ jobs:
                 $AsmId.SetAttribute("name", $Dependency.Name)
                 $AsmId.SetAttribute("version", $Dependency.Version)
                 $AsmId.SetAttribute("processorArchitecture", $Dependency.ProcessorArchitecture)
+                $AsmId.SetAttribute("publicKeyToken", $Dependency.PublicKeyToken)
                 $AsmId.SetAttribute("language", "*")
                 [void]$DepAsm.AppendChild($AsmId)
                 [void]$Dep.AppendChild($DepAsm)
@@ -6095,7 +6117,7 @@ jobs:
           }
 
           # Per-toolchain-root staging.
-          function Stage-ToolchainRootSxS([string] $ToolchainRoot, [string] $RuntimeLocation, [string[]] $WxiDeclared, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
+          function Stage-ToolchainRootSxS([string] $ToolchainRoot, [string] $RuntimeLocation, [string[]] $WxiDeclared, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
             if (-not (Test-Path $ToolchainRoot)) { Write-Warning "Stage-ToolchainRootSxS: '$ToolchainRoot' not found; skipping"; return }
             $BinDir = [IO.Path]::Combine($ToolchainRoot, "usr", "bin")
             if (-not (Test-Path $BinDir)) { throw "Stage-ToolchainRootSxS: BinDir '$BinDir' not found" }
@@ -6178,7 +6200,7 @@ jobs:
               New-Item -ItemType Directory -Path $AssemblyDir -Force -ErrorAction Stop | Out-Null
               $StagedDLL = Join-Path $AssemblyDir "$DLLName.dll"
               Copy-Item -Path $SourceDLL -Destination $StagedDLL -Force -ErrorAction Stop
-              Ensure-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -LogPrefix "Stage-ToolchainRootSxS"
+              Ensure-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix "Stage-ToolchainRootSxS"
               Write-Host ("  [{0,-32}]  ->  {1}" -f "$DLLName.dll", $AssemblyDir)
               [void]$InjectedDLLs.Add($DLLName)
             }
@@ -6192,7 +6214,7 @@ jobs:
               if (-not (Test-Path $ToolPath)) { Write-Warning "Stage-ToolchainRootSxS: tool '$ToolPath' does not exist; skipping"; continue }
               $MissingDLLs = @($DirectRuntimeDeps | Where-Object { -not $InjectedDLLs.Contains($_) })
               if ($MissingDLLs.Count -gt 0) { throw "Stage-ToolchainRootSxS: refusing to bind '$ToolPath'; missing injected SxS DLL(s): $($MissingDLLs -join ', ')" }
-              $Dependencies = @(foreach ($DLLName in ($DirectRuntimeDeps | Sort-Object)) { New-WindowsManifestDependency $DLLName $AssemblyVersion $ProcessorArchitecture })
+              $Dependencies = @(foreach ($DLLName in ($DirectRuntimeDeps | Sort-Object)) { New-WindowsManifestDependency $DLLName $AssemblyVersion $ProcessorArchitecture $PublicKeyToken })
               Write-Host "Stage-ToolchainRootSxS: binding EXE '$ToolPath' -> [$($DirectRuntimeDeps -join ', ')]"
               Set-WindowsExecutableManifestDependencies $ToolPath $Dependencies "Stage-ToolchainRootSxS"
               $BoundEXECount++
@@ -6213,8 +6235,9 @@ jobs:
           Write-Host "SxS: WiX includes declare $($WxiDeclared.Count) per-module runtime assemblies: $(@($WxiDeclared | Sort-Object) -join ', ')"
 
           $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
+          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
           foreach ($ToolchainRoot in $ToolchainRoots) {
-            Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -WxiDeclared @($WxiDeclared) -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch
+            Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -WxiDeclared @($WxiDeclared) -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken
           }
 
       - name: Package Build Tools (Asserts)
@@ -6349,6 +6372,106 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
+      - name: Repair Windows runtime assembly manifests
+        run: |
+          # See "Repair Windows SDK assembly manifests" in the Package job for rationale.
+          # Building rtl.dynamic.msi with the default RuntimeLibraryInstallationMode=shared
+          # imports RuntimeWin32Assemblies.targets, which extracts manifest #1 from each
+          # runtime DLL in $(WindowsRuntime{arch})\usr\bin (here: Runtimes\usr\bin) and
+          # fails (mt.exe c101008c) on DLLs without one. Embed manifests first.
+          #
+          # NOTE: helpers duplicated from the staging job (GHA jobs/steps don't share
+          # PowerShell scope). TODO: factor into a shared .ps1 dot-sourced everywhere.
+          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
+
+          function ConvertTo-FourPartVersion([string] $Version) {
+            $Numeric = [regex]::Replace($Version, "[-+].*", "")
+            $Parts = @($Numeric.Split('.'))
+            while ($Parts.Count -lt 4) { $Parts += "0" }
+            return ($Parts[0..3] -join ".")
+          }
+
+          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
+            if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
+            if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-assembly-$([guid]::NewGuid().Guid).manifest"
+            try {
+              $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
+                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
+                ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
+                '</assembly>'
+              Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
+              Write-Host "${LogPrefix}: embedding assembly manifest into '$ImagePath'"
+              $Output = & "mt.exe" -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1" 2>&1
+              $ExitCode = $LASTEXITCODE
+              if ($Output) { $Output | ForEach-Object { Write-Host "${LogPrefix}:   mt: $_" } }
+              if ($ExitCode -ne 0) { throw "${LogPrefix}: mt failed for '$ImagePath' (exit $ExitCode)" }
+            } finally {
+              Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
+            $Doc = New-Object System.Xml.XmlDocument
+            $Doc.Load($ManifestPath)
+            $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
+            if ($null -eq $Assembly) { return $false }
+            $AssemblyIdentity = $Assembly.SelectSingleNode("*[local-name()='assemblyIdentity']")
+            if ($null -eq $AssemblyIdentity) { return $false }
+            $File = $Assembly.SelectSingleNode("*[local-name()='file']")
+            if ($null -eq $File) { return $false }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            return (
+              ($AssemblyIdentity.GetAttribute("type") -ieq "win32") -and
+              ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
+              ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
+              ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
+              ($AssemblyIdentity.GetAttribute("publicKeyToken") -ieq $PublicKeyToken) -and
+              ($File.GetAttribute("name") -eq $FileName)
+            )
+          }
+
+          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
+            $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
+            $KeepExistingManifest = $false
+            try {
+              & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
+              if (Test-Path $ExistingManifestPath) {
+                try {
+                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
+                } catch {
+                  $KeepExistingManifest = $true
+                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
+                }
+                if ($ManifestMatches) { Write-Host "${LogPrefix}: '$ImagePath' already has the expected assembly manifest"; return }
+                $KeepExistingManifest = $true
+                throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST #1, but it is not the expected SxS assembly manifest (extracted to '$ExistingManifestPath'); rebuild the producer without a linker-generated manifest instead of overwriting it"
+              }
+              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
+            } finally {
+              if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
+            }
+          }
+
+          # Mirror of build.ps1 Repair-WindowsSDKAssemblyManifests: the fixed list of
+          # runtime DLLs that swift-installer-scripts treats as Win32 SxS assemblies.
+          function Repair-WindowsSDKAssemblyManifests([string] $RuntimeBin, [string] $ProcessorArchitecture) {
+            if (-not (Test-Path $RuntimeBin)) { Write-Warning "Repair-WindowsSDKAssemblyManifests: '$RuntimeBin' not found; skipping"; return }
+            $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
+            foreach ($DLL in @("BlocksRuntime", "dispatch", "swiftDispatch", "Foundation", "FoundationEssentials", "FoundationInternationalization", "FoundationNetworking", "FoundationXML", "_FoundationICU")) {
+              $Path = Join-Path $RuntimeBin "$DLL.dll"
+              if (Test-Path $Path) {
+                Ensure-WindowsAssemblyManifest -ImagePath $Path -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Repair-WindowsSDKAssemblyManifests"
+              }
+            }
+          }
+
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr/bin" "${{ matrix.arch }}"
+
       - name: Package Shared Runtime
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -6367,7 +6490,7 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/shared/msi/rtl.shared.msi.wixproj
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/dynamic/msi/rtl.dynamic.msi.wixproj
 
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
@@ -6684,6 +6807,111 @@ jobs:
           }' | Out-File -FilePath $metadataPath -Encoding utf8
           echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
+      - name: Repair Windows SDK assembly manifests
+        run: |
+          # Ported from swiftlang/swift utils/build.ps1: Repair-WindowsSDKAssemblyManifests
+          # (added in swiftlang/swift#89987, merge db3e9c8e3). The redistributable runtime
+          # DLLs ship without an embedded RT_MANIFEST, so swift-installer-scripts'
+          # RuntimeWin32Assemblies.targets fails when it tries to extract one
+          # (mt.exe c101008c "did not contain a resource section"). Embed an SxS identity
+          # manifest into each runtime DLL before WiX packages it.
+          #
+          # NOTE: these helpers are duplicated from the "Stage SxS toolchain runtime" job
+          # because GitHub Actions jobs do not share PowerShell scope.
+          # TODO: factor the SxS manifest helpers into a shared .ps1 dot-sourced by both
+          # jobs once this is confirmed working.
+          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
+
+          function ConvertTo-FourPartVersion([string] $Version) {
+            $Numeric = [regex]::Replace($Version, "[-+].*", "")
+            $Parts = @($Numeric.Split('.'))
+            while ($Parts.Count -lt 4) { $Parts += "0" }
+            return ($Parts[0..3] -join ".")
+          }
+
+          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
+            if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
+            if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-assembly-$([guid]::NewGuid().Guid).manifest"
+            try {
+              $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
+                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
+                ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
+                '</assembly>'
+              Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
+              Write-Host "${LogPrefix}: embedding assembly manifest into '$ImagePath'"
+              $Output = & "mt.exe" -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1" 2>&1
+              $ExitCode = $LASTEXITCODE
+              if ($Output) { $Output | ForEach-Object { Write-Host "${LogPrefix}:   mt: $_" } }
+              if ($ExitCode -ne 0) { throw "${LogPrefix}: mt failed for '$ImagePath' (exit $ExitCode)" }
+            } finally {
+              Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
+            $Doc = New-Object System.Xml.XmlDocument
+            $Doc.Load($ManifestPath)
+            $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
+            if ($null -eq $Assembly) { return $false }
+            $AssemblyIdentity = $Assembly.SelectSingleNode("*[local-name()='assemblyIdentity']")
+            if ($null -eq $AssemblyIdentity) { return $false }
+            $File = $Assembly.SelectSingleNode("*[local-name()='file']")
+            if ($null -eq $File) { return $false }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            return (
+              ($AssemblyIdentity.GetAttribute("type") -ieq "win32") -and
+              ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
+              ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
+              ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
+              ($AssemblyIdentity.GetAttribute("publicKeyToken") -ieq $PublicKeyToken) -and
+              ($File.GetAttribute("name") -eq $FileName)
+            )
+          }
+
+          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
+            $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
+            $KeepExistingManifest = $false
+            try {
+              & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
+              if (Test-Path $ExistingManifestPath) {
+                try {
+                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
+                } catch {
+                  $KeepExistingManifest = $true
+                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
+                }
+                if ($ManifestMatches) { Write-Host "${LogPrefix}: '$ImagePath' already has the expected assembly manifest"; return }
+                $KeepExistingManifest = $true
+                throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST #1, but it is not the expected SxS assembly manifest (extracted to '$ExistingManifestPath'); rebuild the producer without a linker-generated manifest instead of overwriting it"
+              }
+              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
+            } finally {
+              if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
+            }
+          }
+
+          # Mirror of build.ps1 Repair-WindowsSDKAssemblyManifests: the fixed list of
+          # runtime DLLs that swift-installer-scripts treats as Win32 SxS assemblies.
+          function Repair-WindowsSDKAssemblyManifests([string] $RuntimeBin, [string] $ProcessorArchitecture) {
+            if (-not (Test-Path $RuntimeBin)) { Write-Warning "Repair-WindowsSDKAssemblyManifests: '$RuntimeBin' not found; skipping"; return }
+            $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
+            foreach ($DLL in @("BlocksRuntime", "dispatch", "swiftDispatch", "Foundation", "FoundationEssentials", "FoundationInternationalization", "FoundationNetworking", "FoundationXML", "_FoundationICU")) {
+              $Path = Join-Path $RuntimeBin "$DLL.dll"
+              if (Test-Path $Path) {
+                Ensure-WindowsAssemblyManifest -ImagePath $Path -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Repair-WindowsSDKAssemblyManifests"
+              }
+            }
+          }
+
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64/usr/bin" "amd64"
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64/usr/bin" "arm64"
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr/bin" "x86"
+
       - name: Package Platform
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -6732,12 +6960,12 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.x64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x86.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.x86.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.shared.amd64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.amd64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.shared.arm64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.arm64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.shared.x86.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.dynamic.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.dynamic.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.dynamic.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
       - uses: actions/upload-artifact@v4
         with:
@@ -6757,37 +6985,37 @@ jobs:
         with:
           name: Windows-amd64-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.dynamic.shared.amd64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-amd64-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.shared.amd64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-arm64-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.dynamic.shared.arm64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-arm64-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.shared.arm64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-x86-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.dynamic.shared.x86.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-x86-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
   package_android_platform:
     # TODO: Build this on macOS or make an equivalent Mac-only job
@@ -7787,7 +8015,7 @@ jobs:
         variant: ["static", "shared"]
     env:
       MSM_ARTIFACT_NAME: Windows-${{ matrix.arch }}-rtl-${{ matrix.variant }}-msm
-      MSM_FILE_NAME: rtl.${{ matrix.variant }}.${{ matrix.arch }}.msm
+      MSM_FILE_NAME: rtl.${{ matrix.variant == 'shared' && 'dynamic.shared' || 'static.shared' }}.${{ matrix.arch }}.msm
 
       EXPECTED: >
         ${{ matrix.variant == 'shared' && (
