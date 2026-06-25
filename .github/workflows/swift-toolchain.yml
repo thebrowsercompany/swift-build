@@ -5905,20 +5905,23 @@ jobs:
 
       # build.ps1: Stage-WindowsToolchainSxS
       - name: Stage SxS toolchain runtime (per-DLL)
+        env:
+          ARCH: ${{ matrix.arch }}
+          SWIFT_VERSION: ${{ inputs.swift_version }}
         run: |
           $ErrorActionPreference = "Stop"
 
-          $RuntimeLocation = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\usr\bin"
-          $ProcArch = "${{ matrix.arch }}"
+          $RuntimeLocation = "${env:GITHUB_WORKSPACE}\BuildRoot\Library\Developer\Runtimes\usr\bin"
+          $ProcArch = "${env:ARCH}"
           $WxiFiles = @(
-            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\bld\bld.wxi",
-            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\cli\cli.wxi",
-            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\dbg\dbg.wxi",
-            "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\ide\ide.wxi"
+            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\bld\bld.wxi",
+            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\cli\cli.wxi",
+            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\dbg\dbg.wxi",
+            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\ide\ide.wxi"
           )
           $ToolchainRoots = @(
-            "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts",
-            "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
+            "${env:GITHUB_WORKSPACE}\BuildRoot\Library\Developer\Toolchains\${env:SWIFT_VERSION}+Asserts",
+            "${env:GITHUB_WORKSPACE}\BuildRoot\Library\Developer\Toolchains\${env:SWIFT_VERSION}+NoAsserts"
           )
 
           function ConvertTo-FourPartVersion([string] $Version) {
@@ -6234,7 +6237,7 @@ jobs:
           }
           Write-Host "SxS: WiX includes declare $($WxiDeclared.Count) per-module runtime assemblies: $(@($WxiDeclared | Sort-Object) -join ', ')"
 
-          $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
+          $AssemblyVersion = ConvertTo-FourPartVersion "${env:SWIFT_VERSION}"
           $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
           foreach ($ToolchainRoot in $ToolchainRoots) {
             Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -WxiDeclared @($WxiDeclared) -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken
