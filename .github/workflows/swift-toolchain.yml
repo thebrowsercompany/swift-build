@@ -334,6 +334,54 @@ permissions:
   attestations: write
 
 jobs:
+  # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
+  # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
+  configure_signing:
+    name: Configure signing
+    runs-on: ${{ inputs.default_build_runner }}
+    outputs:
+      uses_trusted_signing: ${{ steps.test_trusted_signing.outputs.uses_trusted_signing }}
+      public_key_token: ${{ steps.derive_public_key_token.outputs.public_key_token }}
+
+    steps:
+      - name: Test whether we're using trusted signing
+        id: test_trusted_signing
+        run: |
+          "uses_trusted_signing=${{ secrets.TRUSTED_SIGNING_ACCOUNT != ''}}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+      # Derive the Win32 SxS publicKeyToken from the code-signing certificate. This is the
+      # single source of truth for the token that gets baked into the runtime assembly
+      # manifests, so it can never drift from the certificate that signs the catalogs.
+      # Requires pktextract.exe (Windows SDK SxS tool) on the runner.
+      - name: Derive SxS public key token from signing certificate
+        id: derive_public_key_token
+        if: inputs.signed
+        run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          $CERPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.cer
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil.exe -decode $CertificatePath $PFXPath | Out-Null
+          $Password = ConvertTo-SecureString '${{ secrets.PASSPHRASE }}' -AsPlainText -Force
+          $Certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($PFXPath, $Password)
+          [IO.File]::WriteAllBytes($CERPath, $Certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+          $Output = & pktextract.exe $CERPath
+          $Token = [regex]::Match(($Output -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "Failed to extract publicKeyToken from certificate:`n$Output" }
+          Write-Host "Derived SxS publicKeyToken: $Token"
+          "public_key_token=$Token" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
+      - uses: nuget/setup-nuget@v2
+        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
+      - run: |
+          nuget install -x -OutputDirectory ${{ github.workspace }} Microsoft.ArtifactSigning.Client
+        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
+      - uses: actions/upload-artifact@v4
+        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
+        with:
+          name: trusted-signing-dll
+          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
+          # TODO: Update with more info once we've filed a bug against Microsoft.
+          path: ${{ github.workspace }}/Microsoft.ArtifactSigning.Client/bin/x64
+
   stage0-sqlite:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2968,7 +3016,7 @@ jobs:
 
   sdk:
     if: inputs.build_os == 'Windows'
-    needs: [stage1-compiler, bootstrap-macros, sqlite, zlib, brotli, curl, libxml2]
+    needs: [stage1-compiler, bootstrap-macros, sqlite, zlib, brotli, curl, libxml2, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -3242,7 +3290,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3294,7 +3342,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3338,7 +3386,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3380,7 +3428,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3424,7 +3472,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/Runtime/include";
@@ -3468,7 +3516,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                # FIXME(#83449): avoid using `SwiftCMakeConfig.h`
@@ -3514,7 +3562,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3557,7 +3605,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
@@ -3602,7 +3650,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
@@ -3651,7 +3699,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'CMAKE_Swift_FLAGS' = @("-static-stdlib");
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
@@ -5644,33 +5692,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           cache-key: ${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
 
-  # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
-  # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
-  configure_signing:
-    if: inputs.build_os == 'Windows'
-    name: Configure signing
-    runs-on: ${{ inputs.default_build_runner }}
-    outputs:
-      uses_trusted_signing: ${{ steps.test_trusted_signing.outputs.uses_trusted_signing }}
-
-    steps:
-      - name: Test whether we're using trusted signing
-        id: test_trusted_signing
-        run: |
-          "uses_trusted_signing=${{ secrets.TRUSTED_SIGNING_ACCOUNT != ''}}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
-      - uses: nuget/setup-nuget@v2
-        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
-      - run: |
-          nuget install -x -OutputDirectory ${{ github.workspace }} Microsoft.ArtifactSigning.Client
-        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
-      - uses: actions/upload-artifact@v4
-        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          path: ${{ github.workspace }}/Microsoft.ArtifactSigning.Client/bin/x64
-
   package_tools:
     # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
@@ -5824,44 +5845,6 @@ jobs:
           ref: ${{ inputs.mimalloc_revision }}
           path: ${{ github.workspace }}/SourceCache/mimalloc
 
-      - name: Build and apply mimalloc
-        run: |
-          $HostMSArch = if ("${{ matrix.arch }}" -eq "arm64") { "arm64" } else { "x64" }
-          $HostSuffix = if ("${{ matrix.arch }}" -eq "arm64") { "-arm64" } else { "" }
-          $BuildSuffix = if ("${{ inputs.build_arch }}" -eq "arm64") { "-arm64" } else { "" }
-          # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
-          msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release -p:Platform=$HostMSArch
-          $AssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
-          $NoAssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts\usr\bin"
-          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
-            -Destination "$AssertToolchainBin"
-          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
-            -Destination "$NoAssertToolchainBin"
-          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
-            -Destination "$AssertToolchainBin"
-          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
-            -Destination "$NoAssertToolchainBin"
-          $MimallocExecutables = @("swift.exe",
-                                   "swiftc.exe",
-                                   "swift-driver.exe",
-                                   "swift-frontend.exe",
-                                   "clang.exe",
-                                   "clang++.exe",
-                                   "clang-cl.exe",
-                                   "lld.exe",
-                                   "lld-link.exe",
-                                   "ld.lld.exe",
-                                   "ld64.lld.exe")
-          $AssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($AssertToolchainBin, $_) }
-          $NoAssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($NoAssertToolchainBin, $_) }
-          $Binaries = $AssertBinaries + $NoAssertBinaries
-          foreach ($Exe in $Binaries) {
-            # Binary-patch in place
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$Exe"
-            # Log the import table
-            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$Exe"
-          }
-
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
@@ -5913,12 +5896,6 @@ jobs:
 
           $RuntimeLocation = "${env:GITHUB_WORKSPACE}\BuildRoot\Library\Developer\Runtimes\usr\bin"
           $ProcArch = "${env:ARCH}"
-          $WxiFiles = @(
-            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\bld\bld.wxi",
-            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\cli\cli.wxi",
-            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\dbg\dbg.wxi",
-            "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\ide\ide.wxi"
-          )
           $ToolchainRoots = @(
             "${env:GITHUB_WORKSPACE}\BuildRoot\Library\Developer\Toolchains\${env:SWIFT_VERSION}+Asserts",
             "${env:GITHUB_WORKSPACE}\BuildRoot\Library\Developer\Toolchains\${env:SWIFT_VERSION}+NoAsserts"
@@ -6119,8 +6096,79 @@ jobs:
             }
           }
 
-          # Per-toolchain-root staging.
-          function Stage-ToolchainRootSxS([string] $ToolchainRoot, [string] $RuntimeLocation, [string[]] $WxiDeclared, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
+          # SxS-safety assert family (mirrors build.ps1 Get-WindowsManifestResourceIDs /
+          # Export-WindowsManifestResource / Test-WindowsManifestHasExecutionLevel /
+          # Assert-WindowsManifestResourcesAreSxSSafe). Get-WindowsManifestResourceIDs is
+          # parameterized on $ReadObj (build.ps1 derives it from Get-PinnedToolchainToolsDir).
+          function Get-WindowsManifestResourceIDs([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            if (-not (Test-Path $ReadObj)) { throw "${LogPrefix}: pinned 'llvm-readobj.exe' not found at '$ReadObj'" }
+            $Output = & $ReadObj --coff-resources $ImagePath 2>&1
+            $ExitCode = $LASTEXITCODE
+            if ($ExitCode -ne 0) { throw "${LogPrefix}: llvm-readobj failed to inspect resources in '$ImagePath' (exit $ExitCode): $($Output -join "`n")" }
+            $CandidateIDs = [System.Collections.Generic.HashSet[int]]::new()
+            $InManifestType = $false
+            foreach ($Line in $Output) {
+              if ($Line -match '^\s*Type:\s*(?:RT_MANIFEST\b.*|.*\(ID\s+24\)|24\b)') { $InManifestType = $true; continue }
+              if ($Line -match '^\s*Type:') { $InManifestType = $false }
+              if ($InManifestType -and
+                  ($Line -match '^\s*Name:\s*(?:\(ID\s*)?#?([0-9]+)\)?' -or
+                   $Line -match '^\s*Name:.*\(ID\s+([0-9]+)\)')) {
+                [void]$CandidateIDs.Add([int]$Matches[1])
+              }
+            }
+            foreach ($ResourceID in 1..16) { [void]$CandidateIDs.Add($ResourceID) }
+            $ManifestIDs = [System.Collections.Generic.HashSet[int]]::new()
+            foreach ($ResourceID in ($CandidateIDs | Sort-Object)) {
+              $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-probe-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+              try {
+                & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $ManifestPath)) { [void]$ManifestIDs.Add([int]$ResourceID) }
+              } finally {
+                Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+              }
+            }
+            return @($ManifestIDs | Sort-Object)
+          }
+
+          function Export-WindowsManifestResource([string] $ImagePath, [int] $ResourceID, [string] $LogPrefix) {
+            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+            & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) { throw "${LogPrefix}: failed to extract RT_MANIFEST resource #$ResourceID from '$ImagePath'" }
+            return $ManifestPath
+          }
+
+          function Test-WindowsManifestHasExecutionLevel([string] $ManifestPath) {
+            $Doc = New-Object System.Xml.XmlDocument
+            $Doc.Load($ManifestPath)
+            return ([bool]$Doc.SelectSingleNode("//*[local-name()='trustInfo' or local-name()='requestedPrivileges' or local-name()='requestedExecutionLevel']"))
+          }
+
+          function Assert-WindowsManifestResourcesAreSxSSafe([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            $ResourceIDs = @(Get-WindowsManifestResourceIDs $ImagePath $LogPrefix $ReadObj)
+            $ReservedResourceIDs = @($ResourceIDs | Where-Object { $_ -ge 1 -and $_ -le 16 })
+            $UnexpectedReservedResourceIDs = @($ReservedResourceIDs | Where-Object { $_ -ne 1 })
+            if ($UnexpectedReservedResourceIDs.Count -gt 0) {
+              $UnexpectedList = "#$($UnexpectedReservedResourceIDs -join ', #')"
+              throw "${LogPrefix}: '$ImagePath' has unexpected reserved RT_MANIFEST resources ($UnexpectedList); Windows reserves IDs 1..16, and this layout uses RT_MANIFEST #1 for SxS manifests"
+            }
+            foreach ($ResourceID in $ResourceIDs) {
+              $ManifestPath = Export-WindowsManifestResource $ImagePath $ResourceID $LogPrefix
+              $KeepManifest = $false
+              try {
+                try { $HasExecutionLevel = Test-WindowsManifestHasExecutionLevel $ManifestPath }
+                catch { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST resource #$ResourceID (extracted to '$ManifestPath')" }
+                if ($HasExecutionLevel) { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST resource #$ResourceID with UAC execution-level metadata (extracted to '$ManifestPath')" }
+              } finally {
+                if (-not $KeepManifest) { Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue }
+              }
+            }
+          }
+
+          # Per-toolchain-root staging.  Faithful to build.ps1 Stage-WindowsToolchainSxS
+          # + Set-WindowsSxSToolchainRuntimePerDLL: the inject set is the discovered PE
+          # import closure ONLY.  The WiX package maps ($EXEToPackage / $PackageToSxS) are
+          # DIAGNOSTIC (warn-only) and never feed the inject set.
+          function Stage-ToolchainRootSxS([string] $ToolchainRoot, [string] $RuntimeLocation, [hashtable] $EXEToPackage, [hashtable] $PackageToSxS, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
             if (-not (Test-Path $ToolchainRoot)) { Write-Warning "Stage-ToolchainRootSxS: '$ToolchainRoot' not found; skipping"; return }
             $BinDir = [IO.Path]::Combine($ToolchainRoot, "usr", "bin")
             if (-not (Test-Path $BinDir)) { throw "Stage-ToolchainRootSxS: BinDir '$BinDir' not found" }
@@ -6139,10 +6187,7 @@ jobs:
             $RuntimeDLLs = @(Get-WindowsSxSRuntimeDLLs $RuntimeLocation)
             if (-not $RuntimeDLLs) { throw "Stage-ToolchainRootSxS: no *.dll found under '$RuntimeLocation'" }
 
-            # BlocksRuntime stays flat; the Swift runtime DLLs use private SxS.
-            $NonSxSRuntimeDLLs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-            [void]$NonSxSRuntimeDLLs.Add("BlocksRuntime")
-            $RuntimeBaseNames = @($RuntimeDLLs | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.Name) } | Where-Object { -not $NonSxSRuntimeDLLs.Contains($_) })
+            $RuntimeBaseNames = @($RuntimeDLLs | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.Name) })
             $RuntimeSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
             foreach ($D in $RuntimeBaseNames) { [void]$RuntimeSet.Add($D) }
 
@@ -6155,48 +6200,92 @@ jobs:
             Write-Host "Stage-ToolchainRootSxS: built runtime graph with $($RuntimeDependencies.Count) DLL(s)"
 
             $EXEDependencies = @{}
+            $EXEPackageClosures = @{}
+            $DLLDependencies = @{}
             $DLLsNeeded = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
             $TotalEXEs = 0
             Get-ChildItem -Path $BinDir -Filter "*.exe" -File | ForEach-Object {
               $TotalEXEs++
               $StaticRuntimeDeps = @(Get-StaticRuntimeImports -Path $_.FullName -BinaryDir $BinDir -RuntimeSet $RuntimeSet -ReadObj $ReadObj)
               $EXEDependencies[$_.FullName] = @(Get-RuntimeImportClosure -Roots $StaticRuntimeDeps -RuntimeGraph $RuntimeDependencies)
+              $EXEPackageClosures[$_.FullName] = $EXEDependencies[$_.FullName]
               foreach ($D in $EXEDependencies[$_.FullName]) { [void]$DLLsNeeded.Add($D) }
             }
             Get-ChildItem -Path $BinDir -Filter "*.dll" -File -ErrorAction SilentlyContinue | ForEach-Object {
               $ImageName = [IO.Path]::GetFileNameWithoutExtension($_.Name)
               if (-not $RuntimeSet.Contains($ImageName)) {
                 $DirectRuntimeDeps = @(Get-DirectRuntimeImports -Path $_.FullName -RuntimeSet $RuntimeSet -ReadObj $ReadObj)
-                foreach ($D in $DirectRuntimeDeps) { [void]$DLLsNeeded.Add($D) }
+                if ($DirectRuntimeDeps.Count -gt 0) {
+                  $DLLDependencies[$_.FullName] = $DirectRuntimeDeps
+                  foreach ($D in $DirectRuntimeDeps) { [void]$DLLsNeeded.Add($D) }
+                }
               }
             }
 
-            # Inject set = discovered import closure UNION the runtime DLLs the WiX
-            # packages declare. Seeding with the declared set guarantees every
-            # packaged file exists even if PE import discovery under-detects.
-            $DLLRootImports = @($DLLsNeeded | Sort-Object)
-            $InjectSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-            foreach ($D in (Get-RuntimeImportClosure -Roots $DLLRootImports -RuntimeGraph $RuntimeDependencies)) { [void]$InjectSet.Add($D) }
-            foreach ($D in $WxiDeclared) {
-              if ($RuntimeSet.Contains($D)) { [void]$InjectSet.Add($D) }
-              elseif (Test-Path (Join-Path $RuntimeLocation "$D.dll")) { [void]$InjectSet.Add($D) }
-              else { Write-Warning "Stage-ToolchainRootSxS: WiX-declared SxS DLL '$D' has no source '$D.dll' under '$RuntimeLocation'" }
-            }
-            $DLLsToInject = @($InjectSet | Sort-Object)
-            Write-Host "Stage-ToolchainRootSxS: discovered $TotalEXEs exe(s); $($DLLsToInject.Count) DLL(s) to stage as private SxS assemblies"
-
-            # Remove flat copies that would shadow the private SxS assemblies.
+            # Remove flat copies that would shadow the private SxS assemblies.  Blanket
+            # removal keyed on the FULL runtime DLL base-name set (build.ps1:5534-5548),
+            # not just the injected set: every flat runtime DLL in bin\ must go so it
+            # cannot shadow a private assembly directory.
             $RemovedFlat = New-Object System.Collections.Generic.List[string]
             Get-ChildItem -Path $BinDir -Filter "*.dll" -File -ErrorAction SilentlyContinue | ForEach-Object {
               $Base = [IO.Path]::GetFileNameWithoutExtension($_.Name)
-              if ($InjectSet.Contains($Base)) { Remove-Item -LiteralPath $_.FullName -Force; [void]$RemovedFlat.Add($_.Name) }
+              if ($RuntimeSet.Contains($Base)) { Remove-Item -LiteralPath $_.FullName -Force; [void]$RemovedFlat.Add($_.Name) }
             }
-            if ($RemovedFlat.Count -gt 0) { Write-Host "Stage-ToolchainRootSxS: removed flat runtime DLL(s) from '$BinDir': $(@($RemovedFlat) -join ', ')" }
+            if ($RemovedFlat.Count -gt 0) { Write-Host "Stage-ToolchainRootSxS: removed flat runtime DLL(s) from '$BinDir' to make room for per-assembly SxS layout: $(@($RemovedFlat) -join ', ')" }
+
+            # Inject set = the discovered PE import closure ONLY (build.ps1:5550-5551).
+            $DLLRootImports = @($DLLsNeeded | Sort-Object)
+            $DLLsToInject = @(Get-RuntimeImportClosure -Roots $DLLRootImports -RuntimeGraph $RuntimeDependencies)
+            $EXEsToBind = ($EXEDependencies.Keys | Where-Object { @($EXEDependencies[$_]).Count -gt 0 } | Measure-Object).Count
+            Write-Host "Stage-ToolchainRootSxS: discovered $TotalEXEs exe(s); $EXEsToBind need EXE binding; $($DLLDependencies.Count) DLL(s) import Swift runtime DLLs; $($DLLsToInject.Count) DLL(s) in bind set"
+
+            # ── WiX-drift diagnostics (warn-only; build.ps1:5555-5604) ────────────────
+            # Attribute each injected DLL to the earliest package whose EXE closure needs
+            # it, then warn if the checked-in .wxi declarations do not match.  These do
+            # NOT feed the inject set.
+            $PackageOrder = @("bld", "cli", "dbg", "ide")
+            $ExpectedPackage = @{}
+            foreach ($DLL in $DLLsToInject) {
+              $OwningPackage = $null
+              foreach ($Module in $PackageOrder) {
+                $PackageEXEs = @($EXEToPackage.GetEnumerator() | Where-Object { $_.Value -eq $Module } | ForEach-Object { $_.Key })
+                $Found = $false
+                foreach ($EXE in $PackageEXEs) {
+                  $FullPath = Join-Path $BinDir $EXE
+                  if ($EXEPackageClosures.ContainsKey($FullPath) -and ($EXEPackageClosures[$FullPath] -contains $DLL)) { $Found = $true; break }
+                }
+                if ($Found) { $OwningPackage = $Module; break }
+              }
+              if ($OwningPackage) { $ExpectedPackage[$DLL] = $OwningPackage } else { $ExpectedPackage[$DLL] = "(unattributed)" }
+            }
+            foreach ($DLL in $DLLsToInject) {
+              $Want = $ExpectedPackage[$DLL]
+              $WiXPackage = $null
+              foreach ($Key in $PackageToSxS.Keys) {
+                if ($PackageToSxS[$Key] -contains $DLL) {
+                  if ($WiXPackage) { Write-Host -BackgroundColor DarkRed -ForegroundColor White "Stage-ToolchainRootSxS: '$DLL' is declared in multiple package .wxi files ($WiXPackage, $Key)" }
+                  else { $WiXPackage = $Key }
+                }
+              }
+              if (-not $WiXPackage) { Write-Host -BackgroundColor DarkRed -ForegroundColor White "Stage-ToolchainRootSxS: '$DLL' is needed by staged PE files (expected package: $Want) but not declared in any package .wxi" }
+              elseif ($Want -ne "(unattributed)" -and $WiXPackage -ne $Want) { Write-Host -BackgroundColor DarkRed -ForegroundColor White "Stage-ToolchainRootSxS: '$DLL' is declared in $WiXPackage.wxi but expected package is $Want.wxi" }
+            }
+            foreach ($Key in $PackageToSxS.Keys) {
+              foreach ($DLL in $PackageToSxS[$Key]) {
+                if (-not $ExpectedPackage.ContainsKey($DLL)) { Write-Host -BackgroundColor DarkRed -ForegroundColor White "Stage-ToolchainRootSxS: '$DLL' is declared in $Key.wxi but no toolchain EXE imports it" }
+              }
+            }
+
+            # Nothing to bind if no PE imports the Swift runtime graph.
+            if ($DLLsToInject.Count -eq 0) {
+              Write-Host "Stage-ToolchainRootSxS: no PE in '$BinDir' has Swift runtime imports; skipping per-DLL bind"
+              return
+            }
 
             # Stage one private SxS assembly per runtime DLL.
             Write-Host "Stage-ToolchainRootSxS: staging $($DLLsToInject.Count) per-DLL assemblies:"
             $InjectedDLLs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-            foreach ($DLLName in $DLLsToInject) {
+            foreach ($DLLName in ($DLLsToInject | Sort-Object)) {
               $SourceDLL = Join-Path $RuntimeLocation "$DLLName.dll"
               if (-not (Test-Path $SourceDLL)) { throw "Stage-ToolchainRootSxS: '$SourceDLL' not found in source; refusing to bind EXEs to a missing SxS assembly" }
               $AssemblyDir = Join-Path $BinDir $DLLName
@@ -6204,6 +6293,7 @@ jobs:
               $StagedDLL = Join-Path $AssemblyDir "$DLLName.dll"
               Copy-Item -Path $SourceDLL -Destination $StagedDLL -Force -ErrorAction Stop
               Ensure-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix "Stage-ToolchainRootSxS"
+              Assert-WindowsManifestResourcesAreSxSSafe $StagedDLL "Stage-ToolchainRootSxS" $ReadObj
               Write-Host ("  [{0,-32}]  ->  {1}" -f "$DLLName.dll", $AssemblyDir)
               [void]$InjectedDLLs.Add($DLLName)
             }
@@ -6225,22 +6315,80 @@ jobs:
             Write-Host "Stage-ToolchainRootSxS: bound $BoundEXECount EXE(s); skipped $SkippedCount EXE(s) with no runtime imports"
           }
 
-          # Parse the per-module SxS DLL names declared in the WiX includes:
-          # references shaped like $(ToolchainRoot)\usr\bin\<name>\<name>.dll.
-          $WxiDeclared = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-          foreach ($WxiPath in $WxiFiles) {
-            if (-not (Test-Path $WxiPath)) { Write-Warning "SxS: WiX include '$WxiPath' not found; skipping"; continue }
-            $WxiText = Get-Content -Raw -LiteralPath $WxiPath
-            foreach ($M in [regex]::Matches($WxiText, '\$\(ToolchainRoot\)[\\/]+usr[\\/]+bin[\\/]+([A-Za-z0-9_+\-\.]+)[\\/]+\1\.dll')) {
-              [void]$WxiDeclared.Add($M.Groups[1].Value)
-            }
+          # Parse each *.wxi once (build.ps1:5427-5459): EXE name -> package, and
+          # package -> declared per-DLL SxS assemblies (references shaped like
+          # $(ToolchainRoot)\usr\bin\<name>\<name>.dll).  DIAGNOSTIC only: these feed the
+          # warn-only WiX-drift check inside Stage-ToolchainRootSxS, never the inject set.
+          $PackageWxiFiles = [ordered]@{
+            "bld" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\bld\bld.wxi"
+            "cli" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\cli\cli.wxi"
+            "dbg" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\dbg\dbg.wxi"
+            "ide" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\ide\ide.wxi"
           }
-          Write-Host "SxS: WiX includes declare $($WxiDeclared.Count) per-module runtime assemblies: $(@($WxiDeclared | Sort-Object) -join ', ')"
+          $EXEToPackage = @{}
+          $PackageToSxS = @{}
+          foreach ($Module in $PackageWxiFiles.Keys) {
+            $WxiPath = $PackageWxiFiles[$Module]
+            if (-not (Test-Path $WxiPath)) { Write-Warning "SxS: '$WxiPath' not found; package '$Module' will be omitted from cross-reference"; continue }
+            $WxiText = Get-Content -Raw -LiteralPath $WxiPath
+            foreach ($M in [regex]::Matches($WxiText, '\$\(ToolchainRoot\)[\\/]+usr[\\/]+bin[\\/]+([A-Za-z0-9_+\-\.]+)\.exe')) {
+              $EXEName = $M.Groups[1].Value + ".exe"
+              if (-not $EXEToPackage.ContainsKey($EXEName)) { $EXEToPackage[$EXEName] = $Module }
+            }
+            $Names = New-Object System.Collections.Generic.HashSet[string]
+            foreach ($M in [regex]::Matches($WxiText, '\$\(ToolchainRoot\)[\\/]+usr[\\/]+bin[\\/]+([A-Za-z0-9_+\-\.]+)[\\/]+\1\.dll')) {
+              [void]$Names.Add($M.Groups[1].Value)
+            }
+            $PackageToSxS[$Module] = @($Names | Sort-Object)
+          }
+          Write-Host "SxS: WiX includes map $($EXEToPackage.Count) EXE(s) to packages; declare per-module SxS assemblies: $((@($PackageToSxS.Keys | Sort-Object | ForEach-Object { "$($_): $((@($PackageToSxS[$_]) -join ', '))" })) -join '; ')"
 
           $AssemblyVersion = ConvertTo-FourPartVersion "${env:SWIFT_VERSION}"
-          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
+          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
           foreach ($ToolchainRoot in $ToolchainRoots) {
-            Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -WxiDeclared @($WxiDeclared) -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken
+            Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -EXEToPackage $EXEToPackage -PackageToSxS $PackageToSxS -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken
+          }
+
+      # minject must run AFTER SxS staging: staging rewrites each exe's manifest via
+      # mt (Set-WindowsExecutableManifestDependencies), and any PE rewrite performed
+      # after minject clobbers the injected mimalloc import table (-> <Invalid RVA> ->
+      # 0xc0000005 at runtime). minject has to be the last PE operation on each exe.
+      - name: Build and apply mimalloc
+        run: |
+          $HostMSArch = if ("${{ matrix.arch }}" -eq "arm64") { "arm64" } else { "x64" }
+          $HostSuffix = if ("${{ matrix.arch }}" -eq "arm64") { "-arm64" } else { "" }
+          $BuildSuffix = if ("${{ inputs.build_arch }}" -eq "arm64") { "-arm64" } else { "" }
+          # Reference: https://github.com/microsoft/mimalloc/tree/dev/bin#minject
+          msbuild ${{ github.workspace }}\SourceCache\mimalloc\ide\vs2022\mimalloc.sln -p:Configuration=Release -p:Platform=$HostMSArch
+          $AssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts\usr\bin"
+          $NoAssertToolchainBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts\usr\bin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
+            -Destination "$AssertToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc.dll" `
+            -Destination "$NoAssertToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
+            -Destination "$AssertToolchainBin"
+          Copy-Item -Path "${{ github.workspace }}\SourceCache\mimalloc\out\msvc-$HostMSArch\Release\mimalloc-redirect$HostSuffix.dll" `
+            -Destination "$NoAssertToolchainBin"
+          $MimallocExecutables = @("swift.exe",
+                                   "swiftc.exe",
+                                   "swift-driver.exe",
+                                   "swift-frontend.exe",
+                                   "clang.exe",
+                                   "clang++.exe",
+                                   "clang-cl.exe",
+                                   "lld.exe",
+                                   "lld-link.exe",
+                                   "ld.lld.exe",
+                                   "ld64.lld.exe")
+          $AssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($AssertToolchainBin, $_) }
+          $NoAssertBinaries = $MimallocExecutables | ForEach-Object { [IO.Path]::Combine($NoAssertToolchainBin, $_) }
+          $Binaries = $AssertBinaries + $NoAssertBinaries
+          foreach ($Exe in $Binaries) {
+            # Binary-patch in place
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -f -i -v "$Exe"
+            # Log the import table
+            & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$Exe"
           }
 
       - name: Package Build Tools (Asserts)
@@ -6385,7 +6533,12 @@ jobs:
           #
           # NOTE: helpers duplicated from the staging job (GHA jobs/steps don't share
           # PowerShell scope). TODO: factor into a shared .ps1 dot-sourced everywhere.
-          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
+          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
+
+          # build.ps1 derives llvm-readobj from Get-PinnedToolchainToolsDir; in gha the
+          # pinned toolchain is on PATH, so resolve it next to swiftc (mirrors Block A).
+          $ReadObj = Join-Path (Split-Path -Parent (Get-Command swiftc -ErrorAction Stop).Source) "llvm-readobj.exe"
+          if (-not (Test-Path $ReadObj)) { throw "Repair: pinned 'llvm-readobj.exe' not found at '$ReadObj'" }
 
           function ConvertTo-FourPartVersion([string] $Version) {
             $Numeric = [regex]::Replace($Version, "[-+].*", "")
@@ -6460,20 +6613,89 @@ jobs:
             }
           }
 
+          # SxS-safety assert family (mirrors build.ps1 Get-WindowsManifestResourceIDs /
+          # Export-WindowsManifestResource / Test-WindowsManifestHasExecutionLevel /
+          # Assert-WindowsManifestResourcesAreSxSSafe). Get-WindowsManifestResourceIDs is
+          # parameterized on $ReadObj (build.ps1 derives it from Get-PinnedToolchainToolsDir).
+          function Get-WindowsManifestResourceIDs([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            if (-not (Test-Path $ReadObj)) { throw "${LogPrefix}: pinned 'llvm-readobj.exe' not found at '$ReadObj'" }
+            $Output = & $ReadObj --coff-resources $ImagePath 2>&1
+            $ExitCode = $LASTEXITCODE
+            if ($ExitCode -ne 0) { throw "${LogPrefix}: llvm-readobj failed to inspect resources in '$ImagePath' (exit $ExitCode): $($Output -join "`n")" }
+            $CandidateIDs = [System.Collections.Generic.HashSet[int]]::new()
+            $InManifestType = $false
+            foreach ($Line in $Output) {
+              if ($Line -match '^\s*Type:\s*(?:RT_MANIFEST\b.*|.*\(ID\s+24\)|24\b)') { $InManifestType = $true; continue }
+              if ($Line -match '^\s*Type:') { $InManifestType = $false }
+              if ($InManifestType -and
+                  ($Line -match '^\s*Name:\s*(?:\(ID\s*)?#?([0-9]+)\)?' -or
+                   $Line -match '^\s*Name:.*\(ID\s+([0-9]+)\)')) {
+                [void]$CandidateIDs.Add([int]$Matches[1])
+              }
+            }
+            foreach ($ResourceID in 1..16) { [void]$CandidateIDs.Add($ResourceID) }
+            $ManifestIDs = [System.Collections.Generic.HashSet[int]]::new()
+            foreach ($ResourceID in ($CandidateIDs | Sort-Object)) {
+              $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-probe-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+              try {
+                & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $ManifestPath)) { [void]$ManifestIDs.Add([int]$ResourceID) }
+              } finally {
+                Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+              }
+            }
+            return @($ManifestIDs | Sort-Object)
+          }
+
+          function Export-WindowsManifestResource([string] $ImagePath, [int] $ResourceID, [string] $LogPrefix) {
+            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+            & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) { throw "${LogPrefix}: failed to extract RT_MANIFEST resource #$ResourceID from '$ImagePath'" }
+            return $ManifestPath
+          }
+
+          function Test-WindowsManifestHasExecutionLevel([string] $ManifestPath) {
+            $Doc = New-Object System.Xml.XmlDocument
+            $Doc.Load($ManifestPath)
+            return ([bool]$Doc.SelectSingleNode("//*[local-name()='trustInfo' or local-name()='requestedPrivileges' or local-name()='requestedExecutionLevel']"))
+          }
+
+          function Assert-WindowsManifestResourcesAreSxSSafe([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            $ResourceIDs = @(Get-WindowsManifestResourceIDs $ImagePath $LogPrefix $ReadObj)
+            $ReservedResourceIDs = @($ResourceIDs | Where-Object { $_ -ge 1 -and $_ -le 16 })
+            $UnexpectedReservedResourceIDs = @($ReservedResourceIDs | Where-Object { $_ -ne 1 })
+            if ($UnexpectedReservedResourceIDs.Count -gt 0) {
+              $UnexpectedList = "#$($UnexpectedReservedResourceIDs -join ', #')"
+              throw "${LogPrefix}: '$ImagePath' has unexpected reserved RT_MANIFEST resources ($UnexpectedList); Windows reserves IDs 1..16, and this layout uses RT_MANIFEST #1 for SxS manifests"
+            }
+            foreach ($ResourceID in $ResourceIDs) {
+              $ManifestPath = Export-WindowsManifestResource $ImagePath $ResourceID $LogPrefix
+              $KeepManifest = $false
+              try {
+                try { $HasExecutionLevel = Test-WindowsManifestHasExecutionLevel $ManifestPath }
+                catch { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST resource #$ResourceID (extracted to '$ManifestPath')" }
+                if ($HasExecutionLevel) { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST resource #$ResourceID with UAC execution-level metadata (extracted to '$ManifestPath')" }
+              } finally {
+                if (-not $KeepManifest) { Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue }
+              }
+            }
+          }
+
           # Mirror of build.ps1 Repair-WindowsSDKAssemblyManifests: the fixed list of
           # runtime DLLs that swift-installer-scripts treats as Win32 SxS assemblies.
-          function Repair-WindowsSDKAssemblyManifests([string] $RuntimeBin, [string] $ProcessorArchitecture) {
+          function Repair-WindowsSDKAssemblyManifests([string] $RuntimeBin, [string] $ProcessorArchitecture, [string] $ReadObj) {
             if (-not (Test-Path $RuntimeBin)) { Write-Warning "Repair-WindowsSDKAssemblyManifests: '$RuntimeBin' not found; skipping"; return }
             $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
             foreach ($DLL in @("BlocksRuntime", "dispatch", "swiftDispatch", "Foundation", "FoundationEssentials", "FoundationInternationalization", "FoundationNetworking", "FoundationXML", "_FoundationICU")) {
               $Path = Join-Path $RuntimeBin "$DLL.dll"
               if (Test-Path $Path) {
                 Ensure-WindowsAssemblyManifest -ImagePath $Path -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Repair-WindowsSDKAssemblyManifests"
+                Assert-WindowsManifestResourcesAreSxSSafe $Path "Repair-WindowsSDKAssemblyManifests" $ReadObj
               }
             }
           }
 
-          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr/bin" "${{ matrix.arch }}"
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr/bin" "${{ matrix.arch }}" $ReadObj
 
       - name: Package Shared Runtime
         run: |
@@ -6823,7 +7045,12 @@ jobs:
           # because GitHub Actions jobs do not share PowerShell scope.
           # TODO: factor the SxS manifest helpers into a shared .ps1 dot-sourced by both
           # jobs once this is confirmed working.
-          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
+          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
+
+          # build.ps1 derives llvm-readobj from Get-PinnedToolchainToolsDir; in gha the
+          # pinned toolchain is on PATH, so resolve it next to swiftc (mirrors Block A).
+          $ReadObj = Join-Path (Split-Path -Parent (Get-Command swiftc -ErrorAction Stop).Source) "llvm-readobj.exe"
+          if (-not (Test-Path $ReadObj)) { throw "Repair: pinned 'llvm-readobj.exe' not found at '$ReadObj'" }
 
           function ConvertTo-FourPartVersion([string] $Version) {
             $Numeric = [regex]::Replace($Version, "[-+].*", "")
@@ -6898,22 +7125,91 @@ jobs:
             }
           }
 
+          # SxS-safety assert family (mirrors build.ps1 Get-WindowsManifestResourceIDs /
+          # Export-WindowsManifestResource / Test-WindowsManifestHasExecutionLevel /
+          # Assert-WindowsManifestResourcesAreSxSSafe). Get-WindowsManifestResourceIDs is
+          # parameterized on $ReadObj (build.ps1 derives it from Get-PinnedToolchainToolsDir).
+          function Get-WindowsManifestResourceIDs([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            if (-not (Test-Path $ReadObj)) { throw "${LogPrefix}: pinned 'llvm-readobj.exe' not found at '$ReadObj'" }
+            $Output = & $ReadObj --coff-resources $ImagePath 2>&1
+            $ExitCode = $LASTEXITCODE
+            if ($ExitCode -ne 0) { throw "${LogPrefix}: llvm-readobj failed to inspect resources in '$ImagePath' (exit $ExitCode): $($Output -join "`n")" }
+            $CandidateIDs = [System.Collections.Generic.HashSet[int]]::new()
+            $InManifestType = $false
+            foreach ($Line in $Output) {
+              if ($Line -match '^\s*Type:\s*(?:RT_MANIFEST\b.*|.*\(ID\s+24\)|24\b)') { $InManifestType = $true; continue }
+              if ($Line -match '^\s*Type:') { $InManifestType = $false }
+              if ($InManifestType -and
+                  ($Line -match '^\s*Name:\s*(?:\(ID\s*)?#?([0-9]+)\)?' -or
+                   $Line -match '^\s*Name:.*\(ID\s+([0-9]+)\)')) {
+                [void]$CandidateIDs.Add([int]$Matches[1])
+              }
+            }
+            foreach ($ResourceID in 1..16) { [void]$CandidateIDs.Add($ResourceID) }
+            $ManifestIDs = [System.Collections.Generic.HashSet[int]]::new()
+            foreach ($ResourceID in ($CandidateIDs | Sort-Object)) {
+              $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-probe-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+              try {
+                & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $ManifestPath)) { [void]$ManifestIDs.Add([int]$ResourceID) }
+              } finally {
+                Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+              }
+            }
+            return @($ManifestIDs | Sort-Object)
+          }
+
+          function Export-WindowsManifestResource([string] $ImagePath, [int] $ResourceID, [string] $LogPrefix) {
+            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+            & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) { throw "${LogPrefix}: failed to extract RT_MANIFEST resource #$ResourceID from '$ImagePath'" }
+            return $ManifestPath
+          }
+
+          function Test-WindowsManifestHasExecutionLevel([string] $ManifestPath) {
+            $Doc = New-Object System.Xml.XmlDocument
+            $Doc.Load($ManifestPath)
+            return ([bool]$Doc.SelectSingleNode("//*[local-name()='trustInfo' or local-name()='requestedPrivileges' or local-name()='requestedExecutionLevel']"))
+          }
+
+          function Assert-WindowsManifestResourcesAreSxSSafe([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            $ResourceIDs = @(Get-WindowsManifestResourceIDs $ImagePath $LogPrefix $ReadObj)
+            $ReservedResourceIDs = @($ResourceIDs | Where-Object { $_ -ge 1 -and $_ -le 16 })
+            $UnexpectedReservedResourceIDs = @($ReservedResourceIDs | Where-Object { $_ -ne 1 })
+            if ($UnexpectedReservedResourceIDs.Count -gt 0) {
+              $UnexpectedList = "#$($UnexpectedReservedResourceIDs -join ', #')"
+              throw "${LogPrefix}: '$ImagePath' has unexpected reserved RT_MANIFEST resources ($UnexpectedList); Windows reserves IDs 1..16, and this layout uses RT_MANIFEST #1 for SxS manifests"
+            }
+            foreach ($ResourceID in $ResourceIDs) {
+              $ManifestPath = Export-WindowsManifestResource $ImagePath $ResourceID $LogPrefix
+              $KeepManifest = $false
+              try {
+                try { $HasExecutionLevel = Test-WindowsManifestHasExecutionLevel $ManifestPath }
+                catch { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST resource #$ResourceID (extracted to '$ManifestPath')" }
+                if ($HasExecutionLevel) { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST resource #$ResourceID with UAC execution-level metadata (extracted to '$ManifestPath')" }
+              } finally {
+                if (-not $KeepManifest) { Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue }
+              }
+            }
+          }
+
           # Mirror of build.ps1 Repair-WindowsSDKAssemblyManifests: the fixed list of
           # runtime DLLs that swift-installer-scripts treats as Win32 SxS assemblies.
-          function Repair-WindowsSDKAssemblyManifests([string] $RuntimeBin, [string] $ProcessorArchitecture) {
+          function Repair-WindowsSDKAssemblyManifests([string] $RuntimeBin, [string] $ProcessorArchitecture, [string] $ReadObj) {
             if (-not (Test-Path $RuntimeBin)) { Write-Warning "Repair-WindowsSDKAssemblyManifests: '$RuntimeBin' not found; skipping"; return }
             $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
             foreach ($DLL in @("BlocksRuntime", "dispatch", "swiftDispatch", "Foundation", "FoundationEssentials", "FoundationInternationalization", "FoundationNetworking", "FoundationXML", "_FoundationICU")) {
               $Path = Join-Path $RuntimeBin "$DLL.dll"
               if (Test-Path $Path) {
                 Ensure-WindowsAssemblyManifest -ImagePath $Path -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Repair-WindowsSDKAssemblyManifests"
+                Assert-WindowsManifestResourcesAreSxSSafe $Path "Repair-WindowsSDKAssemblyManifests" $ReadObj
               }
             }
           }
 
-          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64/usr/bin" "amd64"
-          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64/usr/bin" "arm64"
-          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr/bin" "x86"
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64/usr/bin" "amd64" $ReadObj
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64/usr/bin" "arm64" $ReadObj
+          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr/bin" "x86" $ReadObj
 
       - name: Package Platform
         run: |
@@ -8511,13 +8807,10 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-frontend sourcekitd-test swift-ide-test swift-plugin-server
 
       # build.ps1: Test-Compilers, phase 2 of 3 — Set-WindowsSxSToolchainRuntime
-      # (build.ps1:3057, invoked 3434/3452). Bind the freshly-built test tools to
-      # a private SxS assembly holding the SDK runtime they were linked against,
-      # so when swift-test-stdlib later overwrites bin\swiftCore.dll with an
-      # ABI-different build, the tools still load their own runtime (otherwise:
-      # swift_checkMetadataState 0xC000001D / SIL-deser 0xC0000005 in swiftCore.dll).
-      # Inlined intentionally (no helper script) for readability. mt.exe is on
-      # PATH via setup-vs-dev-env: true.
+      # Bind the freshly-built test tools to a private SxS assembly holding the
+      # SDK runtime they were linked against, so when swift-test-stdlib later
+      # overwrites bin\swiftCore.dll with an ABI-different build, the tools
+      # still load their own runtime.
       - name: Bind test tools to toolchain runtime (SxS)
         run: |
           $ErrorActionPreference = "Stop"
@@ -8526,6 +8819,7 @@ jobs:
           $RuntimeSource = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/bin"
           $LibexecSwiftDir = "${{ github.workspace }}/BinaryCache/1/libexec/swift"
           $ProcArch = "${{ matrix.arch }}"
+          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
 
           function Get-WindowsSxSRuntimeDLLs([string] $RuntimeSourceDir) {
             $DeveloperDLLs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -8579,6 +8873,7 @@ jobs:
                 $AsmId.SetAttribute("name", $Dependency.Name)
                 $AsmId.SetAttribute("version", $Dependency.Version)
                 $AsmId.SetAttribute("processorArchitecture", $Dependency.ProcessorArchitecture)
+                $AsmId.SetAttribute("publicKeyToken", $Dependency.PublicKeyToken)
                 $AsmId.SetAttribute("language", "*")
                 [void]$DepAsm.AppendChild($AsmId)
                 [void]$Dep.AppendChild($DepAsm)
@@ -8597,7 +8892,7 @@ jobs:
             }
           }
 
-          function Set-WindowsSxSToolchainRuntime([string] $BinaryDir, [string] $RuntimeSourceDir, [string[]] $Tools, [string] $ProcessorArchitecture, [string] $AssemblyName = "swiftToolchainRuntime", [string] $AssemblyVersion = "1.0.0.0") {
+          function Set-WindowsSxSToolchainRuntime([string] $BinaryDir, [string] $RuntimeSourceDir, [string[]] $Tools, [string] $ProcessorArchitecture, [string] $AssemblyName = "swiftToolchainRuntime", [string] $AssemblyVersion = "1.0.0.0", [string] $PublicKeyToken = $WindowsSxSAssemblyPublicKeyToken) {
             if (-not (Test-Path $BinaryDir)) { throw "Set-WindowsSxSToolchainRuntime: BinaryDir '$BinaryDir' does not exist" }
             if (-not (Test-Path $RuntimeSourceDir)) { throw "Set-WindowsSxSToolchainRuntime: RuntimeSourceDir '$RuntimeSourceDir' does not exist" }
 
@@ -8618,13 +8913,13 @@ jobs:
             $BundleManifest = @"
           <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
           <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-            <assemblyIdentity type="win32" name="$AssemblyName" version="$AssemblyVersion" processorArchitecture="$ProcessorArchitecture"/>
+            <assemblyIdentity type="win32" name="$AssemblyName" version="$AssemblyVersion" processorArchitecture="$ProcessorArchitecture" publicKeyToken="$PublicKeyToken"/>
           $FilesXml
           </assembly>
           "@
             Set-Content -Path (Join-Path $AssemblyDir "$AssemblyName.manifest") -Value $BundleManifest -Encoding UTF8
 
-            $Dependency = [pscustomobject]@{ Name = $AssemblyName; Version = $AssemblyVersion; ProcessorArchitecture = $ProcessorArchitecture }
+            $Dependency = [pscustomobject]@{ Name = $AssemblyName; Version = $AssemblyVersion; ProcessorArchitecture = $ProcessorArchitecture; PublicKeyToken = $PublicKeyToken }
             foreach ($Tool in $Tools) {
               $ToolPath = if ([System.IO.Path]::IsPathRooted($Tool)) { $Tool } else { Join-Path $BinaryDir $Tool }
               if (-not (Test-Path $ToolPath)) {
@@ -8663,10 +8958,9 @@ jobs:
             Write-Warning "SxS bind: '$LibexecSwiftDir\swift-backtrace.exe' not present; skipping backtracer bind"
           }
 
-      # build.ps1: Test-Compilers, phase 3 of 3 — swift-test-stdlib FIRST
-      # (build.ps1:3466, ordering workaround for swiftlang/swift#87970), then the
-      # tests. Tool targets are intentionally NOT rebuilt here so ninja does not
-      # relink them and wipe the manifests stamped in phase 2.
+      # build.ps1: Test-Compilers, phase 3 of 3 — swift-test-stdlib FIRST, then
+      # the tests. Tool targets are intentionally NOT rebuilt here so ninja does
+      # not relink them and wipe the manifests stamped in phase 2.
       - name: Build test stdlib
         run: |
           $env:Path = "${{ github.workspace }}\BuildRoot\Library\Developer\Platforms\${{ matrix.os }}.platform\Developer\SDKs\${{ matrix.os }}.sdk\usr\bin;${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
