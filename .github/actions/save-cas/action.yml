@@ -18,6 +18,10 @@ inputs:
   aws-region:
     description: "The region of the S3 bucket to use for the cache"
     required: false
+  trim-sparse-files:
+    description: "Whether to trim sparse files in the CAS"
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -61,6 +65,39 @@ runs:
     - name: Save
       shell: pwsh
       run: |
+        function TrimSparseFiles {
+          param([string[]]$paths)
+          foreach ($path in $paths) {
+            $fs=$null
+            try {
+              $fs=[System.IO.File]::Open($path, 'Open', 'ReadWrite', 'None')
+              if ($fs.Length -lt 32) { throw "File is too small to contain required header data." }
+              $header=New-Object byte[] 8
+              if ($fs.Read($header,0,8) -ne 8) { throw "Failed to read file header." }
+              # Trim the logical file size to the end of the bump pointer.
+              # https://github.com/swiftlang/llvm-project/blob/415d0b3fec3afac24542cd21ce6333751446fd19/llvm/lib/CAS/OnDiskHashMappedTrie.cpp#L120
+              $magic=[System.BitConverter]::ToUInt64($header,0)
+              if ($magic -ne ([uint64]0x00FFDA7ABA53FF00)) { throw ("Invalid file magic: 0x{0:X16}" -f $magic) }
+              $fs.Seek(24,[System.IO.SeekOrigin]::Begin)|Out-Null
+              $buffer=New-Object byte[] 8
+              if ($fs.Read($buffer,0,8) -ne 8) { throw "Failed to read 8 bytes at offset 24." }
+              $targetLength=[System.BitConverter]::ToUInt64($buffer,0)
+              $currentLength=[uint64]$fs.Length
+              Write-Host ("{0}: current={1:N0}, target={2:N0}" -f $path, $currentLength, $targetLength)
+              if ($targetLength -lt $currentLength) {
+                $fs.SetLength([int64]$targetLength)
+                Write-Host ("Trimmed to {0:N0}." -f $targetLength)
+              } else {
+                Write-Host "No trim needed."
+              }
+            } catch {
+              Write-Host "ERROR processing file: $path"
+              throw
+            } finally {
+              if ($fs) { $fs.Close() }
+            }
+          }
+        }
         $cas_path = "$env:GITHUB_WORKSPACE\cas"
         $cas_tgz = "cas-${{ inputs.cache-key }}.tgz"
         $s3_bucket = "${{ inputs.s3-bucket }}"
@@ -68,6 +105,10 @@ runs:
         $s3_path = "s3://$s3_bucket/$s3_key"
         if (Test-Path "$cas_path" -PathType Container) {
           Write-Host "Found CAS at $cas_path"
+          if (${{ inputs.trim-sparse-files == 'true' && '$True' || '$False' }}) {
+            $SparseFiles = Get-ChildItem "$cas_path" -Recurse -File -Include v9.index, v9.data, v4.actions
+            TrimSparseFiles $SparseFiles.FullName
+          }
           $stats = Get-ChildItem "$cas_path" -Recurse -File | Measure-Object Length -Sum
           "CAS: {0} files, {1:N2} MB" -f $stats.Count, ($stats.Sum / 1MB)
           $temp_dir = Join-Path $env:TEMP ("my-temp-dir-" + [guid]::NewGuid().ToString())
