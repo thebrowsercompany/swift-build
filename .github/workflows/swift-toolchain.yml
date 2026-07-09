@@ -348,26 +348,43 @@ jobs:
         id: test_trusted_signing
         run: |
           "uses_trusted_signing=${{ secrets.TRUSTED_SIGNING_ACCOUNT != ''}}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
-      # Derive the Win32 SxS publicKeyToken from the code-signing certificate. This is the
-      # single source of truth for the token that gets baked into the runtime assembly
-      # manifests, so it can never drift from the certificate that signs the catalogs.
-      # Requires pktextract.exe (Windows SDK SxS tool) on the runner.
+      # Derive the Win32 SxS publicKeyToken from the ACTUAL signer, not from the PFX. We sign a
+      # throwaway PE with the same signer-agnostic signtool invocation the catalogs use (Azure
+      # Trusted Signing when configured, else cert-file), read the signer certificate back out of
+      # the resulting Authenticode signature, and pktextract THAT. This guarantees the token equals
+      # the public key of whatever actually signs, and can never drift from a PFX that isn't the
+      # signer. Requires pktextract.exe (Windows SDK SxS tool) on the runner.
       - name: Derive SxS public key token from signing certificate
         id: derive_public_key_token
         if: inputs.signed
         run: |
+          # For the cert-file branch, $SignArgs references ${env:CERTIFICATE}; decode it here since
+          # this job does not otherwise set it up. (When trusted signing is configured its env vars
+          # are still unset in this job, so the invocation uses the cert-file branch as well.)
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
           $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          $CERPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.cer
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath | Out-Null
-          $Password = ConvertTo-SecureString '${{ secrets.PASSPHRASE }}' -AsPlainText -Force
-          $Certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($PFXPath, $Password)
-          [IO.File]::WriteAllBytes($CERPath, $Certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-          $Output = & pktextract.exe $CERPath
-          $Token = [regex]::Match(($Output -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "Failed to extract publicKeyToken from certificate:`n$Output" }
-          Write-Host "Derived SxS publicKeyToken: $Token"
+          $env:CERTIFICATE = $PFXPath
+
+          $SignToolExe = if ("${env:SIGNTOOL_PATH}") { Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe" } else { "signtool.exe" }
+          $SignArgs = @("sign", "/fd", "sha256", "/td", "sha256")
+          if ("${env:TRUSTED_SIGNING_METADATA_PATH}") {
+            $SignArgs += @("/tr","http://timestamp.acs.microsoft.com","/dlib","${env:TRUSTED_SIGNING_DLL_PATH}","/dmdf","${env:TRUSTED_SIGNING_METADATA_PATH}")
+          } else {
+            $SignArgs += @("/tr","http://timestamp.digicert.com","/f","${env:CERTIFICATE}","/p","${{ secrets.PASSPHRASE }}")
+          }
+
+          $Probe = Join-Path $env:RUNNER_TEMP "sxs-token-probe.exe"
+          Copy-Item "$env:SystemRoot\System32\where.exe" $Probe -Force
+          & $SignToolExe @SignArgs $Probe
+          $Sig = Get-AuthenticodeSignature $Probe
+          if (-not $Sig.SignerCertificate) { throw "token-probe: signing produced no signer certificate" }
+          $Cer = Join-Path $env:RUNNER_TEMP "sxs-token-probe.cer"
+          [IO.File]::WriteAllBytes($Cer, $Sig.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+          $Token = [regex]::Match(((& pktextract.exe $Cer) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "token-probe: could not extract publicKeyToken from signer" }
+          Write-Host "Derived SxS publicKeyToken from actual signer: $Token"
           "public_key_token=$Token" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
       - uses: nuget/setup-nuget@v2
         if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
@@ -3290,7 +3307,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3342,7 +3359,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3386,7 +3403,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3428,7 +3445,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3472,7 +3489,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/Runtime/include";
@@ -3516,7 +3533,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                # FIXME(#83449): avoid using `SwiftCMakeConfig.h`
@@ -3562,7 +3579,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -3605,7 +3622,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
@@ -3650,7 +3667,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
@@ -3699,7 +3716,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "${{ needs.configure_signing.outputs.public_key_token }}";
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'CMAKE_Swift_FLAGS' = @("-static-stdlib");
               'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
@@ -5771,8 +5788,10 @@ jobs:
 
       - uses: actions/checkout@v4.2.2
         with:
-          repository: swiftlang/swift-installer-scripts
-          ref: ${{ inputs.swift_installer_scripts_revision }}
+          # HACK (external-catalog prototype): fork/branch where WiX consumes a prebuilt
+          # catalog instead of generating it. Hardcoded intentionally for the experiment.
+          repository: Steelskin/swift-installer-scripts
+          ref: fabrice/wip-use-external-catalog
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
@@ -5885,6 +5904,34 @@ jobs:
             ]
           }' | Out-File -FilePath $metadataPath -Encoding utf8
           echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
+      # Derive the SxS publicKeyToken from the ACTUAL signer, locally in this job, right before we
+      # stamp DLL manifests and generate/sign catalogs. This keeps derivation and signing adjacent
+      # so a rotating signer cannot drift between the two. We sign a throwaway PE with the same
+      # signer-agnostic invocation the catalogs use, read the signer certificate back, and
+      # pktextract it. Written to GITHUB_ENV as WINDOWS_SXS_PUBLIC_KEY_TOKEN for the later steps.
+      - name: Derive SxS public key token from the signing certificate
+        if: inputs.signed
+        run: |
+          $SignToolExe = if ("${env:SIGNTOOL_PATH}") { Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe" } else { "signtool.exe" }
+          $SignArgs = @("sign", "/fd", "sha256", "/td", "sha256")
+          if ("${env:TRUSTED_SIGNING_METADATA_PATH}") {
+            $SignArgs += @("/tr","http://timestamp.acs.microsoft.com","/dlib","${env:TRUSTED_SIGNING_DLL_PATH}","/dmdf","${env:TRUSTED_SIGNING_METADATA_PATH}")
+          } else {
+            $SignArgs += @("/tr","http://timestamp.digicert.com","/f","${env:CERTIFICATE}","/p","${{ secrets.PASSPHRASE }}")
+          }
+
+          $Probe = Join-Path $env:RUNNER_TEMP "sxs-token-probe.exe"
+          Copy-Item "$env:SystemRoot\System32\where.exe" $Probe -Force
+          & $SignToolExe @SignArgs $Probe
+          $Sig = Get-AuthenticodeSignature $Probe
+          if (-not $Sig.SignerCertificate) { throw "token-probe: signing produced no signer certificate" }
+          $Cer = Join-Path $env:RUNNER_TEMP "sxs-token-probe.cer"
+          [IO.File]::WriteAllBytes($Cer, $Sig.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+          $Token = [regex]::Match(((& pktextract.exe $Cer) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "token-probe: could not extract publicKeyToken from signer" }
+          Write-Host "Derived SxS publicKeyToken from actual signer: $Token"
+          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # build.ps1: Stage-WindowsToolchainSxS
       - name: Stage SxS toolchain runtime (per-DLL)
@@ -6344,7 +6391,7 @@ jobs:
           Write-Host "SxS: WiX includes map $($EXEToPackage.Count) EXE(s) to packages; declare per-module SxS assemblies: $((@($PackageToSxS.Keys | Sort-Object | ForEach-Object { "$($_): $((@($PackageToSxS[$_]) -join ', '))" })) -join '; ')"
 
           $AssemblyVersion = ConvertTo-FourPartVersion "${env:SWIFT_VERSION}"
-          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
+          $WindowsSxSAssemblyPublicKeyToken = "${env:WINDOWS_SXS_PUBLIC_KEY_TOKEN}"
           foreach ($ToolchainRoot in $ToolchainRoots) {
             Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -EXEToPackage $EXEToPackage -PackageToSxS $PackageToSxS -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken
           }
@@ -6533,7 +6580,7 @@ jobs:
           #
           # NOTE: helpers duplicated from the staging job (GHA jobs/steps don't share
           # PowerShell scope). TODO: factor into a shared .ps1 dot-sourced everywhere.
-          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
+          $WindowsSxSAssemblyPublicKeyToken = "${env:WINDOWS_SXS_PUBLIC_KEY_TOKEN}"
 
           # build.ps1 derives llvm-readobj from Get-PinnedToolchainToolsDir; in gha the
           # pinned toolchain is on PATH, so resolve it next to swiftc (mirrors Block A).
@@ -6697,6 +6744,143 @@ jobs:
 
           Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr/bin" "${{ matrix.arch }}" $ReadObj
 
+      # HACK (external-catalog prototype): generate + sign the SxS catalogs OUT OF BAND
+      # here (the manifests were just token-stamped by the Repair step above), then hand
+      # the prebuilt per-DLL tree to WiX via RuntimeWin32AssembliesExternal so the WiX
+      # build only harvests it. Mirrors RuntimeWin32Assemblies.targets' commands exactly.
+      - name: Generate and sign SxS catalogs (out of band)
+        env:
+          SWIFT_VERSION: ${{ inputs.swift_version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # Re-stamp EVERY runtime DLL manifest with the locally-derived token immediately before
+          # generating its catalog, so the token can never drift from the signer that just signed
+          # (or is about to sign) the catalog. Helpers duplicated from the "Repair Windows runtime
+          # assembly manifests" step (GHA steps don't share PowerShell scope).
+          $WindowsSxSAssemblyPublicKeyToken = "${env:WINDOWS_SXS_PUBLIC_KEY_TOKEN}"
+
+          function ConvertTo-FourPartVersion([string] $Version) {
+            $Numeric = [regex]::Replace($Version, "[-+].*", "")
+            $Parts = @($Numeric.Split('.'))
+            while ($Parts.Count -lt 4) { $Parts += "0" }
+            return ($Parts[0..3] -join ".")
+          }
+
+          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
+            if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
+            if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-assembly-$([guid]::NewGuid().Guid).manifest"
+            try {
+              $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
+                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
+                ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
+                '</assembly>'
+              Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
+              Write-Host "${LogPrefix}: embedding assembly manifest into '$ImagePath'"
+              $Output = & "mt.exe" -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1" 2>&1
+              $ExitCode = $LASTEXITCODE
+              if ($Output) { $Output | ForEach-Object { Write-Host "${LogPrefix}:   mt: $_" } }
+              if ($ExitCode -ne 0) { throw "${LogPrefix}: mt failed for '$ImagePath' (exit $ExitCode)" }
+            } finally {
+              Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
+            $Doc = New-Object System.Xml.XmlDocument
+            $Doc.Load($ManifestPath)
+            $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
+            if ($null -eq $Assembly) { return $false }
+            $AssemblyIdentity = $Assembly.SelectSingleNode("*[local-name()='assemblyIdentity']")
+            if ($null -eq $AssemblyIdentity) { return $false }
+            $File = $Assembly.SelectSingleNode("*[local-name()='file']")
+            if ($null -eq $File) { return $false }
+            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
+            $FileName = [IO.Path]::GetFileName($ImagePath)
+            return (
+              ($AssemblyIdentity.GetAttribute("type") -ieq "win32") -and
+              ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
+              ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
+              ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
+              ($AssemblyIdentity.GetAttribute("publicKeyToken") -ieq $PublicKeyToken) -and
+              ($File.GetAttribute("name") -eq $FileName)
+            )
+          }
+
+          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
+            $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
+            $KeepExistingManifest = $false
+            try {
+              & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
+              if (Test-Path $ExistingManifestPath) {
+                try {
+                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
+                } catch {
+                  $KeepExistingManifest = $true
+                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
+                }
+                if ($ManifestMatches) { Write-Host "${LogPrefix}: '$ImagePath' already has the expected assembly manifest"; return }
+                Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
+                return
+              }
+              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
+            } finally {
+              if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
+            }
+          }
+
+          # Signer-agnostic signtool invocation: Azure Trusted Signing when configured, else cert-file.
+          $SignToolExe = if ("${env:SIGNTOOL_PATH}") { Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe" } else { "signtool.exe" }
+          $SignArgs = @("sign", "/fd", "sha256", "/td", "sha256")
+          if ("${env:TRUSTED_SIGNING_METADATA_PATH}") {
+            $SignArgs += @("/tr","http://timestamp.acs.microsoft.com","/dlib","${env:TRUSTED_SIGNING_DLL_PATH}","/dmdf","${env:TRUSTED_SIGNING_METADATA_PATH}")
+          } else {
+            $SignArgs += @("/tr","http://timestamp.digicert.com","/f","${env:CERTIFICATE}","/p","${{ secrets.PASSPHRASE }}")
+          }
+
+          $AssemblyVersion = ConvertTo-FourPartVersion "${env:SWIFT_VERSION}"
+          $ProcArch = "${{ matrix.arch }}"
+          $RuntimeBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\usr\bin"
+          $AsmRoot = "${{ github.workspace }}\BinaryCache\RuntimeWin32Assemblies"
+          $Exclude = @("Testing", "_Testing_Foundation", "_Testing_WinSDK", "_TestingInterop", "XCTest")
+          $VerifiedFirstCatalog = $false
+          Get-ChildItem -Path "$RuntimeBin\*.dll" -File | Where-Object { $Exclude -notcontains $_.BaseName } | ForEach-Object {
+            $Lib = $_.BaseName
+            $Dir = Join-Path $AsmRoot $Lib
+            New-Item -ItemType Directory -Path $Dir -Force | Out-Null
+            $Dll = Join-Path $Dir "$Lib.dll"
+            Copy-Item -Path $_.FullName -Destination $Dll -Force
+            # Re-stamp the copy's manifest with the locally-derived token before harvesting it.
+            Ensure-WindowsAssemblyManifest -ImagePath $Dll -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Generate-SxSCatalogs"
+            & mt.exe -nologo -inputresource:"$Dll;#1" -out:"$Dir\$Lib.manifest"
+            Push-Location $Dir
+            try {
+              & mt.exe -nologo -manifest "$Lib.manifest" -hashupdate -makecdfs
+              & makecat.exe -v "$Lib.manifest.cdf"
+              & $SignToolExe @SignArgs "$Lib.cat"
+              if ($LASTEXITCODE -ne 0) { throw "Generate-SxSCatalogs: signtool failed for '$Lib.cat' (exit $LASTEXITCODE)" }
+
+              # Guard against a rotating signer drifting between token-derivation and catalog signing:
+              # re-extract the signer of at least the first catalog and compare to the derived token.
+              if (-not $VerifiedFirstCatalog) {
+                $CatSig = Get-AuthenticodeSignature (Join-Path $Dir "$Lib.cat")
+                if (-not $CatSig.SignerCertificate) { throw "Generate-SxSCatalogs: '$Lib.cat' has no signer certificate after signing" }
+                $CatCer = Join-Path $env:RUNNER_TEMP "sxs-catalog-verify.cer"
+                [IO.File]::WriteAllBytes($CatCer, $CatSig.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+                $CatToken = [regex]::Match(((& pktextract.exe $CatCer) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+                if ($CatToken -ne $WindowsSxSAssemblyPublicKeyToken) {
+                  throw "Generate-SxSCatalogs: catalog '$Lib.cat' signer publicKeyToken '$CatToken' does not match the derived token '$WindowsSxSAssemblyPublicKeyToken' (the signer rotated mid-run)"
+                }
+                Write-Host "Generate-SxSCatalogs: verified '$Lib.cat' signer publicKeyToken matches '$WindowsSxSAssemblyPublicKeyToken'"
+                $VerifiedFirstCatalog = $true
+              }
+            } finally { Pop-Location }
+          }
+
       - name: Package Shared Runtime
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -6715,6 +6899,8 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
+              -p:RuntimeWin32AssembliesExternal=true `
+              -p:RuntimeWin32AssemblyRoot=${{ github.workspace }}\BinaryCache\RuntimeWin32Assemblies `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/dynamic/msi/rtl.dynamic.msi.wixproj
 
       - if: ${{ inputs.release }}
