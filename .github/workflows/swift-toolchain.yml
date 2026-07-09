@@ -341,51 +341,12 @@ jobs:
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
       uses_trusted_signing: ${{ steps.test_trusted_signing.outputs.uses_trusted_signing }}
-      public_key_token: ${{ steps.derive_public_key_token.outputs.public_key_token }}
 
     steps:
       - name: Test whether we're using trusted signing
         id: test_trusted_signing
         run: |
           "uses_trusted_signing=${{ secrets.TRUSTED_SIGNING_ACCOUNT != ''}}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
-      # Derive the Win32 SxS publicKeyToken from the ACTUAL signer, not from the PFX. We sign a
-      # throwaway PE with the same signer-agnostic signtool invocation the catalogs use (Azure
-      # Trusted Signing when configured, else cert-file), read the signer certificate back out of
-      # the resulting Authenticode signature, and pktextract THAT. This guarantees the token equals
-      # the public key of whatever actually signs, and can never drift from a PFX that isn't the
-      # signer. Requires pktextract.exe (Windows SDK SxS tool) on the runner.
-      - name: Derive SxS public key token from signing certificate
-        id: derive_public_key_token
-        if: inputs.signed
-        run: |
-          # For the cert-file branch, $SignArgs references ${env:CERTIFICATE}; decode it here since
-          # this job does not otherwise set it up. (When trusted signing is configured its env vars
-          # are still unset in this job, so the invocation uses the cert-file branch as well.)
-          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
-          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
-          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
-          certutil.exe -decode $CertificatePath $PFXPath | Out-Null
-          $env:CERTIFICATE = $PFXPath
-
-          $SignToolExe = if ("${env:SIGNTOOL_PATH}") { Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe" } else { "signtool.exe" }
-          $SignArgs = @("sign", "/fd", "sha256", "/td", "sha256")
-          if ("${env:TRUSTED_SIGNING_METADATA_PATH}") {
-            $SignArgs += @("/tr","http://timestamp.acs.microsoft.com","/dlib","${env:TRUSTED_SIGNING_DLL_PATH}","/dmdf","${env:TRUSTED_SIGNING_METADATA_PATH}")
-          } else {
-            $SignArgs += @("/tr","http://timestamp.digicert.com","/f","${env:CERTIFICATE}","/p","${{ secrets.PASSPHRASE }}")
-          }
-
-          $Probe = Join-Path $env:RUNNER_TEMP "sxs-token-probe.exe"
-          Copy-Item "$env:SystemRoot\System32\where.exe" $Probe -Force
-          & $SignToolExe @SignArgs $Probe
-          $Sig = Get-AuthenticodeSignature $Probe
-          if (-not $Sig.SignerCertificate) { throw "token-probe: signing produced no signer certificate" }
-          $Cer = Join-Path $env:RUNNER_TEMP "sxs-token-probe.cer"
-          [IO.File]::WriteAllBytes($Cer, $Sig.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-          $Token = [regex]::Match(((& pktextract.exe $Cer) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "token-probe: could not extract publicKeyToken from signer" }
-          Write-Host "Derived SxS publicKeyToken from actual signer: $Token"
-          "public_key_token=$Token" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
       - uses: nuget/setup-nuget@v2
         if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
       - run: |
@@ -7231,7 +7192,9 @@ jobs:
           # because GitHub Actions jobs do not share PowerShell scope.
           # TODO: factor the SxS manifest helpers into a shared .ps1 dot-sourced by both
           # jobs once this is confirmed working.
-          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
+          # Prototype: the external-catalog path (package_tools/rtl.dynamic) derives its own token
+          # from the actual signer; this job is not wired for that yet, so use the placeholder.
+          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
 
           # build.ps1 derives llvm-readobj from Get-PinnedToolchainToolsDir; in gha the
           # pinned toolchain is on PATH, so resolve it next to swiftc (mirrors Block A).
@@ -9005,7 +8968,9 @@ jobs:
           $RuntimeSource = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/bin"
           $LibexecSwiftDir = "${{ github.workspace }}/BinaryCache/1/libexec/swift"
           $ProcArch = "${{ matrix.arch }}"
-          $WindowsSxSAssemblyPublicKeyToken = "${{ needs.configure_signing.outputs.public_key_token }}"
+          # Prototype: the external-catalog path (package_tools/rtl.dynamic) derives its own token
+          # from the actual signer; this job is not wired for that yet, so use the placeholder.
+          $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
 
           function Get-WindowsSxSRuntimeDLLs([string] $RuntimeSourceDir) {
             $DeveloperDLLs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
