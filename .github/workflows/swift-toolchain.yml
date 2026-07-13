@@ -334,7 +334,8 @@ permissions:
   attestations: write
 
 jobs:
-  # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
+  # Determines whether we're using Artifact Signing in this repository. Existing
+  # `trusted_signing` output and artifact identifiers are retained for compatibility.
   # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
   configure_signing:
     name: Configure signing
@@ -343,7 +344,7 @@ jobs:
       uses_trusted_signing: ${{ steps.test_trusted_signing.outputs.uses_trusted_signing }}
 
     steps:
-      - name: Test whether we're using trusted signing
+      - name: Test whether we're using Artifact Signing
         id: test_trusted_signing
         run: |
           "uses_trusted_signing=${{ secrets.TRUSTED_SIGNING_ACCOUNT != ''}}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
@@ -5836,7 +5837,7 @@ jobs:
           name: trusted-signing-dll
           path: ${{ runner.temp }}/trusted-signing-dll
 
-      - name: Prepare trusted signing arguments
+      - name: Prepare Artifact Signing arguments
         if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
         run: |
           # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
@@ -5866,6 +5867,7 @@ jobs:
           }' | Out-File -FilePath $metadataPath -Encoding utf8
           echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
+      # WORKAROUND: Artifact Signing does not expose the certificate before signing.
       # Derive the SxS publicKeyToken from the ACTUAL signer, locally in this job, right before we
       # stamp DLL manifests and generate/sign catalogs. This keeps derivation and signing adjacent
       # so a rotating signer cannot drift between the two. We sign a throwaway PE with the same
@@ -5874,7 +5876,11 @@ jobs:
       - name: Derive SxS public key token from the signing certificate
         if: inputs.signed
         run: |
-          $SignToolExe = if ("${env:SIGNTOOL_PATH}") { Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe" } else { "signtool.exe" }
+          $SignToolExe = if ("${env:SIGNTOOL_PATH}") {
+            Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe"
+          } else {
+            "signtool.exe"
+          }
           $SignArgs = @("sign", "/fd", "sha256", "/td", "sha256")
           if ("${env:TRUSTED_SIGNING_METADATA_PATH}") {
             $SignArgs += @("/tr","http://timestamp.acs.microsoft.com","/dlib","${env:TRUSTED_SIGNING_DLL_PATH}","/dmdf","${env:TRUSTED_SIGNING_METADATA_PATH}")
@@ -5886,18 +5892,25 @@ jobs:
           Copy-Item "$env:SystemRoot\System32\where.exe" $Probe -Force
           & $SignToolExe @SignArgs $Probe
           $Sig = Get-AuthenticodeSignature $Probe
-          if (-not $Sig.SignerCertificate) { throw "token-probe: signing produced no signer certificate" }
+          if (-not $Sig.SignerCertificate) {
+            throw "token-probe: signing produced no signer certificate"
+          }
           $Cer = Join-Path $env:RUNNER_TEMP "sxs-token-probe.cer"
           [IO.File]::WriteAllBytes($Cer, $Sig.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
           $Token = [regex]::Match(((& pktextract.exe $Cer) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "token-probe: could not extract publicKeyToken from signer" }
+          if (-not $Token) {
+            throw "token-probe: could not extract publicKeyToken from signer"
+          }
           Write-Host "Derived SxS publicKeyToken from actual signer: $Token"
           "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      # build.ps1: Stage-WindowsToolchainSxS
-      - name: Stage SxS toolchain runtime (per-DLL)
+      # Normalize the package-local runtime once, then use that exact image for both
+      # private tool staging and catalog generation. Nothing after this step rewrites
+      # a runtime DLL manifest.
+      - name: Prepare SxS runtime manifests, tool staging, and catalogs
         env:
           ARCH: ${{ matrix.arch }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
           SWIFT_VERSION: ${{ inputs.swift_version }}
         run: |
           $ErrorActionPreference = "Stop"
@@ -5977,7 +5990,9 @@ jobs:
             $Seen | Sort-Object
           }
 
-          # Embed an RT_MANIFEST #1 identity manifest into a staged runtime DLL.
+          # Force-rewrite RT_MANIFEST #1 in a package-local runtime DLL. Runtime builds
+          # currently contain a placeholder token, so an existing manifest is not a
+          # reason to preserve the old identity.
           function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
             if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
             if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
@@ -6022,25 +6037,23 @@ jobs:
             )
           }
 
-          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
+          function Assert-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
             $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
-            $KeepExistingManifest = $false
             try {
-              & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
-              if (Test-Path $ExistingManifestPath) {
-                try {
-                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
-                } catch {
-                  $KeepExistingManifest = $true
-                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
-                }
-                if ($ManifestMatches) { Write-Host "${LogPrefix}: '$ImagePath' already has the expected assembly manifest"; return }
-                $KeepExistingManifest = $true
-                throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST #1, but it is not the expected SxS assembly manifest (extracted to '$ExistingManifestPath'); rebuild the producer without a linker-generated manifest instead of overwriting it"
+              $Output = & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1
+              if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ExistingManifestPath)) {
+                throw "${LogPrefix}: failed to extract RT_MANIFEST #1 from '$ImagePath': $($Output -join "`n")"
               }
-              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
+              try {
+                $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
+              } catch {
+                throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1: $($_.Exception.Message)"
+              }
+              if (-not $ManifestMatches) {
+                throw "${LogPrefix}: '$ImagePath' does not contain the expected SxS assembly identity"
+              }
             } finally {
-              if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
+              Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue
             }
           }
 
@@ -6300,7 +6313,7 @@ jobs:
               New-Item -ItemType Directory -Path $AssemblyDir -Force -ErrorAction Stop | Out-Null
               $StagedDLL = Join-Path $AssemblyDir "$DLLName.dll"
               Copy-Item -Path $SourceDLL -Destination $StagedDLL -Force -ErrorAction Stop
-              Ensure-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix "Stage-ToolchainRootSxS"
+              Assert-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix "Stage-ToolchainRootSxS"
               Assert-WindowsManifestResourcesAreSxSSafe $StagedDLL "Stage-ToolchainRootSxS" $ReadObj
               Write-Host ("  [{0,-32}]  ->  {1}" -f "$DLLName.dll", $AssemblyDir)
               [void]$InjectedDLLs.Add($DLLName)
@@ -6353,8 +6366,104 @@ jobs:
 
           $AssemblyVersion = ConvertTo-FourPartVersion "${env:SWIFT_VERSION}"
           $WindowsSxSAssemblyPublicKeyToken = "${env:WINDOWS_SXS_PUBLIC_KEY_TOKEN}"
+          if (-not $WindowsSxSAssemblyPublicKeyToken) {
+            throw "SxS: WINDOWS_SXS_PUBLIC_KEY_TOKEN was not set by the job-local signing probe"
+          }
+
+          # Normalize every package-local runtime DLL before any consumer copies it.
+          # Check resource safety both before and after the forced RT_MANIFEST #1 rewrite.
+          $PinnedToolsDir = Split-Path -Parent (Get-Command swiftc -ErrorAction Stop).Source
+          $ReadObj = Join-Path $PinnedToolsDir "llvm-readobj.exe"
+          if (-not (Test-Path $ReadObj)) {
+            throw "SxS: pinned 'llvm-readobj.exe' not found at '$ReadObj'"
+          }
+          $RuntimeDLLs = @(Get-WindowsSxSRuntimeDLLs $RuntimeLocation)
+          if (-not $RuntimeDLLs) {
+            throw "SxS: no runtime DLLs found under '$RuntimeLocation'"
+          }
+          Write-Host "SxS: normalizing $($RuntimeDLLs.Count) package-local runtime DLL manifest(s)"
+          foreach ($RuntimeDLL in $RuntimeDLLs) {
+            Assert-WindowsManifestResourcesAreSxSSafe $RuntimeDLL.FullName "Normalize-SxSRuntime" $ReadObj
+            Set-WindowsAssemblyManifest -ImagePath $RuntimeDLL.FullName -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Normalize-SxSRuntime"
+            Assert-WindowsAssemblyManifest -ImagePath $RuntimeDLL.FullName -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Normalize-SxSRuntime"
+            Assert-WindowsManifestResourcesAreSxSSafe $RuntimeDLL.FullName "Normalize-SxSRuntime" $ReadObj
+          }
+
           foreach ($ToolchainRoot in $ToolchainRoots) {
             Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -EXEToPackage $EXEToPackage -PackageToSxS $PackageToSxS -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken
+          }
+
+          # Generate each catalog from a byte-for-byte copy of the normalized runtime
+          # image. Verify every catalog's signer, since Artifact Signing may rotate.
+          $SignToolExe = if ("${env:SIGNTOOL_PATH}") {
+            Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe"
+          } else {
+            "signtool.exe"
+          }
+          $SignArgs = @("sign", "/fd", "sha256", "/td", "sha256")
+          if ("${env:TRUSTED_SIGNING_METADATA_PATH}") {
+            $SignArgs += @("/tr", "http://timestamp.acs.microsoft.com", "/dlib", "${env:TRUSTED_SIGNING_DLL_PATH}", "/dmdf", "${env:TRUSTED_SIGNING_METADATA_PATH}")
+          } else {
+            $SignArgs += @("/tr", "http://timestamp.digicert.com", "/f", "${env:CERTIFICATE}", "/p", "${env:PASSPHRASE}")
+          }
+
+          $AssemblyRoot = "${env:GITHUB_WORKSPACE}\BinaryCache\RuntimeWin32Assemblies"
+          if (Test-Path $AssemblyRoot) {
+            Remove-Item -Path $AssemblyRoot -Recurse -Force
+          }
+          foreach ($RuntimeDLL in $RuntimeDLLs) {
+            $LibraryName = $RuntimeDLL.BaseName
+            $AssemblyDir = Join-Path $AssemblyRoot $LibraryName
+            New-Item -ItemType Directory -Path $AssemblyDir -Force -ErrorAction Stop | Out-Null
+            $CatalogDLL = Join-Path $AssemblyDir "$LibraryName.dll"
+            Copy-Item -Path $RuntimeDLL.FullName -Destination $CatalogDLL -Force -ErrorAction Stop
+            $SourceHash = (Get-FileHash -Path $RuntimeDLL.FullName -Algorithm SHA256).Hash
+            $CatalogHash = (Get-FileHash -Path $CatalogDLL -Algorithm SHA256).Hash
+            if ($CatalogHash -ne $SourceHash) {
+              throw "Generate-SxSCatalogs: '$CatalogDLL' is not a byte-for-byte copy of '$($RuntimeDLL.FullName)'"
+            }
+            Assert-WindowsAssemblyManifest -ImagePath $CatalogDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Generate-SxSCatalogs"
+            Assert-WindowsManifestResourcesAreSxSSafe $CatalogDLL "Generate-SxSCatalogs" $ReadObj
+
+            $ManifestPath = Join-Path $AssemblyDir "$LibraryName.manifest"
+            $Output = & "mt.exe" -nologo "-inputresource:$CatalogDLL;#1" -out:$ManifestPath 2>&1
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) {
+              throw "Generate-SxSCatalogs: failed to extract '$ManifestPath': $($Output -join "`n")"
+            }
+
+            Push-Location $AssemblyDir
+            try {
+              & "mt.exe" -nologo -manifest "$LibraryName.manifest" -hashupdate -makecdfs
+              if ($LASTEXITCODE -ne 0) {
+                throw "Generate-SxSCatalogs: mt -hashupdate failed for '$LibraryName' (exit $LASTEXITCODE)"
+              }
+              & "makecat.exe" -v "$LibraryName.manifest.cdf"
+              if ($LASTEXITCODE -ne 0) {
+                throw "Generate-SxSCatalogs: makecat failed for '$LibraryName' (exit $LASTEXITCODE)"
+              }
+              & $SignToolExe @SignArgs "$LibraryName.cat"
+              if ($LASTEXITCODE -ne 0) {
+                throw "Generate-SxSCatalogs: signtool failed for '$LibraryName.cat' (exit $LASTEXITCODE)"
+              }
+
+              $CatalogPath = Join-Path $AssemblyDir "$LibraryName.cat"
+              $CatalogSignature = Get-AuthenticodeSignature $CatalogPath
+              if (-not $CatalogSignature.SignerCertificate) {
+                throw "Generate-SxSCatalogs: '$LibraryName.cat' has no signer certificate after signing"
+              }
+              $CatalogCertificate = Join-Path $env:RUNNER_TEMP "sxs-catalog-$LibraryName.cer"
+              [IO.File]::WriteAllBytes($CatalogCertificate, $CatalogSignature.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+              $CatalogToken = [regex]::Match(((& "pktextract.exe" $CatalogCertificate) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+              if (-not $CatalogToken) {
+                throw "Generate-SxSCatalogs: could not extract a publicKeyToken from '$LibraryName.cat'"
+              }
+              if ($CatalogToken -ne $WindowsSxSAssemblyPublicKeyToken) {
+                throw "Generate-SxSCatalogs: '$LibraryName.cat' signer token '$CatalogToken' does not match runtime manifest token '$WindowsSxSAssemblyPublicKeyToken'"
+              }
+              Write-Host "Generate-SxSCatalogs: verified '$LibraryName.cat' signer token '$CatalogToken'"
+            } finally {
+              Pop-Location
+            }
           }
 
       # minject must run AFTER SxS staging: staging rewrites each exe's manifest via
@@ -6530,317 +6639,6 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
-
-      - name: Repair Windows runtime assembly manifests
-        run: |
-          # See "Repair Windows SDK assembly manifests" in the Package job for rationale.
-          # Building rtl.dynamic.msi with the default RuntimeLibraryInstallationMode=shared
-          # imports RuntimeWin32Assemblies.targets, which extracts manifest #1 from each
-          # runtime DLL in $(WindowsRuntime{arch})\usr\bin (here: Runtimes\usr\bin) and
-          # fails (mt.exe c101008c) on DLLs without one. Embed manifests first.
-          #
-          # NOTE: helpers duplicated from the staging job (GHA jobs/steps don't share
-          # PowerShell scope). TODO: factor into a shared .ps1 dot-sourced everywhere.
-          $WindowsSxSAssemblyPublicKeyToken = "${env:WINDOWS_SXS_PUBLIC_KEY_TOKEN}"
-
-          # build.ps1 derives llvm-readobj from Get-PinnedToolchainToolsDir; in gha the
-          # pinned toolchain is on PATH, so resolve it next to swiftc (mirrors Block A).
-          $ReadObj = Join-Path (Split-Path -Parent (Get-Command swiftc -ErrorAction Stop).Source) "llvm-readobj.exe"
-          if (-not (Test-Path $ReadObj)) { throw "Repair: pinned 'llvm-readobj.exe' not found at '$ReadObj'" }
-
-          function ConvertTo-FourPartVersion([string] $Version) {
-            $Numeric = [regex]::Replace($Version, "[-+].*", "")
-            $Parts = @($Numeric.Split('.'))
-            while ($Parts.Count -lt 4) { $Parts += "0" }
-            return ($Parts[0..3] -join ".")
-          }
-
-          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
-            if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
-            if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
-            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
-            $FileName = [IO.Path]::GetFileName($ImagePath)
-            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-assembly-$([guid]::NewGuid().Guid).manifest"
-            try {
-              $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
-                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
-                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
-                ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
-                '</assembly>'
-              Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
-              Write-Host "${LogPrefix}: embedding assembly manifest into '$ImagePath'"
-              $Output = & "mt.exe" -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1" 2>&1
-              $ExitCode = $LASTEXITCODE
-              if ($Output) { $Output | ForEach-Object { Write-Host "${LogPrefix}:   mt: $_" } }
-              if ($ExitCode -ne 0) { throw "${LogPrefix}: mt failed for '$ImagePath' (exit $ExitCode)" }
-            } finally {
-              Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
-            }
-          }
-
-          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
-            $Doc = New-Object System.Xml.XmlDocument
-            $Doc.Load($ManifestPath)
-            $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
-            if ($null -eq $Assembly) { return $false }
-            $AssemblyIdentity = $Assembly.SelectSingleNode("*[local-name()='assemblyIdentity']")
-            if ($null -eq $AssemblyIdentity) { return $false }
-            $File = $Assembly.SelectSingleNode("*[local-name()='file']")
-            if ($null -eq $File) { return $false }
-            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
-            $FileName = [IO.Path]::GetFileName($ImagePath)
-            return (
-              ($AssemblyIdentity.GetAttribute("type") -ieq "win32") -and
-              ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
-              ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
-              ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
-              ($AssemblyIdentity.GetAttribute("publicKeyToken") -ieq $PublicKeyToken) -and
-              ($File.GetAttribute("name") -eq $FileName)
-            )
-          }
-
-          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
-            $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
-            $KeepExistingManifest = $false
-            try {
-              & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
-              if (Test-Path $ExistingManifestPath) {
-                try {
-                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
-                } catch {
-                  $KeepExistingManifest = $true
-                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
-                }
-                if ($ManifestMatches) { Write-Host "${LogPrefix}: '$ImagePath' already has the expected assembly manifest"; return }
-                $KeepExistingManifest = $true
-                throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST #1, but it is not the expected SxS assembly manifest (extracted to '$ExistingManifestPath'); rebuild the producer without a linker-generated manifest instead of overwriting it"
-              }
-              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
-            } finally {
-              if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
-            }
-          }
-
-          # SxS-safety assert family (mirrors build.ps1 Get-WindowsManifestResourceIDs /
-          # Export-WindowsManifestResource / Test-WindowsManifestHasExecutionLevel /
-          # Assert-WindowsManifestResourcesAreSxSSafe). Get-WindowsManifestResourceIDs is
-          # parameterized on $ReadObj (build.ps1 derives it from Get-PinnedToolchainToolsDir).
-          function Get-WindowsManifestResourceIDs([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
-            if (-not (Test-Path $ReadObj)) { throw "${LogPrefix}: pinned 'llvm-readobj.exe' not found at '$ReadObj'" }
-            $Output = & $ReadObj --coff-resources $ImagePath 2>&1
-            $ExitCode = $LASTEXITCODE
-            if ($ExitCode -ne 0) { throw "${LogPrefix}: llvm-readobj failed to inspect resources in '$ImagePath' (exit $ExitCode): $($Output -join "`n")" }
-            $CandidateIDs = [System.Collections.Generic.HashSet[int]]::new()
-            $InManifestType = $false
-            foreach ($Line in $Output) {
-              if ($Line -match '^\s*Type:\s*(?:RT_MANIFEST\b.*|.*\(ID\s+24\)|24\b)') { $InManifestType = $true; continue }
-              if ($Line -match '^\s*Type:') { $InManifestType = $false }
-              if ($InManifestType -and
-                  ($Line -match '^\s*Name:\s*(?:\(ID\s*)?#?([0-9]+)\)?' -or
-                   $Line -match '^\s*Name:.*\(ID\s+([0-9]+)\)')) {
-                [void]$CandidateIDs.Add([int]$Matches[1])
-              }
-            }
-            foreach ($ResourceID in 1..16) { [void]$CandidateIDs.Add($ResourceID) }
-            $ManifestIDs = [System.Collections.Generic.HashSet[int]]::new()
-            foreach ($ResourceID in ($CandidateIDs | Sort-Object)) {
-              $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-probe-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
-              try {
-                & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0 -and (Test-Path $ManifestPath)) { [void]$ManifestIDs.Add([int]$ResourceID) }
-              } finally {
-                Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
-              }
-            }
-            return @($ManifestIDs | Sort-Object)
-          }
-
-          function Export-WindowsManifestResource([string] $ImagePath, [int] $ResourceID, [string] $LogPrefix) {
-            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
-            & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) { throw "${LogPrefix}: failed to extract RT_MANIFEST resource #$ResourceID from '$ImagePath'" }
-            return $ManifestPath
-          }
-
-          function Test-WindowsManifestHasExecutionLevel([string] $ManifestPath) {
-            $Doc = New-Object System.Xml.XmlDocument
-            $Doc.Load($ManifestPath)
-            return ([bool]$Doc.SelectSingleNode("//*[local-name()='trustInfo' or local-name()='requestedPrivileges' or local-name()='requestedExecutionLevel']"))
-          }
-
-          function Assert-WindowsManifestResourcesAreSxSSafe([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
-            $ResourceIDs = @(Get-WindowsManifestResourceIDs $ImagePath $LogPrefix $ReadObj)
-            $ReservedResourceIDs = @($ResourceIDs | Where-Object { $_ -ge 1 -and $_ -le 16 })
-            $UnexpectedReservedResourceIDs = @($ReservedResourceIDs | Where-Object { $_ -ne 1 })
-            if ($UnexpectedReservedResourceIDs.Count -gt 0) {
-              $UnexpectedList = "#$($UnexpectedReservedResourceIDs -join ', #')"
-              throw "${LogPrefix}: '$ImagePath' has unexpected reserved RT_MANIFEST resources ($UnexpectedList); Windows reserves IDs 1..16, and this layout uses RT_MANIFEST #1 for SxS manifests"
-            }
-            foreach ($ResourceID in $ResourceIDs) {
-              $ManifestPath = Export-WindowsManifestResource $ImagePath $ResourceID $LogPrefix
-              $KeepManifest = $false
-              try {
-                try { $HasExecutionLevel = Test-WindowsManifestHasExecutionLevel $ManifestPath }
-                catch { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST resource #$ResourceID (extracted to '$ManifestPath')" }
-                if ($HasExecutionLevel) { $KeepManifest = $true; throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST resource #$ResourceID with UAC execution-level metadata (extracted to '$ManifestPath')" }
-              } finally {
-                if (-not $KeepManifest) { Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue }
-              }
-            }
-          }
-
-          # Mirror of build.ps1 Repair-WindowsSDKAssemblyManifests: the fixed list of
-          # runtime DLLs that swift-installer-scripts treats as Win32 SxS assemblies.
-          function Repair-WindowsSDKAssemblyManifests([string] $RuntimeBin, [string] $ProcessorArchitecture, [string] $ReadObj) {
-            if (-not (Test-Path $RuntimeBin)) { Write-Warning "Repair-WindowsSDKAssemblyManifests: '$RuntimeBin' not found; skipping"; return }
-            $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
-            foreach ($DLL in @("BlocksRuntime", "dispatch", "swiftDispatch", "Foundation", "FoundationEssentials", "FoundationInternationalization", "FoundationNetworking", "FoundationXML", "_FoundationICU")) {
-              $Path = Join-Path $RuntimeBin "$DLL.dll"
-              if (Test-Path $Path) {
-                Ensure-WindowsAssemblyManifest -ImagePath $Path -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Repair-WindowsSDKAssemblyManifests"
-                Assert-WindowsManifestResourcesAreSxSSafe $Path "Repair-WindowsSDKAssemblyManifests" $ReadObj
-              }
-            }
-          }
-
-          Repair-WindowsSDKAssemblyManifests "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr/bin" "${{ matrix.arch }}" $ReadObj
-
-      # HACK (external-catalog prototype): generate + sign the SxS catalogs OUT OF BAND
-      # here (the manifests were just token-stamped by the Repair step above), then hand
-      # the prebuilt per-DLL tree to WiX via RuntimeWin32AssembliesExternal so the WiX
-      # build only harvests it. Mirrors RuntimeWin32Assemblies.targets' commands exactly.
-      - name: Generate and sign SxS catalogs (out of band)
-        env:
-          SWIFT_VERSION: ${{ inputs.swift_version }}
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          # Re-stamp EVERY runtime DLL manifest with the locally-derived token immediately before
-          # generating its catalog, so the token can never drift from the signer that just signed
-          # (or is about to sign) the catalog. Helpers duplicated from the "Repair Windows runtime
-          # assembly manifests" step (GHA steps don't share PowerShell scope).
-          $WindowsSxSAssemblyPublicKeyToken = "${env:WINDOWS_SXS_PUBLIC_KEY_TOKEN}"
-
-          function ConvertTo-FourPartVersion([string] $Version) {
-            $Numeric = [regex]::Replace($Version, "[-+].*", "")
-            $Parts = @($Numeric.Split('.'))
-            while ($Parts.Count -lt 4) { $Parts += "0" }
-            return ($Parts[0..3] -join ".")
-          }
-
-          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
-            if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
-            if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
-            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
-            $FileName = [IO.Path]::GetFileName($ImagePath)
-            $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-assembly-$([guid]::NewGuid().Guid).manifest"
-            try {
-              $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
-                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
-                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
-                ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
-                '</assembly>'
-              Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
-              Write-Host "${LogPrefix}: embedding assembly manifest into '$ImagePath'"
-              $Output = & "mt.exe" -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1" 2>&1
-              $ExitCode = $LASTEXITCODE
-              if ($Output) { $Output | ForEach-Object { Write-Host "${LogPrefix}:   mt: $_" } }
-              if ($ExitCode -ne 0) { throw "${LogPrefix}: mt failed for '$ImagePath' (exit $ExitCode)" }
-            } finally {
-              Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
-            }
-          }
-
-          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
-            $Doc = New-Object System.Xml.XmlDocument
-            $Doc.Load($ManifestPath)
-            $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
-            if ($null -eq $Assembly) { return $false }
-            $AssemblyIdentity = $Assembly.SelectSingleNode("*[local-name()='assemblyIdentity']")
-            if ($null -eq $AssemblyIdentity) { return $false }
-            $File = $Assembly.SelectSingleNode("*[local-name()='file']")
-            if ($null -eq $File) { return $false }
-            $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
-            $FileName = [IO.Path]::GetFileName($ImagePath)
-            return (
-              ($AssemblyIdentity.GetAttribute("type") -ieq "win32") -and
-              ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
-              ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
-              ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
-              ($AssemblyIdentity.GetAttribute("publicKeyToken") -ieq $PublicKeyToken) -and
-              ($File.GetAttribute("name") -eq $FileName)
-            )
-          }
-
-          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
-            $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
-            $KeepExistingManifest = $false
-            try {
-              & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
-              if (Test-Path $ExistingManifestPath) {
-                try {
-                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
-                } catch {
-                  $KeepExistingManifest = $true
-                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
-                }
-                if ($ManifestMatches) { Write-Host "${LogPrefix}: '$ImagePath' already has the expected assembly manifest"; return }
-                Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
-                return
-              }
-              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
-            } finally {
-              if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
-            }
-          }
-
-          # Signer-agnostic signtool invocation: Azure Trusted Signing when configured, else cert-file.
-          $SignToolExe = if ("${env:SIGNTOOL_PATH}") { Join-Path "${env:SIGNTOOL_PATH}" "signtool.exe" } else { "signtool.exe" }
-          $SignArgs = @("sign", "/fd", "sha256", "/td", "sha256")
-          if ("${env:TRUSTED_SIGNING_METADATA_PATH}") {
-            $SignArgs += @("/tr","http://timestamp.acs.microsoft.com","/dlib","${env:TRUSTED_SIGNING_DLL_PATH}","/dmdf","${env:TRUSTED_SIGNING_METADATA_PATH}")
-          } else {
-            $SignArgs += @("/tr","http://timestamp.digicert.com","/f","${env:CERTIFICATE}","/p","${{ secrets.PASSPHRASE }}")
-          }
-
-          $AssemblyVersion = ConvertTo-FourPartVersion "${env:SWIFT_VERSION}"
-          $ProcArch = "${{ matrix.arch }}"
-          $RuntimeBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\usr\bin"
-          $AsmRoot = "${{ github.workspace }}\BinaryCache\RuntimeWin32Assemblies"
-          $Exclude = @("Testing", "_Testing_Foundation", "_Testing_WinSDK", "_TestingInterop", "XCTest")
-          $VerifiedFirstCatalog = $false
-          Get-ChildItem -Path "$RuntimeBin\*.dll" -File | Where-Object { $Exclude -notcontains $_.BaseName } | ForEach-Object {
-            $Lib = $_.BaseName
-            $Dir = Join-Path $AsmRoot $Lib
-            New-Item -ItemType Directory -Path $Dir -Force | Out-Null
-            $Dll = Join-Path $Dir "$Lib.dll"
-            Copy-Item -Path $_.FullName -Destination $Dll -Force
-            # Re-stamp the copy's manifest with the locally-derived token before harvesting it.
-            Ensure-WindowsAssemblyManifest -ImagePath $Dll -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Generate-SxSCatalogs"
-            & mt.exe -nologo -inputresource:"$Dll;#1" -out:"$Dir\$Lib.manifest"
-            Push-Location $Dir
-            try {
-              & mt.exe -nologo -manifest "$Lib.manifest" -hashupdate -makecdfs
-              & makecat.exe -v "$Lib.manifest.cdf"
-              & $SignToolExe @SignArgs "$Lib.cat"
-              if ($LASTEXITCODE -ne 0) { throw "Generate-SxSCatalogs: signtool failed for '$Lib.cat' (exit $LASTEXITCODE)" }
-
-              # Guard against a rotating signer drifting between token-derivation and catalog signing:
-              # re-extract the signer of at least the first catalog and compare to the derived token.
-              if (-not $VerifiedFirstCatalog) {
-                $CatSig = Get-AuthenticodeSignature (Join-Path $Dir "$Lib.cat")
-                if (-not $CatSig.SignerCertificate) { throw "Generate-SxSCatalogs: '$Lib.cat' has no signer certificate after signing" }
-                $CatCer = Join-Path $env:RUNNER_TEMP "sxs-catalog-verify.cer"
-                [IO.File]::WriteAllBytes($CatCer, $CatSig.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-                $CatToken = [regex]::Match(((& pktextract.exe $CatCer) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-                if ($CatToken -ne $WindowsSxSAssemblyPublicKeyToken) {
-                  throw "Generate-SxSCatalogs: catalog '$Lib.cat' signer publicKeyToken '$CatToken' does not match the derived token '$WindowsSxSAssemblyPublicKeyToken' (the signer rotated mid-run)"
-                }
-                Write-Host "Generate-SxSCatalogs: verified '$Lib.cat' signer publicKeyToken matches '$WindowsSxSAssemblyPublicKeyToken'"
-                $VerifiedFirstCatalog = $true
-              }
-            } finally { Pop-Location }
-          }
 
       - name: Package Shared Runtime
         run: |
@@ -7149,7 +6947,7 @@ jobs:
           name: trusted-signing-dll
           path: ${{ runner.temp }}/trusted-signing-dll
 
-      - name: Prepare trusted signing arguments
+      - name: Prepare Artifact Signing arguments
         if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
         run: |
           # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
@@ -7714,7 +7512,7 @@ jobs:
           name: trusted-signing-dll
           path: ${{ runner.temp }}/trusted-signing-dll
 
-      - name: Prepare trusted signing arguments
+      - name: Prepare Artifact Signing arguments
         if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
         run: |
           # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
@@ -7839,7 +7637,7 @@ jobs:
           name: trusted-signing-dll
           path: ${{ runner.temp }}/trusted-signing-dll
 
-      - name: Prepare trusted signing arguments
+      - name: Prepare Artifact Signing arguments
         if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
         run: |
           # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
@@ -7985,7 +7783,7 @@ jobs:
           name: trusted-signing-dll
           path: ${{ runner.temp }}/trusted-signing-dll
 
-      - name: Prepare trusted signing arguments
+      - name: Prepare Artifact Signing arguments
         if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
         run: |
           # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
@@ -8162,7 +7960,7 @@ jobs:
           name: trusted-signing-dll
           path: ${{ runner.temp }}/trusted-signing-dll
 
-      - name: Prepare trusted signing arguments
+      - name: Prepare Artifact Signing arguments
         if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
         run: |
           # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
@@ -8392,7 +8190,8 @@ jobs:
           path: ${{ github.workspace }}/tmp
 
       # TODO(compnerd): migrate this to compnerd/gha-setup-swift after the work that @mangini is doing is completed
-      - run: |
+      - name: Install Swift SDK
+        run: |
           function Update-EnvironmentVariables {
             foreach ($level in "Machine", "User") {
               [Environment]::GetEnvironmentVariables($level).GetEnumerator() | % {
@@ -8427,6 +8226,159 @@ jobs:
           echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
           Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
 
+      # XXX: TEMPORARY DIAGNOSTIC. Remove after installer startup and SxS activation
+      # are covered by stable product tests.
+      - name: Verify installed Swift tools start
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
+            $PSNativeCommandUseErrorActionPreference = $false
+          }
+          $SmokeRoot = Join-Path $env:RUNNER_TEMP "swift-sxs-smoke"
+          New-Item -ItemType Directory -Path $SmokeRoot -Force | Out-Null
+
+          $Swift = (Get-Command "swift.exe" -ErrorAction Stop).Source
+          $SwiftC = (Get-Command "swiftc.exe" -ErrorAction Stop).Source
+          @("swift=$Swift", "swiftc=$SwiftC", "PATH=$env:PATH") | Set-Content (Join-Path $SmokeRoot "installed-tools.txt")
+          Write-Host "Installed swift.exe: $Swift"
+          Write-Host "Installed swiftc.exe: $SwiftC"
+
+          function Write-SxSTrace([string] $ToolPath, [string] $Label) {
+            $TraceETL = Join-Path $SmokeRoot "$Label-sxstrace.etl"
+            $TraceText = Join-Path $SmokeRoot "$Label-sxstrace.txt"
+            Remove-Item -Path $TraceETL, $TraceText -Force -ErrorAction SilentlyContinue
+            & "sxstrace.exe" Trace "-logfile:$TraceETL" -nostop
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "sxstrace failed to start for $Label"
+              return
+            }
+            try {
+              & $ToolPath --version 2>&1 | Out-File (Join-Path $SmokeRoot "$Label-traced-output.txt") -Encoding utf8
+            } finally {
+              & "sxstrace.exe" StopTrace
+            }
+            & "sxstrace.exe" Parse "-logfile:$TraceETL" "-outfile:$TraceText"
+            if (Test-Path $TraceText) {
+              Get-Content $TraceText | Write-Host
+            }
+          }
+
+          $Tools = @(
+            [pscustomobject]@{ Path = $Swift; Label = "swift" }
+            [pscustomobject]@{ Path = $SwiftC; Label = "swiftc" }
+          )
+          foreach ($Tool in $Tools) {
+            $ToolPath = $Tool.Path
+            $Label = $Tool.Label
+            $Output = @(& $ToolPath --version 2>&1)
+            $ExitCode = $LASTEXITCODE
+            $Output | Tee-Object -FilePath (Join-Path $SmokeRoot "$Label-version.txt") | Write-Host
+            if ($ExitCode -ne 0) {
+              Write-SxSTrace -ToolPath $ToolPath -Label $Label
+              throw "$Label --version failed with exit code $ExitCode"
+            }
+          }
+
+      # XXX: TEMPORARY DIAGNOSTIC. This separates compiler/runtime startup from the
+      # dynamic SxS path while the installer is being repaired.
+      - name: Compile and run static Hello World
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
+            $PSNativeCommandUseErrorActionPreference = $false
+          }
+          $SmokeRoot = Join-Path $env:RUNNER_TEMP "swift-sxs-smoke"
+          New-Item -ItemType Directory -Path $SmokeRoot -Force | Out-Null
+          $Source = Join-Path $SmokeRoot "hello.swift"
+          $Executable = Join-Path $SmokeRoot "hello-static.exe"
+          'print("hello from Swift")' | Set-Content -Path $Source -Encoding utf8
+
+          & "swiftc.exe" -static-stdlib $Source -o $Executable 2>&1 |
+            Tee-Object -FilePath (Join-Path $SmokeRoot "static-compile.txt") | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            throw "static Hello World compilation failed with exit code $LASTEXITCODE"
+          }
+
+          $Output = @(& $Executable 2>&1)
+          $ExitCode = $LASTEXITCODE
+          $Output | Tee-Object -FilePath (Join-Path $SmokeRoot "static-run.txt") | Write-Host
+          if ($ExitCode -ne 0) {
+            throw "static Hello World failed with exit code $ExitCode"
+          }
+          if (($Output -join "`n") -notmatch "hello from Swift") {
+            throw "static Hello World produced unexpected output"
+          }
+
+      # XXX: TEMPORARY DIAGNOSTIC. This inspects the client executable's SxS manifest
+      # and should be replaced by a focused product test at the responsible layer.
+      - name: Compile, inspect, and run dynamic Hello World
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
+            $PSNativeCommandUseErrorActionPreference = $false
+          }
+          $SmokeRoot = Join-Path $env:RUNNER_TEMP "swift-sxs-smoke"
+          $Source = Join-Path $SmokeRoot "hello.swift"
+          $Executable = Join-Path $SmokeRoot "hello-dynamic.exe"
+          $Manifest = Join-Path $SmokeRoot "hello-dynamic.manifest"
+
+          & "swiftc.exe" $Source -o $Executable 2>&1 |
+            Tee-Object -FilePath (Join-Path $SmokeRoot "dynamic-compile.txt") | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            throw "dynamic Hello World compilation failed with exit code $LASTEXITCODE"
+          }
+
+          $HasSxSDependencies = $false
+          $MT = Get-Command "mt.exe" -ErrorAction SilentlyContinue
+          if ($MT) {
+            $MTPath = $MT.Source
+            $ManifestOutput = @(& $MTPath -nologo "-inputresource:$Executable;#1" -out:$Manifest 2>&1)
+            $ManifestExitCode = $LASTEXITCODE
+            $ManifestOutput | Set-Content (Join-Path $SmokeRoot "dynamic-manifest-extraction.txt")
+            if ($ManifestExitCode -eq 0 -and (Test-Path $Manifest)) {
+              Get-Content $Manifest | Write-Host
+              $ManifestDocument = New-Object System.Xml.XmlDocument
+              $ManifestDocument.Load($Manifest)
+              $Dependencies = @($ManifestDocument.SelectNodes("//*[local-name()='dependency']//*[local-name()='assemblyIdentity' and @type='win32']"))
+              $HasSxSDependencies = $Dependencies.Count -gt 0
+              foreach ($Dependency in $Dependencies) {
+                Write-Host "Dynamic dependency: name=$($Dependency.GetAttribute('name')) version=$($Dependency.GetAttribute('version')) arch=$($Dependency.GetAttribute('processorArchitecture')) token=$($Dependency.GetAttribute('publicKeyToken'))"
+              }
+            } else {
+              Write-Warning "dynamic Hello World has no extractable RT_MANIFEST #1"
+            }
+          } else {
+            "mt.exe was not available on PATH" | Set-Content (Join-Path $SmokeRoot "dynamic-manifest-extraction.txt")
+            Write-Warning "mt.exe was not available to inspect dynamic Hello World"
+          }
+
+          $Output = @(& $Executable 2>&1)
+          $ExitCode = $LASTEXITCODE
+          $Output | Tee-Object -FilePath (Join-Path $SmokeRoot "dynamic-run.txt") | Write-Host
+          if ($ExitCode -ne 0) {
+            $TraceETL = Join-Path $SmokeRoot "hello-dynamic-sxstrace.etl"
+            $TraceText = Join-Path $SmokeRoot "hello-dynamic-sxstrace.txt"
+            & "sxstrace.exe" Trace "-logfile:$TraceETL" -nostop
+            if ($LASTEXITCODE -eq 0) {
+              try {
+                & $Executable 2>&1 | Out-File (Join-Path $SmokeRoot "dynamic-traced-output.txt") -Encoding utf8
+              } finally {
+                & "sxstrace.exe" StopTrace
+              }
+              & "sxstrace.exe" Parse "-logfile:$TraceETL" "-outfile:$TraceText"
+              if (Test-Path $TraceText) {
+                Get-Content $TraceText | Write-Host
+              }
+            }
+            throw "dynamic Hello World failed with exit code $ExitCode"
+          }
+          if (($Output -join "`n") -notmatch "hello from Swift") {
+            throw "dynamic Hello World produced unexpected output"
+          }
+          if (-not $HasSxSDependencies) {
+            throw "dynamic Hello World ran but did not contain Win32 SxS assembly dependencies"
+          }
+
       - name: Build & Test compnerd/swift-win32
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
         run: |
@@ -8450,6 +8402,18 @@ jobs:
         run: |
           swift build --build-system native -c release
           swift test --build-system native -c release
+
+      # XXX: TEMPORARY DIAGNOSTIC. Depending on how far the smoke test gets, this
+      # directory contains installed tool paths and the PATH snapshot; version,
+      # compile, and run output; Hello World sources and executables; the extracted
+      # dynamic manifest; and sxstrace ETL/text/output files collected after failures.
+      - name: Upload focused SxS smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ inputs.build_arch }}-sxs-smoke-diagnostics
+          path: ${{ runner.temp }}/swift-sxs-smoke
+          if-no-files-found: warn
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
