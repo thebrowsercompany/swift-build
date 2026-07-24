@@ -1,0 +1,93 @@
+name: Setup Azure Key Vault signing
+description: Install AzureSignTool and configure a Key Vault-backed signing command.
+
+inputs:
+  key-vault-uri:
+    description: URI of the Azure Key Vault that contains the signing certificate.
+    required: true
+  certificate-name:
+    description: Name of the signing certificate in Azure Key Vault.
+    required: true
+  azure-credentials:
+    description: Azure service principal credentials in the JSON format accepted by azure/login.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install AzureSignTool
+      shell: pwsh
+      run: |
+        dotnet tool install --global AzureSignTool --add-source "https://api.nuget.org/v3/index.json"
+        dotnet tool list --global AzureSignTool
+
+    - name: Configure signing command
+      shell: pwsh
+      env:
+        INPUT_KEY_VAULT_URI: ${{ inputs.key-vault-uri }}
+        INPUT_CERTIFICATE_NAME: ${{ inputs.certificate-name }}
+        INPUT_AZURE_CREDENTIALS: ${{ inputs.azure-credentials }}
+      run: |
+        try {
+          $Credentials = $env:INPUT_AZURE_CREDENTIALS | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+          throw "The Azure credentials input is not valid JSON."
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($Credentials.clientSecret)) {
+          Write-Output "::add-mask::$($Credentials.clientSecret)"
+        }
+
+        $Values = [ordered]@{
+          AZURE_KEY_VAULT_URI = $env:INPUT_KEY_VAULT_URI
+          AZURE_KEY_VAULT_CERTIFICATE_NAME = $env:INPUT_CERTIFICATE_NAME
+          AZURE_KEY_VAULT_CLIENT_ID = $Credentials.clientId
+          AZURE_KEY_VAULT_CLIENT_SECRET = $Credentials.clientSecret
+          AZURE_KEY_VAULT_TENANT_ID = $Credentials.tenantId
+        }
+
+        foreach ($Entry in $Values.GetEnumerator()) {
+          if ([string]::IsNullOrWhiteSpace($Entry.Value)) {
+            throw "The $($Entry.Key) signing value is empty."
+          }
+
+          $Delimiter = "AZURE_SIGNING_$([guid]::NewGuid().ToString('N'))"
+          "$($Entry.Key)<<$Delimiter" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $Entry.Value | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $Delimiter | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        }
+
+        $AzureSignToolPath = Join-Path $env:USERPROFILE ".dotnet\tools\AzureSignTool.exe"
+        if (-not (Test-Path $AzureSignToolPath)) {
+          throw "AzureSignTool was not installed at $AzureSignToolPath."
+        }
+
+        $SignToolCommand = "`"$AzureSignToolPath`" sign --azure-key-vault-url `"%AZURE_KEY_VAULT_URI%`" --azure-key-vault-client-id `"%AZURE_KEY_VAULT_CLIENT_ID%`" --azure-key-vault-client-secret `"%AZURE_KEY_VAULT_CLIENT_SECRET%`" --azure-key-vault-tenant-id `"%AZURE_KEY_VAULT_TENANT_ID%`" --azure-key-vault-certificate `"%AZURE_KEY_VAULT_CERTIFICATE_NAME%`" --file-digest sha256 --timestamp-rfc3161 `"http://timestamp.digicert.com`" --timestamp-digest sha256 --verbose"
+        "AZURE_SIGN_TOOL_COMMAND=$SignToolCommand" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Authenticate with Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ inputs.azure-credentials }}
+
+    - name: Download public signing certificate
+      shell: pwsh
+      env:
+        INPUT_KEY_VAULT_URI: ${{ inputs.key-vault-uri }}
+        INPUT_CERTIFICATE_NAME: ${{ inputs.certificate-name }}
+      run: |
+        $CertificateId = "$($env:INPUT_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:INPUT_CERTIFICATE_NAME)"
+        $CertificatePath = Join-Path $env:RUNNER_TEMP "azure-key-vault-signing-certificate.cer"
+
+        az keyvault certificate download `
+          --id $CertificateId `
+          --file $CertificatePath `
+          --encoding DER `
+          --only-show-errors
+        if ($LASTEXITCODE -ne 0) {
+          throw "Could not download the public signing certificate from Azure Key Vault."
+        }
+
+        $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($CertificatePath)
+        Write-Host "Downloaded Key Vault certificate '$($Certificate.Subject)' with thumbprint '$($Certificate.Thumbprint)'."
+        "AZURE_KEY_VAULT_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append

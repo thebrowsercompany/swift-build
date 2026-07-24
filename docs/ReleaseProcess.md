@@ -55,6 +55,20 @@ manually in the repo reference item, so for the 5.10 release it should look like
 You can look at the `default.xml` file in the prior release branch to see which repos need to follow
 custom conventions instead of using the default release branch name.
 
+## Azure Key Vault signing
+
+Windows packages are signed with `AzureSignTool` when the following GitHub Actions secrets are
+available:
+
+- `AZURE_SP_CREDENTIALS`: service principal credentials in the JSON format accepted by
+  `azure/login`
+- `AZURE_KEY_VAULT_URI`: the Key Vault data endpoint
+- `AZURE_KEY_VAULT_CERTIFICATE_NAME`: the certificate object name
+
+The secrets are optional so forks and other repositories can use the same workflows.
+When signing is requested but any value is missing, the workflow emits a warning and builds
+unsigned packages.
+
 ## Release workflow update
 
 THe release-swift-toolchain-schedule workflow needs to be updated once a new release branch is
