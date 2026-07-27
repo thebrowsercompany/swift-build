@@ -5753,24 +5753,6 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      # Fabrice's external-catalog prototype is based on an older installer-scripts revision.
-      # Apply its focused change to the revision used by every other packaging job so their
-      # package definitions remain compatible.
-      - name: Enable prebuilt runtime catalogs in Swift installer scripts
-        run: |
-          $InstallerScriptsPath = "${{ github.workspace }}/SourceCache/swift-installer-scripts"
-          $PatchPath = "${{ github.workspace }}/SourceCache/ci-build/.github/patches/swift-installer-scripts-external-catalog.patch"
-
-          git -C $InstallerScriptsPath apply --check $PatchPath
-          if ($LASTEXITCODE -ne 0) {
-            throw "The Swift installer external-catalog patch does not apply cleanly."
-          }
-
-          git -C $InstallerScriptsPath apply $PatchPath
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not apply the Swift installer external-catalog patch."
-          }
-
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/" -ItemType Directory -Force | Out-Null
 
@@ -5850,10 +5832,10 @@ jobs:
           Write-Host "Derived SxS publicKeyToken from the Key Vault certificate: $Token"
           "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      # Normalize the package-local runtime once, then use that exact image for both
-      # private tool staging and catalog generation. Nothing after this step rewrites
-      # a runtime DLL manifest.
-      - name: Prepare SxS runtime manifests, tool staging, and catalogs
+      # Normalize the package-local runtime once. Private tool staging uses that image
+      # immediately, and installer-scripts later copies the same image when MSBuild
+      # generates and signs the shared runtime catalogs.
+      - name: Prepare SxS runtime manifests and tool staging
         env:
           ARCH: ${{ matrix.arch }}
           SIGNING_ENABLED: ${{ needs.configure_signing.outputs.signing_enabled }}
@@ -6345,103 +6327,6 @@ jobs:
             Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -EXEToPackage $EXEToPackage -PackageToSxS $PackageToSxS -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken
           }
 
-          # Generate each catalog from a byte-for-byte copy of the normalized runtime
-          # image. For signed builds, verify that every catalog uses the certificate
-          # whose publicKeyToken was written into the manifests.
-          if ($SigningEnabled) {
-            $AzureSignToolPath = Join-Path $env:USERPROFILE ".dotnet\tools\AzureSignTool.exe"
-            if (-not (Test-Path $AzureSignToolPath -PathType Leaf)) {
-              throw "AzureSignTool was not installed at '$AzureSignToolPath'."
-            }
-
-            $ExpectedSigningCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-              "${env:AZURE_KEY_VAULT_CERTIFICATE_PATH}"
-            )
-            $AzureSignArguments = @(
-              "sign",
-              "--azure-key-vault-url", "${env:AZURE_KEY_VAULT_URI}",
-              "--azure-key-vault-client-id", "${env:AZURE_KEY_VAULT_CLIENT_ID}",
-              "--azure-key-vault-client-secret", "${env:AZURE_KEY_VAULT_CLIENT_SECRET}",
-              "--azure-key-vault-tenant-id", "${env:AZURE_KEY_VAULT_TENANT_ID}",
-              "--azure-key-vault-certificate", "${env:AZURE_KEY_VAULT_CERTIFICATE_NAME}",
-              "--file-digest", "sha256",
-              "--timestamp-rfc3161", "http://timestamp.digicert.com",
-              "--timestamp-digest", "sha256",
-              "--verbose"
-            )
-          }
-
-          $AssemblyRoot = "${env:GITHUB_WORKSPACE}\BinaryCache\RuntimeWin32Assemblies"
-          if (Test-Path $AssemblyRoot) {
-            Remove-Item -Path $AssemblyRoot -Recurse -Force
-          }
-          foreach ($RuntimeDLL in $RuntimeDLLs) {
-            $LibraryName = $RuntimeDLL.BaseName
-            $AssemblyDir = Join-Path $AssemblyRoot $LibraryName
-            New-Item -ItemType Directory -Path $AssemblyDir -Force -ErrorAction Stop | Out-Null
-            $CatalogDLL = Join-Path $AssemblyDir "$LibraryName.dll"
-            Copy-Item -Path $RuntimeDLL.FullName -Destination $CatalogDLL -Force -ErrorAction Stop
-            $SourceHash = (Get-FileHash -Path $RuntimeDLL.FullName -Algorithm SHA256).Hash
-            $CatalogHash = (Get-FileHash -Path $CatalogDLL -Algorithm SHA256).Hash
-            if ($CatalogHash -ne $SourceHash) {
-              throw "Generate-SxSCatalogs: '$CatalogDLL' is not a byte-for-byte copy of '$($RuntimeDLL.FullName)'"
-            }
-            Assert-WindowsAssemblyManifest -ImagePath $CatalogDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $WindowsSxSAssemblyPublicKeyToken -LogPrefix "Generate-SxSCatalogs"
-            Assert-WindowsManifestResourcesAreSxSSafe $CatalogDLL "Generate-SxSCatalogs" $ReadObj
-
-            $ManifestPath = Join-Path $AssemblyDir "$LibraryName.manifest"
-            $Output = & "mt.exe" -nologo "-inputresource:$CatalogDLL;#1" -out:$ManifestPath 2>&1
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) {
-              throw "Generate-SxSCatalogs: failed to extract '$ManifestPath': $($Output -join "`n")"
-            }
-
-            Push-Location $AssemblyDir
-            try {
-              & "mt.exe" -nologo -manifest "$LibraryName.manifest" -hashupdate -makecdfs
-              if ($LASTEXITCODE -ne 0) {
-                throw "Generate-SxSCatalogs: mt -hashupdate failed for '$LibraryName' (exit $LASTEXITCODE)"
-              }
-              & "makecat.exe" -v "$LibraryName.manifest.cdf"
-              if ($LASTEXITCODE -ne 0) {
-                throw "Generate-SxSCatalogs: makecat failed for '$LibraryName' (exit $LASTEXITCODE)"
-              }
-
-              $CatalogPath = Join-Path $AssemblyDir "$LibraryName.cat"
-              if ($SigningEnabled) {
-                & $AzureSignToolPath @AzureSignArguments $CatalogPath
-                if ($LASTEXITCODE -ne 0) {
-                  throw "Generate-SxSCatalogs: AzureSignTool failed for '$LibraryName.cat' (exit $LASTEXITCODE)"
-                }
-
-                $CatalogSignature = Get-AuthenticodeSignature $CatalogPath
-                if (-not $CatalogSignature.SignerCertificate) {
-                  throw "Generate-SxSCatalogs: '$LibraryName.cat' has no signer certificate after signing"
-                }
-                if ($CatalogSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
-                  throw "Generate-SxSCatalogs: '$LibraryName.cat' has an invalid Authenticode signature: $($CatalogSignature.StatusMessage)"
-                }
-                if ($CatalogSignature.SignerCertificate.Thumbprint -ne $ExpectedSigningCertificate.Thumbprint) {
-                  throw "Generate-SxSCatalogs: '$LibraryName.cat' was not signed by the certificate downloaded from Key Vault"
-                }
-
-                $CatalogCertificate = Join-Path $env:RUNNER_TEMP "sxs-catalog-$LibraryName.cer"
-                [IO.File]::WriteAllBytes($CatalogCertificate, $CatalogSignature.SignerCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-                $CatalogToken = [regex]::Match(((& "pktextract.exe" $CatalogCertificate) -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-                if (-not $CatalogToken) {
-                  throw "Generate-SxSCatalogs: could not extract a publicKeyToken from '$LibraryName.cat'"
-                }
-                if ($CatalogToken -ne $WindowsSxSAssemblyPublicKeyToken) {
-                  throw "Generate-SxSCatalogs: '$LibraryName.cat' signer token '$CatalogToken' does not match runtime manifest token '$WindowsSxSAssemblyPublicKeyToken'"
-                }
-                Write-Host "Generate-SxSCatalogs: verified '$LibraryName.cat' signer token '$CatalogToken'"
-              } else {
-                Write-Host "Generate-SxSCatalogs: generated unsigned catalog '$LibraryName.cat'"
-              }
-            } finally {
-              Pop-Location
-            }
-          }
-
       # minject must run AFTER SxS staging: staging rewrites each exe's manifest via
       # mt (Set-WindowsExecutableManifestDependencies), and any PE rewrite performed
       # after minject clobbers the injected mimalloc import table (-> <Invalid RVA> ->
@@ -6608,6 +6493,8 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/prt/noasserts/prt.noasserts.wixproj
 
+      # RuntimeWin32Assemblies.targets generates the catalogs during this build and
+      # invokes the same Key Vault-backed SignTool command used for the MSI and CAB.
       - name: Package Shared Runtime
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -6622,9 +6509,58 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
-              -p:RuntimeWin32AssembliesExternal=true `
-              -p:RuntimeWin32AssemblyRoot=${{ github.workspace }}\BinaryCache\RuntimeWin32Assemblies `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/dynamic/msi/rtl.dynamic.msi.wixproj
+
+      - name: Verify shared runtime catalog signatures
+        if: needs.configure_signing.outputs.signing_enabled == 'true'
+        run: |
+          $Catalogs = @(
+            Get-ChildItem "${{ github.workspace }}\BinaryCache\installer\obj" -Filter "*.cat" -File -Recurse |
+              Where-Object { $_.FullName -match '[\\/]RuntimeWin32Assemblies[\\/]' }
+          )
+          if ($Catalogs.Count -eq 0) {
+            throw "MSBuild did not generate any shared runtime catalogs."
+          }
+
+          $ExpectedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            "${env:AZURE_KEY_VAULT_CERTIFICATE_PATH}"
+          )
+          $ExpectedToken = "${env:WINDOWS_SXS_PUBLIC_KEY_TOKEN}"
+
+          foreach ($Catalog in $Catalogs) {
+            $Signature = Get-AuthenticodeSignature -LiteralPath $Catalog.FullName
+            if (-not $Signature.SignerCertificate) {
+              throw "'$($Catalog.FullName)' has no signer certificate."
+            }
+            if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "'$($Catalog.FullName)' has an invalid Authenticode signature: $($Signature.StatusMessage)"
+            }
+            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificate.Thumbprint) {
+              throw "'$($Catalog.FullName)' was not signed by the certificate downloaded from Key Vault."
+            }
+
+            $CatalogCertificate = Join-Path $env:RUNNER_TEMP "sxs-catalog-$($Catalog.BaseName).cer"
+            try {
+              [IO.File]::WriteAllBytes(
+                $CatalogCertificate,
+                $Signature.SignerCertificate.Export(
+                  [Security.Cryptography.X509Certificates.X509ContentType]::Cert
+                )
+              )
+              $TokenOutput = & "pktextract.exe" $CatalogCertificate 2>&1
+              if ($LASTEXITCODE -ne 0) {
+                throw "pktextract failed for '$($Catalog.FullName)': $($TokenOutput -join "`n")"
+              }
+              $CatalogToken = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+              if ($CatalogToken -ne $ExpectedToken) {
+                throw "'$($Catalog.FullName)' signer token '$CatalogToken' does not match manifest token '$ExpectedToken'."
+              }
+            } finally {
+              Remove-Item -LiteralPath $CatalogCertificate -Force -ErrorAction SilentlyContinue
+            }
+
+            Write-Host "Verified MSBuild-generated catalog '$($Catalog.FullName)' with signer token '$CatalogToken'."
+          }
 
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
@@ -8650,6 +8586,10 @@ jobs:
               'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "YES";
               'SWIFT_BUILD_DYNAMIC_STDLIB' = "YES";
               'SWIFT_BUILD_REMOTE_MIRROR' = "YES";
+              # TODO: Re-enable Embedded Swift libraries on Windows after investigating
+              # why embedded-cxx imports the ordinary amd64 CxxStdlib module while
+              # CMake builds both x86_64 and i686 embedded targets (swiftlang/swift#89742).
+              'SWIFT_SHOULD_BUILD_EMBEDDED_STDLIB' = "${{ matrix.os == 'Windows' && 'NO' || 'YES' }}";
               'SWIFT_BUILD_LIBEXEC' = "YES";
               'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/1/bin";
               'SWIFT_HOST_SDKROOT' = "${{ steps.setup-context.outputs.sdkroot }}";
@@ -8728,8 +8668,7 @@ jobs:
           $RuntimeSource = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/bin"
           $LibexecSwiftDir = "${{ github.workspace }}/BinaryCache/1/libexec/swift"
           $ProcArch = "${{ matrix.arch }}"
-          # Prototype: the external-catalog path (package_tools/rtl.dynamic) derives its own token
-          # from the actual signer; this job is not wired for that yet, so use the placeholder.
+          # This compiler-test job is not wired to the signing certificate, so use the placeholder.
           $WindowsSxSAssemblyPublicKeyToken = "0000000000000000"
 
           function Get-WindowsSxSRuntimeDLLs([string] $RuntimeSourceDir) {
