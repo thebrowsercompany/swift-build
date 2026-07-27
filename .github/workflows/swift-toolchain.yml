@@ -5748,12 +5748,28 @@ jobs:
 
       - uses: actions/checkout@v4.2.2
         with:
-          # HACK (external-catalog prototype): fork/branch where WiX consumes a prebuilt
-          # catalog instead of generating it. Hardcoded intentionally for the experiment.
-          repository: Steelskin/swift-installer-scripts
-          ref: fabrice/wip-use-external-catalog
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ inputs.swift_installer_scripts_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
+
+      # Fabrice's external-catalog prototype is based on an older installer-scripts revision.
+      # Apply its focused change to the revision used by every other packaging job so their
+      # package definitions remain compatible.
+      - name: Enable prebuilt runtime catalogs in Swift installer scripts
+        run: |
+          $InstallerScriptsPath = "${{ github.workspace }}/SourceCache/swift-installer-scripts"
+          $PatchPath = "${{ github.workspace }}/SourceCache/ci-build/.github/patches/swift-installer-scripts-external-catalog.patch"
+
+          git -C $InstallerScriptsPath apply --check $PatchPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "The Swift installer external-catalog patch does not apply cleanly."
+          }
+
+          git -C $InstallerScriptsPath apply $PatchPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not apply the Swift installer external-catalog patch."
+          }
 
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/" -ItemType Directory -Force | Out-Null
@@ -6220,7 +6236,7 @@ jobs:
                 }
               }
               if (-not $WiXPackage) { Write-Host -BackgroundColor DarkRed -ForegroundColor White "Stage-ToolchainRootSxS: '$DLL' is needed by staged PE files (expected package: $Want) but not declared in any package .wxi" }
-              elseif ($Want -ne "(unattributed)" -and $WiXPackage -ne $Want) { Write-Host -BackgroundColor DarkRed -ForegroundColor White "Stage-ToolchainRootSxS: '$DLL' is declared in $WiXPackage.wxi but expected package is $Want.wxi" }
+              elseif ($WiXPackage -ne "prt" -and $Want -ne "(unattributed)" -and $WiXPackage -ne $Want) { Write-Host -BackgroundColor DarkRed -ForegroundColor White "Stage-ToolchainRootSxS: '$DLL' is declared in $WiXPackage.wxi but expected package is $Want.wxi" }
             }
             foreach ($Key in $PackageToSxS.Keys) {
               foreach ($DLL in $PackageToSxS[$Key]) {
@@ -6276,6 +6292,7 @@ jobs:
             "cli" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\cli\cli.wxi"
             "dbg" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\dbg\dbg.wxi"
             "ide" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\ide\ide.wxi"
+            "prt" = "${env:GITHUB_WORKSPACE}\SourceCache\swift-installer-scripts\platforms\Windows\prt\prt.wxi"
           }
           $EXEToPackage = @{}
           $PackageToSxS = @{}
@@ -6567,6 +6584,30 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
+      - name: Package Toolchain Private Runtime (Asserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ needs.configure_signing.outputs.signing_enabled }} `
+              -p:SignTool="${env:AZURE_SIGN_TOOL_COMMAND}" `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/prt/asserts/prt.asserts.wixproj
+
+      - name: Package Toolchain Private Runtime (NoAsserts)
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ needs.configure_signing.outputs.signing_enabled }} `
+              -p:SignTool="${env:AZURE_SIGN_TOOL_COMMAND}" `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/prt/noasserts/prt.noasserts.wixproj
+
       - name: Package Shared Runtime
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -6605,6 +6646,10 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
@@ -6663,6 +6708,20 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-asserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.cab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -7691,6 +7750,15 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-ide-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-asserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-noasserts-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
       - uses: actions/download-artifact@v4
