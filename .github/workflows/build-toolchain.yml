@@ -195,12 +195,18 @@ jobs:
               public static int Main() => 0;
           }
           '@
+          $SourcePath = Join-Path $env:RUNNER_TEMP "managed-identity-signing-smoke-test.cs"
+          $Compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
-          Add-Type `
-            -TypeDefinition $Source `
-            -Language CSharp `
-            -OutputAssembly $SmokeTestBinary `
-            -OutputType ConsoleApplication
+          if (-not (Test-Path $Compiler -PathType Leaf)) {
+            throw "Could not find the .NET Framework C# compiler at '$Compiler'."
+          }
+
+          $Source | Out-File -FilePath $SourcePath -Encoding utf8
+          & $Compiler /nologo /target:exe "/out:$SmokeTestBinary" $SourcePath
+          if ($LASTEXITCODE -ne 0) {
+            throw "The C# compiler failed with exit code $LASTEXITCODE."
+          }
 
           $Signature = Get-AuthenticodeSignature -LiteralPath $SmokeTestBinary
           if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
