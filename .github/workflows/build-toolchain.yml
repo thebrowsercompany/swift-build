@@ -188,8 +188,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: swiftlang/swift-installer-scripts
-          ref: refs/pull/554/head
+          ref: 4e752a856ce1d119bf3915b9627f6b19d89a5a9e
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - name: Apply local SignCommand change
+        shell: pwsh
+        run: |
+          $InstallerScriptsPath = "${{ github.workspace }}\SourceCache\swift-installer-scripts"
+          $PatchPath = "${{ github.workspace }}\.github\actions\setup-azure-key-vault-signing\swift-installer-scripts-sign-command.patch"
+
+          git -C $InstallerScriptsPath apply --check $PatchPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "The local Swift installer SignCommand patch does not apply cleanly."
+          }
+
+          git -C $InstallerScriptsPath apply $PatchPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not apply the local Swift installer SignCommand patch."
+          }
 
       - name: Create unsigned test executable and MSBuild project
         shell: pwsh

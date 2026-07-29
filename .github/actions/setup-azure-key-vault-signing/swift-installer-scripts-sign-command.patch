@@ -1,0 +1,70 @@
+diff --git a/platforms/Windows/RuntimeWin32Assemblies.targets b/platforms/Windows/RuntimeWin32Assemblies.targets
+index 09d50d4fa9053d0c695f865e5874b1b8784842fe..b77748fecb3930da3f0339386bb5799f48bd62eb 100644
+--- a/platforms/Windows/RuntimeWin32Assemblies.targets
++++ b/platforms/Windows/RuntimeWin32Assemblies.targets
+@@ -64,6 +64,6 @@
+         Command="&quot;$(MakeCatToolPath)makecat.exe&quot; -v &quot;%(_RuntimeWin32Assembly.CatalogDefinition)&quot;" />
+ 
+     <Exec Condition="'$(SignOutput)' == 'true'"
+-          Command="$(SignTool) &quot;%(_RuntimeWin32Assembly.Catalog)&quot;" />
++          Command="$(SignCommand) &quot;%(_RuntimeWin32Assembly.Catalog)&quot;" />
+   </Target>
+ </Project>
+diff --git a/platforms/Windows/WiXCodeSigning.targets b/platforms/Windows/WiXCodeSigning.targets
+index 0f4d3eb074dcb8e443d2538f57fd820983d92f14..be169c6678a0ff169cb0a5ef0cd7359f4c373b66 100644
+--- a/platforms/Windows/WiXCodeSigning.targets
++++ b/platforms/Windows/WiXCodeSigning.targets
+@@ -54,19 +54,19 @@
+   </Target>
+ 
+   <Target Name="FindSignTool" DependsOnTargets="FindWindowsSDK">
+-    <PropertyGroup>
++    <PropertyGroup Condition=" '$(SignCommand)' == '' ">
+       <SignToolPath Condition=" '$(SignToolPath)' == '' ">$(WindowsSDKToolsPath)</SignToolPath>
+       <SignToolPath Condition=" '$(SignToolPath)' != '' AND !HasTrailingSlash('$(SignToolPath)') ">$(SignToolPath)\</SignToolPath>
+       <VerboseFlag Condition=" '$(SignToolVerbose)' == 'true' ">/v </VerboseFlag>
+       <VerboseFlag Condition=" '$(SignToolVerbose)' != 'true' "></VerboseFlag>
+-
+-      <!-- Microsoft recommends using their timestamp server for trusted signing: https://learn.microsoft.com/en-us/azure/trusted-signing/how-to-signing-integrations#:~:text=Trusted%20Signing%20certificates,microsoft.com/-->
+-      <SignTool Condition=" '$(AzureSignMetadata)' != '' ">"$(SignToolPath)signtool.exe" sign $(VerboseFlag)/tr http://timestamp.acs.microsoft.com /fd sha256 /td sha256 /dlib "$(AzureSignDlib)" /dmdf "$(AzureSignMetadata)"</SignTool>
+-      <SignTool Condition=" '$(AzureSignMetadata)' == '' ">"$(SignToolPath)signtool.exe" sign $(VerboseFlag)/tr http://timestamp.digicert.com /fd sha256 /td sha256 /f "$(CERTIFICATE)" /p "$(PASSPHRASE)" </SignTool>
+     </PropertyGroup>
+ 
+-    <Error Condition=" '$(SignToolPath)' == '' OR !Exists('$(SignToolPath)signtool.exe') "
++    <Error Condition=" '$(SignCommand)' == '' AND ('$(SignToolPath)' == '' OR !Exists('$(SignToolPath)signtool.exe')) "
+            Text="Unable to locate signtool.exe. Set SignToolPath to the Windows SDK bin directory." />
++
++    <PropertyGroup>
++      <SignCommand Condition=" '$(SignCommand)' == '' ">"$(SignToolPath)signtool.exe" sign $(VerboseFlag)/tr http://timestamp.digicert.com /fd sha256 /td sha256 /f "$(CERTIFICATE)" /p "$(PASSPHRASE)"</SignCommand>
++    </PropertyGroup>
+   </Target>
+ 
+   <Target Name="FindWindowsSDKTools" DependsOnTargets="FindWindowsSDK">
+@@ -84,22 +84,22 @@
+   </Target>
+ 
+   <Target Name="SignCabs" DependsOnTargets="FindSignTool">
+-    <Exec Command="$(SignTool) &quot;%(SignCabs.FullPath)&quot;" />
++    <Exec Command="$(SignCommand) &quot;%(SignCabs.FullPath)&quot;" />
+   </Target>
+ 
+   <Target Name="SignMsi" DependsOnTargets="FindSignTool">
+-    <Exec Command="$(SignTool) &quot;%(SignMsi.FullPath)&quot;" />
++    <Exec Command="$(SignCommand) &quot;%(SignMsi.FullPath)&quot;" />
+   </Target>
+ 
+   <Target Name="SignMsm" DependsOnTargets="FindSignTool">
+-    <Exec Command="$(SignTool) &quot;%(SignMsm.FullPath)&quot;" />
++    <Exec Command="$(SignCommand) &quot;%(SignMsm.FullPath)&quot;" />
+   </Target>
+ 
+   <Target Name="SignBundleEngine" DependsOnTargets="FindSignTool">
+-    <Exec Command="$(SignTool) &quot;@(SignBundleEngine)&quot;" />
++    <Exec Command="$(SignCommand) &quot;@(SignBundleEngine)&quot;" />
+   </Target>
+ 
+   <Target Name="SignBundle" DependsOnTargets="FindSignTool">
+-    <Exec Command="$(SignTool) &quot;@(SignBundle)&quot;" />
++    <Exec Command="$(SignCommand) &quot;@(SignBundle)&quot;" />
+   </Target>
+ </Project>
