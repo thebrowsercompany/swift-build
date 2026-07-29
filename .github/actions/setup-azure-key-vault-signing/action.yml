@@ -12,7 +12,7 @@ inputs:
     description: Azure service principal credentials used by azure/login; AzureSignTool reuses the resulting Azure CLI session.
     required: true
   swift-installer-scripts-path:
-    description: Optional path to a swift-installer-scripts checkout that needs the custom signing-command compatibility patch.
+    description: Optional path to a swift-installer-scripts checkout where the action will configure the signing command.
     required: false
     default: ""
 
@@ -25,7 +25,7 @@ runs:
         dotnet tool install --global AzureSignTool --add-source "https://api.nuget.org/v3/index.json"
         dotnet tool list --global AzureSignTool
 
-    - name: Configure signing command
+    - name: Configure signing environment
       shell: pwsh
       env:
         INPUT_KEY_VAULT_URI: ${{ inputs.key-vault-uri }}
@@ -54,31 +54,33 @@ runs:
 
         "AZURE_SIGN_TOOL_PATH=$AzureSignToolPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-        # Keep exporting the complete command until swift-build consumes the first-class Azure Key Vault support in swift-installer-scripts.
-        $SignToolCommand = "`"$AzureSignToolPath`" sign --azure-key-vault-url `"%AZURE_KEY_VAULT_URI%`" --azure-key-vault-managed-identity --azure-key-vault-certificate `"%AZURE_KEY_VAULT_CERTIFICATE_NAME%`" --file-digest sha256 --timestamp-rfc3161 `"http://timestamp.digicert.com`" --timestamp-digest sha256 --verbose"
-        "AZURE_SIGN_TOOL_COMMAND=$SignToolCommand" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-    - name: Enable custom signing in Swift installer scripts
+    - name: Configure Swift installer signing command
       if: inputs.swift-installer-scripts-path != ''
       shell: pwsh
       env:
         INPUT_SWIFT_INSTALLER_SCRIPTS_PATH: ${{ inputs.swift-installer-scripts-path }}
       run: |
-        $TargetsPath = Join-Path $env:INPUT_SWIFT_INSTALLER_SCRIPTS_PATH "platforms\Windows\WiXCodeSigning.targets"
-        if (-not (Test-Path $TargetsPath -PathType Leaf)) {
-          throw "Could not find the Swift installer signing targets at '$TargetsPath'."
+        $WindowsProjectsPath = Join-Path $env:INPUT_SWIFT_INSTALLER_SCRIPTS_PATH "platforms\Windows"
+        $DirectoryBuildPropsPath = Join-Path $WindowsProjectsPath "Directory.Build.props"
+        if (-not (Test-Path $DirectoryBuildPropsPath -PathType Leaf)) {
+          throw "Could not find the Swift installer build properties at '$DirectoryBuildPropsPath'."
+        }
+        if ([string]::IsNullOrWhiteSpace($env:USERNAME)) {
+          throw "USERNAME is empty. It is required to select the user-specific MSBuild properties file."
         }
 
-        $PatchPath = Join-Path $env:GITHUB_ACTION_PATH "swift-installer-scripts-custom-sign-tool.patch"
-        git -C $env:INPUT_SWIFT_INSTALLER_SCRIPTS_PATH apply --check $PatchPath
-        if ($LASTEXITCODE -ne 0) {
-          throw "The Swift installer signing compatibility patch does not apply cleanly."
-        }
-
-        git -C $env:INPUT_SWIFT_INSTALLER_SCRIPTS_PATH apply $PatchPath
-        if ($LASTEXITCODE -ne 0) {
-          throw "Could not apply the Swift installer signing compatibility patch."
-        }
+        $SignCommand = "`"$env:AZURE_SIGN_TOOL_PATH`" sign --azure-key-vault-url `"%AZURE_KEY_VAULT_URI%`" --azure-key-vault-managed-identity --azure-key-vault-certificate `"%AZURE_KEY_VAULT_CERTIFICATE_NAME%`" --file-digest sha256 --timestamp-rfc3161 `"http://timestamp.digicert.com`" --timestamp-digest sha256 --verbose"
+        $EscapedSignCommand = [System.Security.SecurityElement]::Escape($SignCommand)
+        $UserProps = @"
+        <Project>
+          <PropertyGroup>
+            <SignCommand>$EscapedSignCommand</SignCommand>
+          </PropertyGroup>
+        </Project>
+        "@
+        $UserPropsPath = Join-Path $WindowsProjectsPath "$($env:USERNAME).props"
+        [IO.File]::WriteAllText($UserPropsPath, $UserProps, [Text.UTF8Encoding]::new($false))
+        Write-Host "Configured the Swift installer signing command in '$UserPropsPath'."
 
     - name: Authenticate with Azure
       uses: azure/login@v2

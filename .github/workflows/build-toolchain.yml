@@ -175,9 +175,9 @@ on:
         required: true
 
 jobs:
-  managed-identity-signing-smoke-test:
-    if: github.event_name == 'workflow_dispatch' && inputs.swift_version == 'managed-identity-signing-smoke-test'
-    name: Azure Key Vault managed identity signing smoke test
+  sign-command-override-smoke-test:
+    if: github.event_name == 'workflow_dispatch' && inputs.swift_version == 'sign-command-override-smoke-test'
+    name: Swift installer SignCommand override smoke test
     runs-on: windows-latest
     permissions:
       contents: read
@@ -185,10 +185,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create unsigned test executable
+      - uses: actions/checkout@v4
+        with:
+          repository: swiftlang/swift-installer-scripts
+          ref: refs/pull/554/head
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+
+      - name: Create unsigned test executable and MSBuild project
         shell: pwsh
         run: |
-          $SmokeTestBinary = Join-Path $env:RUNNER_TEMP "managed-identity-signing-smoke-test.exe"
+          $SmokeTestBinary = Join-Path $env:RUNNER_TEMP "sign-command-override-smoke-test.exe"
           $Source = @'
           public static class Program
           {
@@ -198,7 +204,7 @@ jobs:
               }
           }
           '@
-          $SourcePath = Join-Path $env:RUNNER_TEMP "managed-identity-signing-smoke-test.cs"
+          $SourcePath = Join-Path $env:RUNNER_TEMP "sign-command-override-smoke-test.cs"
           $Compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
           if (-not (Test-Path $Compiler -PathType Leaf)) {
@@ -216,7 +222,19 @@ jobs:
             throw "The smoke-test executable unexpectedly started with signature status $($Signature.Status)."
           }
 
+          $SmokeTestProject = Join-Path $env:RUNNER_TEMP "sign-command-override-smoke-test.proj"
+          @'
+          <Project>
+            <Import Project="$(InstallerScriptsPath)\platforms\Windows\Directory.Build.props" />
+            <Import Project="$(InstallerScriptsPath)\platforms\Windows\WiXCodeSigning.targets" />
+            <ItemGroup>
+              <SignMsi Include="$(SmokeTestBinary)" />
+            </ItemGroup>
+          </Project>
+          '@ | Out-File -FilePath $SmokeTestProject -Encoding utf8
+
           "SMOKE_TEST_BINARY=$SmokeTestBinary" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SMOKE_TEST_PROJECT=$SmokeTestProject" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Setup Azure Key Vault signing
         uses: ./.github/actions/setup-azure-key-vault-signing
@@ -224,21 +242,20 @@ jobs:
           key-vault-uri: ${{ secrets.AZURE_KEY_VAULT_URI }}
           certificate-name: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
           azure-credentials: ${{ secrets.AZURE_SP_CREDENTIALS }}
+          swift-installer-scripts-path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
 
-      - name: Sign and verify test executable
+      - name: Sign through the MSBuild override and verify
         shell: pwsh
         run: |
-          & $env:AZURE_SIGN_TOOL_PATH sign `
-            --azure-key-vault-url $env:AZURE_KEY_VAULT_URI `
-            --azure-key-vault-managed-identity `
-            --azure-key-vault-certificate $env:AZURE_KEY_VAULT_CERTIFICATE_NAME `
-            --file-digest sha256 `
-            --timestamp-rfc3161 "http://timestamp.digicert.com" `
-            --timestamp-digest sha256 `
-            --verbose `
-            $env:SMOKE_TEST_BINARY
+          $InstallerScriptsPath = "${{ github.workspace }}\SourceCache\swift-installer-scripts"
+          dotnet msbuild $env:SMOKE_TEST_PROJECT `
+            -nologo `
+            -target:SignMsi `
+            -property:InstallerScriptsPath="$InstallerScriptsPath" `
+            -property:SmokeTestBinary="$env:SMOKE_TEST_BINARY" `
+            -verbosity:normal
           if ($LASTEXITCODE -ne 0) {
-            throw "AzureSignTool failed with exit code $LASTEXITCODE."
+            throw "MSBuild signing failed with exit code $LASTEXITCODE."
           }
 
           $Signature = Get-AuthenticodeSignature -LiteralPath $env:SMOKE_TEST_BINARY
@@ -259,13 +276,13 @@ jobs:
             throw "The executable was signed by an unexpected certificate."
           }
 
-          Write-Host "Signing succeeded."
+          Write-Host "Signing succeeded through the SignCommand override."
           Write-Host "Signer subject: $($Signature.SignerCertificate.Subject)"
           Write-Host "Signer thumbprint: $($Signature.SignerCertificate.Thumbprint)"
           Write-Host "Timestamp subject: $($Signature.TimeStamperCertificate.Subject)"
 
   context:
-    if: github.event_name != 'workflow_dispatch' || inputs.swift_version != 'managed-identity-signing-smoke-test'
+    if: github.event_name != 'workflow_dispatch' || inputs.swift_version != 'sign-command-override-smoke-test'
     runs-on: ubuntu-latest
     outputs:
       brotli_revision: ${{ steps.context.outputs.brotli_revision }}
