@@ -923,7 +923,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: inputs.release_tag != '' && inputs.swift_tag == ''
         with:
-          ref: ${{ github.sha }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           show-progress: false
 
       - uses: actions/download-artifact@v4
@@ -958,7 +959,8 @@ jobs:
           INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
           SWIFT_TAG: ${{ needs.context.outputs.swift_tag }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
           WORKSPACE: ${{ github.workspace }}
           SOURCE_MANIFEST: ${{ github.workspace }}/tmp/source-manifest/stable.xml
         run: |
@@ -967,10 +969,10 @@ jobs:
             local output_name=$2
 
             mv "${input_file}" "${output_name}"
-            gh release upload "${SWIFT_TAG}" "${output_name}" -R "${GITHUB_REPOSITORY}"
+            gh release upload "${SWIFT_TAG}" "${output_name}" -R "${WORKFLOW_REPOSITORY}"
 
             shasum -a 256 "${output_name}" > "${output_name}.sha256"
-            gh release upload "${SWIFT_TAG}" "${output_name}.sha256" -R "${GITHUB_REPOSITORY}"
+            gh release upload "${SWIFT_TAG}" "${output_name}.sha256" -R "${WORKFLOW_REPOSITORY}"
           }
 
           branch_version_string="${INPUT_SWIFT_VERSION}"
@@ -987,7 +989,7 @@ jobs:
             cp "${SOURCE_MANIFEST}" stable.xml
             git add stable.xml
 
-            release_commit_date="$(git show -s --format=%cI "${GITHUB_SHA}")"
+            release_commit_date="$(git show -s --format=%cI "${WORKFLOW_SHA}")"
             export GIT_AUTHOR_DATE="${release_commit_date}"
             export GIT_COMMITTER_DATE="${release_commit_date}"
             git -c user.name='github-actions[bot]' \
@@ -995,11 +997,11 @@ jobs:
                 commit --allow-empty --no-gpg-sign -m "Record ${SWIFT_TAG} source manifest"
             git push origin "HEAD:refs/tags/${SWIFT_TAG}"
 
-            gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest} --verify-tag
+            gh release create "${SWIFT_TAG}" -R "${WORKFLOW_REPOSITORY}" --latest=${latest} --verify-tag
           elif [[ -n "${INPUT_RELEASE_TAG}" ]]; then
-            gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest} --target "${GITHUB_SHA}"
+            gh release create "${SWIFT_TAG}" -R "${WORKFLOW_REPOSITORY}" --latest=${latest} --target "${WORKFLOW_SHA}"
           else
-            gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
+            gh release create "${SWIFT_TAG}" -R "${WORKFLOW_REPOSITORY}" --latest=${latest}
           fi
 
           if [[ -f "${SOURCE_MANIFEST}" ]]; then
