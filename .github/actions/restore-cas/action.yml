@@ -78,7 +78,10 @@ runs:
           Write-Host "$cas_tgz file size $FileSize bytes"
           New-Item -ItemType Directory -Path "$cas_path" | Out-Null
           Push-Location "$cas_path"
-          tar --force-local -xf "$temp_path" -C .
+          tar -xf "$temp_path" -C .
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to extract $cas_tgz"
+          }
           Pop-Location
           Remove-Item -Force "$temp_path"
           Write-Host "CAS restored at $cas_path."
