@@ -9,6 +9,22 @@ on:
         required: false
         type: string
 
+      source_manifest:
+        description: 'Repo manifest filename'
+        default: 'default.xml'
+        required: false
+        type: string
+
+      source_revision:
+        description: 'Repo manifest branch or tag'
+        required: false
+        type: string
+
+      release_tag:
+        description: 'Override the generated release tag with dot-separated alphanumeric identifiers'
+        required: false
+        type: string
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -22,7 +38,7 @@ on:
         type: number
 
       swift_tag:
-        description: 'Swift Build Tag'
+        description: 'Official Swift source tag (overrides manifest revisions)'
         required: false
         type: string
 
@@ -70,6 +86,22 @@ on:
         required: false
         type: string
 
+      source_manifest:
+        description: 'Repo manifest filename'
+        default: 'default.xml'
+        required: false
+        type: string
+
+      source_revision:
+        description: 'Repo manifest branch or tag'
+        required: false
+        type: string
+
+      release_tag:
+        description: 'Override the generated release tag with dot-separated alphanumeric identifiers'
+        required: false
+        type: string
+
       ci_build_branch:
         description: 'Branch to use for ci-build repository checkout. If not provided, will be derived from event type and swift_version'
         required: false
@@ -82,7 +114,7 @@ on:
         type: string
 
       swift_tag:
-        description: 'Swift Build Tag'
+        description: 'Official Swift source tag (overrides manifest revisions)'
         required: false
         type: string
 
@@ -266,6 +298,9 @@ jobs:
         env:
           INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
           INPUT_REPO_URL: ${{ inputs.repo_url }}
+          INPUT_SOURCE_MANIFEST: ${{ inputs.source_manifest || 'default.xml' }}
+          INPUT_SOURCE_REVISION: ${{ inputs.source_revision }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
           INPUT_SWIFT_TAG: ${{ inputs.swift_tag }}
           INPUT_DEBUG_INFO: ${{ inputs.debug_info }}
           INPUT_SIGNED: ${{ inputs.signed }}
@@ -319,27 +354,38 @@ jobs:
             branch_name="release/$branch_version_string"
           fi
 
+          if [[ -n "${INPUT_RELEASE_TAG}" && ! "${INPUT_RELEASE_TAG}" =~ ^[0-9A-Za-z]+(\.[0-9A-Za-z]+)*$ ]]; then
+            echo "::error::release_tag must use dot-separated letters and digits"
+            exit 1
+          fi
+
+          if [[ -n "${INPUT_SWIFT_TAG}" && ( "${INPUT_SOURCE_MANIFEST}" != "default.xml" || -n "${INPUT_SOURCE_REVISION}" ) ]]; then
+            echo "::error::swift_tag cannot be combined with a custom source manifest or revision"
+            exit 1
+          fi
+
           # Determine which branch to use for ci-build (this repository's actions).
           #
           # Priority order:
           # 1. If ci_build_branch input is provided, use it (allows caller to explicitly specify)
-          # 2. For workflow_dispatch (Web UI), use github.ref (allows testing on feature branches)
+          # 2. For workflow_dispatch (Web UI), use github.sha (pins the selected commit)
           # 3. Otherwise, derive from swift_version (e.g., swift_version=6.3 -> release/6.3)
           #
           # Examples:
           #   - workflow_call with ci_build_branch=refs/heads/foo/6.3 -> refs/heads/foo/6.3
-          #   - workflow_dispatch on branch/feature -> refs/heads/branch/feature
+          #   - workflow_dispatch on branch/feature -> selected commit SHA
           #   - schedule with swift_version=6.3 -> refs/heads/release/6.3
           #   - schedule with swift_version=0.0.0 -> refs/heads/main
           if [[ -n "${{ inputs.ci_build_branch }}" ]]; then
             echo "ci_build_revision=${{ inputs.ci_build_branch }}" >> ${GITHUB_OUTPUT}
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "ci_build_revision=${{ github.ref }}" >> ${GITHUB_OUTPUT}
+            echo "ci_build_revision=${{ github.sha }}" >> ${GITHUB_OUTPUT}
           else
             echo "ci_build_revision=refs/heads/${branch_name}" >> ${GITHUB_OUTPUT}
           fi
 
-          repo init --quiet --groups default --depth 1 -u "${INPUT_REPO_URL}" -b "$branch_name"
+          source_revision="${INPUT_SOURCE_REVISION:-$branch_name}"
+          repo init --quiet --groups default --depth 1 -u "${INPUT_REPO_URL}" -b "${source_revision}" -m "${INPUT_SOURCE_MANIFEST}"
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
           if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
@@ -417,7 +463,9 @@ jobs:
           fi
 
           echo "swift_version=${INPUT_SWIFT_VERSION}" | tee -a ${GITHUB_OUTPUT}
-          if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
+          if [[ -n "${INPUT_RELEASE_TAG}" ]] ; then
+            echo "swift_tag=${INPUT_RELEASE_TAG}" | tee -a ${GITHUB_OUTPUT}
+          elif [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
             echo "swift_tag=${INPUT_SWIFT_TAG}" | tee -a ${GITHUB_OUTPUT}
           else
             if [[ "$branch_name" == "main" ]] ; then
@@ -453,7 +501,7 @@ jobs:
           echo python_download_locations=$(jq -c '.' <<< "${PYTHON_DOWNLOAD_LOCATIONS}") >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
-        if: inputs.create_snapshot == true
+        if: inputs.create_snapshot == true || (inputs.create_release == true && inputs.swift_tag == '')
         with:
           name: stable.xml
           path: stable.xml
@@ -869,7 +917,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: [context, windows-build]
     if: inputs.create_release == true
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: inputs.release_tag != '' && inputs.swift_tag == ''
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          show-progress: false
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-amd64-installer-online
@@ -890,40 +947,70 @@ jobs:
           name: Windows-arm64-installer-offline
           path: ${{ github.workspace }}/tmp/offline/arm64
 
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: inputs.swift_tag == ''
+        with:
+          name: stable.xml
+          path: ${{ github.workspace }}/tmp/source-manifest
+
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
           SWIFT_TAG: ${{ needs.context.outputs.swift_tag }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
           WORKSPACE: ${{ github.workspace }}
+          SOURCE_MANIFEST: ${{ github.workspace }}/tmp/source-manifest/stable.xml
         run: |
-          function upload_installer() {
+          function upload_release_asset() {
             local input_file=$1
             local output_name=$2
 
             mv "${input_file}" "${output_name}"
-            gh release upload "${SWIFT_TAG}" "${output_name}" -R "${GITHUB_REPOSITORY}"
+            gh release upload "${SWIFT_TAG}" "${output_name}" -R "${WORKFLOW_REPOSITORY}"
 
             shasum -a 256 "${output_name}" > "${output_name}.sha256"
-            gh release upload "${SWIFT_TAG}" "${output_name}.sha256" -R "${GITHUB_REPOSITORY}"
+            gh release upload "${SWIFT_TAG}" "${output_name}.sha256" -R "${WORKFLOW_REPOSITORY}"
           }
 
           branch_version_string="${INPUT_SWIFT_VERSION}"
-          if [[ $branch_version_string == "0.0.0" ]]; then
+          if [[ -n "${INPUT_RELEASE_TAG}" ]]; then
+            latest="false"
+          elif [[ $branch_version_string == "0.0.0" ]]; then
             latest="true"
           else
             latest="false"
           fi
 
           # Create Release
-          gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
+          if [[ -n "${INPUT_RELEASE_TAG}" && -f "${SOURCE_MANIFEST}" ]]; then
+            cp "${SOURCE_MANIFEST}" stable.xml
+            git add stable.xml
 
-          # Upload all installer variants
-          upload_installer "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
-          upload_installer "${WORKSPACE}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
-          upload_installer "${WORKSPACE}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
-          upload_installer "${WORKSPACE}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
+            release_commit_date="$(git show -s --format=%cI "${WORKFLOW_SHA}")"
+            export GIT_AUTHOR_DATE="${release_commit_date}"
+            export GIT_COMMITTER_DATE="${release_commit_date}"
+            git -c user.name='github-actions[bot]' \
+                -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                commit --allow-empty --no-gpg-sign -m "Record ${SWIFT_TAG} source manifest"
+            git push origin "HEAD:refs/tags/${SWIFT_TAG}"
+
+            gh release create "${SWIFT_TAG}" -R "${WORKFLOW_REPOSITORY}" --latest=${latest} --verify-tag
+          elif [[ -n "${INPUT_RELEASE_TAG}" ]]; then
+            gh release create "${SWIFT_TAG}" -R "${WORKFLOW_REPOSITORY}" --latest=${latest} --target "${WORKFLOW_SHA}"
+          else
+            gh release create "${SWIFT_TAG}" -R "${WORKFLOW_REPOSITORY}" --latest=${latest}
+          fi
+
+          if [[ -f "${SOURCE_MANIFEST}" ]]; then
+            upload_release_asset "${SOURCE_MANIFEST}" "source-manifest.xml"
+          fi
+          upload_release_asset "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
+          upload_release_asset "${WORKSPACE}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
+          upload_release_asset "${WORKSPACE}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
+          upload_release_asset "${WORKSPACE}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
 
   binary-size:
     needs: [context, release]
