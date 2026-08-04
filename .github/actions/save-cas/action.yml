@@ -75,13 +75,17 @@ runs:
           $temp_path = "$temp_dir\$cas_tgz"
           Get-PSDrive
           Push-Location "$cas_path"
-          tar --sparse --force-local -cf "$temp_path" *
+          tar -cf "$temp_path" *
           if ($LASTEXITCODE -ne 0) {
             Write-Host "tar failed, creating an empty tarball instead"
             if (Test-Path "$temp_path") {
               Remove-Item "$temp_path" -Force
             }
-            tar --force-local -cf "$temp_path" --files-from $null
+            tar -cf "$temp_path" -T NUL
+            if ($LASTEXITCODE -ne 0) {
+              Pop-Location
+              throw "Failed to create $cas_tgz"
+            }
           }
           Pop-Location
           $FileSize = (Get-Item $temp_path).Length
