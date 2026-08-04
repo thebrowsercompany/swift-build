@@ -9,6 +9,22 @@ on:
         required: false
         type: string
 
+      source_manifest:
+        description: 'Repo manifest filename'
+        default: 'default.xml'
+        required: false
+        type: string
+
+      source_revision:
+        description: 'Repo manifest branch or tag'
+        required: false
+        type: string
+
+      release_tag:
+        description: 'Override the generated release tag'
+        required: false
+        type: string
+
       swift_version:
         description: 'Swift Version'
         default: '0.0.0'
@@ -22,7 +38,7 @@ on:
         type: number
 
       swift_tag:
-        description: 'Swift Build Tag'
+        description: 'Official Swift source tag (overrides manifest revisions)'
         required: false
         type: string
 
@@ -70,6 +86,22 @@ on:
         required: false
         type: string
 
+      source_manifest:
+        description: 'Repo manifest filename'
+        default: 'default.xml'
+        required: false
+        type: string
+
+      source_revision:
+        description: 'Repo manifest branch or tag'
+        required: false
+        type: string
+
+      release_tag:
+        description: 'Override the generated release tag'
+        required: false
+        type: string
+
       ci_build_branch:
         description: 'Branch to use for ci-build repository checkout. If not provided, will be derived from event type and swift_version'
         required: false
@@ -82,7 +114,7 @@ on:
         type: string
 
       swift_tag:
-        description: 'Swift Build Tag'
+        description: 'Official Swift source tag (overrides manifest revisions)'
         required: false
         type: string
 
@@ -266,6 +298,9 @@ jobs:
         env:
           INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
           INPUT_REPO_URL: ${{ inputs.repo_url }}
+          INPUT_SOURCE_MANIFEST: ${{ inputs.source_manifest || 'default.xml' }}
+          INPUT_SOURCE_REVISION: ${{ inputs.source_revision }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
           INPUT_SWIFT_TAG: ${{ inputs.swift_tag }}
           INPUT_DEBUG_INFO: ${{ inputs.debug_info }}
           INPUT_SIGNED: ${{ inputs.signed }}
@@ -319,6 +354,16 @@ jobs:
             branch_name="release/$branch_version_string"
           fi
 
+          if [[ -n "${INPUT_RELEASE_TAG}" && ! "${INPUT_RELEASE_TAG}" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "::error::release_tag must contain only letters, digits, periods, underscores, and hyphens"
+            exit 1
+          fi
+
+          if [[ -n "${INPUT_SWIFT_TAG}" && ( "${INPUT_SOURCE_MANIFEST}" != "default.xml" || -n "${INPUT_SOURCE_REVISION}" ) ]]; then
+            echo "::error::swift_tag cannot be combined with a custom source manifest or revision"
+            exit 1
+          fi
+
           # Determine which branch to use for ci-build (this repository's actions).
           #
           # Priority order:
@@ -339,7 +384,8 @@ jobs:
             echo "ci_build_revision=refs/heads/${branch_name}" >> ${GITHUB_OUTPUT}
           fi
 
-          repo init --quiet --groups default --depth 1 -u "${INPUT_REPO_URL}" -b "$branch_name"
+          source_revision="${INPUT_SOURCE_REVISION:-$branch_name}"
+          repo init --quiet --groups default --depth 1 -u "${INPUT_REPO_URL}" -b "${source_revision}" -m "${INPUT_SOURCE_MANIFEST}"
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
           if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
@@ -417,7 +463,9 @@ jobs:
           fi
 
           echo "swift_version=${INPUT_SWIFT_VERSION}" | tee -a ${GITHUB_OUTPUT}
-          if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
+          if [[ -n "${INPUT_RELEASE_TAG}" ]] ; then
+            echo "swift_tag=${INPUT_RELEASE_TAG}" | tee -a ${GITHUB_OUTPUT}
+          elif [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
             echo "swift_tag=${INPUT_SWIFT_TAG}" | tee -a ${GITHUB_OUTPUT}
           else
             if [[ "$branch_name" == "main" ]] ; then
@@ -869,6 +917,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [context, windows-build]
     if: inputs.create_release == true
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -894,6 +944,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
           SWIFT_TAG: ${{ needs.context.outputs.swift_tag }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           WORKSPACE: ${{ github.workspace }}
@@ -910,14 +961,20 @@ jobs:
           }
 
           branch_version_string="${INPUT_SWIFT_VERSION}"
-          if [[ $branch_version_string == "0.0.0" ]]; then
+          if [[ -n "${INPUT_RELEASE_TAG}" ]]; then
+            latest="false"
+          elif [[ $branch_version_string == "0.0.0" ]]; then
             latest="true"
           else
             latest="false"
           fi
 
           # Create Release
-          gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
+          if [[ -n "${INPUT_RELEASE_TAG}" ]]; then
+            gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest} --target "${GITHUB_SHA}"
+          else
+            gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
+          fi
 
           # Upload all installer variants
           upload_installer "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
