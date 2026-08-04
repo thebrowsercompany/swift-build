@@ -501,7 +501,7 @@ jobs:
           echo python_download_locations=$(jq -c '.' <<< "${PYTHON_DOWNLOAD_LOCATIONS}") >> ${GITHUB_OUTPUT}
 
       - uses: actions/upload-artifact@v4
-        if: inputs.create_snapshot == true
+        if: inputs.create_snapshot == true || (inputs.create_release == true && inputs.swift_tag == '')
         with:
           name: stable.xml
           path: stable.xml
@@ -940,6 +940,12 @@ jobs:
           name: Windows-arm64-installer-offline
           path: ${{ github.workspace }}/tmp/offline/arm64
 
+      - uses: actions/download-artifact@v4
+        if: inputs.swift_tag == ''
+        with:
+          name: stable.xml
+          path: ${{ github.workspace }}/tmp/source-manifest
+
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -948,8 +954,9 @@ jobs:
           SWIFT_TAG: ${{ needs.context.outputs.swift_tag }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           WORKSPACE: ${{ github.workspace }}
+          SOURCE_MANIFEST: ${{ github.workspace }}/tmp/source-manifest/stable.xml
         run: |
-          function upload_installer() {
+          function upload_release_asset() {
             local input_file=$1
             local output_name=$2
 
@@ -976,11 +983,13 @@ jobs:
             gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
           fi
 
-          # Upload all installer variants
-          upload_installer "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
-          upload_installer "${WORKSPACE}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
-          upload_installer "${WORKSPACE}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
-          upload_installer "${WORKSPACE}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
+          if [[ -f "${SOURCE_MANIFEST}" ]]; then
+            upload_release_asset "${SOURCE_MANIFEST}" "source-manifest.xml"
+          fi
+          upload_release_asset "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
+          upload_release_asset "${WORKSPACE}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
+          upload_release_asset "${WORKSPACE}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
+          upload_release_asset "${WORKSPACE}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
 
   binary-size:
     needs: [context, release]
