@@ -368,18 +368,18 @@ jobs:
           #
           # Priority order:
           # 1. If ci_build_branch input is provided, use it (allows caller to explicitly specify)
-          # 2. For workflow_dispatch (Web UI), use github.ref (allows testing on feature branches)
+          # 2. For workflow_dispatch (Web UI), use github.sha (pins the selected commit)
           # 3. Otherwise, derive from swift_version (e.g., swift_version=6.3 -> release/6.3)
           #
           # Examples:
           #   - workflow_call with ci_build_branch=refs/heads/foo/6.3 -> refs/heads/foo/6.3
-          #   - workflow_dispatch on branch/feature -> refs/heads/branch/feature
+          #   - workflow_dispatch on branch/feature -> selected commit SHA
           #   - schedule with swift_version=6.3 -> refs/heads/release/6.3
           #   - schedule with swift_version=0.0.0 -> refs/heads/main
           if [[ -n "${{ inputs.ci_build_branch }}" ]]; then
             echo "ci_build_revision=${{ inputs.ci_build_branch }}" >> ${GITHUB_OUTPUT}
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "ci_build_revision=${{ github.ref }}" >> ${GITHUB_OUTPUT}
+            echo "ci_build_revision=${{ github.sha }}" >> ${GITHUB_OUTPUT}
           else
             echo "ci_build_revision=refs/heads/${branch_name}" >> ${GITHUB_OUTPUT}
           fi
