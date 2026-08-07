@@ -31,16 +31,12 @@ inputs:
     description: Enable sccache.
     required: false
     default: false
-  enable-cas:
-    description: Enable cas.
-    required: false
-    default: false
   debug-info:
     description: Enable debug information in the build.
     required: false
     default: false
   build-os:
-    description: Build operating system (e.g., "Windows", "Darwin").
+    description: Build operating system (e.g., "Windows").
     required: true
   build-arch:
     description: Build architecture (e.g., "x86_64", "arm64").
@@ -132,7 +128,6 @@ runs:
         $ProjectName = $env:INPUT_PROJECT_NAME
         $SwiftVersion = $env:INPUT_SWIFT_VERSION
         $EnableCaching = ${{ inputs.enable-caching == 'true' && '$True' || '$False' }}
-        $EnableCAS = ${{ inputs.enable-cas == 'true' && '$True' || '$False' }}
         $DebugInfo = ${{ inputs.debug-info == 'true' && '$True' || '$False' }}
         $BuildOS = $env:INPUT_BUILD_OS
         $BuildArch = $env:INPUT_BUILD_ARCH
@@ -186,7 +181,6 @@ runs:
               default { throw "Unsupported Android architecture: $Arch" }
             } 
           }
-          "Darwin" { $Arch }
           default { throw "Unsupported OS: $OS" }
         }
 
@@ -208,7 +202,6 @@ runs:
               default { throw "Unsupported Android architecture: $Arch" }
             }
           }
-          'Darwin' { "${Arch}-apple-macosx15.0" }
           default { throw "Unsupported OS: $OS" }
         }
 
@@ -297,8 +290,6 @@ runs:
                 @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
               }
 
-              # Note: On GHA, we do not support CAS yet.
-              # if ($EnableCAS) { ... }
               # Note: On GHA, we do not support the "dwarf" format.
               # if ($CDebugFormat -eq "dwarf") { ... }
 
@@ -331,8 +322,6 @@ runs:
                 @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
               }
 
-              # Note: On GHA, we do not support CAS yet.
-              # if ($EnableCAS) { ... }
               # Note: On GHA, we do not support the "dwarf" format.
               # if ($CDebugFormat -eq "dwarf") { ... }
 
@@ -533,43 +522,6 @@ runs:
 
           if ($UseCXX) {
             Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_LAUNCHER "sccache"
-          }
-        }
-
-        # Android's compilers are from the NDK and do not support CAS.
-        if ($EnableCAS -and $OS -ne "Android") {
-          if ($UseC) {
-            $ClangCache = if ($UsePinnedCompilers.Contains("C")) {
-              # Note: On GHA, the pinned toolchain is already in the path.
-              "clang-cache.exe"
-            } elseif ($UseBuiltCompilers.Contains("C")) {
-              "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/clang-cache.exe"
-            } else {
-              throw "Enabling CAS requires that use_host_toolchain is false"
-            }
-            Add-KeyValueIfNew $Defines CMAKE_C_COMPILER_LAUNCHER $ClangCache
-          }
-
-          if ($UseCXX) {
-            $ClangCache = if ($UsePinnedCompilers.Contains("CXX")) {
-              # Note: On GHA, the pinned toolchain is already in the path.
-              "clang-cache.exe"
-            } elseif ($UseBuiltCompilers.Contains("CXX")) {
-              "${env:GITHUB_WORKSPACE}/BinaryCache/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/clang-cache.exe"
-            } else {
-              throw "Enabling CAS requires that use_host_toolchain is false"
-            }
-            Add-KeyValueIfNew $Defines CMAKE_CXX_COMPILER_LAUNCHER $ClangCache
-          }
-
-          if ($UseSwift) {
-            $CasPath = "${env:GITHUB_WORKSPACE}\cas"
-            Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @(
-              "-explicit-module-build",
-              "-cache-compile-job",
-              "-cas-path", $CasPath,
-              "-incremental-dependency-scan"
-            )
           }
         }
 

@@ -1,7 +1,7 @@
 name: Swift Toolchain Build
 description: |
-  This workflow builds the Swift toolchain for a single platform (macOS or
-  Windows), with the standard library and SDK for a set of target platforms. The
+  This workflow builds the Swift toolchain for a single platform (Windows), with
+  the standard library and SDK for a set of target platforms. The
   `build_android` input can be used to
   enable building the Android standard library and SDK as part of the toolchain.
   This workflow is meant to mimic what the `utils\build.ps1` script does in the
@@ -350,9 +350,6 @@ jobs:
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         run: |
@@ -373,15 +370,6 @@ jobs:
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sqlite
 
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-sqlite
-
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-toolchain-sqlite
@@ -396,7 +384,6 @@ jobs:
           project-name: SQLite
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -424,17 +411,7 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-sqlite
-
   ds2_tools:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     runs-on: ${{ inputs.default_build_runner }}
 
     name: ds2 Build Tools
@@ -472,15 +449,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2_tools
-
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2_tools only on Windows X64 host only
         if: inputs.build_android
@@ -506,7 +474,6 @@ jobs:
           project-name: RegsGen2
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -532,17 +499,7 @@ jobs:
           name: Windows-${{ inputs.build_arch }}-regsgen2
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2_tools
-
   ds2:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     needs: [ds2_tools]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -599,15 +556,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2
-
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
         if: inputs.build_android
@@ -646,7 +594,6 @@ jobs:
           project-name: DS2
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -677,15 +624,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-ds2
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ inputs.build_android && !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-ds2
-
   cmark_gfm:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -706,9 +644,6 @@ jobs:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         run: |
@@ -728,15 +663,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
-
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-cmark
@@ -751,7 +677,6 @@ jobs:
           project-name: cmark-gfm
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -778,15 +703,6 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm
-
   build_tools:
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
@@ -808,9 +724,6 @@ jobs:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         run: |
@@ -830,15 +743,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-build_tools
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-build_tools
-
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
@@ -869,7 +773,6 @@ jobs:
           project-name: Build Tools
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -953,15 +856,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-build-tools
           path: ${{ github.workspace }}/BuildRoot/bin
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-build_tools
-
   early_swift_driver:
     runs-on: ${{ inputs.default_build_runner }}
     needs: [sqlite]
@@ -1005,15 +899,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-early-swift-driver
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
-
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-llbuild
@@ -1057,8 +942,6 @@ jobs:
               $sdkRoot = Split-Path -Parent ${env:SDKROOT}
               $sdkRoot = Join-Path $sdkRoot "WindowsExperimental.sdk"
               $sdkRoot = cygpath -m ${sdkRoot}
-          } else {
-              $sdkRoot = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
           }
           Write-Output "sdkroot=${sdkRoot}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
@@ -1069,7 +952,6 @@ jobs:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1116,15 +998,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
           path: ${{ github.workspace }}/BuildRoot
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
-
   compilers:
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
@@ -1146,9 +1019,6 @@ jobs:
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         shell: pwsh
@@ -1169,15 +1039,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compilers
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compilers
-
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
@@ -1293,19 +1154,11 @@ jobs:
             $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
             $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
             $PYTHON_BINARY="python.exe"
-          } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
-            $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}-RELEASE.xctoolchain/usr/bin"
-            $SDKROOT = xcrun --sdk macosx --show-sdk-path
-            $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python${PythonMajor}.${PythonMinor}/config-${PythonMajor}.${PythonMinor}-darwin/libpython${PythonMajor}.${PythonMinor}.a"
-            $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python${PythonMajor}.${PythonMinor}"
-            $PYTHON_BINARY="python${PythonMajor}"
           }
 
           # Compute the number of parallel jobs to use for the build.
           $RamBytes = if ($IsWindows) {
             (Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory
-          } elseif ($IsMacOS) {
-            [int64](sysctl -n hw.memsize)
           } else {
               throw "Unsupported OS"
           }
@@ -1333,7 +1186,6 @@ jobs:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1505,15 +1357,6 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/1
           searchPattern: '**/*.exe'
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compilers
-
   zlib:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1534,9 +1377,6 @@ jobs:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         run: |
@@ -1556,15 +1396,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-zlib
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-zlib
-
       - uses: actions/checkout@v4.2.2
         with:
           repository: madler/zlib
@@ -1586,7 +1417,6 @@ jobs:
           project-name: zlib
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1616,15 +1446,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-zlib
-
   brotli:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1646,9 +1467,6 @@ jobs:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         run: |
@@ -1668,15 +1486,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-brotli
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-brotli
-
       - uses: actions/checkout@v4.2.2
         with:
           repository: google/brotli
@@ -1698,7 +1507,6 @@ jobs:
           project-name: brotli
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1728,15 +1536,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-brotli
-
   curl:
     needs: [zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
@@ -1759,9 +1558,6 @@ jobs:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         run: |
@@ -1781,15 +1577,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-curl
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-curl
-
       - uses: actions/checkout@v4.2.2
         with:
           repository: curl/curl
@@ -1821,7 +1608,6 @@ jobs:
           project-name: curl
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1939,15 +1725,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-curl
-
   libxml2:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1968,9 +1745,6 @@ jobs:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
-
       - name: Compute workspace hash
         id: workspace_hash
         shell: pwsh
@@ -1991,15 +1765,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-libxml2
-
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-libxml2
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -2022,7 +1787,6 @@ jobs:
           project-name: libxml2
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2060,15 +1824,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-libxml2
-
   stdlib:
     needs: [compilers]
     runs-on: ${{ inputs.default_build_runner }}
@@ -2091,8 +1846,6 @@ jobs:
           setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - uses: seanmiddleditch/gha-setup-ninja@96bed6edff20d1dd61ecff9b75cc519d516e6401 # master
-        if: inputs.build_os == 'Darwin'
       - name: Compute workspace hash
         if: matrix.os != 'Android' || inputs.build_android
         id: workspace_hash
@@ -2113,15 +1866,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stdlib
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain && (matrix.os != 'Android' || inputs.build_android) }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
-
       - name: Download Compilers
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -2177,7 +1921,6 @@ jobs:
           project-name: llvm
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2205,7 +1948,6 @@ jobs:
           project-name: swift-runtime
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2218,7 +1960,7 @@ jobs:
           android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
           built-compilers: '@("C", "CXX", "Swift")'
-          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-${{ matrix.os == 'Darwin' && 'MacOSX' || matrix.os }}-${{ matrix.cpu }}.cmake
+          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
             @{
               'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
@@ -2295,17 +2037,7 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.dll'
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain && (matrix.os != 'Android' || inputs.build_android) }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
-
   macros:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     needs: [compilers, cmark_gfm, stdlib]
     runs-on: ${{ inputs.default_build_runner }}
@@ -2566,15 +2298,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain && (matrix.os != 'Android' || inputs.build_android) }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
-
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
@@ -2702,7 +2425,6 @@ jobs:
           project-name: libdispatch-c
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2733,7 +2455,6 @@ jobs:
           project-name: ExperimentalRuntime
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2782,7 +2503,6 @@ jobs:
           project-name: ExperimentalOverlay
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2823,7 +2543,6 @@ jobs:
           project-name: ExperimentalStringProcessing
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2863,7 +2582,6 @@ jobs:
           project-name: ExperimentalSynchronization
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2904,7 +2622,6 @@ jobs:
           project-name: ExperimentalDistributed
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2946,7 +2663,6 @@ jobs:
           project-name: ExperimentalObservation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -2989,7 +2705,6 @@ jobs:
           project-name: ExperimentalDifferentiation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3030,7 +2745,6 @@ jobs:
           project-name: ExperimentalVolatile
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3072,7 +2786,6 @@ jobs:
           project-name: ExperimentalRuntimeModule
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3119,7 +2832,6 @@ jobs:
           project-name: ExperimentalRuntimeBacktrace
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3164,7 +2876,6 @@ jobs:
           project-name: ExperimentalDispatch
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3202,7 +2913,6 @@ jobs:
           project-name: ExperimentalFoundation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3322,17 +3032,7 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.dll'
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain && (matrix.os != 'Android' || inputs.build_android) }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
-
   sdk:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     needs: [libxml2, curl, zlib, brotli, compilers, cmark_gfm, stdlib, macros]
     runs-on: ${{ inputs.default_build_runner }}
@@ -3411,15 +3111,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sdk
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-sdk
-
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
@@ -3542,7 +3233,6 @@ jobs:
           project-name: libdispatch
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3573,7 +3263,6 @@ jobs:
           project-name: Foundation
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3624,7 +3313,6 @@ jobs:
           project-name: Testing
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3662,7 +3350,6 @@ jobs:
           project-name: XCTest
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3812,17 +3499,7 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.dll'
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-sdk
-
   devtools:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     needs: [sqlite, compilers, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -3863,15 +3540,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-devtools
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-devtools
-      # FIXME(compnerd): workaround CMake 3.30+ issue
       - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
         with:
           cmakeVersion: 3.29.9
@@ -4064,7 +3732,6 @@ jobs:
           project-name: swift-argument-parser
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4091,7 +3758,6 @@ jobs:
           project-name: swift-collections
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4117,7 +3783,6 @@ jobs:
           project-name: swift-asn1
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4142,7 +3807,6 @@ jobs:
           project-name: swift-crypto
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4169,7 +3833,6 @@ jobs:
           project-name: swift-llbuild
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4199,7 +3862,6 @@ jobs:
           project-name: swift-system
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4225,7 +3887,6 @@ jobs:
           project-name: swift-subprocess
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4255,7 +3916,6 @@ jobs:
           project-name: swift-tools-support-core
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4283,7 +3943,6 @@ jobs:
           project-name: swift-driver
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4318,7 +3977,6 @@ jobs:
           project-name: swift-certificates
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4345,7 +4003,6 @@ jobs:
           project-name: swift-tools-protocols
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4370,7 +4027,6 @@ jobs:
           project-name: swift-build
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4411,7 +4067,6 @@ jobs:
           project-name: swift-package-manager
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4452,7 +4107,6 @@ jobs:
           project-name: swift-markdown
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4480,7 +4134,6 @@ jobs:
           project-name: swift-format
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4512,7 +4165,6 @@ jobs:
           project-name: swift-lmdb
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4537,7 +4189,6 @@ jobs:
           project-name: indexstore-db
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4569,7 +4220,6 @@ jobs:
           project-name: sourcekit-lsp
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4607,7 +4257,6 @@ jobs:
           project-name: swift-docc-symbolkit
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4634,7 +4283,6 @@ jobs:
           project-name: swift-docc
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4770,17 +4418,7 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.exe'
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-devtools
-
   debugging_tools:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     needs: [compilers, devtools, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -4820,15 +4458,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
-
       - name: Download swift-argument-parser
         uses: actions/download-artifact@v4
         with:
@@ -4881,7 +4510,6 @@ jobs:
           project-name: swift-inspect
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4911,15 +4539,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-debugging-tools
-
   # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
   # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
   configure_signing:
@@ -4948,7 +4567,6 @@ jobs:
           path: ${{ github.workspace }}/Microsoft.ArtifactSigning.Client/bin/x64
 
   package_tools:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     name: Package Tools
     needs: [compilers, macros, debugging_tools, devtools, stdlib, sdk, configure_signing]
@@ -5461,7 +5079,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     name: Package Windows SDK & Runtime
     needs: [stdlib, sdk, experimental-sdk, configure_signing]
@@ -5923,7 +5540,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
 
   package_android_platform:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     name: Package Android SDK & Runtime
     needs: [stdlib, ds2, sdk, experimental-sdk, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6422,7 +6038,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/res.cab
 
   installer:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     needs: [package_tools, package_windows_platform, package_android_platform, package_python, package_resources, configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6727,7 +6342,6 @@ jobs:
             --acl private
 
   smoke_test:
-    # TODO: Build this on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows'
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6867,7 +6481,6 @@ jobs:
           }
 
   smoke_test_android:
-    # TODO: Run this job on macOS or make an equivalent Mac-only job
     if: inputs.build_os == 'Windows' && inputs.build_android
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
@@ -7061,15 +6674,6 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-Asserts-compilers
-      - name: Restore CAS
-        uses: ./SourceCache/ci-build/.github/actions/restore-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-swift_test
-
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
@@ -7177,19 +6781,11 @@ jobs:
             $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
             $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
             $PYTHON_BINARY="python.exe"
-          } elseif ( "${{ matrix.os }}" -eq "Darwin" ) {
-            $CLANG_LOCATION = "${env:HOME}/Library/Developer/Toolchains/swift-${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}-RELEASE.xctoolchain/usr/bin"
-            $SDKROOT = xcrun --sdk macosx --show-sdk-path
-            $LIBPYTHON_PATH = "${env:pythonLocation}/lib/python${PythonMajor}.${PythonMinor}/config-${PythonMajor}.${PythonMinor}-darwin/libpython${PythonMajor}.${PythonMinor}.a"
-            $PYTHON_INCLUDE_DIR = "${env:pythonLocation}/include/python${PythonMajor}.${PythonMinor}"
-            $PYTHON_BINARY="python${PythonMajor}"
           }
 
           # Compute the number of parallel jobs to use for the build.
           $RamBytes = if ($IsWindows) {
             (Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory
-          } elseif ($IsMacOS) {
-            [int64](sysctl -n hw.memsize)
           } else {
               throw "Unsupported OS"
           }
@@ -7217,7 +6813,6 @@ jobs:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          enable-cas: ${{ !inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -7294,12 +6889,3 @@ jobs:
         run: |
           $env:Path = "${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
-
-      - name: Save CAS
-        uses: ./SourceCache/ci-build/.github/actions/save-cas
-        if: ${{ !inputs.use_host_toolchain }}
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          cache-key: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-swift_test
