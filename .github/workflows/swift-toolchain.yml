@@ -1372,79 +1372,23 @@ jobs:
           ref: ${{ inputs.ci_build_revision }}
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
-      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+      - uses: ./SourceCache/ci-build/.github/actions/build-zlib
         with:
-          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
-          host-arch: ${{ matrix.arch }}
-          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - name: Compute workspace hash
-        id: workspace_hash
-        run: |
-          $stringAsStream = [System.IO.MemoryStream]::new()
-          $writer = [System.IO.StreamWriter]::new($stringAsStream)
-          $writer.write("${{ github.workspace }}")
-          $writer.Flush()
-          $stringAsStream.Position = 0
-          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
-          echo "hash=$hash" >> $env:GITHUB_OUTPUT
-      - name: Setup sccache
-        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
-        if: inputs.use_host_toolchain
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          disk-max-size: 100M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-zlib
-      - uses: actions/checkout@v4.2.2
-        with:
-          repository: madler/zlib
-          ref: ${{ inputs.zlib_revision }}
-          path: ${{ github.workspace }}/SourceCache/zlib
-          show-progress: false
-
-      - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android'
-        id: setup-ndk
-        with:
-          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
-          local-cache: true
-
-      # build.ps1: Build-Zlib
-      - name: Configure zlib
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: zlib
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
-          debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/zlib
-          bin-dir: ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+          triple: ${{ matrix.triple }}
+          revision: ${{ inputs.zlib_revision }}
+          version: ${{ inputs.zlib_version }}
+          swift-toolchain-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          use-host-toolchain: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          android-ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
           android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
-          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C")' || '@()' }}
-          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C")' }}
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
-              'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
-            }
-      - name: Build zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
-      - name: Install zlib
-        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }} --target install
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   brotli:
     runs-on: ${{ inputs.default_build_runner }}

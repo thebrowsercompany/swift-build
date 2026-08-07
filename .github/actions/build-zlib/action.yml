@@ -1,0 +1,140 @@
+name: Build zlib
+description: Build and upload zlib for a Swift SDK target
+
+inputs:
+  build-os:
+    description: Operating system of the build runner.
+    required: true
+  build-arch:
+    description: Architecture of the build runner.
+    required: true
+  os:
+    description: Target operating system.
+    required: true
+  arch:
+    description: Target architecture.
+    required: true
+  triple:
+    description: Target triple.
+    required: true
+  revision:
+    description: zlib revision to build.
+    required: true
+  version:
+    description: zlib version used in artifact paths.
+    required: true
+  swift-toolchain-version:
+    description: Pinned Swift toolchain version.
+    required: true
+  use-host-toolchain:
+    description: Use the host C compiler and sccache on Windows.
+    required: true
+  debug-info:
+    description: Build with debug information.
+    required: true
+  android-ndk-version:
+    description: Android NDK version.
+    required: false
+  android-api-level:
+    description: Android API level.
+    required: false
+  s3-bucket:
+    description: S3 bucket used by sccache.
+    required: false
+  aws-region:
+    description: AWS region used by sccache.
+    required: false
+  aws-arn:
+    description: AWS role used by sccache.
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - uses: ./SourceCache/ci-build/.github/actions/setup-build
+      with:
+        setup-vs-dev-env: ${{ inputs.os == 'Windows' }}
+        host-arch: ${{ inputs.arch }}
+        swift-version: ${{ inputs.swift-toolchain-version }}
+
+    - name: Install CMake 4.4.1
+      uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+      with:
+        cmakeVersion: 4.4.1
+
+    - name: Compute workspace hash
+      id: workspace-hash
+      shell: pwsh
+      run: |
+        $stringAsStream = [System.IO.MemoryStream]::new()
+        $writer = [System.IO.StreamWriter]::new($stringAsStream)
+        $writer.Write("${{ github.workspace }}")
+        $writer.Flush()
+        $stringAsStream.Position = 0
+        $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+        "hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    - name: Setup sccache
+      uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+      if: inputs.use-host-toolchain == 'true'
+      with:
+        s3-bucket: ${{ inputs.s3-bucket }}
+        aws-region: ${{ inputs.aws-region }}
+        aws-arn: ${{ inputs.aws-arn }}
+        disk-max-size: 100M
+        disk-cache-key: ${{ steps.workspace-hash.outputs.hash }}-${{ inputs.os }}-${{ inputs.arch }}-zlib
+
+    - uses: actions/checkout@v4.2.2
+      with:
+        repository: madler/zlib
+        ref: ${{ inputs.revision }}
+        path: ${{ github.workspace }}/SourceCache/zlib
+        show-progress: false
+
+    - uses: nttld/setup-ndk@v1
+      if: inputs.os == 'Android'
+      id: setup-ndk
+      with:
+        ndk-version: ${{ inputs.android-ndk-version }}
+        local-cache: true
+
+    # build.ps1: Build-ZLib
+    - name: Configure zlib
+      shell: pwsh
+      run: |
+        cmake `
+          -S "${{ github.workspace }}/SourceCache/zlib" `
+          -B "${{ github.workspace }}/BinaryCache/zlib-${{ inputs.version }}" `
+          -G Ninja `
+          -D "BUILD_SHARED_LIBS=NO" `
+          -D "CMAKE_BUILD_TYPE=Release" `
+          -D "CMAKE_C_COMPILER_TARGET=${{ inputs.triple }}" `
+          -D "CMAKE_C_FLAGS=${{ inputs.os == 'Windows' && inputs.use-host-toolchain == 'true' && '/GS- /Gw /Gy /Oy /Oi /Zc:preprocessor /Zc:inline' || inputs.os == 'Windows' && '/GS- /Gw /Gy /Oy /Oi /Zc:inline' || format('{0}{1}{2}', '-ffunction-sections -fdata-sections', inputs.debug-info == 'true' && ' -g -gsplit-dwarf' || '', inputs.use-host-toolchain != 'true' && ' -fuse-ld=lld' || '') }}" `
+          -D "CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES" `
+          -D "CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.version }}/usr" `
+          -D "CMAKE_MAKE_PROGRAM=$((Get-Command ninja).Source)" `
+          -D "CMAKE_POLICY_DEFAULT_CMP0181=NEW" `
+          -D "CMAKE_POLICY_DEFAULT_CMP0214=NEW" `
+          -D "CMAKE_POSITION_INDEPENDENT_CODE=YES" `
+          ${{ inputs.os == 'Windows' && inputs.use-host-toolchain == 'true' && '"-DCMAKE_C_COMPILER=cl.exe"' || inputs.os == 'Windows' && '"-DCMAKE_C_COMPILER=clang-cl.exe"' || '' }} `
+          ${{ inputs.os == 'Windows' && inputs.use-host-toolchain == 'true' && '"-DCMAKE_C_COMPILER_LAUNCHER=sccache"' || '' }} `
+          ${{ inputs.os == 'Windows' && format('"-DCMAKE_EXE_LINKER_FLAGS=LINKER:/INCREMENTAL:NO LINKER:/OPT:REF LINKER:/OPT:ICF{0}"', inputs.debug-info == 'true' && ' LINKER:/DEBUG' || '') || '' }} `
+          ${{ inputs.os == 'Windows' && format('"-DCMAKE_SHARED_LINKER_FLAGS=LINKER:/INCREMENTAL:NO LINKER:/OPT:REF LINKER:/OPT:ICF LINKER:/MANIFEST:NO{0}"', inputs.debug-info == 'true' && ' LINKER:/DEBUG' || '') || '' }} `
+          ${{ inputs.os == 'Windows' && inputs.debug-info == 'true' && '"-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded"' || '' }} `
+          ${{ inputs.os == 'Windows' && inputs.debug-info == 'true' && '"-DCMAKE_POLICY_DEFAULT_CMP0141=NEW"' || '' }} `
+          ${{ inputs.os == 'Android' && format('"-DCMAKE_ANDROID_API={0}"', inputs.android-api-level) || '' }} `
+          ${{ inputs.os == 'Android' && format('"-DCMAKE_ANDROID_ARCH_ABI={0}"', inputs.arch == 'i686' && 'x86' || inputs.arch == 'x86_64' && 'x86_64' || inputs.arch == 'armv7' && 'armeabi-v7a' || 'arm64-v8a') || '' }} `
+          ${{ inputs.os == 'Android' && format('"-DCMAKE_ANDROID_NDK={0}"', steps.setup-ndk.outputs.ndk-path) || '' }} `
+          ${{ inputs.os == 'Android' && '"-DCMAKE_EXECUTABLE_FORMAT=ELF"' || '' }} `
+          ${{ (inputs.os != inputs.build-os || inputs.arch != inputs.build-arch) && format('"-DCMAKE_SYSTEM_NAME={0}"', inputs.os) || '' }} `
+          ${{ (inputs.os != inputs.build-os || inputs.arch != inputs.build-arch) && format('"-DCMAKE_SYSTEM_PROCESSOR={0}"', inputs.os == 'Windows' && inputs.arch == 'x86' && 'i686' || inputs.os == 'Windows' && inputs.arch == 'amd64' && 'AMD64' || inputs.os == 'Windows' && 'ARM64' || inputs.arch == 'arm64' && 'aarch64' || inputs.arch == 'armv7' && 'armv7-a' || inputs.arch) || '' }} `
+          ${{ inputs.os == 'Android' && format('"-DCMAKE_SYSROOT={0}/toolchains/llvm/prebuilt/{1}-{2}/sysroot"', steps.setup-ndk.outputs.ndk-path, inputs.build-os == 'Windows' && 'windows' || inputs.build-os == 'Darwin' && 'darwin' || inputs.build-os, inputs.build-arch == 'amd64' && 'x86_64' || 'aarch64') || '' }}
+
+    - name: Install zlib
+      shell: pwsh
+      run: cmake --build "${{ github.workspace }}/BinaryCache/zlib-${{ inputs.version }}" --target install
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.os }}-${{ inputs.arch }}-zlib-${{ inputs.version }}
+        path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.version }}/usr
