@@ -102,6 +102,8 @@ runs:
     - name: Configure zlib
       shell: pwsh
       run: |
+        $androidNDKPath = "${{ steps.setup-ndk.outputs.ndk-path }}".Replace('\', '/')
+
         cmake `
           -S "${{ github.workspace }}/SourceCache/zlib" `
           -B "${{ github.workspace }}/BinaryCache/zlib-${{ inputs.version }}" `
@@ -124,11 +126,11 @@ runs:
           ${{ inputs.os == 'Windows' && inputs.debug-info == 'true' && '"-DCMAKE_POLICY_DEFAULT_CMP0141=NEW"' || '' }} `
           ${{ inputs.os == 'Android' && format('"-DCMAKE_ANDROID_API={0}"', inputs.android-api-level) || '' }} `
           ${{ inputs.os == 'Android' && format('"-DCMAKE_ANDROID_ARCH_ABI={0}"', inputs.arch == 'i686' && 'x86' || inputs.arch == 'x86_64' && 'x86_64' || inputs.arch == 'armv7' && 'armeabi-v7a' || 'arm64-v8a') || '' }} `
-          ${{ inputs.os == 'Android' && format('"-DCMAKE_ANDROID_NDK={0}"', steps.setup-ndk.outputs.ndk-path) || '' }} `
+          ${{ inputs.os == 'Android' && '"-DCMAKE_ANDROID_NDK=$androidNDKPath"' || '' }} `
           ${{ inputs.os == 'Android' && '"-DCMAKE_EXECUTABLE_FORMAT=ELF"' || '' }} `
           ${{ (inputs.os != inputs.build-os || inputs.arch != inputs.build-arch) && format('"-DCMAKE_SYSTEM_NAME={0}"', inputs.os) || '' }} `
           ${{ (inputs.os != inputs.build-os || inputs.arch != inputs.build-arch) && format('"-DCMAKE_SYSTEM_PROCESSOR={0}"', inputs.os == 'Windows' && inputs.arch == 'x86' && 'i686' || inputs.os == 'Windows' && inputs.arch == 'amd64' && 'AMD64' || inputs.os == 'Windows' && 'ARM64' || inputs.arch == 'arm64' && 'aarch64' || inputs.arch == 'armv7' && 'armv7-a' || inputs.arch) || '' }} `
-          ${{ inputs.os == 'Android' && format('"-DCMAKE_SYSROOT={0}/toolchains/llvm/prebuilt/{1}-{2}/sysroot"', steps.setup-ndk.outputs.ndk-path, inputs.build-os == 'Windows' && 'windows' || inputs.build-os == 'Darwin' && 'darwin' || inputs.build-os, inputs.build-arch == 'amd64' && 'x86_64' || 'aarch64') || '' }}
+          ${{ inputs.os == 'Android' && format('"-DCMAKE_SYSROOT=$androidNDKPath/toolchains/llvm/prebuilt/{0}-{1}/sysroot"', inputs.build-os == 'Windows' && 'windows' || inputs.build-os == 'Darwin' && 'darwin' || inputs.build-os, inputs.build-arch == 'amd64' && 'x86_64' || 'aarch64') || '' }}
 
     - name: Install zlib
       shell: pwsh
