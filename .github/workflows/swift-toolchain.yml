@@ -310,11 +310,9 @@ on:
         required: true
       AZURE_SP_CREDENTIALS:
         required: false
-      TRUSTED_SIGNING_ACCOUNT:
+      AZURE_KEY_VAULT_URI:
         required: false
-      TRUSTED_SIGNING_TEST_PROFILE:
-        required: false
-      TRUSTED_SIGNING_PROD_PROFILE:
+      AZURE_KEY_VAULT_CERTIFICATE_NAME:
         required: false
 
 env:
@@ -4539,37 +4537,10 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
 
-  # Determines whether we're using trusted signing in this repository. If so and we're signing, downloads the trusted signing DLL to reduce boilerplate in steps that use it.
-  # Setting an output is necessary because the `env` and `secrets` contexts are not always available in `if` clauses.
-  configure_signing:
-    if: inputs.build_os == 'Windows'
-    name: Configure signing
-    runs-on: ${{ inputs.default_build_runner }}
-    outputs:
-      uses_trusted_signing: ${{ steps.test_trusted_signing.outputs.uses_trusted_signing }}
-
-    steps:
-      - name: Test whether we're using trusted signing
-        id: test_trusted_signing
-        run: |
-          "uses_trusted_signing=${{ secrets.TRUSTED_SIGNING_ACCOUNT != ''}}" | Out-File -FilePath ${env:GITHUB_OUTPUT} -Encoding utf8 -Append
-      - uses: nuget/setup-nuget@v2
-        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
-      - run: |
-          nuget install -x -OutputDirectory ${{ github.workspace }} Microsoft.ArtifactSigning.Client
-        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
-      - uses: actions/upload-artifact@v4
-        if: inputs.signed && steps.test_trusted_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          path: ${{ github.workspace }}/Microsoft.ArtifactSigning.Client/bin/x64
-
   package_tools:
     if: inputs.build_os == 'Windows'
     name: Package Tools
-    needs: [compilers, macros, debugging_tools, devtools, stdlib, sdk, configure_signing]
+    needs: [compilers, macros, debugging_tools, devtools, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -4578,6 +4549,18 @@ jobs:
       matrix: ${{ fromJSON(inputs.host_matrix) }}
 
     steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: inputs.signed
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ inputs.ci_build_revision }}
@@ -4680,7 +4663,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
       - name: Install WixToolset.Sdk
         run: |
@@ -4694,7 +4677,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
       - name: Install WixToolset.Sdk
         run: |
@@ -4770,58 +4753,30 @@ jobs:
             & "${{ github.workspace }}\SourceCache\mimalloc\bin\minject$BuildSuffix" -l "$Exe"
           }
 
+      - name: Install AzureSignTool
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - name: Package Build Tools (Asserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
               -p:ProductVersion=${{ inputs.swift_version }} `
@@ -4829,16 +4784,18 @@ jobs:
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/asserts/bld.asserts.wixproj
 
       - name: Package Build Tools (NoAsserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
               -p:ProductVersion=${{ inputs.swift_version }} `
@@ -4846,114 +4803,128 @@ jobs:
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/noasserts/bld.noasserts.wixproj
 
       - name: Package CLI Tools (Asserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/asserts/cli.asserts.wixproj
 
       - name: Package CLI Tools (NoAsserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/cli/noasserts/cli.noasserts.wixproj
 
       - name: Package Debugging Tools (Asserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/asserts/dbg.asserts.wixproj
 
       - name: Package Debugging Tools (NoAsserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/dbg/noasserts/dbg.noasserts.wixproj
 
       - name: Package IDE Tools (Asserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/asserts/ide.asserts.wixproj
 
       - name: Package IDE Tools (NoAsserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
       - name: Package Legacy Runtime
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -4964,16 +4935,18 @@ jobs:
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/legacy/msi/rtlmsi.wixproj
 
       - name: Package Experimental Shared Runtime
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
@@ -5081,7 +5054,7 @@ jobs:
   package_windows_platform:
     if: inputs.build_os == 'Windows'
     name: Package Windows SDK & Runtime
-    needs: [stdlib, sdk, experimental-sdk, configure_signing]
+    needs: [stdlib, sdk, experimental-sdk]
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
       expected-dlls-amd64: ${{ steps.write-expectations.outputs.expected-dlls-amd64 }}
@@ -5089,6 +5062,18 @@ jobs:
       expected-dlls-x86: ${{ steps.write-expectations.outputs.expected-dlls-x86 }}
 
     steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: inputs.signed
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ inputs.ci_build_revision }}
@@ -5354,7 +5339,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
       - name: Install WixToolset.Sdk
         run: |
@@ -5369,58 +5354,30 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
 
+      - name: Install AzureSignTool
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - name: Package Platform
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ inputs.build_arch }} `
@@ -5541,10 +5498,22 @@ jobs:
 
   package_android_platform:
     name: Package Android SDK & Runtime
-    needs: [stdlib, ds2, sdk, experimental-sdk, configure_signing]
+    needs: [stdlib, ds2, sdk, experimental-sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: inputs.build_android && inputs.signed
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
       - if: inputs.build_android
         uses: actions/checkout@v4.2.2
         with:
@@ -5673,7 +5642,7 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
-      - if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+      - if: inputs.build_android && inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
         run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
           $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
@@ -5696,60 +5665,32 @@ jobs:
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include
           Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include
 
+      - name: Install AzureSignTool
+        if: inputs.build_android && inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.build_android && inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: inputs.build_android && inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - if: inputs.build_android
         name: Package SDK
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:ANDROID_INCLUDE_DS2=true `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ inputs.build_arch }} `
@@ -5782,7 +5723,6 @@ jobs:
   package_python:
     if: inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
-    needs: [configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -5790,6 +5730,18 @@ jobs:
       matrix: ${{ fromJSON(inputs.host_matrix) }}
   
     steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: inputs.signed
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ inputs.ci_build_revision }}
@@ -5813,7 +5765,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
       - name: Install WixToolset.Sdk
         run: |
@@ -5821,46 +5773,16 @@ jobs:
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
+      - name: Install AzureSignTool
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - name: Download and expand Python
         env:
@@ -5899,16 +5821,18 @@ jobs:
           Write-Host "Extracted Python $version for $archKey to $extractRoot"
 
       - name: Package Python
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:PythonVersion=${{ inputs.python_version }} `
@@ -5932,10 +5856,21 @@ jobs:
   package_resources:
     if: inputs.build_os == 'Windows'
     name: Package Resources
-    needs: [configure_signing]
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: inputs.signed
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ inputs.ci_build_revision }}
@@ -5959,7 +5894,7 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
       - name: Install WixToolset.Sdk
         run: |
@@ -5967,58 +5902,30 @@ jobs:
             Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
           }
 
+      - name: Install AzureSignTool
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - name: Package Resources
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ inputs.build_arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/res/res.wixproj
@@ -6039,7 +5946,7 @@ jobs:
 
   installer:
     if: inputs.build_os == 'Windows'
-    needs: [package_tools, package_windows_platform, package_android_platform, package_python, package_resources, configure_signing]
+    needs: [package_tools, package_windows_platform, package_android_platform, package_python, package_resources]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -6047,6 +5954,18 @@ jobs:
       matrix: ${{ fromJSON(inputs.host_matrix) }}
 
     steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: inputs.signed
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ inputs.ci_build_revision }}
@@ -6152,68 +6071,44 @@ jobs:
           Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
           certutil -decode $CertificatePath $PFXPath
           Echo CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'false'
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
+
+      - name: Install AzureSignTool
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
 
       - name: Authenticate with Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-
-      - uses: actions/download-artifact@v4
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        with:
-          name: trusted-signing-dll
-          path: ${{ runner.temp }}/trusted-signing-dll
-
-      - name: Prepare trusted signing arguments
-        if: inputs.signed && needs.configure_signing.outputs.uses_trusted_signing == 'true'
-        run: |
-          # We're unconditionally using x64 because there's no arm64 version of the DLL as of Oct 2025.
-          # TODO: Update with more info once we've filed a bug against Microsoft.
-          $signtoolPath = Join-Path -Path ${env:WindowsSdkVerBinPath} -ChildPath "x64/"
-          echo "SIGNTOOL_PATH=$signtoolPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $trustedSigningDllPath = Join-Path -Path ${env:RUNNER_TEMP}/trusted-signing-dll -ChildPath "Azure.CodeSigning.Dlib.dll"
-          echo "TRUSTED_SIGNING_DLL_PATH=$trustedSigningDllPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
-
-          $metadataPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath "metadata.json"
-          '{
-            "Endpoint": "https://eus.codesigning.azure.net",
-            "CodeSigningAccountName": "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}",
-            "CertificateProfileName": "${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}",
-            "ExcludeCredentials": [
-              "ManagedIdentityCredential",
-              "WorkloadIdentityCredential",
-              "SharedTokenCacheCredential",
-              "VisualStudioCredential",
-              "VisualStudioCodeCredential",
-              "EnvironmentCredential",
-              "AzurePowerShellCredential",
-              "AzureDeveloperCliCredential",
-              "InteractiveBrowserCredential"
-            ]
-          }' | Out-File -FilePath $metadataPath -Encoding utf8
-          echo "TRUSTED_SIGNING_METADATA_PATH=$metadataPath" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       # The installer bundle needs the shared project for localization strings,
       # but it won't build the dependency on its own due to -p:BuildProjectReferences=false.
       - name: Build shared project
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
       - name: Build installer bundle (offline)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           $Platforms=@("windows")
           if ("${{ inputs.build_android }}" -eq "true") {
@@ -6225,11 +6120,9 @@ jobs:
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:BundleFlavor=offline `
               -p:Platforms="`"$($Platforms -Join ';')`"" `
               -p:AndroidArchitectures="`"aarch64;armv7;i686;x86_64`"" `
@@ -6265,6 +6158,9 @@ jobs:
         if: ${{ inputs.release }}
         env:
           INPUT_BUILD_ANDROID: ${{ inputs.build_android }}
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
           $Platforms=@("windows")
           if ($env:INPUT_BUILD_ANDROID -eq "true") {
@@ -6278,12 +6174,10 @@ jobs:
               -p:Configuration=Release `
               -p:BuildProjectReferences=false `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:SWIFT_DOCC_RENDER_ARTIFACT_ROOT="${{ github.workspace }}\SourceCache\swift-docc-render-artifact" `
-              -p:SignToolPath=${env:SIGNTOOL_PATH} `
-              -p:AzureSignMetadata=${env:TRUSTED_SIGNING_METADATA_PATH} `
-              -p:AzureSignDlib=${env:TRUSTED_SIGNING_DLL_PATH} `
               -p:BundleFlavor=online `
               -p:BaseReleaseDownloadUrl=$BaseReleaseDownloadUrl `
               -p:Platforms="`"$($Platforms -Join ';')`"" `
