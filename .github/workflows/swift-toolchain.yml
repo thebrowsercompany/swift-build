@@ -3323,9 +3323,8 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
           searchPattern: '**/*.dll'
 
-  experimental-sdk:
-    if: inputs.build_os == 'Windows'
-    needs: [compilers, stdlib, macros]
+  sdk:
+    needs: [sqlite, zlib, brotli, curl, libxml2]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -3372,8 +3371,24 @@ jobs:
             arch: x86_64
             triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
             static: true
+          - os: Android
+            arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            static: false
+          - os: Android
+            arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
+            static: false
+          - os: Android
+            arch: i686
+            triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            static: false
+          - os: Android
+            arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
+            static: false
 
-    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} Experimental SDK
+    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} SDK
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -3391,32 +3406,12 @@ jobs:
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
-
       - uses: actions/setup-python@v5
+        if: matrix.os != 'Android' || inputs.build_android
         with:
           python-version: ${{ inputs.python_version }}
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
-      - name: Compute workspace hash
-        if: matrix.os != 'Android' || inputs.build_android
-        id: workspace_hash
-        run: |
-          $stringAsStream = [System.IO.MemoryStream]::new()
-          $writer = [System.IO.StreamWriter]::new($stringAsStream)
-          $writer.write("${{ github.workspace }}")
-          $writer.Flush()
-          $stringAsStream.Position = 0
-          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
-          echo "hash=$hash" >> $env:GITHUB_OUTPUT
-      - name: Setup sccache
-        if: inputs.use_host_toolchain && (matrix.os != 'Android' || inputs.build_android)
-        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          disk-max-size: 500M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
@@ -3442,22 +3437,12 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-Asserts-compilers
-          path: ${{ github.workspace }}/BinaryCache/Library
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-macros
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stdlib
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
           path: ${{ github.workspace }}/BinaryCache/Library
 
       - uses: actions/checkout@v4.2.2
@@ -3516,11 +3501,25 @@ jobs:
           ref: ${{ inputs.swift_experimental_string_processing_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
+      - uses: actions/checkout@v4.2.2
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
+        with:
+          repository: swiftlang/swift-testing
+          ref: ${{ inputs.swift_testing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-testing
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
+        with:
+          repository: swiftlang/swift-corelibs-xctest
+          ref: ${{ inputs.swift_corelibs_xctest_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
+          show-progress: false
 
       - name: Setup environment
         if: matrix.os != 'Android' || inputs.build_android
         run: |
-          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - uses: nttld/setup-ndk@v1
@@ -3543,7 +3542,7 @@ jobs:
         with:
           project-name: libdispatch-c
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3574,7 +3573,7 @@ jobs:
         with:
           project-name: Runtime
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3625,7 +3624,7 @@ jobs:
         with:
           project-name: Overlay
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3668,7 +3667,7 @@ jobs:
         with:
           project-name: StringProcessing
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3710,7 +3709,7 @@ jobs:
         with:
           project-name: Synchronization
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3752,7 +3751,7 @@ jobs:
         with:
           project-name: Distributed
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3796,7 +3795,7 @@ jobs:
         with:
           project-name: Observation
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3840,7 +3839,7 @@ jobs:
         with:
           project-name: Differentiation
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3883,7 +3882,7 @@ jobs:
         with:
           project-name: Volatile
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3919,7 +3918,6 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Volatile --target install
 
-
       # build.ps1: Build-SDK
       - name: Configure RuntimeModule
         if: matrix.os != 'Android' # Disabled for Android https://github.com/swiftlang/swift/issues/87445
@@ -3927,7 +3925,7 @@ jobs:
         with:
           project-name: RuntimeModule
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -3976,7 +3974,7 @@ jobs:
         with:
           project-name: RuntimeBacktrace
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4022,7 +4020,7 @@ jobs:
         with:
           project-name: Dispatch
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4064,7 +4062,7 @@ jobs:
         with:
           project-name: Foundation
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4110,6 +4108,41 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Foundation --target install
 
+      - name: Repair SDK Headers
+        run: |
+          $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk"
+          foreach ($Module in ("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
+            foreach ($ResourceType in ("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot\usr\lib\$ResourceType\$Module"
+              if (Test-Path $ModuleDirectory) {
+                New-Item -ItemType Directory -Force "$SDKRoot\usr\include" | Out-Null
+                $Destination = "$SDKRoot\usr\include\$Module"
+                if (Test-Path $Destination) { Remove-Item -Recurse -Force $Destination }
+                Move-Item -Path $ModuleDirectory -Destination $Destination -Force
+              }
+            }
+          }
+
+      - name: Repair Dispatch VFS Overlay
+        run: |
+          $DispatchVFS = "${{ github.workspace }}/BinaryCache/Dispatch/dispatch-vfs-overlay.yaml"
+          if (Test-Path $DispatchVFS) {
+            $DispatchSrc = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch/dispatch".Replace('\', '/')
+            $InstalledMap = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/dispatch/module.modulemap".Replace('\', '/')
+            Set-Content -Path $DispatchVFS -Encoding UTF8 -Value @(
+              '---',
+              'version: 0',
+              'case-sensitive: false',
+              'use-external-names: false',
+              'roots:',
+              "  - name: '$DispatchSrc'",
+              '    type: directory',
+              '    contents:',
+              '      - name: module.modulemap',
+              '        type: file',
+              "        external-contents: '$InstalledMap'"
+            )
+          }
 
       - uses: actions/setup-python@v5
       - uses: jannekem/run-python-script-action@v1
@@ -4124,361 +4157,58 @@ jobs:
               # TODO(compnerd) derive this from the install directory
               plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ inputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ inputs.swift_version }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
 
-            sdk_settings_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/SDKSettings.plist'
-            with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
-              # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
-              # runtime.
-              plistlib.dump({
-                'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' },
-                'CanonicalName': "${{ matrix.os }}Experimental".lower()
-              }, plist)
-
-      - name: Create SDKSettings.json
+      - name: Write SDK Settings
         if: matrix.os != 'Android' || inputs.build_android
         run: |
           $SDKSettings = @{
-            CanonicalName = "${{ matrix.os }}Experimental".ToLower()
+            CanonicalName = "${{ matrix.os }}".ToLower()
             DisplayName = "${{ matrix.os }}"
-            IsBaseSDK = "NO"
+            IsBaseSDK = "YES"
             Version = "${{ inputs.swift_version }}"
             VersionMap = @{}
+            HeaderSearchPaths = @( "usr/include" )
+            LibrarySearchPaths = @()
             DefaultProperties = @{
               PLATFORM_NAME = "${{ matrix.os }}"
             }
-          }
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $SDKSettings.DefaultProperties.DEFAULT_USE_RUNTIME = "MD"
-          }
-          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk" -Force | Out-Null
-          $SDKSettings | ConvertTo-JSON | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}Experimental.sdk/SDKSettings.json"
-
-      - uses: actions/upload-artifact@v4
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-experimental-sdk
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
-
-      - name: Upload PDBs to Azure
-        if: matrix.os == 'Windows' && inputs.debug_info
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.pdb'
-
-      - name: Upload PDBs to Public Symbol Server
-        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
-        with:
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '*.pdb'
-          swift-version: ${{ inputs.swift_version }}
-          arch: ${{ matrix.arch }}
-          variant: ${{ matrix.static && 'static' || 'shared' }}
-          build-revision: ${{ inputs.swift_build_revision }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-
-      - name: Upload DLLs to Azure
-        if: matrix.os == 'Windows' && inputs.debug_info
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.dll'
-
-  sdk:
-    if: inputs.build_os == 'Windows'
-    needs: [libxml2, curl, zlib, brotli, compilers, cmark_gfm, stdlib, macros]
-    runs-on: ${{ inputs.default_build_runner }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            cpu: x86_64
-            triple: 'x86_64-unknown-windows-msvc'
-            bindir: 'bin64'
-            os: Windows
-          - arch: arm64
-            cpu: aarch64
-            triple: 'aarch64-unknown-windows-msvc'
-            bindir: 'bin64a'
-            os: Windows
-          - arch: x86
-            cpu: i686
-            triple: 'i686-unknown-windows-msvc'
-            bindir: 'bin32'
-            os: Windows
-          - arch: arm64
-            cpu: aarch64
-            triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            bindir: 'bin64a'
-            os: Android
-          - arch: armv7
-            cpu: armv7
-            triple: 'armv7a-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
-            bindir: 'bin32a'
-            os: Android
-          - arch: i686
-            cpu: i686
-            triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            bindir: 'bin32'
-            os: Android
-          - arch: x86_64
-            cpu: x86_64
-            triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            bindir: 'bin64'
-            os: Android
-
-    name: ${{ matrix.os }} ${{ matrix.arch }} SDK
-
-    steps:
-      - uses: actions/checkout@v4.2.2
-        with:
-          ref: ${{ inputs.ci_build_revision }}
-          path: ${{ github.workspace }}/SourceCache/ci-build
-          show-progress: false
-      - uses: ./SourceCache/ci-build/.github/actions/setup-build
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
-          host-arch: ${{ matrix.arch }}
-          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - name: Install CMake ${{ env.CMAKE_VERSION }}
-        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
-        with:
-          cmakeVersion: ${{ env.CMAKE_VERSION }}
-
-      - name: Compute workspace hash
-        id: workspace_hash
-        run: |
-          $stringAsStream = [System.IO.MemoryStream]::new()
-          $writer = [System.IO.StreamWriter]::new($stringAsStream)
-          $writer.write("${{ github.workspace }}")
-          $writer.Flush()
-          $stringAsStream.Position = 0
-          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
-          echo "hash=$hash" >> $env:GITHUB_OUTPUT
-      - name: Setup sccache
-        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
-        if: inputs.use_host_toolchain
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          disk-max-size: 500M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-sdk
-      - uses: actions/download-artifact@v4
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
-      - uses: actions/download-artifact@v4
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
-      - uses: actions/download-artifact@v4
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
-      - uses: actions/download-artifact@v4
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
-          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
-
-      - name: Download Compilers
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Windows-${{ inputs.build_arch }}-Asserts-compilers
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: Windows-${{ inputs.build_arch }}-stdlib
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/download-artifact@v4
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: Windows-${{ inputs.build_arch }}-macros
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: apple/swift-corelibs-libdispatch
-          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: apple/swift-corelibs-foundation
-          ref: ${{ inputs.swift_corelibs_foundation_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: apple/swift-foundation
-          ref: ${{ inputs.swift_foundation_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-foundation
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: apple/swift-foundation-icu
-          ref: ${{ inputs.swift_foundation_icu_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: apple/swift-collections
-          ref: ${{ inputs.swift_collections_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-collections
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: swiftlang/swift-corelibs-xctest
-          ref: ${{ inputs.swift_corelibs_xctest_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: swiftlang/swift-testing
-          ref: ${{ inputs.swift_testing_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-testing
-          show-progress: false
-
-      - name: Setup environment
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
-          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-          $SDKRoot = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
-          echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      # FIXME(compnerd): workaround CMake 3.30+ issue
-      - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          cmakeVersion: 3.29.9
-
-      - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android' && inputs.build_android
-        id: setup-ndk
-        with:
-          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
-          local-cache: true
-
-      # build.ps1: Build-Dispatch
-      - name: Configure libdispatch
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: libdispatch
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
-          bin-dir: ${{ github.workspace }}/BinaryCache/libdispatch
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
-          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: 'Stage1.GNUC'
-          cxx-compiler: 'Stage1.GNUCXX'
-          swift-compiler: 'Stage1.Swift'
-          cmake-defines: |
-            @{
-              'ENABLE_SWIFT' = "YES";
+            SupportedTargets = @{
+              "${{ matrix.os }}".ToLower() = @{
+                PlatformDisplayName = "${{ matrix.os }}"
+                PlatformFamilyName = "${{ matrix.os }}"
+                Archs = @("$(("${{ matrix.triple }}" -split '-')[0])")
+              }
             }
-      - name: Build libdispatch
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/libdispatch
-
-      # build.ps1: Build-Foundation
-      - name: Configure Foundation
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: Foundation
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
-          bin-dir: ${{ github.workspace }}/BinaryCache/foundation
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
-          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
-          c-compiler: 'Stage1.GNUC'
-          cxx-compiler: 'Stage1.GNUCXX'
-          swift-compiler: 'Stage1.Swift'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "YES";
-              # FIXME(compnerd) - workaround ARM64 build failure when cross-compiling.
-              'CMAKE_NINJA_FORCE_RESPONSE_FILE' = "YES";
-              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
-              'BROTLI_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/include";
-              'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/$(if ("${{ matrix.os }}" -eq "Windows") { "brotlicommon.lib" } else { "libbrotlicommon.a" })";
-              'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr/lib/$(if ("${{ matrix.os }}" -eq "Windows") { "brotlidec.lib" } else { "libbrotlidec.a" })";
-              'FOUNDATION_BUILD_TOOLS' = if ("${{ matrix.os }}" -eq 'Windows') { "YES" } else { "NO" };
-              'CURL_DIR' = "${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr/lib/cmake/CURL";
-              'LibXml2_DIR' = "${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
-              'ZLIB_LIBRARY' = if ("${{ matrix.os }}" -eq "Windows") {
-                  "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/zlibstatic.lib"
-                } else {
-                  "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/libz.a"
-                };
-              'ZLIB_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/include";
-              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch/cmake/modules";
-              '_SwiftFoundation_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation";
-              '_SwiftFoundationICU_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation-icu";
-              '_SwiftCollections_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-collections";
-              'SwiftFoundation_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
+          }
+          switch ("${{ matrix.os }}") {
+            "Windows" {
+              $SDKSettings.DefaultProperties.DEFAULT_USE_RUNTIME = "MD"
+              $SDKSettings.SupportedTargets.windows.LLVMTargetVendor = "unknown"
+              $SDKSettings.SupportedTargets.windows.LLVMTargetSys = "windows"
+              $SDKSettings.SupportedTargets.windows.LLVMTargetTripleEnvironment = "msvc"
             }
-      - name: Build Foundation
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/foundation
+            "Android" {
+              $SDKSettings.SupportedTargets.android.LLVMTargetVendor = "unknown"
+              $SDKSettings.SupportedTargets.android.LLVMTargetSys = "linux"
+              $SDKSettings.SupportedTargets.android.LLVMTargetTripleEnvironment = "android${{ inputs.ANDROID_API_LEVEL }}"
+            }
+            default {
+              throw "Unsupported OS: ${{ matrix.os }}"
+            }
+          }
+          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk" -Force | Out-Null
+          $SDKSettings | ConvertTo-JSON -Depth 4 | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.json"
 
-      # build.ps1: Build-Testing
+          $PListFile = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.plist"
+          python3 -c "import plistlib; print(str(plistlib.dumps($(($SDKSettings | ConvertTo-JSON -Compress -Depth 4) -replace '"', "'")), encoding='utf-8'))" | Out-File -FilePath $PListFile -Encoding utf8
+
+      # build.ps1: Build-SDK -> Build-Testing (shared SDK only).
       - name: Configure Testing
-        if: matrix.os != 'Android' || inputs.build_android
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Testing
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4502,19 +4232,21 @@ jobs:
               'SwiftTesting_INSTALL_NESTED_SUBDIR' = "YES";
             }
       - name: Build Testing
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/Testing
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/Testing
+      - name: Install Testing
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/Testing --target install
 
-      # build.ps1: Build-XCTest
+      # build.ps1: Build-SDK -> Build-XCTest (shared SDK only).
       # TODO(compnerd) correctly version XCTest
       - name: Configure XCTest
-        if: matrix.os != 'Android' || inputs.build_android
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: XCTest
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -4538,98 +4270,23 @@ jobs:
               'SwiftTesting_DIR' = "${{ github.workspace }}/BinaryCache/Testing/cmake/modules";
             }
       - name: Build XCTest
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/XCTest
-
-      - name: Install Testing
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/Testing --target install
-      - name: Install xctest
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/XCTest --target install
-      - name: Install foundation
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/foundation --target install
-      - name: Install libdispatch
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/libdispatch --target install
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python_version }}
-          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
-
-      - uses: jannekem/run-python-script-action@v1
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          script: |
-            import os
-            import plistlib
-
-            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Info.plist'
-            with open(os.path.normpath(info_plist), 'wb') as plist:
-              # TODO(compnerd) derive this from the install directory
-              plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ inputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ inputs.swift_version }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
-
-            sdk_settings_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.plist'
-            with open(os.path.normpath(sdk_settings_plist), 'wb') as plist:
-              # TODO(compnerd) derive this from the CMAKE_BUILD_TYPE for the
-              # runtime.
-              plistlib.dump({
-                'DefaultProperties': { 'DEFAULT_USE_RUNTIME': 'MD' },
-                'CanonicalName': "${{ matrix.os }}".lower()
-              }, plist)
-
-      - name: Create SDKSettings.json
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          $SDKSettings = @{
-            CanonicalName = "${{ matrix.os }}".ToLower()
-            DisplayName = "${{ matrix.os }}"
-            IsBaseSDK = "NO"
-            Version = "${{ inputs.swift_version }}"
-            VersionMap = @{}
-            DefaultProperties = @{
-              PLATFORM_NAME = "${{ matrix.os }}"
-            }
-          }
-          if ("${{ matrix.os }}" -eq "Windows") {
-            $SDKSettings.DefaultProperties.DEFAULT_USE_RUNTIME = "MD"
-          }
-          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk" -Force | Out-Null
-          $SDKSettings | ConvertTo-JSON | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/SDKSettings.json"
-
-      - name: Move libraries and headers
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk"
-
-          New-Item -ItemType Directory -Path ${SDKRoot}/usr/include -Force | Out-Null
-          Move-Item ${SDKRoot}/usr/lib/swift/dispatch ${SDKRoot}/usr/include/
-          Move-Item ${SDKRoot}/usr/lib/swift/os ${SDKRoot}/usr/include/
-          Move-Item ${SDKRoot}/usr/lib/swift/Block ${SDKRoot}/usr/include/
-          Move-Item ${SDKRoot}/usr/lib/swift/_foundation_unicode ${SDKRoot}/usr/include/
-          Move-Item ${SDKRoot}/usr/lib/swift/_FoundationCShims ${SDKRoot}/usr/include/
-
-          if ("${{ matrix.os }}" -eq "Windows") {
-            New-Item -ItemType Directory -Path ${SDKRoot}/usr/lib/swift/windows/${{ matrix.cpu }} -Force | Out-Null
-            Move-Item ${SDKRoot}/usr/lib/swift/windows/*.lib ${SDKRoot}/usr/lib/swift/windows/${{ matrix.cpu }}/
-          } else {
-            New-Item -ItemType Directory -Path ${SDKRoot}/usr/lib/swift/android/${{ matrix.cpu }} -Force | Out-Null
-            Move-Item ${SDKRoot}/usr/lib/swift/android/lib*.so ${SDKRoot}/usr/lib/swift/android/${{ matrix.cpu }}/
-            Move-Item ${SDKRoot}/usr/lib/swift/android/lib*.a ${SDKRoot}/usr/lib/swift/android/${{ matrix.cpu }}/
-          }
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/XCTest
+      - name: Install XCTest
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/XCTest --target install
 
       - uses: actions/upload-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-sdk
+          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
+
+      - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
+          path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Upload PDBs to Azure
         uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
@@ -4648,7 +4305,7 @@ jobs:
           searchPattern: '*.pdb'
           swift-version: ${{ inputs.swift_version }}
           arch: ${{ matrix.arch }}
-          variant: 'sdk'
+          variant: ${{ matrix.static && 'static' || 'shared' }}
           build-revision: ${{ inputs.swift_build_revision }}
           r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -5734,7 +5391,6 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
-    if: inputs.build_os == 'Windows'
     name: Package Tools
     needs: [compilers, macros, debugging_tools, devtools, stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5811,15 +5467,11 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-sdk
+          name: Windows-${{ matrix.arch }}-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-static-experimental-sdk
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-shared-experimental-sdk
+          name: Windows-${{ matrix.arch }}-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
 
       - uses: actions/checkout@v4.2.2
@@ -5830,28 +5482,15 @@ jobs:
           show-progress: false
 
       - run: |
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/" -ItemType Directory -Force | Out-Null
+          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/" -ItemType Directory -Force | Out-Null
 
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/swiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationNetworking.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/_FoundationICU.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationEssentials.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationInternationalization.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/
+          Get-ChildItem "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/*.lib" -File -ErrorAction Ignore | Move-Item -Force -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/"
 
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr" -ItemType Directory -Force | Out-Null
-
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/usr" -ItemType Directory -Force | Out-Null
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr"
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/usr"
-
-          Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/usr"
 
       - run: |
           $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
@@ -5970,7 +5609,6 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
-              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
@@ -6130,7 +5768,7 @@ jobs:
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/legacy/msi/rtlmsi.wixproj
 
-      - name: Package Experimental Shared Runtime
+      - name: Package Shared Runtime
         env:
           AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
           AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
@@ -6146,9 +5784,9 @@ jobs:
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
               -p:ProductVersion=${{ inputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:WindowsExperimentalRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/" `
-              -p:WindowsExperimentalRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/" `
-              -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/" `
+              -p:WindowsRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
+              -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
+              -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/shared/msi/rtl.shared.msi.wixproj
 
@@ -6248,9 +5886,8 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
-    if: inputs.build_os == 'Windows'
     name: Package Windows SDK & Runtime
-    needs: [stdlib, sdk, experimental-sdk]
+    needs: [stdlib, sdk]
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
       expected-dlls-amd64: ${{ steps.write-expectations.outputs.expected-dlls-amd64 }}
@@ -6280,21 +5917,13 @@ jobs:
           setup-vs-dev-env: true
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Windows-amd64-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-amd64-sdk
+          name: Windows-amd64-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-amd64-static-experimental-sdk
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-amd64-shared-experimental-sdk
+          name: Windows-amd64-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
@@ -6314,41 +5943,17 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli/
 
       - run: |
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/" -ItemType Directory -Force | Out-Null
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/" -ItemType Directory -Force | Out-Null
+          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/" -ItemType Directory -Force | Out-Null
+          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/x86_64/" -ItemType Directory -Force | Out-Null
 
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/swiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
+          Get-ChildItem "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/*.lib" -File -ErrorAction Ignore | Move-Item -Force -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/x86_64/"
+          Get-ChildItem "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/*.lib" -File -ErrorAction Ignore | Move-Item -Force -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/x86_64/"
 
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libswiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationNetworking.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/_FoundationICU.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationEssentials.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationInternationalization.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/x86_64/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_CFURLSessionInterface.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_CFXMLInterface.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_FoundationCShims.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_FoundationICU.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/CoreFoundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/lib_FoundationCollections.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationEssentials.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationInternationalization.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationNetworking.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/x86_64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/x86_64/
 
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64/usr" -ItemType Directory -Force | Out-Null
 
@@ -6356,25 +5961,13 @@ jobs:
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64/usr"
 
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64/usr" -ItemType Directory -Force | Out-Null
-
-          Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64/usr"
-
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Windows-arm64-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-arm64-sdk
+          name: Windows-arm64-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-arm64-static-experimental-sdk
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-arm64-shared-experimental-sdk
+          name: Windows-arm64-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
@@ -6394,41 +5987,17 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli
 
       - run: |
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/" -ItemType Directory -Force
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/" -ItemType Directory -Force
+          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/" -ItemType Directory -Force
+          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/aarch64/" -ItemType Directory -Force
 
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/swiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
+          Get-ChildItem "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/*.lib" -File -ErrorAction Ignore | Move-Item -Force -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/aarch64/"
+          Get-ChildItem "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/*.lib" -File -ErrorAction Ignore | Move-Item -Force -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/aarch64/"
 
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libswiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationNetworking.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/_FoundationICU.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationEssentials.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationInternationalization.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/aarch64/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_CFURLSessionInterface.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_CFXMLInterface.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_FoundationCShims.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_FoundationICU.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/CoreFoundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/lib_FoundationCollections.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationEssentials.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationInternationalization.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationNetworking.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/aarch64/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/aarch64/
 
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64/usr" -ItemType Directory -Force | Out-Null
 
@@ -6436,25 +6005,13 @@ jobs:
 
           Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64/usr"
 
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64/usr" -ItemType Directory -Force | Out-Null
-
-          Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64/usr"
-
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Windows-x86-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-x86-sdk
+          name: Windows-x86-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-x86-static-experimental-sdk
-          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-x86-shared-experimental-sdk
+          name: Windows-x86-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform
       - uses: actions/download-artifact@v4
         with:
@@ -6474,41 +6031,17 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli
 
       - run: |
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/" -ItemType Directory -Force
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/" -ItemType Directory -Force
+          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/" -ItemType Directory -Force
+          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/i686/" -ItemType Directory -Force
 
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/swiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
+          Get-ChildItem "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/*.lib" -File -ErrorAction Ignore | Move-Item -Force -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/i686/"
+          Get-ChildItem "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/*.lib" -File -ErrorAction Ignore | Move-Item -Force -Destination "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/i686/"
 
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/BlocksRuntime.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/dispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libswiftDispatch.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/Foundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationNetworking.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/_FoundationICU.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationEssentials.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/FoundationInternationalization.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift/windows/i686/
-
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_CFURLSessionInterface.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_CFXMLInterface.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_FoundationCShims.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/_FoundationICU.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/CoreFoundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/lib_FoundationCollections.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundation.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationEssentials.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationInternationalization.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationNetworking.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/libFoundationXML.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/libxml2/lib/libxml2s.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/curl/lib/libcurl.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/zlib/lib/zlibstatic.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlidec.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/i686/
+          Move-Item ${{ github.workspace }}/BuildRoot/Library/brotli/lib/brotlicommon.lib ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift_static/windows/i686/
 
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr" -ItemType Directory -Force | Out-Null
 
@@ -6517,10 +6050,6 @@ jobs:
           # swift-backtrace is currently disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
           # Uncomment the following when it is enabled
           # Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr"
-
-          New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686/usr" -ItemType Directory -Force | Out-Null
-
-          Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/bin" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686/usr"
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -6544,11 +6073,15 @@ jobs:
           }
 
       - run: |
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/dispatch ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/os ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/Block ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/lib/swift_static/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/WindowsExperimental.sdk/usr/include/
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
+          foreach ($Module in @("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
+            foreach ($ResourceType in @("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot/usr/lib/$ResourceType/$Module"
+              if (Test-Path $ModuleDirectory) {
+                Move-Item $ModuleDirectory "$SDKRoot/usr/include/"
+              }
+            }
+          }
 
       - name: Install AzureSignTool
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
@@ -6581,10 +6114,6 @@ jobs:
               -p:WindowsRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-aarch64" `
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686" `
-              -p:WindowsExperimentalRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-aarch64" `
-              -p:WindowsExperimentalRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-x86_64" `
-              -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-i686" `
-              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
       - name: Write DLL Expectations
         id: write-expectations
@@ -6595,7 +6124,7 @@ jobs:
             @("x86", "i686")
           ) | ForEach-Object {
             $arch, $suffix = $_
-            $runtimes = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/Windows-$suffix/usr/bin"
+            $runtimes = "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-$suffix/usr/bin"
             Get-ChildItem -Path $runtimes -Filter *.dll -File |
               # A flat list collapses down to a space-separated string, so we need to convert to JSON so we can read it later.
               ForEach-Object Name | ConvertTo-Json -Compress | ForEach-Object { "expected-dlls-$arch=$_" } |
@@ -6607,22 +6136,15 @@ jobs:
           subject-path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.experimental.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.arm64.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.arm64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x64.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.x64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x86.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.x86.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.amd64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.shared.amd64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.amd64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.arm64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.shared.arm64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.arm64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.x86.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.shared.x86.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.dynamic.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.dynamic.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.dynamic.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
       - uses: actions/upload-artifact@v4
         with:
@@ -6630,71 +6152,49 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/windows.experimental.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.arm64.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.arm64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x64.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.x64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x86.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.experimental.x86.cab
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Windows-amd64-rtl-msm
-          path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.amd64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-amd64-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.dynamic.shared.amd64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-amd64-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.amd64.msm
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Windows-arm64-rtl-msm
-          path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.shared.amd64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-arm64-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.dynamic.shared.arm64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-arm64-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.arm64.msm
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Windows-x86-rtl-msm
-          path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.shared.arm64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-x86-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.dynamic.shared.x86.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-x86-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
   package_android_platform:
     name: Package Android SDK & Runtime
-    needs: [stdlib, ds2, sdk, experimental-sdk]
+    needs: [stdlib, ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
@@ -6723,19 +6223,14 @@ jobs:
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
       - if: inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Android-arm64-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
-      - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-arm64-sdk
+          name: Android-arm64-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-arm64-static-experimental-sdk
+          name: Android-arm64-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
@@ -6743,26 +6238,44 @@ jobs:
           name: Android-arm64-ds2
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
       - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-curl-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-zlib-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - if: inputs.build_android
         run: |
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/
 
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/aarch64/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/aarch64/
 
-      - if: inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Android-armv7-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/aarch64/
+
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-armv7-sdk
+          name: Android-armv7-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-armv7-static-experimental-sdk
+          name: Android-armv7-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
@@ -6770,26 +6283,44 @@ jobs:
           name: Android-armv7-ds2
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
       - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-curl-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-zlib-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - if: inputs.build_android
         run: |
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/armv7/
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/armv7/
 
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/armv7/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/armv7/
 
-      - if: inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Android-x86_64-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/armv7/
+
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-x86_64-sdk
+          name: Android-x86_64-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-x86_64-static-experimental-sdk
+          name: Android-x86_64-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
@@ -6797,11 +6328,34 @@ jobs:
           name: Android-x86_64-ds2
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
       - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-curl-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-zlib-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - if: inputs.build_android
         run: |
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/x86_64/
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/x86_64/
 
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/x86_64/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/x86_64/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/x86_64/
 
       - if: inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -6811,12 +6365,12 @@ jobs:
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-i686-sdk
+          name: Android-i686-shared-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
-          name: Android-i686-static-experimental-sdk
+          name: Android-i686-static-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
       - if: inputs.build_android
         uses: actions/download-artifact@v4
@@ -6824,11 +6378,34 @@ jobs:
           name: Android-i686-ds2
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
       - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-brotli-${{ inputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-curl-${{ inputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+      - if: inputs.build_android
+        uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-zlib-${{ inputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+      - if: inputs.build_android
         run: |
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/i686/
           Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/i686/
 
-          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/android/i686/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/i686/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/i686/
 
       - if: inputs.build_android
         uses: actions/checkout@v4.2.2
@@ -6855,11 +6432,15 @@ jobs:
 
       - if: inputs.build_android
         run: |
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/dispatch ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/os ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/Block ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include/
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/_foundation_unicode ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include
-          Move-Item ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/lib/swift_static/_FoundationCShims ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/AndroidExperimental.sdk/usr/include
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          foreach ($Module in @("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
+            foreach ($ResourceType in @("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot/usr/lib/$ResourceType/$Module"
+              if (Test-Path $ModuleDirectory) {
+                Move-Item $ModuleDirectory "$SDKRoot/usr/include/"
+              }
+            }
+          }
 
       - name: Install AzureSignTool
         if: inputs.build_android && inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
@@ -7509,8 +7090,8 @@ jobs:
       - name: Build compnerd/vigil
         working-directory: ${{ github.workspace }}/SourceCache/vigil
         run: |
-          $ExperimentalSDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/WindowsExperimental.sdk"
-          swift build --build-system native --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib -Xlinker /WX
+          $SDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/Windows.sdk"
+          swift build --build-system native --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${SDK} -Xswiftc -static-stdlib -Xlinker /WX
 
       - name: Build & Test pointfreeco/swift-issue-reporting
         working-directory: ${{ github.workspace }}/SourceCache/swift-issue-reporting
