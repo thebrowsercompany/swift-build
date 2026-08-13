@@ -49,6 +49,11 @@ function Add-KeyValueIfNew([hashtable]$Hashtable, [string]$Key, [string]$Value) 
 }
 
 function Add-FlagsDefine([hashtable]$Defines, [string]$Name, [string[]]$Value) {
+    $Value = @($Value | Where-Object { $null -ne $_ })
+    if ($Value.Count -eq 0) {
+        return
+    }
+
     if ($Defines.Contains($Name)) {
         $Defines[$name] = @($Defines[$name]) + $Value
     } else {
