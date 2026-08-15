@@ -328,6 +328,209 @@ permissions:
   attestations: write
 
 jobs:
+  stage0-sqlite:
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Stage0 SQLite3
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+          host-arch: ${{ matrix.arch }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Compute workspace hash
+        id: workspace_hash
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stage0-sqlite
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-toolchain-sqlite
+          ref: ${{ inputs.swift_toolchain_sqlite_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+          show-progress: false
+
+      # build.ps1: Build-SQLite
+      - name: Configure SQLite
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Stage0 SQLite
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
+          bin-dir: ${{ github.workspace }}/BinaryCache/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+          use-msvc-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+            }
+      - name: Build SQLite
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+      - name: Install SQLite
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }} --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+
+  stage0-libxml2:
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Stage0 libxml2
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
+          host-arch: ${{ matrix.arch }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 100M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stage0-libxml2
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: gnome/libxml2
+          ref: ${{ inputs.libxml2_revision }}
+          path: ${{ github.workspace }}/SourceCache/libxml2
+          show-progress: false
+
+      # build.ps1: Build-XML2
+      - name: Configure libxml2
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Stage0 libxml2
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/libxml2
+          bin-dir: ${{ github.workspace }}/BinaryCache/stage0-libxml2-${{ inputs.libxml2_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/stage0-libxml2-${{ inputs.libxml2_version }}/usr
+          use-msvc-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'LIBXML2_WITH_C14N' = "NO";
+              'LIBXML2_WITH_CATALOG' = "NO";
+              'LIBXML2_WITH_DEBUG' = "NO";
+              'LIBXML2_WITH_FTP' = "NO";
+              'LIBXML2_WITH_HTML' = "NO";
+              'LIBXML2_WITH_HTTP' = "NO";
+              'LIBXML2_WITH_ICONV' = "NO";
+              'LIBXML2_WITH_ICU' = "NO";
+              'LIBXML2_WITH_ISO8859X' = "NO";
+              'LIBXML2_WITH_LEGACY' = "NO";
+              'LIBXML2_WITH_LZMA' = "NO";
+              'LIBXML2_WITH_MEM_DEBUG' = "NO";
+              'LIBXML2_WITH_MODULES' = "NO";
+              'LIBXML2_WITH_OUTPUT' = "YES";
+              'LIBXML2_WITH_PATTERN' = "NO";
+              'LIBXML2_WITH_PROGRAMS' = "NO";
+              'LIBXML2_WITH_PUSH' = "YES";
+              'LIBXML2_WITH_PYTHON' = "NO";
+              'LIBXML2_WITH_READER' = "NO";
+              'LIBXML2_WITH_REGEXPS' = "YES";
+              'LIBXML2_WITH_SAX1' = "NO";
+              'LIBXML2_WITH_SCHEMAS' = "NO";
+              'LIBXML2_WITH_SCHEMATRON' = "NO";
+              'LIBXML2_WITH_TESTS' = "NO";
+              'LIBXML2_WITH_THREAD_ALLOC' = "NO";
+              'LIBXML2_WITH_THREADS' = "YES";
+              'LIBXML2_WITH_TREE' = "YES";
+              'LIBXML2_WITH_VALID' = "YES";
+              'LIBXML2_WITH_WRITER' = "NO";
+              'LIBXML2_WITH_XINCLUDE' = "NO";
+              'LIBXML2_WITH_XPATH' = "YES";
+              'LIBXML2_WITH_XPTR' = "NO";
+              'LIBXML2_WITH_XPTR_LOCS' = "NO";
+              'LIBXML2_WITH_ZLIB' = "NO";
+            }
+      - name: Build libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0-libxml2-${{ inputs.libxml2_version }}
+      - name: Install libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0-libxml2-${{ inputs.libxml2_version }} --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stage0-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/stage0-libxml2-${{ inputs.libxml2_version }}/usr
+
   sqlite:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -874,7 +1077,7 @@ jobs:
 
   early_swift_driver:
     runs-on: ${{ inputs.default_build_runner }}
-    needs: [sqlite]
+    needs: [stage0-sqlite]
 
     strategy:
       fail-fast: false
@@ -952,8 +1155,8 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
-          path: ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
+          path: ${{ github.workspace }}/BinaryCache/Library/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
       - name: Setup SDK context
         id: setup-context
@@ -993,6 +1196,9 @@ jobs:
               'SWIFT_DRIVER_BUILD_TOOLS' = "NO";
               'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
               'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/stage0-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
+              'FETCHCONTENT_SOURCE_DIR_ARGUMENTPARSER' = "${{ github.workspace }}/SourceCache/swift-argument-parser";
+              'FETCHCONTENT_SOURCE_DIR_LLBUILD' = "${{ github.workspace }}/SourceCache/llbuild";
+              'FETCHCONTENT_SOURCE_DIR_TOOLSSUPPORTCORE' = "${{ github.workspace }}/SourceCache/swift-tools-support-core";
             }
 
       - name: Build early swift-driver
@@ -1019,6 +1225,244 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
           path: ${{ github.workspace }}/BuildRoot
+
+  stage0-compiler:
+    needs: [stage0-libxml2, cmark_gfm, build_tools, early_swift_driver]
+    runs-on: ${{ inputs.compilers_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Stage0 Compiler
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
+          host-arch: ${{ inputs.build_arch }}
+          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 500M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stage0-compiler
+      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-build-tools
+          path: ${{ github.workspace }}/BinaryCache/BuildTools/bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stage0-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BinaryCache/Library/stage0-libxml2-${{ inputs.libxml2_version }}/usr
+      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
+          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
+          path: ${{ github.workspace }}/BinaryCache/swift-driver
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/llvm-project
+          ref: ${{ inputs.llvm_project_revision }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ inputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-syntax
+          ref: ${{ inputs.swift_syntax_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-syntax
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - name: Setup context
+        id: setup-context
+        run: |
+          $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
+          $SDKROOT = cygpath -m ${env:SDKROOT}
+
+          # Resolve the runtime that belongs to the pinned Swift compiler.
+          $SwiftcPath = (Get-Command swiftc -ErrorAction Stop).Source
+          $ToolchainRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $SwiftcPath))
+          $ToolchainVersion = Split-Path -Leaf $ToolchainRoot
+          $SwiftRoot = Split-Path -Parent (Split-Path -Parent $ToolchainRoot)
+          $RuntimeVersion = $ToolchainVersion.Split('+')[0]
+          $RuntimesRoot = Join-Path $SwiftRoot "Runtimes"
+          $PINNED_RUNTIME_BIN = Join-Path $RuntimesRoot "$RuntimeVersion\usr\bin"
+          $RuntimeDirs = @(Get-ChildItem -Path $RuntimesRoot -Directory -ErrorAction SilentlyContinue)
+          if (-not (Test-Path $PINNED_RUNTIME_BIN)) {
+            if ($RuntimeDirs.Count -eq 1) {
+              $PINNED_RUNTIME_BIN = Join-Path $RuntimeDirs[0].FullName "usr\bin"
+            } else {
+              throw "Pinned runtime not found at '$PINNED_RUNTIME_BIN' (derived from '$SwiftcPath'); $($RuntimeDirs.Count) runtime dir(s) present"
+            }
+          }
+          Write-Host "Pinned runtime: $PINNED_RUNTIME_BIN"
+
+          $Cpu = switch ("${{ inputs.build_arch }}") {
+            "amd64" { "x86_64" }
+            "arm64" { "aarch64" }
+            default { throw "Unsupported build_arch: ${{ inputs.build_arch }}" }
+          }
+          $Triple = "$Cpu-unknown-windows-msvc"
+
+          $RamBytes = (Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory
+          $RamGB = [math]::Round($RamBytes / 1GB)
+          $LinkJobs = [math]::Max(2, [math]::Floor($RamGB / 24))
+
+          $Context = @"
+          clang-location=${CLANG_LOCATION}
+          sdkroot=${SDKROOT}
+          pinned-runtime-bin=${PINNED_RUNTIME_BIN}
+          cpu=${Cpu}
+          triple=${Triple}
+          link-jobs=${LinkJobs}
+          "@
+          Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Configure Stage 0 Compiler
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Stage0 Compiler
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/stage0/build
+          install-dir: ${{ github.workspace }}/BinaryCache/stage0/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
+          use-msvc-host-toolchain: ${{ inputs.use_host_toolchain }}
+          c-compiler: 'Host.C'
+          cxx-compiler: 'Host.CXX'
+          swift-compiler: 'Pinned.Swift'
+          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-Bootstrap-Stage0-${{ steps.setup-context.outputs.cpu }}.cmake
+          cmake-defines: |
+            @{
+              'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "NO";
+              'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
+              'SWIFT_BUILD_LIBEXEC' = "NO";
+              'SWIFT_BUILD_REMOTE_MIRROR' = "NO";
+              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/BuildTools/bin";
+
+              'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/BuildTools/bin/clang-tblgen${ExeSuffix}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'LibXml2_DIR' = "${{ github.workspace }}/BinaryCache/Library/stage0-libxml2-${{ inputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ inputs.libxml2_version }}";
+              'LLVM_CONFIG_PATH' = "${{ github.workspace }}/BinaryCache/BuildTools/bin/llvm-config${ExeSuffix}";
+              'LLVM_ENABLE_ASSERTIONS' = "YES";
+              'LLVM_ENABLE_LLD' = "NO";
+              'LLVM_EXTERNAL_SWIFT_SOURCE_DIR' = "${{ github.workspace }}/SourceCache/swift";
+              'LLVM_HOST_TRIPLE' = "${{ steps.setup-context.outputs.triple }}";
+              'LLVM_NATIVE_TOOL_DIR' = "${{ github.workspace }}/BinaryCache/BuildTools/bin";
+              'LLVM_TABLEGEN' = "${{ github.workspace }}/BinaryCache/BuildTools/bin/llvm-tblgen${ExeSuffix}";
+              'LLVM_USE_HOST_TOOLS' = "NO";
+              'Python3_EXECUTABLE' = "${{ steps.python.outputs.python-path }}";
+              'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version }} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
+              'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
+              'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
+              'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION' = "YES";
+              'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
+              'SWIFT_ENABLE_RUNTIME_MODULE' = "YES";
+              'SWIFT_ENABLE_BACKTRACING' = "YES";
+              'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
+              'SWIFT_ENABLE_VOLATILE' = "YES";
+              'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
+              'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
+              'SWIFT_STDLIB_ASSERTIONS' = "NO";
+              'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
+              'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
+
+              'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+              'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
+            }
+
+      - name: Build Stage 0 Compiler Distribution
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0/build --target distribution
+
+      - name: Install Stage 0 Compiler Distribution
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage0/build --target install-distribution
+
+      - name: Copy cmark-gfm shared libraries
+        run: |
+          Copy-Item -Path "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/bin/*.dll" -Destination "${{ github.workspace }}/BinaryCache/stage0/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
+
+      # build.ps1: Copy-WindowsRuntimeToToolchain
+      - name: Copy Windows Runtime to Toolchain
+        run: |
+          $Stage0Bin = "${{ github.workspace }}/BinaryCache/stage0/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin"
+          New-Item -ItemType Directory -Path $Stage0Bin -Force | Out-Null
+          $RuntimeSource = "${{ steps.setup-context.outputs.pinned-runtime-bin }}"
+          if (-not (Test-Path $RuntimeSource)) {
+            throw "Pinned runtime not found at '$RuntimeSource'."
+          }
+          $RuntimeFiles = @(Get-ChildItem -Path $RuntimeSource -File | Sort-Object Name)
+          if (-not ($RuntimeFiles | Where-Object { $_.Extension -ieq ".dll" })) {
+            throw "No DLLs found under '$RuntimeSource'"
+          }
+          foreach ($File in $RuntimeFiles) {
+            Copy-Item -Force -Path $File.FullName -Destination $Stage0Bin
+          }
+          Write-Host "Copied $($RuntimeFiles.Count) runtime file(s) from '$RuntimeSource' to '$Stage0Bin'."
+
+      - name: Upload Stage 0 Compilers
+        uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage0-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage0/Library
 
   compilers:
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
