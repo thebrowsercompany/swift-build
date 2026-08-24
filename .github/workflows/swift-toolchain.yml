@@ -1464,6 +1464,258 @@ jobs:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage0-compiler
           path: ${{ github.workspace }}/BinaryCache/stage0/Library
 
+  bootstrap-sdk:
+    needs: [stage0-compiler]
+    runs-on: ${{ inputs.default_build_runner }}
+
+    name: Bootstrap SDK
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+          host-arch: ${{ inputs.build_arch }}
+
+      - name: Clear inherited SDKROOT
+        run: |
+          "SDKROOT=" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - name: Compute workspace hash
+        id: workspace_hash
+        shell: pwsh
+        run: |
+          $stringAsStream = [System.IO.MemoryStream]::new()
+          $writer = [System.IO.StreamWriter]::new($stringAsStream)
+          $writer.write("${{ github.workspace }}")
+          $writer.Flush()
+          $stringAsStream.Position = 0
+          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+      - name: Setup sccache
+        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
+        if: inputs.use_host_toolchain
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+          disk-max-size: 500M
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-sdk
+
+      - name: Download Stage 0 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage0-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage0/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-corelibs-libdispatch
+          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ inputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+          show-progress: false
+
+      - name: Run Resync
+        run: |
+          cd ${{ github.workspace }}/SourceCache/swift/Runtimes
+          cmake -P Resync.cmake
+
+      # build.ps1: Build-CDispatch
+      - name: Configure Bootstrap CDispatch
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Bootstrap CDispatch
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ inputs.build_os }}
+          arch: ${{ inputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/CDispatch
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'BUILD_TESTING' = "NO";
+              'ENABLE_SWIFT' = "NO";
+            }
+      - name: Build Bootstrap CDispatch
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/CDispatch
+
+      # build.ps1: Build-SDK
+      - name: Configure Bootstrap Runtime
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Bootstrap Runtime
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ inputs.build_os }}
+          arch: ${{ inputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Core
+          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Runtime
+          install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}Bootstrap.sdk/usr
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/bootstrap/CDispatch/cmake/modules";
+              'SwiftCore_ENABLE_BACKTRACING' = "YES";
+              'SwiftCore_ENABLE_CONCURRENCY' = "YES";
+              'SwiftCore_ENABLE_REMOTE_MIRROR' = "YES";
+              'SwiftCore_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Bootstrap Runtime
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Runtime
+      - name: Install Bootstrap Runtime
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Runtime --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Bootstrap Overlay
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Bootstrap Overlay
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ inputs.build_os }}
+          arch: ${{ inputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Overlay
+          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Overlay
+          install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}Bootstrap.sdk/usr
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/bootstrap/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_ENABLE_CXX_INTEROP' = "YES";
+              'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Bootstrap Overlay
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Overlay
+      - name: Install Bootstrap Overlay
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Overlay --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Bootstrap String Processing
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Bootstrap String Processing
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ inputs.build_os }}
+          arch: ${{ inputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StringProcessing
+          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/StringProcessing
+          install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}Bootstrap.sdk/usr
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/bootstrap/Runtime/cmake/SwiftCore";
+              'SwiftStringProcessing_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Bootstrap String Processing
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/StringProcessing
+      - name: Install Bootstrap String Processing
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/StringProcessing --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Bootstrap Dispatch
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Bootstrap Dispatch
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: ${{ inputs.use_host_toolchain }}
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ inputs.build_os }}
+          arch: ${{ inputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch
+          install-dir: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}Bootstrap.sdk/usr
+          c-compiler: 'Stage0.GNUC'
+          cxx-compiler: 'Stage0.GNUCXX'
+          swift-compiler: 'Stage0.Swift'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}Bootstrap.sdk
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'BUILD_TESTING' = "NO";
+              'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'ENABLE_SWIFT' = "YES";
+              'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
+            }
+      - name: Build Bootstrap Dispatch
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch
+      - name: Install Bootstrap Dispatch
+        run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/Dispatch --target install
+
+      - name: Repair SDK Headers
+        shell: pwsh
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform/Developer/SDKs/${{ inputs.build_os }}Bootstrap.sdk"
+          foreach ($Module in ("Block", "dispatch", "os")) {
+            foreach ($ResourceType in ("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot/usr/lib/$ResourceType/$Module"
+              if (Test-Path $ModuleDirectory) {
+                New-Item -ItemType Directory -Force "$SDKRoot/usr/include" | Out-Null
+                Move-Item -Path $ModuleDirectory -Destination "$SDKRoot/usr/include" -Force
+              }
+            }
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-sdk
+          path: ${{ github.workspace }}/BuildRoot/bootstrap/Library/Developer/Platforms/${{ inputs.build_os }}.platform
+
   compilers:
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
