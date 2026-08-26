@@ -705,7 +705,7 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
   ds2:
-    needs: [ds2_tools]
+    needs: [ds2_tools, stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -744,6 +744,13 @@ jobs:
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        if: inputs.build_android
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
         if: inputs.build_android
@@ -2423,6 +2430,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   zlib:
+    needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2446,6 +2454,12 @@ jobs:
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -2516,6 +2530,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   brotli:
+    needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2539,6 +2554,12 @@ jobs:
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -2608,7 +2629,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
-    needs: [zlib, brotli]
+    needs: [stage1-compiler, zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2633,6 +2654,12 @@ jobs:
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -2800,6 +2827,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
+    needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2823,6 +2851,12 @@ jobs:
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
         id: workspace_hash
