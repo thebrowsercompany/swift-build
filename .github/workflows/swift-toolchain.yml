@@ -2068,6 +2068,109 @@ jobs:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
           path: ${{ github.workspace }}/BuildRoot/bootstrap/Library
 
+  stage2-libxml2:
+    needs: [stage1-compiler]
+    runs-on: ${{ inputs.default_build_runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Stage2 libxml2
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+          host-arch: ${{ matrix.arch }}
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: gnome/libxml2
+          ref: ${{ inputs.libxml2_revision }}
+          path: ${{ github.workspace }}/SourceCache/libxml2
+          show-progress: false
+
+      # build.ps1: Build-XML2
+      - name: Configure Stage2 libxml2
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Stage2 libxml2
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/libxml2
+          bin-dir: ${{ github.workspace }}/BinaryCache/stage2-libxml2-${{ inputs.libxml2_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/stage2-libxml2-${{ inputs.libxml2_version }}/usr
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'LIBXML2_WITH_C14N' = "NO";
+              'LIBXML2_WITH_CATALOG' = "NO";
+              'LIBXML2_WITH_DEBUG' = "NO";
+              'LIBXML2_WITH_FTP' = "NO";
+              'LIBXML2_WITH_HTML' = "NO";
+              'LIBXML2_WITH_HTTP' = "NO";
+              'LIBXML2_WITH_ICONV' = "NO";
+              'LIBXML2_WITH_ICU' = "NO";
+              'LIBXML2_WITH_ISO8859X' = "NO";
+              'LIBXML2_WITH_LEGACY' = "NO";
+              'LIBXML2_WITH_LZMA' = "NO";
+              'LIBXML2_WITH_MEM_DEBUG' = "NO";
+              'LIBXML2_WITH_MODULES' = "NO";
+              'LIBXML2_WITH_OUTPUT' = "YES";
+              'LIBXML2_WITH_PATTERN' = "NO";
+              'LIBXML2_WITH_PROGRAMS' = "NO";
+              'LIBXML2_WITH_PUSH' = "YES";
+              'LIBXML2_WITH_PYTHON' = "NO";
+              'LIBXML2_WITH_READER' = "NO";
+              'LIBXML2_WITH_REGEXPS' = "YES";
+              'LIBXML2_WITH_SAX1' = "NO";
+              'LIBXML2_WITH_SCHEMAS' = "NO";
+              'LIBXML2_WITH_SCHEMATRON' = "NO";
+              'LIBXML2_WITH_TESTS' = "NO";
+              'LIBXML2_WITH_THREAD_ALLOC' = "NO";
+              'LIBXML2_WITH_THREADS' = "YES";
+              'LIBXML2_WITH_TREE' = "YES";
+              'LIBXML2_WITH_VALID' = "YES";
+              'LIBXML2_WITH_WRITER' = "NO";
+              'LIBXML2_WITH_XINCLUDE' = "NO";
+              'LIBXML2_WITH_XPATH' = "YES";
+              'LIBXML2_WITH_XPTR' = "NO";
+              'LIBXML2_WITH_XPTR_LOCS' = "NO";
+              'LIBXML2_WITH_ZLIB' = "NO";
+            }
+      - name: Build Stage2 libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage2-libxml2-${{ inputs.libxml2_version }}
+      - name: Install Stage2 libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage2-libxml2-${{ inputs.libxml2_version }} --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-stage2-libxml2-${{ inputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/stage2-libxml2-${{ inputs.libxml2_version }}/usr
+
   compilers:
     needs: [libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
