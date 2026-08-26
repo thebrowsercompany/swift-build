@@ -3324,7 +3324,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   sdk:
-    needs: [sqlite, zlib, brotli, curl, libxml2]
+    needs: [stage1-compiler, bootstrap-macros, zlib, brotli, curl, libxml2]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -3433,7 +3433,7 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
-      - name: Download Compilers
+      - name: Download Stage1 Compiler
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
@@ -3516,10 +3516,10 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
           show-progress: false
 
-      - name: Setup environment
+      - name: Add Stage1 runtime to PATH
         if: matrix.os != 'Android' || inputs.build_android
         run: |
-          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/bin
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - uses: nttld/setup-ndk@v1
