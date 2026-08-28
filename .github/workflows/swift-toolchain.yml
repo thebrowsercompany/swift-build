@@ -4547,7 +4547,7 @@ jobs:
 
   devtools:
     if: inputs.build_os == 'Windows'
-    needs: [sqlite, stage2-compiler, stdlib, sdk]
+    needs: [sqlite, stage2-compiler, macros, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -4566,7 +4566,6 @@ jobs:
         with:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
-          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
       - name: Install CMake ${{ env.CMAKE_VERSION }}
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
@@ -4591,35 +4590,36 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 100M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-devtools
-      - uses: lukka/get-cmake@aa1df13cce8c30d2cb58efa871271c5a764623f8 # main
-        with:
-          cmakeVersion: 3.29.9
-
       - uses: actions/download-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
-      - name: Download Compilers
+      - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: Windows-${{ inputs.build_arch }}-Asserts-compilers
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+      - name: Download Target SDK
+        uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-stdlib
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-sdk
+          name: ${{ matrix.os }}-${{ matrix.arch }}-shared-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
-      - uses: actions/download-artifact@v4
+      - name: Download Host SDK
+        uses: actions/download-artifact@v4
+        if: matrix.arch != inputs.build_arch
         with:
-          name: Windows-${{ inputs.build_arch }}-macros
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-shared-sdk
+          path: ${{ github.workspace }}/BinaryCache/HostSDK/Library/Developer/Platforms/Windows.platform
+      - name: Download Host Macros
+        uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-Asserts-swift-syntax
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-macros
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+      - name: Download Stage2 SwiftSyntax
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-Asserts-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/swift-syntax
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
@@ -4759,22 +4759,18 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
-      - run: |
-          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin
-          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Add Host SDK runtime to PATH
+        run: |
+          $RuntimeLibrary = if ("${{ matrix.arch }}" -eq "${{ inputs.build_arch }}") {
+            "${{ github.workspace }}/BinaryCache/Library"
+          } else {
+            "${{ github.workspace }}/BinaryCache/HostSDK/Library"
+          }
+          $RTLPath = cygpath -w "$RuntimeLibrary/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin"
+          $RTLPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
           $SDKRoot = cygpath -w ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      # Download host libraries for the windows amd64 host, after moving the target libraries to the target-specific directory.
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Windows-${{ inputs.build_arch }}-stdlib
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ inputs.build_arch }}-sdk
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
       # build.ps1: Build-ArgumentParser
       - name: Configure swift-argument-parser
@@ -4961,9 +4957,6 @@ jobs:
               'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
             }
       - name: Build swift-subprocess
-        #TODO: Temporary workaround for https://github.com/swiftlang/swift/issues/86901
-        id: build-swift-subprocess-workaround
-        continue-on-error: true
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-subprocess
 
       # build.ps1: Build-ToolsSupportCore
@@ -5023,9 +5016,6 @@ jobs:
               'SQLite3_INCLUDE_DIR'="${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
               'SQLite3_LIBRARY'="${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
               'SWIFT_DRIVER_BUILD_TOOLS' = "NO";
-              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
-              'Clang_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/clang";
-              'Swift_DIR' = "${{ github.workspace }}/BinaryCache/tools/swift/lib/cmake/swift";
             }
       - name: Build swift-driver
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver
@@ -5109,6 +5099,7 @@ jobs:
               'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
               'SwiftDriver_DIR' = "${{ github.workspace }}/BinaryCache/swift-driver/cmake/modules";
               'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
+              'SwiftSubprocess_DIR' = "${{ github.workspace }}/BinaryCache/swift-subprocess/cmake/modules";
               'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
               'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
               'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
@@ -5118,11 +5109,11 @@ jobs:
       - name: Build swift-build
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build
 
-      - name: extract swift-syntax
+      - name: Relocate Stage2 SwiftSyntax
         run: |
-          $module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
-          $bindir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
-          (Get-Content $module).Replace('<BINARY_DIR>', "${bindir}") | Set-Content $module
+          $Module = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules/SwiftSyntaxConfig.cmake"
+          $BinaryDir = cygpath -m ${{ github.workspace }}/BinaryCache/swift-syntax
+          (Get-Content $Module).Replace('<BINARY_DIR>', $BinaryDir) | Set-Content $Module
 
       # build.ps1: Build-PackageManager
       - name: Configure swift-package-manager
@@ -5148,6 +5139,7 @@ jobs:
               'CMAKE_Swift_FLAGS' = @("-DCRYPTO_v2");
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
+              'SwiftSubprocess_DIR' = "${{ github.workspace }}/BinaryCache/swift-subprocess/cmake/modules";
               'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
               'LLBuild_DIR' = "${{ github.workspace }}/BinaryCache/swift-llbuild/cmake/modules";
               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
@@ -5399,9 +5391,6 @@ jobs:
       - name: Install swift-build
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build --target install
       - name: Install swift-subprocess
-        #TODO: Temporary workaround for https://github.com/swiftlang/swift/issues/86901
-        continue-on-error: true
-        if: steps.build-swift-subprocess.outcome == 'success'
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-subprocess --target install
       - name: Install swift-package-manager
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager --target install
