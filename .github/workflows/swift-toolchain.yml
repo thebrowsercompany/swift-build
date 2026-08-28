@@ -5479,7 +5479,7 @@ jobs:
 
   debugging_tools:
     if: inputs.build_os == 'Windows'
-    needs: [stage2-compiler, devtools, stdlib, sdk]
+    needs: [stage1-compiler, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -5528,21 +5528,22 @@ jobs:
           name: Windows-${{ matrix.arch }}-swift-argument-parser
           path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
-      - name: Download Compilers
+      - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: Windows-${{ inputs.build_arch }}-Asserts-compilers
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - name: Download stdlib
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Windows-${{ matrix.arch }}-stdlib
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - name: Download SDK
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+      - name: Download Target SDK
         uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-sdk
+          name: ${{ matrix.os }}-${{ matrix.arch }}-shared-sdk
           path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
+      - name: Download Host SDK
+        uses: actions/download-artifact@v4
+        if: matrix.arch != inputs.build_arch
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-shared-sdk
+          path: ${{ github.workspace }}/BinaryCache/HostSDK/Library/Developer/Platforms/Windows.platform
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -5551,22 +5552,18 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
-      - run: |
-          $RTLPath = cygpath -w "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin"
-          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Add Host SDK runtime to PATH
+        run: |
+          $RuntimeLibrary = if ("${{ matrix.arch }}" -eq "${{ inputs.build_arch }}") {
+            "${{ github.workspace }}/BinaryCache/Library"
+          } else {
+            "${{ github.workspace }}/BinaryCache/HostSDK/Library"
+          }
+          $RTLPath = cygpath -w "$RuntimeLibrary/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin"
+          $RTLPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
           $SDKRoot = cygpath -w "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      # Download host SDK on top of the target SDK, so that the runtime DLLs are the host ones.
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Windows-${{ inputs.build_arch }}-stdlib
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ inputs.build_arch }}-sdk
-          path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform
 
       # build.ps1: Build-Inspect
       - name: Configure swift-inspect
@@ -5584,12 +5581,16 @@ jobs:
           bin-dir: ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
             @{
               'CMAKE_Swift_FLAGS' =  @(
-                "-Xcc",
-                "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/swift/SwiftRemoteMirror");
+                "-Xcc", "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include",
+                "-Xcc", "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift",
+                "-Xcc", "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/swift/SwiftRemoteMirror",
+                "-L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }}/${{ matrix.cpu }}");
               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
             }
 
