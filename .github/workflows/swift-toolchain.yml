@@ -3155,227 +3155,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
-  stdlib:
-    needs: [stage2-compiler]
-    runs-on: ${{ inputs.default_build_runner }}
-
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(inputs.target_matrix) }}
-
-    name: ${{ matrix.os }} ${{ matrix.arch }} Standard Library
-
-    steps:
-      - uses: actions/checkout@v4.2.2
-        with:
-          ref: ${{ inputs.ci_build_revision }}
-          path: ${{ github.workspace }}/SourceCache/ci-build
-          show-progress: false
-      - uses: ./SourceCache/ci-build/.github/actions/setup-build
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          setup-vs-dev-env: ${{ matrix.os == 'Windows' }}
-          host-arch: ${{ matrix.arch }}
-          swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
-      - name: Install CMake ${{ env.CMAKE_VERSION }}
-        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
-        with:
-          cmakeVersion: ${{ env.CMAKE_VERSION }}
-
-      - name: Compute workspace hash
-        if: matrix.os != 'Android' || inputs.build_android
-        id: workspace_hash
-        run: |
-          $stringAsStream = [System.IO.MemoryStream]::new()
-          $writer = [System.IO.StreamWriter]::new($stringAsStream)
-          $writer.write("${{ github.workspace }}")
-          $writer.Flush()
-          $stringAsStream.Position = 0
-          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
-          echo "hash=$hash" >> $env:GITHUB_OUTPUT
-      - name: Setup sccache
-        if: inputs.use_host_toolchain && (matrix.os != 'Android' || inputs.build_android)
-        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          disk-max-size: 500M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-stdlib
-      - name: Download Compilers
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-Asserts-compilers
-          path: ${{ github.workspace }}/BinaryCache/Library
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: swiftlang/llvm-project
-          ref: ${{ inputs.llvm_project_revision }}
-          path: ${{ github.workspace }}/SourceCache/llvm-project
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: swiftlang/swift
-          ref: ${{ inputs.swift_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: apple/swift-corelibs-libdispatch
-          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
-          show-progress: false
-      - uses: actions/checkout@v4.2.2
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          repository: swiftlang/swift-experimental-string-processing
-          ref: ${{ inputs.swift_experimental_string_processing_revision }}
-          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
-          show-progress: false
-
-      - uses: nttld/setup-ndk@v1
-        if: matrix.os == 'Android' && inputs.build_android
-        id: setup-ndk
-        with:
-          ndk-version: ${{ inputs.ANDROID_NDK_VERSION }}
-          local-cache: true
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python_version }}
-          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
-
-      # build.ps1: Build-LLVM
-      - name: Configure LLVM
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: llvm
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
-          bin-dir: ${{ github.workspace }}/BinaryCache/llvm 
-          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
-          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: 'Stage1.C'
-          cxx-compiler: 'Stage1.CXX'
-          swift-compiler: 'Stage1.Swift'
-          msvc-compilers: ${{ inputs.use_host_toolchain && '@("C", "CXX")' || '@()' }}
-          pinned-compilers: ${{ inputs.use_host_toolchain && '@()' || '@("C", "CXX")' }}
-          cmake-defines: |
-            @{
-              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
-             }
-
-      # build.ps1: Build-Runtime
-      - name: Configure Swift Standard Library
-        if: matrix.os != 'Android' || inputs.build_android
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with: 
-          project-name: swift-runtime
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift
-          bin-dir: ${{ github.workspace }}/BinaryCache/swift
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
-          android-api-level: ${{ inputs.ANDROID_API_LEVEL }}
-          android-clang-version: ${{ inputs.ANDROID_CLANG_VERSION }}
-          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
-          c-compiler: 'Stage1.C'
-          cxx-compiler: 'Stage1.CXX'
-          swift-compiler: 'Stage1.Swift'
-          cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Runtime-${{ matrix.os }}-${{ matrix.cpu }}.cmake
-          cmake-defines: |
-            @{
-              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/llvm/lib/cmake/llvm";
-              'SWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY' = "YES";
-              'SWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP' = "YES";
-              'SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING' = "YES";
-              'SWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED' = "YES";
-              'SWIFT_ENABLE_EXPERIMENTAL_OBSERVATION' = "YES";
-              'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
-              'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
-              # Disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
-              'SWIFT_ENABLE_BACKTRACING' = "${{ (matrix.os == 'Windows' && matrix.arch == 'x86') && 'NO' || 'YES' }}";
-              # Disabled for Android https://github.com/swiftlang/swift/issues/87445
-              'SWIFT_ENABLE_RUNTIME_MODULE' = "${{ matrix.os == 'Windows' && 'YES' || 'NO' }}";
-              'SWIFT_BUILD_LIBEXEC' = "YES";
-              'SWIFT_ENABLE_VOLATILE' = "YES";
-              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
-              'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
-              'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
-              # Use response files to avoid long command line path issues on Windows. Do not use CMAKE_NINJA_FORCE_RESPONSE_FILE as it breaks armasm64
-              'CMAKE_Swift_USE_RESPONSE_FILE_FOR_FLAGS' = "YES";
-              'CMAKE_Swift_USE_RESPONSE_FILE_FOR_INCLUDES' = "YES";
-            }
-      - name: Build Swift Standard Library
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          if ("${{ inputs.build_os }}" -eq "Windows") {
-            Remove-Item env:\SDKROOT
-          }
-          cmake --build ${{ github.workspace }}/BinaryCache/swift
-      - name: Install Swift Standard Library
-        if: matrix.os != 'Android' || inputs.build_android
-        run: |
-          if ("${{ inputs.build_os }}" -eq "Windows") {
-            Remove-Item env:\SDKROOT
-          }
-          cmake --build ${{ github.workspace }}/BinaryCache/swift --target install
-
-      - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
-        if: matrix.os != 'Android' || inputs.build_android
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
-
-      - name: Upload PDBs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.pdb'
-
-      - name: Upload PDBs to Public Symbol Server
-        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
-        with:
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '*.pdb'
-          swift-version: ${{ inputs.swift_version }}
-          arch: ${{ matrix.arch }}
-          variant: ${{ matrix.variant }}
-          build-revision: ${{ inputs.swift_build_revision }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-
-      - name: Upload DLLs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.dll'
-
   macros:
     if: inputs.build_os == 'Windows'
     needs: [stage2-compiler, sdk]
@@ -4506,12 +4285,6 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
-
-      - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
-        if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Upload PDBs to Azure
         uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
@@ -6138,7 +5911,7 @@ jobs:
 
   package_windows_platform:
     name: Package Windows SDK & Runtime
-    needs: [stdlib, sdk]
+    needs: [sdk]
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
       expected-dlls-amd64: ${{ steps.write-expectations.outputs.expected-dlls-amd64 }}
@@ -6445,7 +6218,7 @@ jobs:
 
   package_android_platform:
     name: Package Android SDK & Runtime
-    needs: [stdlib, ds2, sdk]
+    needs: [ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
     steps:
@@ -6608,11 +6381,6 @@ jobs:
           # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
           Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/x86_64/
 
-      - if: inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: Android-i686-stdlib
-          path: ${{ github.workspace }}/BuildRoot/Library
       - if: inputs.build_android
         uses: actions/download-artifact@v4
         with:
