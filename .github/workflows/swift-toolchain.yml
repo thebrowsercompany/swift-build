@@ -5505,6 +5505,31 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
           show-progress: false
 
+      - name: Stage legacy Swift bridging headers
+        run: |
+          $ToolchainRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
+          $ResourceIncludes = @(
+            Get-ChildItem "$ToolchainRoot/usr/lib/clang" -Directory | ForEach-Object {
+              Join-Path $_.FullName "include"
+            }
+            Join-Path $ToolchainRoot "usr/lib/swift/clang/include"
+          )
+          $SourceInclude = $ResourceIncludes | Where-Object {
+            (Test-Path (Join-Path $_ "swift/bridging")) -and
+            (Test-Path (Join-Path $_ "swift/bridging.modulemap")) -and
+            (Test-Path (Join-Path $_ "module.modulemap"))
+          } | Select-Object -First 1
+          if (-not $SourceInclude) {
+            throw "Swift bridging headers were not found in a Clang resource directory"
+          }
+
+          # TODO: Remove after the 6.4 branch is cut and main uses matching installer scripts.
+          $DestinationInclude = Join-Path $ToolchainRoot "usr/include"
+          New-Item -Path (Join-Path $DestinationInclude "swift") -ItemType Directory -Force | Out-Null
+          Copy-Item -LiteralPath (Join-Path $SourceInclude "swift/bridging") -Destination (Join-Path $DestinationInclude "swift/bridging") -Force
+          Copy-Item -LiteralPath (Join-Path $SourceInclude "swift/bridging.modulemap") -Destination (Join-Path $DestinationInclude "swift/bridging.modulemap") -Force
+          Copy-Item -LiteralPath (Join-Path $SourceInclude "module.modulemap") -Destination (Join-Path $DestinationInclude "module.modulemap") -Force
+
       - run: |
           New-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/lib/swift/windows/${{ matrix.cpu }}/" -ItemType Directory -Force | Out-Null
 
@@ -5770,7 +5795,7 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
-      - name: Package Dynamic Runtime
+      - name: Package Shared Runtime
         env:
           AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
           AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
@@ -5790,7 +5815,7 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || matrix.arch }}", "Microsoft.VC143.CRT"))" `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/dynamic/msi/rtl.dynamic.msi.wixproj
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/shared/msi/rtl.shared.msi.wixproj
 
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
@@ -6132,12 +6157,12 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.arm64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x64.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.windows.x86.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.dynamic.shared.amd64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.shared.amd64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.dynamic.shared.arm64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.shared.arm64.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.dynamic.shared.x86.msm
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
 
       - uses: actions/upload-artifact@v4
         with:
@@ -6153,37 +6178,37 @@ jobs:
         with:
           name: Windows-amd64-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.dynamic.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.shared.amd64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-amd64-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.shared.amd64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/amd64/rtl.static.amd64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-arm64-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.dynamic.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.shared.arm64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-arm64-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.shared.arm64.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/arm64/rtl.static.arm64.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-x86-rtl-shared-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.dynamic.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.shared.x86.msm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-x86-rtl-static-msm
           path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
+            ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.x86.msm
 
   package_android_platform:
     name: Package Android SDK & Runtime
