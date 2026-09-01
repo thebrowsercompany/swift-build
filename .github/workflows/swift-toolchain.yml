@@ -7336,7 +7336,7 @@ jobs:
         run: cmake --build out
 
   swift_test:
-    needs: [stage1-compiler, stage2-compiler]
+    needs: [stage1-compiler, stage2-compiler, sdk]
     runs-on: ${{ inputs.compilers_build_runner }}
 
     strategy:
@@ -7356,6 +7356,11 @@ jobs:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+
+      - name: Clear inherited SDKROOT
+        run: |
+          "SDKROOT=" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Install CMake ${{ env.CMAKE_VERSION }}
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
@@ -7366,6 +7371,12 @@ jobs:
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - name: Download Host SDK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-shared-sdk
+          path: ${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ inputs.build_os }}.platform
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -7490,7 +7501,7 @@ jobs:
           $PythonMinor = ([System.Version]$PythonVersion).Minor
           if ( "${{ matrix.os }}" -eq "Windows" ) {
             $CLANG_LOCATION = cygpath -m $(Split-Path (Get-Command swiftc).Source)
-            $SDKROOT = cygpath -m ${env:SDKROOT}
+            $SDKROOT = cygpath -m "${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk"
             $LIBPYTHON_PATH = "${env:PYTHON_LOCATION}/tools/libs/python${PythonMajor}${PythonMinor}.lib"
             $PYTHON_INCLUDE_DIR = "${env:PYTHON_LOCATION}/tools/include"
             $PYTHON_BINARY="python.exe"
@@ -7534,6 +7545,7 @@ jobs:
           src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
           bin-dir: ${{ github.workspace }}/BinaryCache/1
           install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           c-compiler: 'Stage1.C'
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
@@ -7542,8 +7554,9 @@ jobs:
             @{
               'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "YES";
               'SWIFT_BUILD_DYNAMIC_STDLIB' = "YES";
+              'SWIFT_BUILD_LIBEXEC' = "YES";
               'SWIFT_BUILD_REMOTE_MIRROR' = "YES";
-              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "";
+              'SWIFT_NATIVE_SWIFT_TOOLS_PATH' = "${{ github.workspace }}/BinaryCache/1/bin";
               'CLANG_TABLEGEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tblgen${ExeSuffix}";
               'CLANG_TIDY_CONFUSABLE_CHARS_GEN' = "${{ github.workspace }}/BinaryCache/0/bin/clang-tidy-confusable-chars-gen${ExeSuffix}";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -7578,6 +7591,7 @@ jobs:
               'SWIFT_ENABLE_EXPERIMENTAL_STRING_PROCESSING' = "YES";
               'SWIFT_ENABLE_SYNCHRONIZATION' = "YES";
               'SWIFT_ENABLE_VOLATILE' = "YES";
+              'SWIFT_HOST_SDKROOT' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
@@ -7600,5 +7614,129 @@ jobs:
 
       - name: Test Compiler
         run: |
-          $env:Path = "${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
+          $env:Path = "${{ github.workspace }}\BinaryCache\SDK\Library\Developer\Platforms\${{ matrix.os }}.platform\Developer\SDKs\${{ matrix.os }}.sdk\usr\bin;${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
+
+          $BinaryDir = "${{ github.workspace }}\BinaryCache\1\bin"
+          $RuntimeSourceDir = "${{ github.workspace }}\BinaryCache\SDK\Library\Developer\Platforms\${{ matrix.os }}.platform\Developer\SDKs\${{ matrix.os }}.sdk\usr\bin"
+          $AssemblyName = "swiftToolchainRuntime"
+          $AssemblyVersion = "1.0.0.0"
+          $ProcessorArchitecture = "${{ matrix.arch }}"
+
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-frontend sourcekitd-test swift-ide-test swift-plugin-server
+
+          function Set-WindowsExecutableManifestDependency($ToolPath) {
+            $Namespace = "urn:schemas-microsoft-com:asm.v1"
+            $ExistingManifest = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
+            $MergedManifest = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-merged-$([guid]::NewGuid().Guid).manifest"
+
+            try {
+              & mt.exe -nologo -inputresource:"$ToolPath;#1" -out:$ExistingManifest 2>&1 | Out-Null
+
+              $Document = [System.Xml.XmlDocument]::new()
+              if (Test-Path $ExistingManifest) {
+                try {
+                  $Document.Load($ExistingManifest)
+                } catch {
+                  Write-Warning "Existing manifest in '$ToolPath' is unparsable; replacing it"
+                  $Document = [System.Xml.XmlDocument]::new()
+                }
+              }
+
+              if (-not $Document.DocumentElement) {
+                [void]$Document.AppendChild($Document.CreateXmlDeclaration("1.0", "UTF-8", "yes"))
+                $Root = $Document.CreateElement("assembly", $Namespace)
+                $Root.SetAttribute("manifestVersion", "1.0")
+                [void]$Document.AppendChild($Root)
+              }
+              $Root = $Document.DocumentElement
+
+              $NamespaceManager = [System.Xml.XmlNamespaceManager]::new($Document.NameTable)
+              $NamespaceManager.AddNamespace("a", $Namespace)
+              if (-not $Root.SelectSingleNode("a:assemblyIdentity", $NamespaceManager)) {
+                $Identity = $Document.CreateElement("assemblyIdentity", $Namespace)
+                $Identity.SetAttribute("type", "win32")
+                $Identity.SetAttribute("name", [IO.Path]::GetFileNameWithoutExtension($ToolPath))
+                $Identity.SetAttribute("version", $AssemblyVersion)
+                $Identity.SetAttribute("processorArchitecture", $ProcessorArchitecture)
+                [void]$Root.PrependChild($Identity)
+              }
+
+              foreach ($Node in @($Root.SelectNodes("a:dependency", $NamespaceManager))) {
+                [void]$Root.RemoveChild($Node)
+              }
+
+              $Dependency = $Document.CreateElement("dependency", $Namespace)
+              $DependentAssembly = $Document.CreateElement("dependentAssembly", $Namespace)
+              $Identity = $Document.CreateElement("assemblyIdentity", $Namespace)
+              $Identity.SetAttribute("type", "win32")
+              $Identity.SetAttribute("name", $AssemblyName)
+              $Identity.SetAttribute("version", $AssemblyVersion)
+              $Identity.SetAttribute("processorArchitecture", $ProcessorArchitecture)
+              $Identity.SetAttribute("language", "*")
+              [void]$DependentAssembly.AppendChild($Identity)
+              [void]$Dependency.AppendChild($DependentAssembly)
+              [void]$Root.AppendChild($Dependency)
+
+              $Document.Save($MergedManifest)
+              & mt.exe -nologo -manifest $MergedManifest "-outputresource:$ToolPath;#1"
+              if ($LASTEXITCODE -ne 0) {
+                throw "mt.exe failed for '$ToolPath'"
+              }
+            } finally {
+              Remove-Item $ExistingManifest, $MergedManifest -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          $DeveloperDLLs = [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::OrdinalIgnoreCase
+          )
+          foreach ($DLL in @("Testing", "_Testing_Foundation", "_Testing_WinSDK", "_TestingInterop", "XCTest")) {
+            [void]$DeveloperDLLs.Add($DLL)
+          }
+          $RuntimeDLLs = @(Get-ChildItem $RuntimeSourceDir -Filter "*.dll" -File | Where-Object {
+            -not $DeveloperDLLs.Contains([IO.Path]::GetFileNameWithoutExtension($_.Name))
+          } | Sort-Object Name)
+          if (-not $RuntimeDLLs) {
+            throw "No Swift runtime DLLs found in '$RuntimeSourceDir'"
+          }
+
+          $AssemblyDir = Join-Path $BinaryDir $AssemblyName
+          New-Item -ItemType Directory -Path $AssemblyDir -Force | Out-Null
+          foreach ($DLL in $RuntimeDLLs) {
+            Copy-Item $DLL.FullName $AssemblyDir -Force
+          }
+
+          $Files = ($RuntimeDLLs | ForEach-Object { "  <file name=`"$($_.Name)`"/>" }) -join "`r`n"
+          $BundleManifest = @"
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+            <assemblyIdentity type="win32" name="$AssemblyName" version="$AssemblyVersion"
+                processorArchitecture="$ProcessorArchitecture"/>
+          $Files
+          </assembly>
+          "@
+          Set-Content (Join-Path $AssemblyDir "$AssemblyName.manifest") $BundleManifest -Encoding UTF8
+
+          foreach ($Tool in @(
+            "swift.exe",
+            "swiftc.exe",
+            "swift-driver.exe",
+            "swift-frontend.exe",
+            "swift-synthesize-interface.exe",
+            "sil-opt.exe",
+            "sourcekitd-test.exe",
+            "swift-ide-test.exe",
+            "swift-plugin-server.exe",
+            "swiftc-legacy-driver.exe"
+          )) {
+            $ToolPath = Join-Path $BinaryDir $Tool
+            if (Test-Path $ToolPath) {
+              Set-WindowsExecutableManifestDependency $ToolPath
+            } else {
+              Write-Warning "'$ToolPath' does not exist; skipping SxS bind"
+            }
+          }
+
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-test-stdlib
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target SwiftCompilerPlugin
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
