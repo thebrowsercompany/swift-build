@@ -5770,7 +5770,7 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
-      - name: Package Legacy Runtime
+      - name: Package Dynamic Runtime
         env:
           AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
           AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
@@ -5789,30 +5789,8 @@ jobs:
               -p:WindowsRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
-              -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/legacy/msi/rtlmsi.wixproj
-
-      - name: Package Shared Runtime
-        env:
-          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
-          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
-          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
-        run: |
-          msbuild -nologo -restore -maxCpuCount `
-              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
-              -p:Configuration=Release `
-              -p:SignOutput=${{ inputs.signed }} `
-              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
-              -p:CERTIFICATE=${env:CERTIFICATE} `
-              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
-              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
-              -p:ProductVersion=${{ inputs.swift_version }} `
-              -p:ProductArchitecture=${{ matrix.arch }} `
-              -p:WindowsRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
-              -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
-              -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
-              -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
-              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/shared/msi/rtl.shared.msi.wixproj
+              -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || matrix.arch }}", "Microsoft.VC143.CRT"))" `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/dynamic/msi/rtl.dynamic.msi.wixproj
 
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
@@ -5834,8 +5812,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
@@ -5898,13 +5874,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-${{ matrix.arch }}-rtl-msi
-          path: |
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.msi
-            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.cab
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-rtl-shared-msi
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
@@ -6831,18 +6800,6 @@ jobs:
         with:
           name: Windows-${{ matrix.arch }}-rtl-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-amd64-rtl-msm
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/amd64
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-x86-rtl-msm
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/x86
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-arm64-rtl-msm
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/arm64
 
       - uses: actions/download-artifact@v4
         with:
@@ -6926,7 +6883,6 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
-              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - name: Generate Build Provenance (offline installer)
@@ -6982,7 +6938,6 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
-              -p:IncludeLegacySDK=True `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
       - name: Prepare layout for upload
