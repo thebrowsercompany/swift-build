@@ -5325,6 +5325,23 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
 
+      - name: Run Resync
+        run: |
+          cd ${{ github.workspace }}/SourceCache/swift/Runtimes
+          cmake -P Resync.cmake
+
+      # TODO: Remove this after SwiftCore exports an install-tree path for swiftrt.obj.
+      - name: Make SwiftRT export usable from the installed SDK
+        run: |
+          $SwiftCoreTargets = "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/cmake/SwiftCore/SwiftCoreTargets.cmake"
+          $Contents = Get-Content -Raw $SwiftCoreTargets
+          $BuildTreeReference = '$<TARGET_OBJECTS:swiftrt>'
+          if (-not $Contents.Contains($BuildTreeReference)) {
+            throw "SwiftCore export does not contain the expected SwiftRT build-tree reference"
+          }
+          $Contents = $Contents.Replace($BuildTreeReference, '${_IMPORT_PREFIX}/lib/swift/windows/${{ matrix.cpu }}/swiftrt.obj')
+          Set-Content -Path $SwiftCoreTargets -Value $Contents
+
       - name: Add Host SDK runtime to PATH
         run: |
           $RuntimeLibrary = if ("${{ matrix.arch }}" -eq "${{ inputs.build_arch }}") {
@@ -5337,6 +5354,36 @@ jobs:
 
           $SDKRoot = cygpath -w "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      # TODO: Make the SwiftOverlay CMake package relocatable across jobs.
+      - name: Regenerate Windows SDK overlay
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Overlay
+          swift-version: ${{ inputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ inputs.debug_info }}
+          build-os: ${{ inputs.build_os }}
+          build-arch: ${{ inputs.build_arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Overlay
+          bin-dir: ${{ github.workspace }}/BinaryCache/Overlay
+          install-dir: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr
+          swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/cmake/SwiftCore";
+              'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
+              'SwiftOverlay_ENABLE_CXX_INTEROP' = "YES";
+            }
 
       # build.ps1: Build-Inspect
       - name: Configure swift-inspect
