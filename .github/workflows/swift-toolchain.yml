@@ -5260,12 +5260,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            cpu: x86_64
-            os: Windows
-            triple: x86_64-unknown-windows-msvc
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
 
     name: Windows ${{ matrix.arch }} Debugging Tools
 
@@ -5454,13 +5449,7 @@ jobs:
 
     strategy:
       fail-fast: false
-
-      matrix:
-        include:
-          - arch: amd64
-            cpu: x86_64
-            os: Windows
-            triple: x86_64-unknown-windows-msvc
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
 
     steps:
       - name: Select signing mode
@@ -7163,7 +7152,7 @@ jobs:
 
   installer:
     if: inputs.build_os == 'Windows'
-    needs: [package_tools, package_windows_platform, package_android_platform, package_python, package_resources]
+    needs: [package_tools]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -7242,11 +7231,15 @@ jobs:
         with:
           name: Windows-${{ matrix.arch }}-python-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+          run-id: 33673383195
+          github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
         with:
           name: Windows-res-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+          run-id: 33673383195
+          github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -7257,6 +7250,8 @@ jobs:
         with:
           name: Windows-platform-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+          run-id: 33673383195
+          github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         if: inputs.build_android
         with:
