@@ -5687,6 +5687,7 @@ jobs:
 
           $RuntimeLocation = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\usr\bin"
           $ProcArch = "${{ matrix.arch }}"
+          $PublicKeyToken = "0000000000000000"
           $WxiFiles = @(
             "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\bld\bld.wxi",
             "${{ github.workspace }}\SourceCache\swift-installer-scripts\platforms\Windows\cli\cli.wxi",
@@ -5767,7 +5768,7 @@ jobs:
           }
 
           # Embed an RT_MANIFEST #1 identity manifest into a staged runtime DLL.
-          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $LogPrefix) {
+          function Set-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
             if (-not (Test-Path $ImagePath)) { throw "${LogPrefix}: '$ImagePath' does not exist" }
             if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "${LogPrefix}: AssemblyVersion '$AssemblyVersion' is not in the required 4-part 'a.b.c.d' form (Windows SxS rejects any other shape)." }
             $AssemblyName = [IO.Path]::GetFileNameWithoutExtension($ImagePath)
@@ -5776,7 +5777,7 @@ jobs:
             try {
               $ManifestXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
                 '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
-                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture) + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $AssemblyName, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
                 ('  <file name="{0}"/>' -f $FileName) + "`r`n" +
                 '</assembly>'
               Set-Content -Path $ManifestPath -Value $ManifestXml -Encoding UTF8 -ErrorAction Stop
@@ -5790,7 +5791,7 @@ jobs:
             }
           }
 
-          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
+          function Test-WindowsAssemblyManifestMatchesImage([string] $ManifestPath, [string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
             $Doc = New-Object System.Xml.XmlDocument
             $Doc.Load($ManifestPath)
             $Assembly = $Doc.SelectSingleNode("/*[local-name()='assembly']")
@@ -5806,18 +5807,19 @@ jobs:
               ($AssemblyIdentity.GetAttribute("name") -eq $AssemblyName) -and
               ($AssemblyIdentity.GetAttribute("version") -eq $AssemblyVersion) -and
               ($AssemblyIdentity.GetAttribute("processorArchitecture") -ieq $ProcessorArchitecture) -and
+              ($AssemblyIdentity.GetAttribute("publicKeyToken") -ieq $PublicKeyToken) -and
               ($File.GetAttribute("name") -eq $FileName)
             )
           }
 
-          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $LogPrefix) {
+          function Ensure-WindowsAssemblyManifest([string] $ImagePath, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $LogPrefix) {
             $ExistingManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-existing-$([guid]::NewGuid().Guid).manifest"
             $KeepExistingManifest = $false
             try {
               & "mt.exe" -nologo "-inputresource:$ImagePath;#1" -out:$ExistingManifestPath 2>&1 | Out-Null
               if (Test-Path $ExistingManifestPath) {
                 try {
-                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture
+                  $ManifestMatches = Test-WindowsAssemblyManifestMatchesImage -ManifestPath $ExistingManifestPath -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken
                 } catch {
                   $KeepExistingManifest = $true
                   throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST #1 (extracted to '$ExistingManifestPath')"
@@ -5826,14 +5828,14 @@ jobs:
                 $KeepExistingManifest = $true
                 throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST #1, but it is not the expected SxS assembly manifest (extracted to '$ExistingManifestPath'); rebuild the producer without a linker-generated manifest instead of overwriting it"
               }
-              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -LogPrefix $LogPrefix
+              Set-WindowsAssemblyManifest -ImagePath $ImagePath -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix $LogPrefix
             } finally {
               if (-not $KeepExistingManifest) { Remove-Item -Path $ExistingManifestPath -Force -ErrorAction SilentlyContinue }
             }
           }
 
-          function New-WindowsManifestDependency([string] $Name, [string] $AssemblyVersion, [string] $ProcessorArchitecture) {
-            return [pscustomobject]@{ Name = $Name; Version = $AssemblyVersion; ProcessorArchitecture = $ProcessorArchitecture }
+          function New-WindowsManifestDependency([string] $Name, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken) {
+            return [pscustomobject]@{ Name = $Name; Version = $AssemblyVersion; ProcessorArchitecture = $ProcessorArchitecture; PublicKeyToken = $PublicKeyToken }
           }
 
           function Set-WindowsExecutableManifestDependencies([string] $ToolPath, [object[]] $Dependencies, [string] $LogPrefix) {
@@ -5875,6 +5877,7 @@ jobs:
                 $AsmId.SetAttribute("name", $Dependency.Name)
                 $AsmId.SetAttribute("version", $Dependency.Version)
                 $AsmId.SetAttribute("processorArchitecture", $Dependency.ProcessorArchitecture)
+                $AsmId.SetAttribute("publicKeyToken", $Dependency.PublicKeyToken)
                 $AsmId.SetAttribute("language", "*")
                 [void]$DepAsm.AppendChild($AsmId)
                 [void]$Dep.AppendChild($DepAsm)
@@ -5891,8 +5894,69 @@ jobs:
             }
           }
 
+          function Get-WindowsManifestResourceIDs([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            $Output = & $ReadObj --coff-resources $ImagePath 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "${LogPrefix}: llvm-readobj failed to inspect resources in '$ImagePath': $($Output -join "`n")" }
+
+            $CandidateIDs = [System.Collections.Generic.HashSet[int]]::new()
+            $InManifestType = $false
+            foreach ($Line in $Output) {
+              if ($Line -match '^\s*Type:\s*(?:RT_MANIFEST\b.*|.*\(ID\s+24\)|24\b)') { $InManifestType = $true; continue }
+              if ($Line -match '^\s*Type:') { $InManifestType = $false }
+              if ($InManifestType -and
+                  ($Line -match '^\s*Name:\s*(?:\(ID\s*)?#?([0-9]+)\)?' -or
+                   $Line -match '^\s*Name:.*\(ID\s+([0-9]+)\)')) {
+                [void]$CandidateIDs.Add([int]$Matches[1])
+              }
+            }
+            foreach ($ResourceID in 1..16) { [void]$CandidateIDs.Add($ResourceID) }
+
+            $ManifestIDs = [System.Collections.Generic.HashSet[int]]::new()
+            foreach ($ResourceID in ($CandidateIDs | Sort-Object)) {
+              $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-probe-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+              try {
+                & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $ManifestPath)) { [void]$ManifestIDs.Add([int]$ResourceID) }
+              } finally {
+                Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue
+              }
+            }
+            $ManifestIDs | Sort-Object
+          }
+
+          function Assert-WindowsManifestResourcesAreSxSSafe([string] $ImagePath, [string] $LogPrefix, [string] $ReadObj) {
+            $ResourceIDs = @(Get-WindowsManifestResourceIDs -ImagePath $ImagePath -LogPrefix $LogPrefix -ReadObj $ReadObj)
+            $UnexpectedReservedResourceIDs = @($ResourceIDs | Where-Object { $_ -ge 1 -and $_ -le 16 -and $_ -ne 1 })
+            if ($UnexpectedReservedResourceIDs.Count -gt 0) {
+              throw "${LogPrefix}: '$ImagePath' has unexpected reserved RT_MANIFEST resources (#$($UnexpectedReservedResourceIDs -join ', #'))"
+            }
+
+            foreach ($ResourceID in $ResourceIDs) {
+              $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
+              $KeepManifest = $false
+              try {
+                & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) { throw "${LogPrefix}: failed to extract RT_MANIFEST resource #$ResourceID from '$ImagePath'" }
+                try {
+                  $Doc = New-Object System.Xml.XmlDocument
+                  $Doc.Load($ManifestPath)
+                  $HasExecutionLevel = [bool]$Doc.SelectSingleNode("//*[local-name()='trustInfo' or local-name()='requestedPrivileges' or local-name()='requestedExecutionLevel']")
+                } catch {
+                  $KeepManifest = $true
+                  throw "${LogPrefix}: '$ImagePath' has an unparsable RT_MANIFEST resource #$ResourceID (extracted to '$ManifestPath')"
+                }
+                if ($HasExecutionLevel) {
+                  $KeepManifest = $true
+                  throw "${LogPrefix}: '$ImagePath' has RT_MANIFEST resource #$ResourceID with UAC execution-level metadata (extracted to '$ManifestPath')"
+                }
+              } finally {
+                if (-not $KeepManifest) { Remove-Item -Path $ManifestPath -Force -ErrorAction SilentlyContinue }
+              }
+            }
+          }
+
           # Per-toolchain-root staging.
-          function Stage-ToolchainRootSxS([string] $ToolchainRoot, [string] $RuntimeLocation, [string[]] $WxiDeclared, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $ReadObj) {
+          function Stage-ToolchainRootSxS([string] $ToolchainRoot, [string] $RuntimeLocation, [string[]] $WxiDeclared, [string] $AssemblyVersion, [string] $ProcessorArchitecture, [string] $PublicKeyToken, [string] $ReadObj) {
             if (-not (Test-Path $ToolchainRoot)) { Write-Warning "Stage-ToolchainRootSxS: '$ToolchainRoot' not found; skipping"; return }
             $BinDir = [IO.Path]::Combine($ToolchainRoot, "usr", "bin")
             if (-not (Test-Path $BinDir)) { throw "Stage-ToolchainRootSxS: BinDir '$BinDir' not found" }
@@ -5970,7 +6034,8 @@ jobs:
               New-Item -ItemType Directory -Path $AssemblyDir -Force -ErrorAction Stop | Out-Null
               $StagedDLL = Join-Path $AssemblyDir "$DLLName.dll"
               Copy-Item -Path $SourceDLL -Destination $StagedDLL -Force -ErrorAction Stop
-              Ensure-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -LogPrefix "Stage-ToolchainRootSxS"
+              Ensure-WindowsAssemblyManifest -ImagePath $StagedDLL -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcessorArchitecture -PublicKeyToken $PublicKeyToken -LogPrefix "Stage-ToolchainRootSxS"
+              Assert-WindowsManifestResourcesAreSxSSafe -ImagePath $StagedDLL -LogPrefix "Stage-ToolchainRootSxS" -ReadObj $ReadObj
               Write-Host ("  [{0,-32}]  ->  {1}" -f "$DLLName.dll", $AssemblyDir)
               [void]$InjectedDLLs.Add($DLLName)
             }
@@ -5984,7 +6049,7 @@ jobs:
               if (-not (Test-Path $ToolPath)) { Write-Warning "Stage-ToolchainRootSxS: tool '$ToolPath' does not exist; skipping"; continue }
               $MissingDLLs = @($DirectRuntimeDeps | Where-Object { -not $InjectedDLLs.Contains($_) })
               if ($MissingDLLs.Count -gt 0) { throw "Stage-ToolchainRootSxS: refusing to bind '$ToolPath'; missing injected SxS DLL(s): $($MissingDLLs -join ', ')" }
-              $Dependencies = @(foreach ($DLLName in ($DirectRuntimeDeps | Sort-Object)) { New-WindowsManifestDependency $DLLName $AssemblyVersion $ProcessorArchitecture })
+              $Dependencies = @(foreach ($DLLName in ($DirectRuntimeDeps | Sort-Object)) { New-WindowsManifestDependency $DLLName $AssemblyVersion $ProcessorArchitecture $PublicKeyToken })
               Write-Host "Stage-ToolchainRootSxS: binding EXE '$ToolPath' -> [$($DirectRuntimeDeps -join ', ')]"
               Set-WindowsExecutableManifestDependencies $ToolPath $Dependencies "Stage-ToolchainRootSxS"
               $BoundEXECount++
@@ -6007,7 +6072,7 @@ jobs:
           $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
           $ReadObj = (Get-Command "llvm-readobj.exe" -ErrorAction Stop).Source
           foreach ($ToolchainRoot in $ToolchainRoots) {
-            Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -WxiDeclared @($WxiDeclared) -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -ReadObj $ReadObj
+            Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -WxiDeclared @($WxiDeclared) -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $PublicKeyToken -ReadObj $ReadObj
           }
 
 
