@@ -5443,9 +5443,8 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
-    if: ${{ false }}
+    if: inputs.build_os == 'Windows'
     name: Package Tools
-    needs: [debugging_tools]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -5489,6 +5488,8 @@ jobs:
         with:
           name: Windows-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
+          run-id: 33805608745
+          github-token: ${{ github.token }}
 
       - name: Download Compilers (Asserts)
         uses: actions/download-artifact@v4
@@ -7207,6 +7208,7 @@ jobs:
 
   installer:
     if: inputs.build_os == 'Windows'
+    needs: [package_tools]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -7251,8 +7253,6 @@ jobs:
           pattern: Windows-${{ matrix.arch }}-*-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
           merge-multiple: true
-          run-id: 33805608745
-          github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
         with:
