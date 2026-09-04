@@ -5255,7 +5255,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   debugging_tools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -5443,6 +5443,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
+    if: ${{ false }}
     name: Package Tools
     needs: [debugging_tools]
     runs-on: ${{ inputs.default_build_runner }}
@@ -7217,7 +7218,6 @@ jobs:
 
   installer:
     if: inputs.build_os == 'Windows'
-    needs: [package_tools]
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -7256,41 +7256,14 @@ jobs:
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
-      - uses: actions/download-artifact@v4
+      - name: Download Package Tools
+        uses: actions/download-artifact@v4
         with:
-          name: Windows-${{ matrix.arch }}-bld-asserts-msi
+          pattern: Windows-${{ matrix.arch }}-*-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-bld-noasserts-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-cli-asserts-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-cli-noasserts-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-dbg-asserts-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-dbg-noasserts-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-ide-asserts-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-ide-noasserts-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+          merge-multiple: true
+          run-id: 33805608745
+          github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -7305,11 +7278,6 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
           run-id: 33673383195
           github-token: ${{ github.token }}
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-${{ matrix.arch }}-rtl-msi
-          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
       - uses: actions/download-artifact@v4
         with:
