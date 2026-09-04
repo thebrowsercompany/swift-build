@@ -6050,7 +6050,10 @@ jobs:
                 $ManifestPath = Join-Path ([IO.Path]::GetTempPath()) "swift-sxs-$([IO.Path]::GetFileName($ImagePath))-#$ResourceID-$([guid]::NewGuid().Guid).manifest"
                 try {
                   & "mt.exe" -nologo "-inputresource:$ImagePath;#$ResourceID" -out:$ManifestPath 2>&1 | Out-Null
-                  if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ManifestPath)) { continue }
+                  $ManifestExitCode = $LASTEXITCODE
+                  # Missing manifest IDs are expected while probing.
+                  $global:LASTEXITCODE = 0
+                  if ($ManifestExitCode -ne 0 -or -not (Test-Path $ManifestPath)) { continue }
                   [void]$ManifestIDs.Add($ResourceID)
                   if ($ResourceID -ne 1) { throw "'$ImagePath' has unexpected reserved RT_MANIFEST resource #$ResourceID" }
 
