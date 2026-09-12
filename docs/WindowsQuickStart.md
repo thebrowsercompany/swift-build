@@ -1,35 +1,25 @@
 # Building the toolchain on Windows
 
-Visual Studio 2022 is required to build Swift on Windows; any edition is fine.
-Visual Studio 2017 should be possible to use, though it may require some
-additional work to repair the build.  Visual Studio 2019 can be used to build,
-though some of the automation will need to be adjusted for paths.
+Any edition of Visual Studio between 2019 and 2026 is supported to build the toolchain. The IDE experience is not required (i.e. Visual Studio Build tools are sufficient for the purposes of building the toolchain).
 
 ## Preflight
 
 > [!IMPORTANT]
-> The following commands must be run in the Windows Command Prompt launched from
-the start menu. They wil not work if run in Windows Powershell or if run in a
-Windows Command Prompt launched from inside an existing installation of Visual
-Studio.
+> The following commands must be run in the Windows Command Prompt launched from the start menu. They wil not work if run in Windows Powershell or if run in a Windows Command Prompt launched from inside an existing installation of Visual Studio.
 
 ### Visual Studio
 
-Installing Visual Studio can be done manually or in an unattended manner.  The
-following snippet installs the necessary components of Visual Studio 2022 in an
-automated fashion.
+Installing Visual Studio can be done manually or in an unattended manner. The following snippet installs the necessary components of Visual Studio 2022 in an automated fashion.
 
 ```cmd
 curl.exe -sOL https://aka.ms/vs/17/release/vs_community.exe
 vs_community.exe ^
   --add Microsoft.NetCore.Component.SDK ^
   --add Microsoft.VisualStudio.Component.Git ^
-  --add Microsoft.VisualStudio.Component.VC.CMake.Project ^
   --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
   --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 ^
   --add Microsoft.VisualStudio.Component.VC.ATL ^
   --add Microsoft.VisualStudio.Component.VC.ATL.ARM64 ^
-  --add Microsoft.VisualStudio.Component.Windows10SDK ^
   --add Microsoft.VisualStudio.Component.Windows11SDK.22621
 del /q vs_community.exe
 ```
@@ -40,30 +30,19 @@ The `repo` tool uses Python, and as such, we need a Python installation on the h
 
 ### Enable Symbolic Links Support
 
-> [!NOTE]
-> This step only needs to be completed if your User is not an Administrator, as Adminstrators already have permission to create symbolic links.
-
-Grant your user the `SeCreateSymbolicLinkPrivilege` rights.  This can be done by
-applying a Group Policy Object to the system.  Run `gpedit.msc` and navigate to
+Grant your user the `SeCreateSymbolicLinkPrivilege` rights. This can be done by applying a Group Policy Object to the system. Run `gpedit.msc` and navigate to
 
 ~~~
 Computer Configuration > Windows Settings > Security Settings > Local Policies > User Rights Assignment
 ~~~
 
-In the `Create symbolic links` entry, add your user.  You will need to restart
-your session for the permission to be applied globally.
+In the `Create symbolic links` entry, add your user. You will need to restart your session for the permission to be applied globally.
 
-See [Microsoft documentation](https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/create-symbolic-links)
-for additional information about this and the implications of changing this
-permission.
+See [Microsoft documentation](https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/create-symbolic-links) for additional information about this and the implications of changing this permission.
 
 ### Enable Symbolic Links, Line Ending Conversion in Git
 
-Some of the repositories depend on symbolic links when checking out the sources.
-Additionally, some of the test inputs are line-ending sensitive and will need to
-be checked out with a specific line ending.  You can simply set the global
-defaults to ensure that the features are configured properly for all
-repositories.
+Some of the repositories depend on symbolic links when checking out the sources. Additionally, some of the test inputs are line-ending sensitive and will need to be checked out with a specific line ending. You can simply set the global defaults to ensure that the features are configured properly for all repositories.
 
 ```cmd
 git config --global --add core.autocrlf false
@@ -72,24 +51,20 @@ git config --global --add core.symlinks true
 
 ### Environment Setup
 
-The remainder of the instructions assume that everything is being performed in
-the instruction standard location.  The sources are expected to reside on a
-drive labelled `S`.  If your sources are on another drive letter, you can use
-the `subst` command to create a temporary, session local, drive mapping.
+> [!NOTE]
+> It is recommended that you have a dedicated partition to build on, formatting it with the ReFS file system (this configuration is also known as a Dev Drive).
+
+The remainder of the instructions assume that everything is being performed in the instruction standard location. The sources are expected to reside on a drive labelled `S`. If your sources are on another drive letter, you can use the `subst` command to create a temporary, session local, drive mapping.
 
 ```cmd
 subst S: %UserProfile%\source
 ```
 
-The development drive must be formatted with NTFS or ReFS to ensure that
-symbolic link support is available.  ExFAT does not support this functionality,
-and while portable, would not allow required functionality to build Swift.
+The development drive must be formatted with NTFS or ReFS to ensure that symbolic link support is available. ExFAT does not support this functionality, and while portable, would not allow required functionality to build Swift.
 
 ### Cloning Repositories
 
-The easiest way to clone the repositories is by using the
-[repo tool](https://gerrit.googlesource.com/git-repo).  See the documentation
-from repo to install repo.
+The easiest way to clone the repositories is by using the [repo tool](https://gerrit.googlesource.com/git-repo). See the documentation from repo to install repo.
 
 ```cmd
 S:
@@ -128,57 +103,35 @@ python S:\Applications\repo init -u https://github.com/compnerd/swift-build -b r
 
 ## Building
 
-The full toolchain can be built in an automated fashion.  The following script
-will perform a build and package of the toolchain.
+The full toolchain can be built in an automated fashion. The following script will perform a build and package of the toolchain.
 
 ```
-S:\SourceCache\swift\utils\build.cmd -Windows
+S:\SourceCache\swift\utils\build.cmd
 ```
 
-### Building for local debugging and testing
+### Additional Build Parameters
 
-Additional `-DebugInfo` build script flag is required to build to build the toolchain with
-debug information. For example, the following script invocation
-will build the toolchain with PDB debug information, and will also skip the
-installer packaging, which is rarely needed for local development.
+In order to support developer productivity, multiple options are supported to help isolate what is being built.
 
-```
-S:\SourceCache\swift\utils\build.cmd -Windows -DebugInfo -SkipPackaging
-```
+`-Toolchain`: builds the toolchain (`-Toolchain:$false` can be passed to the `.ps1` script to disable the toolchain build)
+`-Windows`: builds the Windows SDK
+`-Android`: builds the Android SDK
+`-Package:` builds the installer
 
-The `-Test` flag can be used to build the tests for a toolchain component. For instance,
-the following script invocation will ensure that the test targets for all components
-that support testing are built:
-
-```
-S:\SourceCache\swift\utils\build.cmd -Windows -DebugInfo -SkipPackaging -Test '*'
-```
-
-### Speeding up the build with sccache
-
-The `-EnableCaching` flag can be used to speed up the build. This will automatically download
-SCCache before building. Note that this flag will help speed up the build of the C/C++ code
-but not the Swift code as `sccache` doesn't currently support Swift.
-
-```
-S:\SourceCache\swift\utils\build.cmd -Windows -EnableCaching
-```
+Consult `-?` output for more details on how to further customise your build.
 
 ## Using the Toolchain
 
 ### Environment Setup
 
-The Windows toolchain depends on some environment variables.  If you wish to use
-the locally built toolchain without installing with the distribution packaging,
-you will need to manually configure the enviornment everytime you wish to use
-the toolchain.
+The Windows toolchain depends on some environment variables. If you wish to use the locally built toolchain without installing with the distribution packaging, you will need to manually configure the enviornment everytime you wish to use the toolchain.
 
 > [!CAUTION]
-> **DO NOT** add this to your environment by default.  The normal toolchain build will not function properly with the environment configuration.
+> **DO NOT** add this to your environment by default. The normal toolchain build will not function properly with the environment configuration.
 
 ```cmd
 set SDKROOT=S:\Program Files\Swift\Platforms\Windows.platform\Developer\SDKs\Windows.sdk
-path S:\b\Python%PROCESSOR_ARCHITECTURE%-3.10.1\tools;S:\Program Files\Swift\Runtimes\0.0.0\usr\bin;S:\Program Files\Swift\Toolchains\0.0.0+Asserts\usr\bin;%PATH%
+path S:\ArtifactCache\Python%PROCESSOR_ARCHITECTURE%-3.10.1\tools;S:\Program Files\Swift\Runtimes\0.0.0\usr\bin;S:\Program Files\Swift\Toolchains\0.0.0+Asserts\usr\bin;%PATH%
 ```
 
 ### PowerShell Helper
