@@ -7596,6 +7596,9 @@ jobs:
   swift_test:
     runs-on: ${{ inputs.compilers_build_runner }}
 
+    env:
+      LIT_FILTER: 'CAS/(symbol-graph|can-import|dependency_file)|throw_errors3'
+
     timeout-minutes: 90
 
     strategy:
@@ -7917,7 +7920,7 @@ jobs:
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
-              'SWIFT_LIT_ARGS' = "-sv -j 1 --timeout=600 --filter=(CAS/(symbol-graph|can-import|dependency_file)[.]swift|refactoring/ExtractFunction/throw_errors3[.]swift)";
+              'SWIFT_LIT_ARGS' = "-sv -j 1 --timeout=600";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
               'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
@@ -7933,6 +7936,33 @@ jobs:
               'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
               'CMAKE_Swift_FLAGS' = "${{ !inputs.use_host_toolchain && '-use-ld=lld' || '' }}";
             }
+
+      - name: Validate Swift test filter
+        run: |
+          $Output = @(& python `
+            "${{ github.workspace }}/SourceCache/llvm-project/llvm/utils/lit/lit.py" `
+            --show-tests `
+            "${{ github.workspace }}/BinaryCache/1/tools/swift/test-windows-${{ matrix.cpu }}" 2>&1)
+          $Output | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+          $SelectedTests = @($Output | Where-Object { $_ -match '^\s+Swift\(.*\) :: ' })
+          $ExpectedTests = @(
+            "CAS/symbol-graph.swift",
+            "CAS/can-import.swift",
+            "CAS/dependency_file.swift",
+            "refactoring/ExtractFunction/throw_errors3.swift"
+          )
+          if ($SelectedTests.Count -ne $ExpectedTests.Count) {
+            throw "LIT_FILTER selected $($SelectedTests.Count) tests instead of $($ExpectedTests.Count)"
+          }
+          foreach ($ExpectedTest in $ExpectedTests) {
+            if (-not ($SelectedTests | Where-Object { $_ -like "* :: $ExpectedTest" })) {
+              throw "LIT_FILTER did not select '$ExpectedTest'"
+            }
+          }
 
       - name: Test Compiler
         run: |
