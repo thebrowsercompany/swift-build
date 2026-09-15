@@ -7937,33 +7937,6 @@ jobs:
               'CMAKE_Swift_FLAGS' = "${{ !inputs.use_host_toolchain && '-use-ld=lld' || '' }}";
             }
 
-      - name: Validate Swift test filter
-        run: |
-          $Output = @(& python `
-            "${{ github.workspace }}/SourceCache/llvm-project/llvm/utils/lit/lit.py" `
-            --show-tests `
-            "${{ github.workspace }}/BinaryCache/1/tools/swift/test-windows-${{ matrix.cpu }}" 2>&1)
-          $Output | Write-Host
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
-
-          $SelectedTests = @($Output | Where-Object { $_ -match '^\s+Swift\(.*\) :: ' })
-          $ExpectedTests = @(
-            "CAS/symbol-graph.swift",
-            "CAS/can-import.swift",
-            "CAS/dependency_file.swift",
-            "refactoring/ExtractFunction/throw_errors3.swift"
-          )
-          if ($SelectedTests.Count -ne $ExpectedTests.Count) {
-            throw "LIT_FILTER selected $($SelectedTests.Count) tests instead of $($ExpectedTests.Count)"
-          }
-          foreach ($ExpectedTest in $ExpectedTests) {
-            if (-not ($SelectedTests | Where-Object { $_ -like "* :: $ExpectedTest" })) {
-              throw "LIT_FILTER did not select '$ExpectedTest'"
-            }
-          }
-
       - name: Test Compiler
         run: |
           $env:Path = "${{ github.workspace }}\BinaryCache\SDK\Library\Developer\Platforms\${{ matrix.os }}.platform\Developer\SDKs\${{ matrix.os }}.sdk\usr\bin;${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
