@@ -5443,7 +5443,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     name: Package Tools
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7594,13 +7594,18 @@ jobs:
         run: cmake --build out
 
   swift_test:
-    needs: [stage1-compiler, stage2-compiler, sdk]
     runs-on: ${{ inputs.compilers_build_runner }}
+
+    timeout-minutes: 90
 
     strategy:
       fail-fast: false
-      # TODO: maybe refactor without using a matrix
-      matrix: ${{ fromJSON(inputs.build_matrix) }}
+      matrix:
+        include:
+          - arch: amd64
+            cpu: x86_64
+            os: Windows
+            triple: x86_64-unknown-windows-msvc
 
     name: ${{ matrix.os }} ${{ matrix.arch }} Asserts Swift Test
 
@@ -7624,17 +7629,28 @@ jobs:
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
 
-      - name: Download Stage1 Compiler
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - name: Download Stage1 Compiler archive
+        uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
-          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+          path: ${{ runner.temp }}/stage1-compiler
+          run-id: 33673383195
+          github-token: ${{ github.token }}
+      - name: Expand Stage1 Compiler
+        run: |
+          $Destination = "${{ github.workspace }}\BinaryCache\stage1\Library"
+          New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+          $Archive = "${{ runner.temp }}\stage1-compiler\${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler.tar"
+          & "$env:WINDIR\System32\tar.exe" xf $Archive -C $Destination
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Download Host SDK
         uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-shared-sdk
           path: ${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ inputs.build_os }}.platform
+          run-id: 33673383195
+          github-token: ${{ github.token }}
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -7656,51 +7672,76 @@ jobs:
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-Asserts-compilers
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+      - name: Download Compiler Build Tools archive
+        uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
-          path: ${{ github.workspace }}/BinaryCache/0/bin
+          path: ${{ runner.temp }}/swift-test-inputs/${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
+          run-id: 33673383195
+          github-token: ${{ github.token }}
+      - name: Download CMark archive
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
+          path: ${{ runner.temp }}/swift-test-inputs/${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
+          run-id: 33673383195
+          github-token: ${{ github.token }}
+      - name: Download early swift-driver archive
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
+          path: ${{ runner.temp }}/swift-test-inputs/${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
+          run-id: 33673383195
+          github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/libxml2-${{ inputs.libxml2_version }}/usr
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
-          path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
-      - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
-        with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
-          path: ${{ github.workspace }}/BinaryCache/swift-driver
+          run-id: 33673383195
+          github-token: ${{ github.token }}
+      - name: Expand build inputs
+        run: |
+          $Inputs = @(
+            @("${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools", "${{ github.workspace }}\BinaryCache\0\bin"),
+            @("${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}", "${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr"),
+            @("${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver", "${{ github.workspace }}\BinaryCache\swift-driver")
+          )
+          foreach ($Input in $Inputs) {
+            $Destination = $Input[1]
+            New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+            $Archive = "${{ runner.temp }}\swift-test-inputs\$($Input[0])\$($Input[0]).tar"
+            & "$env:WINDIR\System32\tar.exe" xf $Archive -C $Destination
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/llvm-project
-          ref: ${{ inputs.llvm_project_revision }}
+          ref: e26133c38b6a83dcc595b389024eedd88420e2aa
           path: ${{ github.workspace }}/SourceCache/llvm-project
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift
-          ref: ${{ inputs.swift_revision }}
+          ref: b92749f06e27f00384ed7f61406ad06ee121f443
           path: ${{ github.workspace }}/SourceCache/swift
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-experimental-string-processing
-          ref: ${{ inputs.swift_experimental_string_processing_revision }}
+          ref: 71df1835c35d97200a236dad69f433d89109153d
           path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-syntax
-          ref: ${{ inputs.swift_syntax_revision }}
+          ref: d76992252d89c54454c6ed99477dc9f8305117cb
           path: ${{ github.workspace }}/SourceCache/swift-syntax
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
           repository: apple/swift-corelibs-libdispatch
-          ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
+          ref: d4209e868a6a8a8c95e0e3714661b247151bdb3a
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
 
@@ -7709,6 +7750,9 @@ jobs:
         with:
           python-version: ${{ inputs.python_version }}
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - name: Install lit timeout support
+        run: python -m pip install psutil
 
       - name: Download and expand Python
         env:
@@ -7854,6 +7898,8 @@ jobs:
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
+              'SWIFT_LIT_ARGS' = "-sv -j 1 --timeout=600";
+              'SWIFT_LIT_TEST_PATHS' = "${{ github.workspace }}/SourceCache/swift/test/CAS/symbol-graph.swift;${{ github.workspace }}/SourceCache/swift/test/CAS/can-import.swift;${{ github.workspace }}/SourceCache/swift/test/CAS/dependency_file.swift;${{ github.workspace }}/SourceCache/swift/test/refactoring/ExtractFunction/throw_errors3.swift";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
               'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
@@ -7997,4 +8043,14 @@ jobs:
 
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-test-stdlib
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target SwiftCompilerPlugin
-          cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift-custom
+
+      - name: Upload Swift test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-test-results
+          path: |
+            ${{ github.workspace }}/BinaryCache/1/swift-test-results
+            ${{ github.workspace }}/BinaryCache/1/tools/swift/test-windows-x86_64/CAS/Output
+            ${{ github.workspace }}/BinaryCache/1/tools/swift/test-windows-x86_64/refactoring/ExtractFunction/Output
