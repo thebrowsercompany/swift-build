@@ -7620,6 +7620,25 @@ jobs:
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
+      - name: Enable Windows crash dumps
+        run: |
+          $ErrorActionPreference = "Stop"
+          $DumpDirectory = "${{ runner.temp }}\swift-crash-dumps"
+          $RegistryPath = "HKCU:\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps"
+
+          New-Item -ItemType Directory -Path $DumpDirectory -Force | Out-Null
+          New-Item -Path $RegistryPath -Force | Out-Null
+          New-ItemProperty -Path $RegistryPath -Name DumpFolder -PropertyType ExpandString -Value $DumpDirectory -Force | Out-Null
+          New-ItemProperty -Path $RegistryPath -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
+          New-ItemProperty -Path $RegistryPath -Name DumpCount -PropertyType DWord -Value 10 -Force | Out-Null
+
+          $Configuration = Get-ItemProperty -Path $RegistryPath
+          if ($Configuration.DumpFolder -ne $DumpDirectory -or
+              $Configuration.DumpType -ne 2 -or
+              $Configuration.DumpCount -ne 10) {
+            throw "Windows crash dump configuration was not applied"
+          }
+
       - name: Clear inherited SDKROOT
         run: |
           "SDKROOT=" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -7898,8 +7917,7 @@ jobs:
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
-              'SWIFT_LIT_ARGS' = "-sv -j 1 --timeout=600";
-              'SWIFT_LIT_TEST_PATHS' = "${{ github.workspace }}/SourceCache/swift/test/CAS/symbol-graph.swift;${{ github.workspace }}/SourceCache/swift/test/CAS/can-import.swift;${{ github.workspace }}/SourceCache/swift/test/CAS/dependency_file.swift;${{ github.workspace }}/SourceCache/swift/test/refactoring/ExtractFunction/throw_errors3.swift";
+              'SWIFT_LIT_ARGS' = "-sv -j 1 --timeout=600 --filter=(CAS/(symbol-graph|can-import|dependency_file)[.]swift|refactoring/ExtractFunction/throw_errors3[.]swift)";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
               'SWIFTSYNTAX_ENABLE_ASSERTIONS' = "NO";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
@@ -8043,7 +8061,7 @@ jobs:
 
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-test-stdlib
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target SwiftCompilerPlugin
-          cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift-windows-${{ matrix.cpu }}-custom
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift-windows-${{ matrix.cpu }}
 
       - name: Upload Swift test results
         if: always()
@@ -8054,3 +8072,4 @@ jobs:
             ${{ github.workspace }}/BinaryCache/1/swift-test-results
             ${{ github.workspace }}/BinaryCache/1/tools/swift/test-windows-x86_64/CAS/Output
             ${{ github.workspace }}/BinaryCache/1/tools/swift/test-windows-x86_64/refactoring/ExtractFunction/Output
+            ${{ runner.temp }}/swift-crash-dumps
