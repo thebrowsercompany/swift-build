@@ -348,8 +348,6 @@ $Defines = $CMakeDefines.Clone()
 
 # Enable CMP0181: Link command-line fragment variables are parsed and re-quoted.
 Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0181 NEW
-# Enable CMP0214: Honor CMAKE_EXE_LINKER_FLAGS for Swift executable targets.
-Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0214 NEW
 # Enable CMP0215: Ninja generators emit Swift modules separately from compilation.
 Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0215 NEW
 
