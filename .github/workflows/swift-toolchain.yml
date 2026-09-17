@@ -6160,6 +6160,81 @@ jobs:
               -p:VCRedistDir="$VCRedistDir\" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/dynamic/msi/rtl.dynamic.msi.wixproj
 
+      - name: Verify runtime catalogs
+        if: inputs.signed
+        run: |
+          $ErrorActionPreference = "Stop"
+          $RuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
+          )
+          $CatalogRoot = "${{ github.workspace }}\BinaryCache\installer\obj\rtl.dynamic.lib\${{ matrix.arch }}\package\Release\RuntimeWin32Assemblies"
+          $Catalogs = @(
+            foreach ($DLL in $RuntimeDLLs) {
+              Get-Item (Join-Path $CatalogRoot "$DLL\$DLL.cat") -ErrorAction Stop
+            }
+          )
+          $UnexpectedCatalogs = @(
+            Get-ChildItem "${{ github.workspace }}\BinaryCache\installer\obj" -Filter "*.cat" -File -Recurse |
+              Where-Object { $_.FullName -match '[\\/]RuntimeWin32Assemblies[\\/]' -and $_.FullName -notin $Catalogs.FullName }
+          )
+          if ($UnexpectedCatalogs.Count -ne 0) {
+            throw "Unexpected runtime catalogs: $($UnexpectedCatalogs.FullName -join ', ')"
+          }
+
+          $ExpectedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            $env:WINDOWS_SXS_CERTIFICATE_PATH
+          )
+          $ExpectedToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          $VersionParts = @([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.'))
+          while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
+          $ExpectedVersion = $VersionParts[0..3] -join "."
+          $ExpectedArchitecture = "${{ matrix.arch }}"
+
+          foreach ($Catalog in $Catalogs) {
+            $DLLPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).dll"
+            $ManifestPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).manifest"
+            if (-not (Test-Path $DLLPath -PathType Leaf)) { throw "Catalog member '$DLLPath' does not exist." }
+            if (-not (Test-Path $ManifestPath -PathType Leaf)) { throw "Catalog manifest '$ManifestPath' does not exist." }
+
+            $Signature = Get-AuthenticodeSignature -LiteralPath $Catalog.FullName
+            if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "'$($Catalog.FullName)' has an invalid signature: $($Signature.StatusMessage)"
+            }
+            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificate.Thumbprint) {
+              throw "'$($Catalog.FullName)' was signed by an unexpected certificate."
+            }
+
+            signtool.exe verify /pa /c $Catalog.FullName $ManifestPath
+            if ($LASTEXITCODE -ne 0) { throw "'$($Catalog.FullName)' does not contain the expected manifest hash." }
+
+            mt.exe -nologo -manifest $ManifestPath -validate_manifest
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' is not a valid assembly manifest." }
+
+            mt.exe -nologo -manifest $ManifestPath "-validate_file_hashes:$($Catalog.DirectoryName)"
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' does not contain the expected DLL hash." }
+
+            $Manifest = [xml](Get-Content -LiteralPath $ManifestPath -Raw)
+            $Identity = $Manifest.assembly.assemblyIdentity
+            $File = $Manifest.assembly.file
+            if ($Identity.type -ne "win32" -or $Identity.name -ne $Catalog.BaseName -or $File.name -ne "$($Catalog.BaseName).dll") {
+              throw "'$ManifestPath' does not describe '$($Catalog.BaseName).dll'."
+            }
+            if ($Identity.version -ne $ExpectedVersion -or $Identity.processorArchitecture -ne $ExpectedArchitecture) {
+              throw "'$ManifestPath' has unexpected version or processor architecture."
+            }
+            if ($Identity.publicKeyToken -ne $ExpectedToken) {
+              throw "'$ManifestPath' uses token '$($Identity.publicKeyToken)', expected '$ExpectedToken'."
+            }
+
+            Write-Host "Verified '$($Catalog.BaseName)' catalog, signer, manifest membership, DLL hash, and manifest token."
+          }
+
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
         with:
@@ -6556,6 +6631,90 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
+
+      - name: Verify runtime catalogs
+        if: inputs.signed
+        run: |
+          $ErrorActionPreference = "Stop"
+          $DynamicRuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
+          )
+          $StaticRuntimeDLLs = @("BlocksRuntime", "dispatch")
+          $Catalogs = @(
+            foreach ($Architecture in @("amd64", "arm64", "x86")) {
+              foreach ($DLL in $DynamicRuntimeDLLs) {
+                Get-Item "${{ github.workspace }}\BinaryCache\installer\obj\rtl.dynamic.lib\$Architecture\shared\Release\RuntimeWin32Assemblies\$DLL\$DLL.cat" -ErrorAction Stop
+              }
+              foreach ($DLL in $StaticRuntimeDLLs) {
+                Get-Item "${{ github.workspace }}\BinaryCache\installer\obj\rtl.static.msm\$Architecture\shared\Release\RuntimeWin32Assemblies\$DLL\$DLL.cat" -ErrorAction Stop
+              }
+            }
+          )
+          $UnexpectedCatalogs = @(
+            Get-ChildItem "${{ github.workspace }}\BinaryCache\installer\obj" -Filter "*.cat" -File -Recurse |
+              Where-Object { $_.FullName -match '[\\/]RuntimeWin32Assemblies[\\/]' -and $_.FullName -notin $Catalogs.FullName }
+          )
+          if ($UnexpectedCatalogs.Count -ne 0) {
+            throw "Unexpected runtime catalogs: $($UnexpectedCatalogs.FullName -join ', ')"
+          }
+
+          $ExpectedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            $env:WINDOWS_SXS_CERTIFICATE_PATH
+          )
+          $ExpectedToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          $VersionParts = @([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.'))
+          while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
+          $ExpectedVersion = $VersionParts[0..3] -join "."
+
+          foreach ($Catalog in $Catalogs) {
+            $DLLPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).dll"
+            $ManifestPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).manifest"
+            if (-not (Test-Path $DLLPath -PathType Leaf)) { throw "Catalog member '$DLLPath' does not exist." }
+            if (-not (Test-Path $ManifestPath -PathType Leaf)) { throw "Catalog manifest '$ManifestPath' does not exist." }
+
+            $Signature = Get-AuthenticodeSignature -LiteralPath $Catalog.FullName
+            if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "'$($Catalog.FullName)' has an invalid signature: $($Signature.StatusMessage)"
+            }
+            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificate.Thumbprint) {
+              throw "'$($Catalog.FullName)' was signed by an unexpected certificate."
+            }
+
+            signtool.exe verify /pa /c $Catalog.FullName $ManifestPath
+            if ($LASTEXITCODE -ne 0) { throw "'$($Catalog.FullName)' does not contain the expected manifest hash." }
+
+            mt.exe -nologo -manifest $ManifestPath -validate_manifest
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' is not a valid assembly manifest." }
+
+            mt.exe -nologo -manifest $ManifestPath "-validate_file_hashes:$($Catalog.DirectoryName)"
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' does not contain the expected DLL hash." }
+
+            $Manifest = [xml](Get-Content -LiteralPath $ManifestPath -Raw)
+            $Identity = $Manifest.assembly.assemblyIdentity
+            $File = $Manifest.assembly.file
+            if ($Catalog.FullName -notmatch '[\\/](amd64|arm64|x86)[\\/]shared[\\/]Release[\\/]') {
+              throw "Could not determine the expected processor architecture for '$($Catalog.FullName)'."
+            }
+            $ExpectedArchitecture = $Matches[1]
+            if ($Identity.type -ne "win32" -or $Identity.name -ne $Catalog.BaseName -or $File.name -ne "$($Catalog.BaseName).dll") {
+              throw "'$ManifestPath' does not describe '$($Catalog.BaseName).dll'."
+            }
+            if ($Identity.version -ne $ExpectedVersion -or $Identity.processorArchitecture -ne $ExpectedArchitecture) {
+              throw "'$ManifestPath' has unexpected version or processor architecture."
+            }
+            if ($Identity.publicKeyToken -ne $ExpectedToken) {
+              throw "'$ManifestPath' uses token '$($Identity.publicKeyToken)', expected '$ExpectedToken'."
+            }
+
+            Write-Host "Verified '$($Catalog.BaseName)' catalog, signer, manifest membership, DLL hash, and manifest token."
+          }
+
       - name: Write DLL Expectations
         id: write-expectations
         run: |
