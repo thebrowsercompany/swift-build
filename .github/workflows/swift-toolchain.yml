@@ -201,6 +201,10 @@ on:
         required: true
         type: string
 
+      swift_toolchain_sarif_revision:
+        required: true
+        type: string
+
       swift_toolchain_sqlite_revision:
         required: true
         type: string
@@ -2274,6 +2278,18 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
+          repository: swiftlang/swift-toolchain-sarif
+          ref: ${{ inputs.swift_toolchain_sarif_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-toolchain-sarif
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-collections
+          ref: ${{ inputs.swift_collections_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
@@ -2399,6 +2415,7 @@ jobs:
               'Python3_ROOT_DIR' = "${{ steps.setup-context.outputs.python-root }}";
               'Python3_VERSION' = "${{ inputs.python_version }}";
               'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version }} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SARIF' = "YES";
               'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
               'SWIFT_CLANG_LOCATION' = "${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
               'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
@@ -2414,6 +2431,8 @@ jobs:
               'SWIFT_ENABLE_VOLATILE' = "YES";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SARIF_SOURCE' = "${{ github.workspace }}/SourceCache/swift-toolchain-sarif";
+              'SWIFT_PATH_TO_SWIFT_COLLECTIONS_SOURCE' = "${{ github.workspace }}/SourceCache/swift-collections";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
@@ -7995,6 +8014,18 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
+          repository: swiftlang/swift-toolchain-sarif
+          ref: ${{ inputs.swift_toolchain_sarif_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-toolchain-sarif
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-collections
+          ref: ${{ inputs.swift_collections_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
@@ -8134,6 +8165,7 @@ jobs:
               'Python3_LIBRARY' = "${{ steps.setup-context.outputs.libpython-path }}";
               'Python3_ROOT_DIR' = $env:pythonLocation;
               'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version}} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SARIF' = "YES";
               'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
               'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
               'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
@@ -8148,6 +8180,8 @@ jobs:
               'SWIFT_HOST_SDKROOT' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SARIF_SOURCE' = "${{ github.workspace }}/SourceCache/swift-toolchain-sarif";
+              'SWIFT_PATH_TO_SWIFT_COLLECTIONS_SOURCE' = "${{ github.workspace }}/SourceCache/swift-collections";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
