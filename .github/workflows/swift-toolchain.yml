@@ -5567,6 +5567,48 @@ jobs:
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+
+      - name: Resolve Windows SxS public key token
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
+            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            exit 0
+          }
+
+          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
+          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
+            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
+            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
+            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
+          } else {
+            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              $env:CERTIFICATE,
+              $env:PASSPHRASE,
+              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+            )
+            [IO.File]::WriteAllBytes(
+              $CertificatePath,
+              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+            )
+          }
+
+          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
+          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
+
+          Write-Host "Using signing certificate publicKeyToken '$Token'."
+          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
@@ -5661,7 +5703,8 @@ jobs:
 
           $RuntimeLocation = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\usr\bin"
           $ProcArch = "${{ matrix.arch }}"
-          $PublicKeyToken = "0000000000000000"
+          $PublicKeyToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          if (-not $PublicKeyToken) { throw "WINDOWS_SXS_PUBLIC_KEY_TOKEN is not set." }
           $ToolchainRoots = @(
             "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts",
             "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
@@ -5672,6 +5715,15 @@ jobs:
             "swift_Concurrency", "swift_RegexParser", "swift_StringProcessing",
             "swiftCore", "swiftCRT", "swiftDispatch", "swiftObservation",
             "swiftRegexBuilder", "swiftRemoteMirror", "swiftSynchronization", "swiftWinSDK"
+          )
+          $CatalogRuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
           )
           $Foundation = @(
             "_FoundationICU", "dispatch", "Foundation", "FoundationEssentials",
@@ -5882,6 +5934,9 @@ jobs:
           }
 
           $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
+          foreach ($Runtime in $CatalogRuntimeDLLs) {
+            Set-WindowsAssemblyManifest -ImagePath (Join-Path $RuntimeLocation "$Runtime.dll") -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $PublicKeyToken -LogPrefix "Stage-ToolchainRootSxS"
+          }
           foreach ($ToolchainRoot in $ToolchainRoots) {
             Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -RuntimeDLLs $RuntimeDLLs -ToolDependencyGroups $ToolDependencyGroups -DependencyGroups $DependencyGroups -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $PublicKeyToken
           }
@@ -5927,11 +5982,6 @@ jobs:
         run: |
           dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
           dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
-
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - name: Package Build Tools (Asserts)
         env:
@@ -6376,6 +6426,48 @@ jobs:
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+
+      - name: Resolve Windows SxS public key token
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
+            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            exit 0
+          }
+
+          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
+          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
+            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
+            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
+            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
+          } else {
+            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              $env:CERTIFICATE,
+              $env:PASSPHRASE,
+              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+            )
+            [IO.File]::WriteAllBytes(
+              $CertificatePath,
+              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+            )
+          }
+
+          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
+          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
+
+          Write-Host "Using signing certificate publicKeyToken '$Token'."
+          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
@@ -6393,16 +6485,54 @@ jobs:
             }
           }
 
+      - name: Prepare Windows runtime assembly manifests
+        run: |
+          $ErrorActionPreference = "Stop"
+          $AssemblyVersion = ([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.') + @("0", "0", "0", "0"))[0..3] -join "."
+          $PublicKeyToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          if (-not $PublicKeyToken) { throw "WINDOWS_SXS_PUBLIC_KEY_TOKEN is not set." }
+          $RuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
+          )
+
+          foreach ($Runtime in @(
+            @("Windows-x86_64", "amd64"),
+            @("Windows-aarch64", "arm64"),
+            @("Windows-i686", "x86")
+          )) {
+            $RuntimeRoot, $ProcessorArchitecture = $Runtime
+            $RuntimeBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\$RuntimeRoot\usr\bin"
+            foreach ($DLL in $RuntimeDLLs) {
+              $ImagePath = Join-Path $RuntimeBin "$DLL.dll"
+              if (-not (Test-Path $ImagePath -PathType Leaf)) { throw "Runtime DLL '$ImagePath' does not exist." }
+
+              $ManifestPath = Join-Path $env:RUNNER_TEMP "sxs-$RuntimeRoot-$DLL.manifest"
+              $Manifest = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
+                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $DLL, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
+                ('  <file name="{0}.dll"/>' -f $DLL) + "`r`n" +
+                '</assembly>'
+              Set-Content -Path $ManifestPath -Value $Manifest -Encoding UTF8
+              try {
+                mt.exe -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1"
+                if ($LASTEXITCODE -ne 0) { throw "mt.exe failed to embed the SxS manifest in '$ImagePath'." }
+              } finally {
+                Remove-Item $ManifestPath -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+
       - name: Install AzureSignTool
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
         run: |
           dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
           dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
-
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - name: Package Platform
         env:
