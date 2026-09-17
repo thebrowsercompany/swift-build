@@ -92,7 +92,7 @@ $Assemblers = @{
 $Compilers = @{
     MSVC   = @{
         C   = @{
-            Executable       = (Get-Command "cl.exe").Source
+            Executable       = "cl.exe"
             DriverStyle      = [DriverStyle]::CL
             Flags            = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/source-charset:utf-8", "/Zc:inline", "/Zc:preprocessor")
             DebugFlags       = { param([string] $Format)
@@ -101,7 +101,7 @@ $Compilers = @{
             AssumeFunctional = $false
         }
         CXX = @{
-            Executable       = (Get-Command "cl.exe").Source
+            Executable       = "cl.exe"
             DriverStyle      = [DriverStyle]::CL
             Flags            = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/source-charset:utf-8", "/Zc:inline", "/Zc:preprocessor", "/Zc:__cplusplus")
             DebugFlags       = { param([string] $Format)
@@ -113,7 +113,7 @@ $Compilers = @{
 
     Pinned = @{
         C     = @{
-            Executable       = (Get-Command "clang-cl.exe").Source
+            Executable       = "clang-cl.exe"
             DriverStyle      = [DriverStyle]::ClangCL
             Flags            = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
             DebugFlags       = { param([string] $Format)
@@ -122,7 +122,7 @@ $Compilers = @{
             AssumeFunctional = $false
         }
         CXX   = @{
-            Executable       = (Get-Command "clang-cl.exe").Source
+            Executable       = "clang-cl.exe"
             DriverStyle      = [DriverStyle]::ClangCL
             Flags            = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
             DebugFlags       = { param([string] $Format)
@@ -131,7 +131,7 @@ $Compilers = @{
             AssumeFunctional = $false
         }
         Swift = @{
-            Executable       = (Get-Command "swiftc.exe").Source
+            Executable       = "swiftc.exe"
             DriverStyle      = [DriverStyle]::Swift
             Flags            = @()
             DebugFlags       = { param([string] $Format)
@@ -260,6 +260,13 @@ function Resolve-Tool([hashtable]$Root, [string]$Selector) {
         }
         $Node = $Node[$Part]
     }
+    # This is lazy so that jobs that don't need a specific tool don't
+    # blow up in `Get-Command` if it's not present.
+    if (-not [IO.Path]::IsPathFullyQualified($Node.Executable)) {
+        $Node = $Node.Clone()
+        $Node.Executable = (Get-Command $Node.Executable).Source
+    }
+
     return $Node
 }
 
