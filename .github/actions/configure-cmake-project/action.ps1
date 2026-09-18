@@ -427,10 +427,6 @@ switch ($OS) {
             # Overwrite the release linker flags to be empty to avoid this.
             Add-KeyValueIfNew $Defines CMAKE_EXE_LINKER_FLAGS_RELEASE ""
             Add-KeyValueIfNew $Defines CMAKE_SHARED_LINKER_FLAGS_RELEASE ""
-
-            # Workaround CMake 3.26+ enabling `-wmo` by default on release builds
-            Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELEASE "-O"
-            Add-FlagsDefine $Defines CMAKE_Swift_FLAGS_RELWITHDEBINFO "-O"
         }
 
         Add-LinkerFlagsDefine $Defines @("/INCREMENTAL:NO", "/OPT:REF", "/OPT:ICF")
