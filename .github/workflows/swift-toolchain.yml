@@ -6229,8 +6229,14 @@ jobs:
               throw "'$($Catalog.FullName)' was signed by an unexpected certificate."
             }
 
-            signtool.exe verify /pa /c $Catalog.FullName $DLLPath
-            if ($LASTEXITCODE -ne 0) { throw "'$($Catalog.FullName)' does not contain the expected DLL hash." }
+            signtool.exe verify /pa /c $Catalog.FullName $ManifestPath
+            if ($LASTEXITCODE -ne 0) { throw "'$($Catalog.FullName)' does not contain the expected manifest hash." }
+
+            mt.exe -nologo -manifest $ManifestPath -validate_manifest
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' is not a valid assembly manifest." }
+
+            mt.exe -nologo -manifest $ManifestPath "-validate_file_hashes:$($Catalog.DirectoryName)"
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' does not contain the expected DLL hash." }
 
             $Manifest = [xml](Get-Content -LiteralPath $ManifestPath -Raw)
             $Identity = $Manifest.assembly.assemblyIdentity
@@ -6245,7 +6251,7 @@ jobs:
               throw "'$ManifestPath' uses token '$($Identity.publicKeyToken)', expected '$ExpectedToken'."
             }
 
-            Write-Host "Verified '$($Catalog.BaseName)' catalog, signer, member hash, and manifest token."
+            Write-Host "Verified '$($Catalog.BaseName)' catalog, signer, manifest membership, DLL hash, and manifest token."
           }
 
       - if: ${{ inputs.release }}
