@@ -4985,6 +4985,15 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
+      - name: Locate VC runtime
+        run: |
+          $VCRedistArch = if ("${{ matrix.arch }}" -eq "amd64") { "x64" } else { "${{ matrix.arch }}" }
+          $VCRedistDirs = @(Get-ChildItem "$env:VCToolsRedistDir\$VCRedistArch" -Directory -Filter "Microsoft.VC*.CRT")
+          if ($VCRedistDirs.Count -ne 1) {
+            throw "Expected one VC runtime directory for $VCRedistArch, found $($VCRedistDirs.Count)"
+          }
+          "VC_REDIST_DIR=$($VCRedistDirs[0].FullName)" | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
       - name: Package Legacy Runtime
         run: |
           msbuild -nologo -restore -maxCpuCount `
@@ -5002,7 +5011,7 @@ jobs:
               -p:WindowsRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/" `
-              -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
+              -p:VCRedistDir="${env:VC_REDIST_DIR}\" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/legacy/msi/rtlmsi.wixproj
 
       - name: Package Experimental Shared Runtime
@@ -5022,7 +5031,7 @@ jobs:
               -p:WindowsExperimentalRuntimeARM64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/" `
               -p:WindowsExperimentalRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/" `
               -p:WindowsExperimentalRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes.Experimental/" `
-              -p:VCRedistDir="$([IO.Path]::Combine(${env:VCToolsRedistDir}, "${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}", "Microsoft.VC143.CRT"))" `
+              -p:VCRedistDir="${env:VC_REDIST_DIR}\" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/shared/msi/rtl.shared.msi.wixproj
 
       - if: ${{ inputs.release }}
