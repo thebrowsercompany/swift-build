@@ -339,7 +339,11 @@ jobs:
             echo "ci_build_revision=refs/heads/${branch_name}" >> ${GITHUB_OUTPUT}
           fi
 
-          repo init --quiet --groups default --depth 1 -u "${INPUT_REPO_URL}" -b "$branch_name"
+          manifest_branch="$branch_name"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            manifest_branch="$GITHUB_REF_NAME"
+          fi
+          repo init --quiet --groups default --depth 1 -u "${INPUT_REPO_URL}" -b "$manifest_branch"
           repo sync --quiet --no-clone-bundle --no-tags --jobs $(nproc --all)
 
           if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
@@ -420,7 +424,9 @@ jobs:
           if [[ -n "${INPUT_SWIFT_TAG}" ]] ; then
             echo "swift_tag=${INPUT_SWIFT_TAG}" | tee -a ${GITHUB_OUTPUT}
           else
-            if [[ "$branch_name" == "main" ]] ; then
+            if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$GITHUB_REF_NAME" != "main" ]] ; then
+              echo "swift_tag=$GITHUB_REF_NAME" | tee -a ${GITHUB_OUTPUT}
+            elif [[ "$branch_name" == "main" ]] ; then
               echo swift_tag=$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
             else
               echo swift_tag=swift-"$branch_version_string"-$(date +%Y%m%d.$(date +%-H/6 | bc)) | tee -a ${GITHUB_OUTPUT}
@@ -910,14 +916,14 @@ jobs:
           }
 
           branch_version_string="${INPUT_SWIFT_VERSION}"
-          if [[ $branch_version_string == "0.0.0" ]]; then
+          if [[ $branch_version_string == "0.0.0" && "$GITHUB_REF_NAME" == "main" ]]; then
             latest="true"
           else
             latest="false"
           fi
 
           # Create Release
-          gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
+          gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" --latest=${latest}
 
           # Upload all installer variants
           upload_installer "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
