@@ -4228,11 +4228,11 @@ jobs:
             HeaderSearchPaths = @( "usr/include" )
             LibrarySearchPaths = @()
             DefaultProperties = @{
-              PLATFORM_NAME = "${{ matrix.os }}"
+              PLATFORM_NAME = "${{ matrix.os }}".ToLowerInvariant()
             }
             SupportedTargets = @{
               "${{ matrix.os }}".ToLower() = @{
-                PlatformDisplayName = "${{ matrix.os }}"
+                PlatformFamilyDisplayName = "${{ matrix.os }}"
                 PlatformFamilyName = "${{ matrix.os }}"
                 Archs = @("$(("${{ matrix.triple }}" -split '-')[0])")
               }
@@ -6559,6 +6559,31 @@ jobs:
           # swift-backtrace is currently disabled for Windows x86 https://github.com/swiftlang/swift/issues/87499
           # Uncomment the following when it is enabled
           # Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr"
+
+      - name: Update supported architectures in Windows SDK settings
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
+          $Architectures = @("aarch64", "i686", "x86_64")
+          $Settings = Get-Content "$SDKRoot/SDKSettings.json" -Raw | ConvertFrom-Json
+          $Settings.SupportedTargets.windows.Archs = $Architectures
+
+          $PlistPath = "$SDKRoot/SDKSettings.plist"
+          $Settings | ConvertTo-Json -Depth 4 | Set-Content "$SDKRoot/SDKSettings.json" -Encoding utf8
+
+          # Use plistlib because PowerShell's XmlDocument adds an empty DTD subset that Swift rejects.
+          $UpdatePlist = @'
+          import plistlib
+          import sys
+
+          path = sys.argv[1]
+          with open(path, "rb") as stream:
+              settings = plistlib.load(stream)
+          settings["SupportedTargets"]["windows"]["Archs"] = sys.argv[2:]
+          with open(path, "wb") as stream:
+              plistlib.dump(settings, stream)
+          '@
+          python3 -c $UpdatePlist $PlistPath $Architectures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - uses: actions/checkout@v4.2.2
         with:
