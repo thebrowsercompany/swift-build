@@ -7715,6 +7715,8 @@ jobs:
     if: inputs.build_os == 'Windows'
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      SMOKE_TESTS_FAILED: 'false'
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -7778,23 +7780,51 @@ jobs:
           echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
           Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
 
+      - name: Verify Swift installation
+        run: swift --version
+
       - name: Build & Test compnerd/swift-win32
+        id: swift_win32
+        continue-on-error: true
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
         run: |
           swift build
           swift test -Xswiftc -DENABLE_TESTING
 
+      - name: Record swift-win32 failure
+        if: ${{ steps.swift_win32.outcome == 'failure' }}
+        run: echo "SMOKE_TESTS_FAILED=true" >> $env:GITHUB_ENV
+
       - name: Build compnerd/vigil
+        id: vigil
+        continue-on-error: true
         working-directory: ${{ github.workspace }}/SourceCache/vigil
         run: |
           $SDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/Windows.sdk"
           swift build --build-system native --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${SDK} -Xswiftc -static-stdlib -Xlinker /WX
 
+      - name: Record vigil failure
+        if: ${{ steps.vigil.outcome == 'failure' }}
+        run: echo "SMOKE_TESTS_FAILED=true" >> $env:GITHUB_ENV
+
       - name: Build & Test pointfreeco/swift-issue-reporting
+        id: swift_issue_reporting
+        continue-on-error: true
         working-directory: ${{ github.workspace }}/SourceCache/swift-issue-reporting
         run: |
           swift build --build-system native -c release
           swift test --build-system native -c release
+
+      - name: Record swift-issue-reporting failure
+        if: ${{ steps.swift_issue_reporting.outcome == 'failure' }}
+        run: echo "SMOKE_TESTS_FAILED=true" >> $env:GITHUB_ENV
+
+      - name: Report smoke test failures
+        if: ${{ always() }}
+        run: |
+          if ($env:SMOKE_TESTS_FAILED -eq "true") {
+            throw "One or more smoke tests failed"
+          }
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
