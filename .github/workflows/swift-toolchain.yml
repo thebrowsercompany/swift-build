@@ -5729,7 +5729,7 @@ jobs:
             "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
           )
           $RuntimeDLLs = @(
-            "_FoundationICU", "dispatch", "Foundation", "FoundationEssentials",
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
             "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
             "swift_Concurrency", "swift_RegexParser", "swift_StringProcessing",
             "swiftCore", "swiftCRT", "swiftDispatch", "swiftObservation",
@@ -6150,6 +6150,42 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
+      - name: Package Private Runtime (Asserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/prt/asserts/prt.asserts.wixproj
+
+      - name: Package Private Runtime (NoAsserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/prt/noasserts/prt.noasserts.wixproj
+
       - name: Package Dynamic Runtime
         env:
           AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
@@ -6274,6 +6310,10 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
@@ -6332,6 +6372,20 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-asserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.cab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -7414,6 +7468,15 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-${{ matrix.arch }}-prt-asserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-${{ matrix.arch }}-python-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
@@ -7482,6 +7545,15 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
+
+      - name: Build BAF project
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/baf/baf.vcxproj
 
       - name: Build installer bundle (offline)
         env:
