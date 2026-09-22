@@ -7124,6 +7124,7 @@ jobs:
           }
 
       - if: inputs.build_android
+        name: Complete Android SDK layout
         run: |
           $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
           foreach ($Module in @("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
@@ -7134,6 +7135,46 @@ jobs:
               }
             }
           }
+
+          # build.ps1: SwiftBuild's static resource directory also needs the Android headers and shims.
+          $DynamicResources = "$SDKRoot/usr/lib/swift"
+          $StaticResources = "$SDKRoot/usr/lib/swift_static"
+          New-Item -ItemType Directory -Path "$StaticResources/shims" -Force | Out-Null
+          Copy-Item -Path "$DynamicResources/shims/*" -Destination "$StaticResources/shims/" -Recurse -Force
+          foreach ($File in @("libcxxshim.h", "libcxxshim.modulemap", "libcxxstdlibshim.h")) {
+            Copy-Item -Path "$DynamicResources/android/$File" -Destination "$StaticResources/android/$File" -Force
+          }
+          foreach ($Architecture in @("aarch64", "armv7", "i686", "x86_64")) {
+            foreach ($File in @("android.modulemap", "SwiftAndroidNDK.h", "SwiftBionic.h")) {
+              Copy-Item -Path "$DynamicResources/android/$Architecture/$File" -Destination "$StaticResources/android/$Architecture/$File" -Force
+            }
+          }
+
+      - if: inputs.build_android
+        name: Update supported architectures in Android SDK settings
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          $Architectures = @("aarch64", "armv7", "i686", "x86_64")
+          $Settings = Get-Content "$SDKRoot/SDKSettings.json" -Raw | ConvertFrom-Json
+          $Settings.SupportedTargets.android.Archs = $Architectures
+
+          $PlistPath = "$SDKRoot/SDKSettings.plist"
+          $Settings | ConvertTo-Json -Depth 4 | Set-Content "$SDKRoot/SDKSettings.json" -Encoding utf8
+
+          # Use plistlib because PowerShell's XmlDocument adds an empty DTD subset that Swift rejects.
+          $UpdatePlist = @'
+          import plistlib
+          import sys
+
+          path = sys.argv[1]
+          with open(path, "rb") as stream:
+              settings = plistlib.load(stream)
+          settings["SupportedTargets"]["android"]["Archs"] = sys.argv[2:]
+          with open(path, "wb") as stream:
+              plistlib.dump(settings, stream)
+          '@
+          python3 -c $UpdatePlist $PlistPath $Architectures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install AzureSignTool
         if: inputs.build_android && inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
