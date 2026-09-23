@@ -32,7 +32,6 @@ $NDKPath = $env:INPUT_NDK_PATH
 $SwiftSDK = $env:INPUT_SWIFT_SDK_PATH
 $CacheScript = $env:INPUT_CACHE_SCRIPT
 $UseMSVCHostToolchain = ConvertTo-Bool $env:INPUT_USE_MSVC_HOST_TOOLCHAIN
-$UseASM_MASM = ConvertTo-Bool $env:INPUT_USE_ASM_MASM
 
 # `cmake-defines` is a PowerShell hashtable literal (`@{ ... }`) authored at the
 # call site. Evaluate it to recover the hashtable; defaults to an empty one.
@@ -69,25 +68,50 @@ enum DriverStyle {
 }
 
 $Assemblers = @{
+    MSVC = @{
+        Executable       = {
+            if ($Arch -eq "x86") { "ml.exe" } else { "ml64.exe" }
+        }
+        Dialect          = "ASM_MASM"
+        Flags            = {
+            @("/nologo", "/quiet")
+        }
+        DebugFlags       = { param([string] $Format)
+            @()
+        }
+        AssumeFunctional = $true
+    }
     Pinned = @{
-        Executable       = "clang-cl.exe"
+        Executable       = {
+            "clang-cl.exe"
+        }
+        Dialect          = "ASM"
         DriverStyle      = [DriverStyle]::ClangCL
-        Flags            = @()
+        Flags            = {
+            @("--target=$Triple")
+        }
         DebugFlags       = { param([string] $Format)
             if ($Format -eq "dwarf") { @("-clang:-gdwarf") } else { @("-clang:-gcodeview") }
         }
         AssumeFunctional = $false
     }
     Stage1 = @{
-        Executable       = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
+        Executable       = {
+            [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
+        }
+        Dialect          = "ASM"
         DriverStyle      = [DriverStyle]::ClangCL
-        Flags            = @()
+        Flags            = {
+            @("--target=$Triple")
+        }
         DebugFlags       = { param([string] $Format)
             if ($Format -eq "dwarf") { @("-clang:-gdwarf") } else { @("-clang:-gcodeview") }
         }
         AssumeFunctional = $true
     }
 }
+
+$Assemblers.Host = if ($UseMSVCHostToolchain) { $Assemblers.MSVC } else { $Assemblers.Pinned }
 
 $Compilers = @{
     MSVC   = @{
@@ -214,8 +238,11 @@ function Resolve-Tool([hashtable]$Root, [string]$Selector) {
     }
     # This is lazy so that jobs that don't need a specific tool don't
     # blow up in `Get-Command` if it's not present.
+    $Node = $Node.Clone()
+    if ($Node.Executable -is [scriptblock]) {
+        $Node.Executable = & $Node.Executable
+    }
     if (-not [IO.Path]::IsPathFullyQualified($Node.Executable)) {
-        $Node = $Node.Clone()
         $Node.Executable = (Get-Command $Node.Executable).Source
     }
 
@@ -319,28 +346,26 @@ Add-KeyValueIfNew $Defines CMAKE_FIND_PACKAGE_PREFER_CONFIG YES
 switch ($OS) {
     'Windows' {
         if ($UseASM) {
-            Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILER $Assembler.Executable
-            Add-KeyValueIfNew $Defines CMAKE_ASM_FLAGS @("--target=$Triple")
-            Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
+            $ASMDialect = $Assembler.Dialect
 
-            if ($DebugInfo) {
-                # CMake's MSVC_DEBUG_INFORMATION_FORMAT support also applies to ASM
-                # targets, but clang-cl-as-ASM does not get a built-in mapping for
-                # the Embedded format. Provide the mapping before setting the global
-                # CMAKE_MSVC_DEBUG_INFORMATION_FORMAT below.
-                Add-FlagsDefine $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_DEBUG_INFORMATION_FORMAT_Embedded $(& $Assembler.DebugFlags $PlatformDebugFormat)
+            Add-KeyValueIfNew $Defines "CMAKE_${ASMDialect}_COMPILER" $Assembler.Executable
+            Add-KeyValueIfNew $Defines "CMAKE_${ASMDialect}_FLAGS" (& $Assembler.Flags)
+
+            # Preserve the MSVC identity on reconfigure to avoid a full rebuild.
+            Add-KeyValueIfNew $Defines "CMAKE_${ASMDialect}_SIMULATE_ID" MSVC
+            Add-KeyValueIfNew $Defines "CMAKE_${ASMDialect}_COMPILER_FRONTEND_VARIANT" MSVC
+
+            if ($ASMDialect -eq "ASM") {
+                Add-KeyValueIfNew $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL "/MD"
+
+                if ($DebugInfo) {
+                    # CMake's MSVC_DEBUG_INFORMATION_FORMAT support also applies to ASM
+                    # targets, but clang-cl-as-ASM does not get a built-in mapping for
+                    # the Embedded format. Provide the mapping before setting the global
+                    # CMAKE_MSVC_DEBUG_INFORMATION_FORMAT below. MASM has no equivalent.
+                    Add-FlagsDefine $Defines CMAKE_ASM_COMPILE_OPTIONS_MSVC_DEBUG_INFORMATION_FORMAT_Embedded $(& $Assembler.DebugFlags $PlatformDebugFormat)
+                }
             }
-        }
-
-        if ($UseASM_MASM) {
-            $ASM_MASM = if (${Arch} -eq "x86") {
-                "ml.exe"
-            } else {
-                "ml64.exe"
-            }
-
-            Add-KeyValueIfNew $Defines CMAKE_ASM_MASM_COMPILER $ASM_MASM
-            Add-KeyValueIfNew $Defines CMAKE_ASM_MASM_FLAGS @("/nologo" , "/quiet")
         }
 
         if ($UseC) {
