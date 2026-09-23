@@ -1,0 +1,43 @@
+name: Hotfix Release - Development Snapshot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  validate_branch:
+    name: Validate hotfix branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a patch release branch
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_TYPE" != "branch" || ! "$REF_NAME" =~ ^[0-9]{8}\.[0-9]+[b-z]$ ]]; then
+            echo "::error::Dispatch from a hotfix branch such as 20260417.1c."
+            exit 1
+          fi
+
+  call_development_snapshot:
+    name: Development Snapshot
+    needs: validate_branch
+    uses: ./.github/workflows/build-toolchain.yml
+    with:
+      repo_url: https://github.com/thebrowsercompany/swift-build
+      ci_build_branch: ${{ github.ref }}
+      windows_build_arch: amd64
+      build_android: true
+      android_api_level: 28
+      use_host_toolchain: false
+      create_release: true
+      create_snapshot: false
+      windows_x64_default_runner: ${{ format('cirun-win11-pro-x64-16--{0}', github.run_id) }}
+      windows_x64_compilers_runner: ${{ format('cirun-win11-pro-x64-64--{0}', github.run_id) }}
+      windows_arm64_default_runner: ${{ format('cirun-win11-pro-arm64-16--{0}', github.run_id) }}
+      windows_arm64_compilers_runner: ${{ format('cirun-win11-pro-arm64-64--{0}', github.run_id) }}
+    secrets: inherit
+    permissions:
+      attestations: write
+      contents: write
+      packages: write
+      id-token: write
