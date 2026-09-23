@@ -24,6 +24,7 @@ env:
   TEST_MSVC_VERSION: "14.40"
   TEST_BUILD_TOOLS_EXPECTED_VERSION: "14.40.33807"
   TEST_UPSTREAM_SWIFT_VERSION: "5.10"
+  TEST_UPSTREAM_BRANCH_SWIFT_VERSION: "6.4.x-DEVELOPMENT-SNAPSHOT-2026-08-01-a"
   TEST_BCNY_SWIFT_VERSION: "6.0.0-20241216.0"
   TEST_BCNY_SWIFT_REPO: "thebrowsercompany/swift-build"
 
@@ -315,6 +316,32 @@ jobs:
             Write-Output "::error::Expected to find Swift version `"$env:TEST_UPSTREAM_SWIFT_VERSION`" in output:"
             Write-Output "$SwiftVersion"
             exit 1
+          }
+
+  test-upstream-branch-swift-install:
+    name: Upstream Swift Release-Branch Snapshot Installation
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up build with upstream Swift snapshot
+        uses: ./.github/actions/setup-build
+        with:
+          swift-version: ${{ env.TEST_UPSTREAM_BRANCH_SWIFT_VERSION }}
+
+      - name: Check Swift installation
+        run: |
+          $SwiftVersion = & swift --version
+          if ($LASTEXITCODE -ne 0 -or -not ($SwiftVersion -match 'Swift version 6\.4-dev')) {
+            throw "Expected Swift 6.4 development snapshot, got: $SwiftVersion"
+          }
+          if (-not (Test-Path "$env:SDKROOT/usr/lib/swift/windows" -PathType Container)) {
+            throw "Windows SDK not found at '$env:SDKROOT'."
+          }
+          $PinnedTools = Split-Path (Get-Command swiftc -ErrorAction Stop).Source
+          if (-not (Test-Path "$PinnedTools/swiftCore/swiftCore.dll" -PathType Leaf)) {
+            throw "Private Swift runtime not found under '$PinnedTools'."
           }
 
   test-bcny-swift-install:
