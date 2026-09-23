@@ -6618,6 +6618,13 @@ jobs:
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
+      - name: Disable Git line ending conversion
+        run: |
+          git config --global core.autocrlf false
+          if ((git config --global --get core.autocrlf) -ne "false") {
+            throw "Failed to disable Git line ending conversion"
+          }
+
       - name: Compute workspace hash
         id: workspace_hash
         shell: pwsh
@@ -6685,6 +6692,18 @@ jobs:
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
           show-progress: false
+
+      - name: Apply SourceKit test race fix
+        run: |
+          $path = "${{ github.workspace }}/SourceCache/swift/test/SourceKit/Misc/no-change-working-dir.swift"
+          $original = '// RUN: %sourcekitd-test -req=open -print-raw-response %s -- %s -working-directory %t > /dev/null'
+          $replacement = @(
+            '// RUN: %sourcekitd-test -req=open -print-raw-response %s -- %s -working-directory %t == \'
+            '// RUN:   -req=diags %s -print-raw-response -- %s -working-directory %t > /dev/null'
+          ) -join "`n"
+          $content = [IO.File]::ReadAllText($path)
+          if (-not $content.Contains($original)) { throw "Pinned SourceKit test changed" }
+          [IO.File]::WriteAllText($path, $content.Replace($original, $replacement), [Text.UTF8Encoding]::new($false))
 
       - uses: actions/setup-python@v5
         id: python
@@ -6852,11 +6871,13 @@ jobs:
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
-              'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
+              'CMAKE_CXX_FLAGS' = "${{ inputs.use_host_toolchain && '/execution-charset:utf-8' || '-fuse-ld=lld' }}";
               'CMAKE_Swift_FLAGS' = "${{ !inputs.use_host_toolchain && '-use-ld=lld' || '' }}";
             }
 
       - name: Test Compiler
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           $env:Path = "${{ github.workspace }}\BinaryCache\Library\cmark-gfm-${{ inputs.swift_cmark_version }}\usr\bin;${{ github.workspace }}\BinaryCache\1\tools\swift\libdispatch-windows-${{ matrix.cpu }}-prefix\bin;${{ github.workspace }}\BinaryCache\1\bin;$env:Path;$env:VSInstallRoot\DIA SDK\bin\${{ matrix.arch }}"
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
