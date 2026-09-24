@@ -136,6 +136,7 @@ $Compilers = @{
             Flags            = @()
             DebugFlags       = { param([string] $Format)
                 @("-g", "-debug-info-format=${Format}")
+                if ($Format -eq "codeview") { @("-Xlinker", "/DEBUG") }
             }
             AssumeFunctional = $false
         }
@@ -184,6 +185,7 @@ $Compilers = @{
             Flags            = @()
             DebugFlags       = { param([string] $Format)
                 @("-g", "-debug-info-format=${Format}")
+                if ($Format -eq "codeview") { @("-Xlinker", "/DEBUG") }
             }
             AssumeFunctional = $true
         }
@@ -232,6 +234,7 @@ $Compilers = @{
             Flags            = @()
             DebugFlags       = { param([string] $Format)
                 @("-g", "-debug-info-format=${Format}")
+                if ($Format -eq "codeview") { @("-Xlinker", "/DEBUG") }
             }
             AssumeFunctional = $true
         }
@@ -348,10 +351,6 @@ $Defines = $CMakeDefines.Clone()
 
 # Enable CMP0181: Link command-line fragment variables are parsed and re-quoted.
 Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0181 NEW
-# Enable CMP0214: Honor CMAKE_EXE_LINKER_FLAGS for Swift executable targets.
-Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0214 NEW
-# Enable CMP0215: Ninja generators emit Swift modules separately from compilation.
-Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0215 NEW
 
 Add-KeyValueIfNew $Defines CMAKE_BUILD_TYPE Release
 
@@ -444,6 +443,8 @@ switch ($OS) {
             } else {
                 Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @("-gnone")
             }
+
+            Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @("-Xlinker", "/INCREMENTAL:NO", "-Xlinker", "/OPT:REF", "-Xlinker", "/OPT:ICF")
 
             # CMake 3.30+ passes all linker flags to Swift as the linker driver,
             # including those from the internal CMake modules files, without
