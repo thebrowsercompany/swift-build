@@ -11,7 +11,7 @@ on:
 
       swift_version:
         description: 'Swift Version'
-        default: '0.0.0'
+        default: '6.4.0'
         required: false
         type: string
 
@@ -77,7 +77,7 @@ on:
 
       swift_version:
         description: 'Swift Version'
-        default: '0.0.0'
+        default: '6.4.0'
         required: false
         type: string
 
@@ -171,9 +171,11 @@ on:
         required: true
       AZURE_SP_CREDENTIALS:
         required: false
-      AZURE_KEY_VAULT_URI:
+      TRUSTED_SIGNING_ACCOUNT:
         required: false
-      AZURE_KEY_VAULT_CERTIFICATE_NAME:
+      TRUSTED_SIGNING_TEST_PROFILE:
+        required: false
+      TRUSTED_SIGNING_PROD_PROFILE:
         required: false
 
 jobs:
@@ -255,7 +257,7 @@ jobs:
       - id: context
         name: Generate Build Context
         env:
-          INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
+          INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '6.4.0' }}
           INPUT_REPO_URL: ${{ inputs.repo_url }}
           INPUT_SWIFT_TAG: ${{ inputs.swift_tag }}
           INPUT_DEBUG_INFO: ${{ inputs.debug_info }}
@@ -337,42 +339,45 @@ jobs:
             tee -a "${GITHUB_OUTPUT}" <<-EOF
           indexstore_db_revision=refs/tags/${INPUT_SWIFT_TAG}
           llvm_project_revision=refs/tags/${INPUT_SWIFT_TAG}
-          mimalloc_revision=refs/tags/v3.0.1
+          mimalloc_revision=refs/tags/v3.0.3
           sourcekit_lsp_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_revision=refs/tags/${INPUT_SWIFT_TAG}
-          swift_argument_parser_revision=refs/tags/1.4.0
-          swift_asn1_revision=refs/tags/1.0.0
+          swift_argument_parser_revision=refs/tags/1.6.1
+          swift_asn1_revision=refs/tags/1.3.2
           swift_atomics_revision=refs/tags/1.2.0
-          swift_build_revision=refs/heads/main
-          swift_certificates_revision=refs/tags/1.0.1
+          swift_build_revision=refs/heads/release/6.4.x
+          swift_certificates_revision=refs/tags/1.10.1
           swift_cmark_revision=refs/tags/${INPUT_SWIFT_TAG}
-          swift_collections_revision=refs/tags/1.1.3
+          swift_collections_revision=refs/tags/1.1.6
           swift_corelibs_foundation_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_corelibs_libdispatch_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_corelibs_xctest_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_crypto_revision=refs/tags/3.12.5
+          swift_docc_render_artifact_revision=refs/tags/${INPUT_SWIFT_TAG}
+          swift_docc_revision=refs/tags/${INPUT_SWIFT_TAG}
+          swift_docc_symbolkit_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_driver_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_experimental_string_processing_revision=refs/tags/${INPUT_SWIFT_TAG}
-          swift_format_revision=refs/heads/main
-          swift_foundation_revison=refs/heads/main
-          swift_foundation_icu_revision=refs/heads/main
-          swift_installer_scripts_revision=refs/heads/main
+          swift_format_revision=refs/heads/release/6.4.x
+          swift_foundation_revision=refs/heads/release/6.4.x
+          swift_foundation_icu_revision=refs/heads/release/6.4.x
+          swift_installer_scripts_revision=refs/heads/release/6.4.x
           swift_llbuild_revision=refs/tags/${INPUT_SWIFT_TAG}
-          swift_lmdb_revision=refs/heads/main
+          swift_lmdb_revision=refs/heads/release/6.4.x
           swift_markdown_revision=refs/tags/${INPUT_SWIFT_TAG}
           swift_package_manager_revision=refs/tags/${INPUT_SWIFT_TAG}
-          swift_subprocess_revision=refs/heads/main
+          swift_subprocess_revision=refs/tags/0.4
           swift_syntax_revision=refs/tags/${INPUT_SWIFT_TAG}
-          swift_system_revision=refs/tags/1.3.0
-          swift_testing_revision=refs/heads/main
-          swift_toolchain_sqlite_revision=refs/tags/1.0.1
-          swift_tools_protocols_revision=refs/tags/0.0.10
+          swift_system_revision=refs/tags/1.5.0
+          swift_testing_revision=refs/heads/release/6.4.x
+          swift_toolchain_sqlite_revision=refs/tags/1.0.9
+          swift_tools_protocols_revision=refs/heads/release/6.4.x
           swift_tools_support_core_revision=refs/tags/${INPUT_SWIFT_TAG}
           curl_revision=refs/tags/curl-8_9_1
           ds2_revision=refs/tags/nightly-2024-11-07
           libxml2_revision=refs/tags/v2.11.5
           zlib_revision=refs/tags/v1.3.1
-          brotli_revision=refs/tags/v1.1.0
+          brotli_revision=refs/tags/v1.2.0
           EOF
           else
             repo manifest -r --suppress-upstream-revision --suppress-dest-branch | \
@@ -391,7 +396,7 @@ jobs:
           echo swift_toolchain_sqlite_version=3.46.0 >> ${GITHUB_OUTPUT}
           echo swift_cmark_version=0.29.0.gfm.13 >> ${GITHUB_OUTPUT}
           echo zlib_version=1.3 >> ${GITHUB_OUTPUT}
-          echo brotli_version=1.1.0 >> ${GITHUB_OUTPUT}
+          echo brotli_version=1.2.0 >> ${GITHUB_OUTPUT}
 
           # FIXME(z2oh): Remove /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR when GitHub runner image updates to 20240610.1.
           #  see: https://github.com/actions/runner-images/issues/10004
@@ -690,8 +695,9 @@ jobs:
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       AZURE_SP_CREDENTIALS: ${{ secrets.AZURE_SP_CREDENTIALS }}
-      AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-      AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
+      TRUSTED_SIGNING_ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+      TRUSTED_SIGNING_TEST_PROFILE: ${{ secrets.TRUSTED_SIGNING_TEST_PROFILE }}
+      TRUSTED_SIGNING_PROD_PROFILE: ${{ secrets.TRUSTED_SIGNING_PROD_PROFILE }}
 
   snapshot:
     runs-on: ubuntu-latest
@@ -700,7 +706,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
         with:
-          ref: refs/heads/main
+          ref: refs/heads/release/6.4
           show-progress: false
 
       - uses: actions/download-artifact@v4
@@ -715,7 +721,7 @@ jobs:
           if ! git diff --exit-code ; then
             git add stable.xml
             git commit -m "repo: update stable revision snapshot ${SWIFT_TAG}"
-            git push origin HEAD:main
+            git push origin HEAD:release/6.4
           fi
 
   release:
@@ -746,7 +752,7 @@ jobs:
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '0.0.0' }}
+          INPUT_SWIFT_VERSION: ${{ inputs.swift_version || '6.4.0' }}
           SWIFT_TAG: ${{ needs.context.outputs.swift_tag }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           WORKSPACE: ${{ github.workspace }}
