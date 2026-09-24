@@ -201,6 +201,10 @@ on:
         required: true
         type: string
 
+      swift_toolchain_sarif_revision:
+        required: true
+        type: string
+
       swift_toolchain_sqlite_revision:
         required: true
         type: string
@@ -2274,6 +2278,18 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
+          repository: swiftlang/swift-toolchain-sarif
+          ref: ${{ inputs.swift_toolchain_sarif_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-toolchain-sarif
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-collections
+          ref: ${{ inputs.swift_collections_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
@@ -2399,6 +2415,7 @@ jobs:
               'Python3_ROOT_DIR' = "${{ steps.setup-context.outputs.python-root }}";
               'Python3_VERSION' = "${{ inputs.python_version }}";
               'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version }} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SARIF' = "NO";
               'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
               'SWIFT_CLANG_LOCATION' = "${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
               'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
@@ -2414,6 +2431,8 @@ jobs:
               'SWIFT_ENABLE_VOLATILE' = "YES";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SARIF_SOURCE' = "${{ github.workspace }}/SourceCache/swift-toolchain-sarif";
+              'SWIFT_PATH_TO_SWIFT_COLLECTIONS_SOURCE' = "${{ github.workspace }}/SourceCache/swift-collections";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
@@ -4209,11 +4228,11 @@ jobs:
             HeaderSearchPaths = @( "usr/include" )
             LibrarySearchPaths = @()
             DefaultProperties = @{
-              PLATFORM_NAME = "${{ matrix.os }}"
+              PLATFORM_NAME = "${{ matrix.os }}".ToLowerInvariant()
             }
             SupportedTargets = @{
               "${{ matrix.os }}".ToLower() = @{
-                PlatformDisplayName = "${{ matrix.os }}"
+                PlatformFamilyDisplayName = "${{ matrix.os }}"
                 PlatformFamilyName = "${{ matrix.os }}"
                 Archs = @("$(("${{ matrix.triple }}" -split '-')[0])")
               }
@@ -5567,6 +5586,48 @@ jobs:
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
 
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+
+      - name: Resolve Windows SxS public key token
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
+            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            exit 0
+          }
+
+          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
+          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
+            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
+            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
+            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
+          } else {
+            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              $env:CERTIFICATE,
+              $env:PASSPHRASE,
+              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+            )
+            [IO.File]::WriteAllBytes(
+              $CertificatePath,
+              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+            )
+          }
+
+          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
+          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
+
+          Write-Host "Using signing certificate publicKeyToken '$Token'."
+          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
@@ -5661,17 +5722,27 @@ jobs:
 
           $RuntimeLocation = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\usr\bin"
           $ProcArch = "${{ matrix.arch }}"
-          $PublicKeyToken = "0000000000000000"
+          $PublicKeyToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          if (-not $PublicKeyToken) { throw "WINDOWS_SXS_PUBLIC_KEY_TOKEN is not set." }
           $ToolchainRoots = @(
             "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+Asserts",
             "${{ github.workspace }}\BuildRoot\Library\Developer\Toolchains\${{ inputs.swift_version }}+NoAsserts"
           )
           $RuntimeDLLs = @(
-            "_FoundationICU", "dispatch", "Foundation", "FoundationEssentials",
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
             "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
             "swift_Concurrency", "swift_RegexParser", "swift_StringProcessing",
             "swiftCore", "swiftCRT", "swiftDispatch", "swiftObservation",
             "swiftRegexBuilder", "swiftRemoteMirror", "swiftSynchronization", "swiftWinSDK"
+          )
+          $CatalogRuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
           )
           $Foundation = @(
             "_FoundationICU", "dispatch", "Foundation", "FoundationEssentials",
@@ -5882,6 +5953,9 @@ jobs:
           }
 
           $AssemblyVersion = ConvertTo-FourPartVersion "${{ inputs.swift_version }}"
+          foreach ($Runtime in $CatalogRuntimeDLLs) {
+            Set-WindowsAssemblyManifest -ImagePath (Join-Path $RuntimeLocation "$Runtime.dll") -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $PublicKeyToken -LogPrefix "Stage-ToolchainRootSxS"
+          }
           foreach ($ToolchainRoot in $ToolchainRoots) {
             Stage-ToolchainRootSxS -ToolchainRoot $ToolchainRoot -RuntimeLocation $RuntimeLocation -RuntimeDLLs $RuntimeDLLs -ToolDependencyGroups $ToolDependencyGroups -DependencyGroups $DependencyGroups -AssemblyVersion $AssemblyVersion -ProcessorArchitecture $ProcArch -PublicKeyToken $PublicKeyToken
           }
@@ -5928,11 +6002,6 @@ jobs:
           dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
           dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
 
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
-
       - name: Package Build Tools (Asserts)
         env:
           AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
@@ -5943,6 +6012,7 @@ jobs:
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
               -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
               -p:CERTIFICATE=${env:CERTIFICATE} `
               -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
               -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
@@ -6080,6 +6150,42 @@ jobs:
               -p:ProductArchitecture=${{ matrix.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/ide/noasserts/ide.noasserts.wixproj
 
+      - name: Package Private Runtime (Asserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/prt/asserts/prt.asserts.wixproj
+
+      - name: Package Private Runtime (NoAsserts)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ inputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ inputs.swift_version }} `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/prt/noasserts/prt.noasserts.wixproj
+
       - name: Package Dynamic Runtime
         env:
           AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
@@ -6109,6 +6215,81 @@ jobs:
               -p:VCRedistDir="$VCRedistDir\" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/rtl/dynamic/msi/rtl.dynamic.msi.wixproj
 
+      - name: Verify runtime catalogs
+        if: inputs.signed
+        run: |
+          $ErrorActionPreference = "Stop"
+          $RuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
+          )
+          $CatalogRoot = "${{ github.workspace }}\BinaryCache\installer\obj\rtl.dynamic.lib\${{ matrix.arch }}\package\Release\RuntimeWin32Assemblies"
+          $Catalogs = @(
+            foreach ($DLL in $RuntimeDLLs) {
+              Get-Item (Join-Path $CatalogRoot "$DLL\$DLL.cat") -ErrorAction Stop
+            }
+          )
+          $UnexpectedCatalogs = @(
+            Get-ChildItem "${{ github.workspace }}\BinaryCache\installer\obj" -Filter "*.cat" -File -Recurse |
+              Where-Object { $_.FullName -match '[\\/]RuntimeWin32Assemblies[\\/]' -and $_.FullName -notin $Catalogs.FullName }
+          )
+          if ($UnexpectedCatalogs.Count -ne 0) {
+            throw "Unexpected runtime catalogs: $($UnexpectedCatalogs.FullName -join ', ')"
+          }
+
+          $ExpectedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            $env:WINDOWS_SXS_CERTIFICATE_PATH
+          )
+          $ExpectedToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          $VersionParts = @([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.'))
+          while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
+          $ExpectedVersion = $VersionParts[0..3] -join "."
+          $ExpectedArchitecture = "${{ matrix.arch }}"
+
+          foreach ($Catalog in $Catalogs) {
+            $DLLPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).dll"
+            $ManifestPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).manifest"
+            if (-not (Test-Path $DLLPath -PathType Leaf)) { throw "Catalog member '$DLLPath' does not exist." }
+            if (-not (Test-Path $ManifestPath -PathType Leaf)) { throw "Catalog manifest '$ManifestPath' does not exist." }
+
+            $Signature = Get-AuthenticodeSignature -LiteralPath $Catalog.FullName
+            if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "'$($Catalog.FullName)' has an invalid signature: $($Signature.StatusMessage)"
+            }
+            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificate.Thumbprint) {
+              throw "'$($Catalog.FullName)' was signed by an unexpected certificate."
+            }
+
+            signtool.exe verify /pa /c $Catalog.FullName $ManifestPath
+            if ($LASTEXITCODE -ne 0) { throw "'$($Catalog.FullName)' does not contain the expected manifest hash." }
+
+            mt.exe -nologo -manifest $ManifestPath -validate_manifest
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' is not a valid assembly manifest." }
+
+            mt.exe -nologo -manifest $ManifestPath "-validate_file_hashes:$($Catalog.DirectoryName)"
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' does not contain the expected DLL hash." }
+
+            $Manifest = [xml](Get-Content -LiteralPath $ManifestPath -Raw)
+            $Identity = $Manifest.assembly.assemblyIdentity
+            $File = $Manifest.assembly.file
+            if ($Identity.type -ne "win32" -or $Identity.name -ne $Catalog.BaseName -or $File.name -ne "$($Catalog.BaseName).dll") {
+              throw "'$ManifestPath' does not describe '$($Catalog.BaseName).dll'."
+            }
+            if ($Identity.version -ne $ExpectedVersion -or $Identity.processorArchitecture -ne $ExpectedArchitecture) {
+              throw "'$ManifestPath' has unexpected version or processor architecture."
+            }
+            if ($Identity.publicKeyToken -ne $ExpectedToken) {
+              throw "'$ManifestPath' uses token '$($Identity.publicKeyToken)', expected '$ExpectedToken'."
+            }
+
+            Write-Host "Verified '$($Catalog.BaseName)' catalog, signer, manifest membership, DLL hash, and manifest token."
+          }
+
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
         with:
@@ -6129,6 +6310,10 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.asserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.cab
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
@@ -6187,6 +6372,20 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-asserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.asserts.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-noasserts-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/prt.noasserts.cab
 
       - uses: actions/upload-artifact@v4
         with:
@@ -6361,6 +6560,31 @@ jobs:
           # Uncomment the following when it is enabled
           # Move-Item "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk/usr/bin/libexec" "${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686/usr"
 
+      - name: Update supported architectures in Windows SDK settings
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
+          $Architectures = @("aarch64", "i686", "x86_64")
+          $Settings = Get-Content "$SDKRoot/SDKSettings.json" -Raw | ConvertFrom-Json
+          $Settings.SupportedTargets.windows.Archs = $Architectures
+
+          $PlistPath = "$SDKRoot/SDKSettings.plist"
+          $Settings | ConvertTo-Json -Depth 4 | Set-Content "$SDKRoot/SDKSettings.json" -Encoding utf8
+
+          # Use plistlib because PowerShell's XmlDocument adds an empty DTD subset that Swift rejects.
+          $UpdatePlist = @'
+          import plistlib
+          import sys
+
+          path = sys.argv[1]
+          with open(path, "rb") as stream:
+              settings = plistlib.load(stream)
+          settings["SupportedTargets"]["windows"]["Archs"] = sys.argv[2:]
+          with open(path, "wb") as stream:
+              plistlib.dump(settings, stream)
+          '@
+          python3 -c $UpdatePlist $PlistPath $Architectures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-installer-scripts
@@ -6375,6 +6599,48 @@ jobs:
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+
+      - name: Resolve Windows SxS public key token
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
+            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            exit 0
+          }
+
+          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
+          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
+            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
+            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
+            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
+          } else {
+            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              $env:CERTIFICATE,
+              $env:PASSPHRASE,
+              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+            )
+            [IO.File]::WriteAllBytes(
+              $CertificatePath,
+              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+            )
+          }
+
+          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
+          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
+
+          Write-Host "Using signing certificate publicKeyToken '$Token'."
+          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install WixToolset.Sdk
         run: |
@@ -6393,16 +6659,54 @@ jobs:
             }
           }
 
+      - name: Prepare Windows runtime assembly manifests
+        run: |
+          $ErrorActionPreference = "Stop"
+          $AssemblyVersion = ([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.') + @("0", "0", "0", "0"))[0..3] -join "."
+          $PublicKeyToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          if (-not $PublicKeyToken) { throw "WINDOWS_SXS_PUBLIC_KEY_TOKEN is not set." }
+          $RuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
+          )
+
+          foreach ($Runtime in @(
+            @("Windows-x86_64", "amd64"),
+            @("Windows-aarch64", "arm64"),
+            @("Windows-i686", "x86")
+          )) {
+            $RuntimeRoot, $ProcessorArchitecture = $Runtime
+            $RuntimeBin = "${{ github.workspace }}\BuildRoot\Library\Developer\Runtimes\$RuntimeRoot\usr\bin"
+            foreach ($DLL in $RuntimeDLLs) {
+              $ImagePath = Join-Path $RuntimeBin "$DLL.dll"
+              if (-not (Test-Path $ImagePath -PathType Leaf)) { throw "Runtime DLL '$ImagePath' does not exist." }
+
+              $ManifestPath = Join-Path $env:RUNNER_TEMP "sxs-$RuntimeRoot-$DLL.manifest"
+              $Manifest = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "`r`n" +
+                '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">' + "`r`n" +
+                ('  <assemblyIdentity type="win32" name="{0}" version="{1}" processorArchitecture="{2}" publicKeyToken="{3}"/>' -f $DLL, $AssemblyVersion, $ProcessorArchitecture, $PublicKeyToken) + "`r`n" +
+                ('  <file name="{0}.dll"/>' -f $DLL) + "`r`n" +
+                '</assembly>'
+              Set-Content -Path $ManifestPath -Value $Manifest -Encoding UTF8
+              try {
+                mt.exe -nologo -manifest $ManifestPath "-outputresource:$ImagePath;#1"
+                if ($LASTEXITCODE -ne 0) { throw "mt.exe failed to embed the SxS manifest in '$ImagePath'." }
+              } finally {
+                Remove-Item $ManifestPath -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+
       - name: Install AzureSignTool
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
         run: |
           dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
           dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
-
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
       - name: Package Platform
         env:
@@ -6425,6 +6729,90 @@ jobs:
               -p:WindowsRuntimeX64="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-x86_64" `
               -p:WindowsRuntimeX86="${{ github.workspace }}/BuildRoot/Library/Developer/Runtimes/Windows-i686" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/windows/windows.wixproj
+
+      - name: Verify runtime catalogs
+        if: inputs.signed
+        run: |
+          $ErrorActionPreference = "Stop"
+          $DynamicRuntimeDLLs = @(
+            "_FoundationICU", "BlocksRuntime", "dispatch", "Foundation", "FoundationEssentials",
+            "FoundationInternationalization", "FoundationNetworking", "FoundationXML",
+            "swift_Builtin_float", "swift_Concurrency", "swift_Differentiation",
+            "swift_RegexParser", "swift_StringProcessing", "swift_Volatile", "swiftCore",
+            "swiftCRT", "swiftDispatch", "swiftDistributed", "swiftObservation",
+            "swiftRegexBuilder", "swiftRemoteMirror", "swiftRuntime",
+            "swiftSwiftOnoneSupport", "swiftSynchronization", "swiftWinSDK"
+          )
+          $StaticRuntimeDLLs = @("BlocksRuntime", "dispatch")
+          $Catalogs = @(
+            foreach ($Architecture in @("amd64", "arm64", "x86")) {
+              foreach ($DLL in $DynamicRuntimeDLLs) {
+                Get-Item "${{ github.workspace }}\BinaryCache\installer\obj\rtl.dynamic.lib\$Architecture\shared\Release\RuntimeWin32Assemblies\$DLL\$DLL.cat" -ErrorAction Stop
+              }
+              foreach ($DLL in $StaticRuntimeDLLs) {
+                Get-Item "${{ github.workspace }}\BinaryCache\installer\obj\rtl.static.msm\$Architecture\shared\Release\RuntimeWin32Assemblies\$DLL\$DLL.cat" -ErrorAction Stop
+              }
+            }
+          )
+          $UnexpectedCatalogs = @(
+            Get-ChildItem "${{ github.workspace }}\BinaryCache\installer\obj" -Filter "*.cat" -File -Recurse |
+              Where-Object { $_.FullName -match '[\\/]RuntimeWin32Assemblies[\\/]' -and $_.FullName -notin $Catalogs.FullName }
+          )
+          if ($UnexpectedCatalogs.Count -ne 0) {
+            throw "Unexpected runtime catalogs: $($UnexpectedCatalogs.FullName -join ', ')"
+          }
+
+          $ExpectedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            $env:WINDOWS_SXS_CERTIFICATE_PATH
+          )
+          $ExpectedToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
+          $VersionParts = @([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.'))
+          while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
+          $ExpectedVersion = $VersionParts[0..3] -join "."
+
+          foreach ($Catalog in $Catalogs) {
+            $DLLPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).dll"
+            $ManifestPath = Join-Path $Catalog.DirectoryName "$($Catalog.BaseName).manifest"
+            if (-not (Test-Path $DLLPath -PathType Leaf)) { throw "Catalog member '$DLLPath' does not exist." }
+            if (-not (Test-Path $ManifestPath -PathType Leaf)) { throw "Catalog manifest '$ManifestPath' does not exist." }
+
+            $Signature = Get-AuthenticodeSignature -LiteralPath $Catalog.FullName
+            if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "'$($Catalog.FullName)' has an invalid signature: $($Signature.StatusMessage)"
+            }
+            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificate.Thumbprint) {
+              throw "'$($Catalog.FullName)' was signed by an unexpected certificate."
+            }
+
+            signtool.exe verify /pa /c $Catalog.FullName $ManifestPath
+            if ($LASTEXITCODE -ne 0) { throw "'$($Catalog.FullName)' does not contain the expected manifest hash." }
+
+            mt.exe -nologo -manifest $ManifestPath -validate_manifest
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' is not a valid assembly manifest." }
+
+            mt.exe -nologo -manifest $ManifestPath "-validate_file_hashes:$($Catalog.DirectoryName)"
+            if ($LASTEXITCODE -ne 0) { throw "'$ManifestPath' does not contain the expected DLL hash." }
+
+            $Manifest = [xml](Get-Content -LiteralPath $ManifestPath -Raw)
+            $Identity = $Manifest.assembly.assemblyIdentity
+            $File = $Manifest.assembly.file
+            if ($Catalog.FullName -notmatch '[\\/](amd64|arm64|x86)[\\/]shared[\\/]Release[\\/]') {
+              throw "Could not determine the expected processor architecture for '$($Catalog.FullName)'."
+            }
+            $ExpectedArchitecture = $Matches[1]
+            if ($Identity.type -ne "win32" -or $Identity.name -ne $Catalog.BaseName -or $File.name -ne "$($Catalog.BaseName).dll") {
+              throw "'$ManifestPath' does not describe '$($Catalog.BaseName).dll'."
+            }
+            if ($Identity.version -ne $ExpectedVersion -or $Identity.processorArchitecture -ne $ExpectedArchitecture) {
+              throw "'$ManifestPath' has unexpected version or processor architecture."
+            }
+            if ($Identity.publicKeyToken -ne $ExpectedToken) {
+              throw "'$ManifestPath' uses token '$($Identity.publicKeyToken)', expected '$ExpectedToken'."
+            }
+
+            Write-Host "Verified '$($Catalog.BaseName)' catalog, signer, manifest membership, DLL hash, and manifest token."
+          }
+
       - name: Write DLL Expectations
         id: write-expectations
         run: |
@@ -6736,6 +7124,7 @@ jobs:
           }
 
       - if: inputs.build_android
+        name: Complete Android SDK layout
         run: |
           $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
           foreach ($Module in @("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
@@ -6746,6 +7135,46 @@ jobs:
               }
             }
           }
+
+          # build.ps1: SwiftBuild's static resource directory also needs the Android headers and shims.
+          $DynamicResources = "$SDKRoot/usr/lib/swift"
+          $StaticResources = "$SDKRoot/usr/lib/swift_static"
+          New-Item -ItemType Directory -Path "$StaticResources/shims" -Force | Out-Null
+          Copy-Item -Path "$DynamicResources/shims/*" -Destination "$StaticResources/shims/" -Recurse -Force
+          foreach ($File in @("libcxxshim.h", "libcxxshim.modulemap", "libcxxstdlibshim.h")) {
+            Copy-Item -Path "$DynamicResources/android/$File" -Destination "$StaticResources/android/$File" -Force
+          }
+          foreach ($Architecture in @("aarch64", "armv7", "i686", "x86_64")) {
+            foreach ($File in @("android.modulemap", "SwiftAndroidNDK.h", "SwiftBionic.h")) {
+              Copy-Item -Path "$DynamicResources/android/$Architecture/$File" -Destination "$StaticResources/android/$Architecture/$File" -Force
+            }
+          }
+
+      - if: inputs.build_android
+        name: Update supported architectures in Android SDK settings
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          $Architectures = @("aarch64", "armv7", "i686", "x86_64")
+          $Settings = Get-Content "$SDKRoot/SDKSettings.json" -Raw | ConvertFrom-Json
+          $Settings.SupportedTargets.android.Archs = $Architectures
+
+          $PlistPath = "$SDKRoot/SDKSettings.plist"
+          $Settings | ConvertTo-Json -Depth 4 | Set-Content "$SDKRoot/SDKSettings.json" -Encoding utf8
+
+          # Use plistlib because PowerShell's XmlDocument adds an empty DTD subset that Swift rejects.
+          $UpdatePlist = @'
+          import plistlib
+          import sys
+
+          path = sys.argv[1]
+          with open(path, "rb") as stream:
+              settings = plistlib.load(stream)
+          settings["SupportedTargets"]["android"]["Archs"] = sys.argv[2:]
+          with open(path, "wb") as stream:
+              plistlib.dump(settings, stream)
+          '@
+          python3 -c $UpdatePlist $PlistPath $Architectures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install AzureSignTool
         if: inputs.build_android && inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
@@ -7105,6 +7534,15 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
+          name: Windows-${{ matrix.arch }}-prt-asserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-prt-noasserts-msi
+          path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
+
+      - uses: actions/download-artifact@v4
+        with:
           name: Windows-${{ matrix.arch }}-python-msi
           path: ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}
 
@@ -7174,6 +7612,15 @@ jobs:
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/shared/shared.wixproj
 
+      - name: Build BAF project
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:ProductArchitecture=${{ matrix.arch }} `
+              -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/baf/baf.vcxproj
+
       - name: Build installer bundle (offline)
         env:
           AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
@@ -7199,6 +7646,7 @@ jobs:
               -p:WindowsArchitectures="`"aarch64;i686;x86_64`"" `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              -p:PythonVersion=${{ inputs.python_version }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
@@ -7254,6 +7702,7 @@ jobs:
               -p:WindowsArchitectures="`"aarch64;i686;x86_64`"" `
               -p:ProductArchitecture=${{ matrix.arch }} `
               -p:ProductVersion=${{ inputs.swift_version }}-${{ inputs.swift_tag }} `
+              -p:PythonVersion=${{ inputs.python_version }} `
               -p:ToolchainVariants="`"asserts;noasserts`"" `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bundle/installer.wixproj
 
@@ -7307,6 +7756,8 @@ jobs:
     if: inputs.build_os == 'Windows'
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      SMOKE_TESTS_FAILED: 'false'
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -7370,23 +7821,51 @@ jobs:
           echo "$env:Path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
           Get-ChildItem Env: | % { echo "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
 
+      - name: Verify Swift installation
+        run: swift --version
+
       - name: Build & Test compnerd/swift-win32
+        id: swift_win32
+        continue-on-error: true
         working-directory: ${{ github.workspace }}/SourceCache/swift-win32
         run: |
           swift build
           swift test -Xswiftc -DENABLE_TESTING
 
+      - name: Record swift-win32 failure
+        if: ${{ steps.swift_win32.outcome == 'failure' }}
+        run: echo "SMOKE_TESTS_FAILED=true" >> $env:GITHUB_ENV
+
       - name: Build compnerd/vigil
+        id: vigil
+        continue-on-error: true
         working-directory: ${{ github.workspace }}/SourceCache/vigil
         run: |
           $SDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/Windows.sdk"
           swift build --build-system native --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${SDK} -Xswiftc -static-stdlib -Xlinker /WX
 
+      - name: Record vigil failure
+        if: ${{ steps.vigil.outcome == 'failure' }}
+        run: echo "SMOKE_TESTS_FAILED=true" >> $env:GITHUB_ENV
+
       - name: Build & Test pointfreeco/swift-issue-reporting
+        id: swift_issue_reporting
+        continue-on-error: true
         working-directory: ${{ github.workspace }}/SourceCache/swift-issue-reporting
         run: |
           swift build --build-system native -c release
           swift test --build-system native -c release
+
+      - name: Record swift-issue-reporting failure
+        if: ${{ steps.swift_issue_reporting.outcome == 'failure' }}
+        run: echo "SMOKE_TESTS_FAILED=true" >> $env:GITHUB_ENV
+
+      - name: Report smoke test failures
+        if: ${{ always() }}
+        run: |
+          if ($env:SMOKE_TESTS_FAILED -eq "true") {
+            throw "One or more smoke tests failed"
+          }
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
@@ -7396,11 +7875,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ["amd64", "arm64", "x86"]
-        variant: ["static", "shared"]
+        include:
+          - arch: amd64
+            variant: shared
+            artifact_name: Windows-amd64-rtl-shared-msm
+            file_name: rtl.dynamic.shared.amd64.msm
+          - arch: amd64
+            variant: static
+            artifact_name: Windows-amd64-rtl-static-msm
+            file_name: rtl.static.shared.amd64.msm
+          - arch: arm64
+            variant: shared
+            artifact_name: Windows-arm64-rtl-shared-msm
+            file_name: rtl.dynamic.shared.arm64.msm
+          - arch: arm64
+            variant: static
+            artifact_name: Windows-arm64-rtl-static-msm
+            file_name: rtl.static.shared.arm64.msm
+          - arch: x86
+            variant: shared
+            artifact_name: Windows-x86-rtl-shared-msm
+            file_name: rtl.dynamic.shared.x86.msm
+          - arch: x86
+            variant: static
+            artifact_name: Windows-x86-rtl-static-msm
+            file_name: rtl.static.shared.x86.msm
     env:
-      MSM_ARTIFACT_NAME: Windows-${{ matrix.arch }}-rtl-${{ matrix.variant }}-msm
-      MSM_FILE_NAME: rtl.${{ matrix.variant }}.${{ matrix.arch }}.msm
+      MSM_ARTIFACT_NAME: ${{ matrix.artifact_name }}
+      MSM_FILE_NAME: ${{ matrix.file_name }}
 
       EXPECTED: >
         ${{ matrix.variant == 'shared' && (
@@ -7705,6 +8207,18 @@ jobs:
           show-progress: false
       - uses: actions/checkout@v4.2.2
         with:
+          repository: swiftlang/swift-toolchain-sarif
+          ref: ${{ inputs.swift_toolchain_sarif_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-toolchain-sarif
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-collections
+          ref: ${{ inputs.swift_collections_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
           repository: apple/swift-corelibs-libdispatch
           ref: ${{ inputs.swift_corelibs_libdispatch_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
@@ -7844,6 +8358,7 @@ jobs:
               'Python3_LIBRARY' = "${{ steps.setup-context.outputs.libpython-path }}";
               'Python3_ROOT_DIR' = $env:pythonLocation;
               'SWIFT_TOOLCHAIN_VERSION' = "${{ inputs.swift_version}} ${{ inputs.swift_tag }}";
+              'SWIFT_BUILD_SARIF' = "NO";
               'SWIFT_BUILD_SWIFT_SYNTAX' = "YES";
               'SWIFT_CLANG_LOCATION' = "${{ steps.setup-context.outputs.clang-location }}";
               'SWIFT_EARLY_SWIFT_DRIVER_BUILD' = "${{ github.workspace }}/BinaryCache/swift-driver/bin";
@@ -7858,6 +8373,8 @@ jobs:
               'SWIFT_HOST_SDKROOT' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_LIBDISPATCH_SOURCE' = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch";
               'SWIFT_PATH_TO_STRING_PROCESSING_SOURCE' = "${{ github.workspace }}/SourceCache/swift-experimental-string-processing";
+              'SWIFT_PATH_TO_SARIF_SOURCE' = "${{ github.workspace }}/SourceCache/swift-toolchain-sarif";
+              'SWIFT_PATH_TO_SWIFT_COLLECTIONS_SOURCE' = "${{ github.workspace }}/SourceCache/swift-collections";
               'SWIFT_PATH_TO_SWIFT_SDK' = "${{ steps.setup-context.outputs.sdkroot }}";
               'SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE' = "${{ github.workspace }}/SourceCache/swift-syntax";
               'SWIFT_STDLIB_ASSERTIONS' = "NO";
@@ -7886,7 +8403,7 @@ jobs:
           $AssemblyVersion = "1.0.0.0"
           $ProcessorArchitecture = "${{ matrix.arch }}"
 
-          cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-frontend sourcekitd-test swift-ide-test swift-plugin-server
+          cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-frontend sourcekitd-test swift-refactor swift-ide-test swift-plugin-server
 
           function Set-WindowsExecutableManifestDependency($ToolPath) {
             $Namespace = "urn:schemas-microsoft-com:asm.v1"
@@ -7989,6 +8506,7 @@ jobs:
             "swift-synthesize-interface.exe",
             "sil-opt.exe",
             "sourcekitd-test.exe",
+            "swift-refactor.exe",
             "swift-ide-test.exe",
             "swift-plugin-server.exe",
             "swiftc-legacy-driver.exe"
