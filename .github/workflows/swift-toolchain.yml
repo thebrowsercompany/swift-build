@@ -5326,6 +5326,10 @@ jobs:
         with:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
       - name: Install CMake ${{ env.CMAKE_VERSION }}
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
@@ -6426,6 +6430,11 @@ jobs:
           setup-vs-dev-env: true
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-amd64-shared-sdk
@@ -6919,6 +6928,12 @@ jobs:
         with:
           setup-vs-dev-env: true
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+
+      - if: inputs.build_android
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       - if: inputs.build_android
         uses: actions/download-artifact@v4
