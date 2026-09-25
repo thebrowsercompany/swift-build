@@ -168,6 +168,8 @@ jobs:
           arch: ${{ matrix.arch }}
 
       - name: Run google/bloaty
+        id: bloaty
+        continue-on-error: true
         uses: thebrowsercompany/gha-google-bloaty@4a6a22aac0c6aba05eacb41a34e6a3c02737f10c # main
         with:
           bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
@@ -189,6 +191,7 @@ jobs:
           compiler: 'cl' 
 
       - name: Generate BigQuery table data
+        if: steps.bloaty.outcome == 'success'
         run: |
           Set-StrictMode -Version 1.0
 
@@ -203,10 +206,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Show BigQuery table data to upload
+        if: steps.bloaty.outcome == 'success'
         run: Get-Content -Path ${{ github.workspace }}/table_data.csv
 
       - name: Upload to BigQuery
-        if: github.event_name != 'pull_request' && inputs.dry_run == false
+        if: steps.bloaty.outcome == 'success' && github.event_name != 'pull_request' && inputs.dry_run == false
         continue-on-error: true
         run: |
           $Script="./scripts/python/binary_sizes/bigquery_load_csv.py"
