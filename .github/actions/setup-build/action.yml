@@ -24,6 +24,7 @@ inputs:
     type: string
   swift-version:
     description: The Swift version to use, e.g. "6.0.1" for the upstream Apple Swift repository.
+      Or "6.4.x-DEVELOPMENT-SNAPSHOT-2026-08-01-a" for an upstream release-branch snapshot.
       Or "6.0.0-20261216.0" for a specific snapshot from another repository.
       If unspecified, the Swift toolchain is not set up.
     required: false
@@ -131,6 +132,9 @@ runs:
             if ($SwiftVersion.StartsWith("DEVELOPMENT-SNAPSHOT-")) {
               # Development snapshot version.
               $SwiftBranch = "development"
+              $SwiftTag = "${SwiftVersion}"
+            } elseif ($SwiftVersion -match '^(\d+\.\d+(?:\.\d+|\.x)?)-DEVELOPMENT-SNAPSHOT-') {
+              $SwiftBranch = "swift-$($Matches[1])-branch"
               $SwiftTag = "${SwiftVersion}"
             } else {
               # Release version.

@@ -141,54 +141,6 @@ $Compilers = @{
         }
     }
 
-    Stage0 = @{
-        C      = @{
-            Executable       = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
-            DriverStyle      = [DriverStyle]::ClangCL
-            Flags            = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline")
-            DebugFlags       = { param([string] $Format)
-                if ($Format -eq "dwarf") { @("-clang:-gsplit-dwarf") } else { @() }
-            }
-            AssumeFunctional = $true
-        }
-        CXX    = @{
-            Executable       = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
-            DriverStyle      = [DriverStyle]::ClangCL
-            Flags            = @("/GS-", "/Gw", "/Gy", "/Oy", "/Oi", "/Zc:inline", "/Zc:__cplusplus")
-            DebugFlags       = { param([string] $Format)
-                if ($Format -eq "dwarf") { @("-clang:-gsplit-dwarf") } else { @() }
-            }
-            AssumeFunctional = $true
-        }
-        GNUC   = @{
-            Executable       = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang${ExeSuffix}")
-            DriverStyle      = [DriverStyle]::GNU
-            Flags            = @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer", "-finline-functions")
-            DebugFlags       = { param([string] $Format)
-                if ($Format -eq "dwarf") { @("-gsplit-dwarf") } else { @("-gcodeview") }
-            }
-            AssumeFunctional = $true
-        }
-        GNUCXX = @{
-            Executable       = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang++${ExeSuffix}")
-            DriverStyle      = [DriverStyle]::GNU
-            Flags            = @("-fno-stack-protector", "-ffunction-sections", "-fdata-sections", "-fomit-frame-pointer", "-finline-functions")
-            DebugFlags       = { param([string] $Format)
-                if ($Format -eq "dwarf") { @("-gsplit-dwarf") } else { @("-gcodeview") }
-            }
-            AssumeFunctional = $true
-        }
-        Swift  = @{
-            Executable       = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage0/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "swiftc${ExeSuffix}")
-            DriverStyle      = [DriverStyle]::Swift
-            Flags            = @()
-            DebugFlags       = { param([string] $Format)
-                @("-g", "-debug-info-format=${Format}")
-            }
-            AssumeFunctional = $true
-        }
-    }
-
     Stage1 = @{
         C      = @{
             Executable       = [IO.Path]::Combine("${env:GITHUB_WORKSPACE}/BinaryCache/stage1/Library/Developer/Toolchains/${SwiftVersion}+Asserts/usr/bin/", "clang-cl${ExeSuffix}")
