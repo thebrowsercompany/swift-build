@@ -741,16 +741,6 @@ jobs:
           name: Windows-arm64-installer-online
           path: ${{ github.workspace }}/tmp/online/arm64
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-amd64-installer-offline
-          path: ${{ github.workspace }}/tmp/offline/amd64
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: Windows-arm64-installer-offline
-          path: ${{ github.workspace }}/tmp/offline/arm64
-
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -780,11 +770,9 @@ jobs:
           # Create Release
           gh release create "${SWIFT_TAG}" -R "${GITHUB_REPOSITORY}" --latest=${latest}
 
-          # Upload all installer variants
+          # Upload online installers
           upload_installer "${WORKSPACE}/tmp/online/amd64/installer.exe" "installer-amd64.exe"
           upload_installer "${WORKSPACE}/tmp/online/arm64/installer.exe" "installer-arm64.exe"
-          upload_installer "${WORKSPACE}/tmp/offline/amd64/installer.exe" "installer-offline-amd64.exe"
-          upload_installer "${WORKSPACE}/tmp/offline/arm64/installer.exe" "installer-offline-arm64.exe"
 
   binary-size:
     needs: [context, release]
