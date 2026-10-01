@@ -1290,6 +1290,20 @@ jobs:
             --zstd "$env:MSYS2_LOCATION/usr/bin/zstd.exe"
           if ($LASTEXITCODE -ne 0) { throw 'CAS archive benchmark failed' }
 
+      - name: Install s5cmd 2.3.0
+        id: s5cmd
+        env:
+          S5CMD_DIR: ${{ runner.temp }}/s5cmd-2.3.0
+        run: |
+          New-Item -ItemType Directory -Path $env:S5CMD_DIR -Force | Out-Null
+          $Archive = Join-Path $env:S5CMD_DIR 's5cmd.zip'
+          Invoke-WebRequest 'https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Windows-64bit.zip' -OutFile $Archive
+          if ((Get-FileHash $Archive -Algorithm SHA256).Hash -ne '9d8a98c1d9f6284c6d54aeec3daeb5f1412fd101850ae756c1e70dd8ffe52166') {
+            throw 's5cmd archive checksum mismatch'
+          }
+          Expand-Archive $Archive -DestinationPath $env:S5CMD_DIR -Force
+          "executable=$(Join-Path $env:S5CMD_DIR 's5cmd.exe')" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
         with:
@@ -1297,12 +1311,18 @@ jobs:
           role-session-name: CASStorageBenchmark
           aws-region: ${{ env.S3_REGION }}
 
-      - name: Measure uploads
+      - name: Compare transfers and measure restoration
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+          S5CMD_PATH: ${{ steps.s5cmd.outputs.executable }}
         run: |
-          python SourceCache/ci-build/.github/scripts/benchmark-cas.py upload `
+          python SourceCache/ci-build/.github/scripts/benchmark-cas.py transfer `
             --output "$env:BENCHMARK_DIR" --bucket "$env:S3_BUCKET" `
-            --prefix "$env:S3_PREFIX" --region "$env:S3_REGION"
-          if ($LASTEXITCODE -ne 0) { throw 'CAS upload benchmark failed' }
+            --prefix "$env:S3_PREFIX" --region "$env:S3_REGION" --repeats 3 `
+            --s5cmd "$env:S5CMD_PATH" `
+            --tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
+            --zstd "$env:MSYS2_LOCATION/usr/bin/zstd.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'CAS transfer benchmark failed; see the report for partial results' }
 
       - name: Publish benchmark summary
         if: always()
