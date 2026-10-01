@@ -1207,14 +1207,22 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Cannot resolve $Directory revision" }
             $Revisions[$Directory] = $Revision
           }
-          $SwiftVersion = swiftc --version
+          $SwiftCompiler = (Get-Command swiftc.exe -CommandType Application -ErrorAction Stop).Source
+          $ToolchainBin = Split-Path $SwiftCompiler -Parent
+          $ClangCompiler = (Get-Command (Join-Path $ToolchainBin 'clang-cl.exe') -CommandType Application -ErrorAction Stop).Source
+          $ClangCache = (Get-Command (Join-Path $ToolchainBin 'clang-cache.exe') -CommandType Application -ErrorAction Stop).Source
+          $SwiftVersion = & $SwiftCompiler --version
           if ($LASTEXITCODE -ne 0) { throw 'Cannot read Swift version' }
-          Get-Command clang-cache.exe -ErrorAction Stop | Out-Null
           @{
             run_url = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
             run_attempt = $env:GITHUB_RUN_ATTEMPT
             runner_name = $env:RUNNER_NAME
             pinned_toolchain = $env:PINNED_TOOLCHAIN
+            tool_paths = @{
+              swiftc = $SwiftCompiler
+              clang_cl = $ClangCompiler
+              clang_cache = $ClangCache
+            }
             debug_info = $env:DEBUG_INFO -eq 'true'
             swift_version = $SwiftVersion -join "`n"
             revisions = $Revisions

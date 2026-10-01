@@ -217,7 +217,13 @@ function Resolve-Tool([hashtable]$Root, [string]$Selector) {
     # blow up in `Get-Command` if it's not present.
     if (-not [IO.Path]::IsPathFullyQualified($Node.Executable)) {
         $Node = $Node.Clone()
-        $Node.Executable = (Get-Command $Node.Executable).Source
+        $Toolchain = $Selector.Split('.')[0]
+        if ($Toolchain -eq "Pinned" -or ($Toolchain -eq "Host" -and -not $UseMSVCHostToolchain)) {
+            # Another LLVM installation on PATH must not replace the pinned Clang tools.
+            $PinnedSwift = (Get-Command swiftc.exe -CommandType Application -ErrorAction Stop).Source
+            $Node.Executable = Join-Path (Split-Path $PinnedSwift -Parent) $Node.Executable
+        }
+        $Node.Executable = (Get-Command $Node.Executable -CommandType Application -ErrorAction Stop).Source
     }
 
     return $Node
