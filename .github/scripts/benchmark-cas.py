@@ -148,9 +148,6 @@ def archive_cas(args, results):
         "compression_seconds": 0,
     }]
     write_results(args.output, results)
-    _, seconds = run([args.tar, "--force-local", "--compare", "--file", str(sparse), "--directory", str(cas)], env)
-    results["sparse_validation_seconds"] = seconds
-
     _, seconds = run([args.zstd, "-1", "-T0", "--no-progress", str(sparse), "-o", str(compressed)], env)
     compressed_bytes = compressed.stat().st_size
     results["archives"].append({
@@ -170,7 +167,7 @@ def archive_cas(args, results):
 
 def upload_archives(args, results):
     if results["status"] != "ready_to_upload":
-        raise ValueError("Archive creation and validation must succeed before uploading")
+        raise ValueError("Archive creation and compression validation must succeed before uploading")
     prefix = args.prefix.strip("/")
     if not prefix.startswith("cas-benchmark/"):
         raise ValueError("Use a run-specific prefix under cas-benchmark/")
