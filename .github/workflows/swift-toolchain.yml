@@ -416,6 +416,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   bootstrap-libxml2:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -536,6 +537,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-libxml2-${{ inputs.libxml2_version }}/usr
 
   sqlite:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -624,6 +626,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     name: ds2 Build Tools
@@ -712,6 +715,7 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
   ds2:
+    if: ${{ false }}
     needs: [ds2_tools, stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -849,6 +853,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -932,6 +937,7 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
   build_tools:
+    if: ${{ false }}
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1092,6 +1098,13 @@ jobs:
   early_swift_driver:
     runs-on: ${{ inputs.default_build_runner }}
     needs: [bootstrap-sqlite]
+    timeout-minutes: 90
+    env:
+      CAS_PATH: ${{ github.workspace }}/cas
+      BENCHMARK_DIR: ${{ github.workspace }}/CASBenchmark-${{ github.run_id }}-${{ github.run_attempt }}
+      S3_BUCKET: ${{ vars.SCCACHE_S3_BUCKET }}
+      S3_REGION: ${{ vars.SCCACHE_AWS_REGION }}
+      S3_PREFIX: cas-benchmark/${{ github.run_id }}/${{ github.run_attempt }}
 
     strategy:
       fail-fast: false
@@ -1105,6 +1118,24 @@ jobs:
           ref: ${{ inputs.ci_build_revision }}
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
+
+      - name: Prepare CAS benchmark
+        env:
+          AWS_ROLE: ${{ vars.SCCACHE_AWS_ARN }}
+        run: |
+          if ($env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ARCH -ne 'X64') {
+            throw 'This benchmark requires a Windows x64 runner'
+          }
+          foreach ($Name in @('AWS_ROLE', 'S3_BUCKET', 'S3_REGION')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($Name))) {
+              throw "$Name must be configured before running the benchmark"
+            }
+          }
+          if (Test-Path -LiteralPath $env:CAS_PATH) {
+            throw 'The benchmark requires an empty, freshly generated CAS'
+          }
+          New-Item -ItemType Directory -Path $env:BENCHMARK_DIR -Force | Out-Null
+
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         id: setup-build
         with:
@@ -1116,26 +1147,11 @@ jobs:
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
 
-      - name: Compute workspace hash
-        id: workspace_hash
-        shell: pwsh
-        run: |
-          $stringAsStream = [System.IO.MemoryStream]::new()
-          $writer = [System.IO.StreamWriter]::new($stringAsStream)
-          $writer.write("${{ github.workspace }}")
-          $writer.Flush()
-          $stringAsStream.Position = 0
-          $hash = (Get-FileHash -Algorithm SHA256 -InputStream $stringAsStream).Hash
-          echo "hash=$hash" >> $env:GITHUB_OUTPUT
-      - name: Setup sccache
-        uses: ./SourceCache/ci-build/.github/actions/setup-sccache
-        if: inputs.use_host_toolchain
+      - uses: actions/setup-python@v5
         with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
-          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
-          disk-max-size: 500M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-early-swift-driver
+          python-version: '3.12'
+          architecture: x64
+
       - uses: actions/checkout@v4.2.2
         with:
           repository: swiftlang/swift-llbuild
@@ -1180,13 +1196,39 @@ jobs:
           }
           Write-Output "sdkroot=${sdkRoot}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Record build environment
+        env:
+          PINNED_TOOLCHAIN: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          DEBUG_INFO: ${{ inputs.debug_info }}
+        run: |
+          $Revisions = @{}
+          foreach ($Directory in @('ci-build', 'swift-toolchain-sqlite', 'llbuild', 'swift-tools-support-core', 'swift-argument-parser', 'swift-driver')) {
+            $Revision = git -C "SourceCache/$Directory" rev-parse HEAD
+            if ($LASTEXITCODE -ne 0) { throw "Cannot resolve $Directory revision" }
+            $Revisions[$Directory] = $Revision
+          }
+          $SwiftVersion = swiftc --version
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read Swift version' }
+          Get-Command clang-cache.exe -ErrorAction Stop | Out-Null
+          @{
+            run_url = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            run_attempt = $env:GITHUB_RUN_ATTEMPT
+            runner_name = $env:RUNNER_NAME
+            pinned_toolchain = $env:PINNED_TOOLCHAIN
+            debug_info = $env:DEBUG_INFO -eq 'true'
+            swift_version = $SwiftVersion -join "`n"
+            revisions = $Revisions
+          } | ConvertTo-Json -Depth 5 | Set-Content "$env:BENCHMARK_DIR/build.json" -Encoding utf8
+
       # build.ps1: Build-EarlySwiftDriver
       - name: Configure early swift-driver
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
+          enable-cas: true
+          cas-path: ${{ env.CAS_PATH }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1215,30 +1257,64 @@ jobs:
 
       - name: Build early swift-driver
         run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/swift-driver
+          $Timer = [Diagnostics.Stopwatch]::StartNew()
+          cmake --build BinaryCache/swift-driver
+          $Timer.Stop()
+          if ($LASTEXITCODE -ne 0) { throw 'Early Swift Driver build failed' }
+          $Build = Get-Content "$env:BENCHMARK_DIR/build.json" -Raw | ConvertFrom-Json -AsHashtable
+          $Build.build_seconds = $Timer.Elapsed.TotalSeconds
+          $Build | ConvertTo-Json -Depth 5 | Set-Content "$env:BENCHMARK_DIR/build.json" -Encoding utf8
 
-      - name: Copy binaries
+      - name: Install GNU tar and Zstandard
+        id: msys2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+        with:
+          msystem: MSYS
+          install: tar zstd
+
+      - name: Measure sparse archiving and compression
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
-          $ExeSuffix = if ("${{ matrix.os }}" -eq "Windows") { ".exe" } else { "" }
-          $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "bin"
-          $InstallBinDir = Join-Path "${{ github.workspace }}" "BuildRoot" "bin"
+          python SourceCache/ci-build/.github/scripts/benchmark-cas.py archive `
+            --cas-path "$env:CAS_PATH" --output "$env:BENCHMARK_DIR" `
+            --tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
+            --zstd "$env:MSYS2_LOCATION/usr/bin/zstd.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'CAS archive benchmark failed' }
 
-          # Create the target folder.
-          New-Item -ItemType Directory -Path $InstallBinDir -Force
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          role-to-assume: ${{ vars.SCCACHE_AWS_ARN }}
+          role-session-name: CASStorageBenchmark
+          aws-region: ${{ env.S3_REGION }}
 
-          # Copy binaries.
-          foreach ($bin in @("swift-driver", "swift-help")) {
-              $binName = "${bin}${ExeSuffix}"
-              $binPath = Join-Path $InstallBinDir $binName
-              Copy-Item -Path "${SourceBinDir}/${binName}" -Destination $binPath -Force
+      - name: Measure uploads
+        run: |
+          python SourceCache/ci-build/.github/scripts/benchmark-cas.py upload `
+            --output "$env:BENCHMARK_DIR" --bucket "$env:S3_BUCKET" `
+            --prefix "$env:S3_PREFIX" --region "$env:S3_REGION"
+          if ($LASTEXITCODE -ne 0) { throw 'CAS upload benchmark failed' }
+
+      - name: Publish benchmark summary
+        if: always()
+        run: |
+          $Report = "$env:BENCHMARK_DIR/results.md"
+          if (Test-Path -LiteralPath $Report) {
+            Get-Content $Report -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
           }
 
-      - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
-          path: ${{ github.workspace }}/BuildRoot
+          name: cas-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.BENCHMARK_DIR }}/*.json
+            ${{ env.BENCHMARK_DIR }}/*.md
+          if-no-files-found: warn
 
   stage1-compiler:
+    if: ${{ false }}
     needs: [bootstrap-libxml2, cmark_gfm, build_tools, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
@@ -1488,6 +1564,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
 
   bootstrap-macros:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1601,6 +1678,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bootstrap/Library
 
   stage2-libxml2:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -1704,6 +1782,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/stage2-libxml2-${{ inputs.libxml2_version }}/usr
 
   stage2-compiler:
+    if: ${{ false }}
     needs: [stage1-compiler, sdk, stage2-libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
@@ -2065,6 +2144,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   compiler-runtime:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2233,6 +2313,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   zlib:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2333,6 +2414,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   brotli:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2432,6 +2514,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
+    if: ${{ false }}
     needs: [stage1-compiler, zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2630,6 +2713,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2739,7 +2823,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   macros:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [stage2-compiler, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2904,6 +2988,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   sdk:
+    if: ${{ false }}
     needs: [stage1-compiler, bootstrap-macros, zlib, brotli, curl, libxml2]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -3902,7 +3987,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   devtools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [sqlite, stage2-compiler, macros, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4835,7 +4920,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   debugging_tools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [stage1-compiler, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -5014,6 +5099,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
+    if: ${{ false }}
     name: Package Tools
     needs: [stage2-compiler, macros, debugging_tools, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5933,6 +6019,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
+    if: ${{ false }}
     name: Package Windows SDK & Runtime
     needs: [sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6434,6 +6521,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
   package_android_platform:
+    if: ${{ false }}
     name: Package Android SDK & Runtime
     needs: [ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6781,7 +6869,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
 
   package_python:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     name: Package Embedded Python runtime
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -6914,7 +7002,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
 
   package_resources:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     name: Package Resources
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7005,7 +7093,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/res.cab
 
   installer:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [package_tools, package_windows_platform, package_android_platform, package_python, package_resources]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7302,7 +7390,7 @@ jobs:
             --acl private
 
   smoke_test:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
     env:
@@ -7421,7 +7509,7 @@ jobs:
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
     name: Redistributable smoke test (${{ matrix.arch }}, ${{ matrix.variant }})
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [package_windows_platform]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -7495,7 +7583,7 @@ jobs:
           }
 
   smoke_test_android:
-    if: inputs.build_os == 'Windows' && inputs.build_android
+    if: ${{ false }}
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7647,6 +7735,7 @@ jobs:
         run: cmake --build out
 
   swift_test:
+    if: ${{ false }}
     needs: [stage1-compiler, stage2-compiler, sdk]
     runs-on: ${{ inputs.compilers_build_runner }}
 

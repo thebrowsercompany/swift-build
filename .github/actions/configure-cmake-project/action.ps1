@@ -18,6 +18,7 @@ function ConvertTo-Bool([string]$Value) {
 $ProjectName = $env:INPUT_PROJECT_NAME
 $SwiftVersion = $env:INPUT_SWIFT_VERSION
 $EnableCaching = ConvertTo-Bool $env:INPUT_ENABLE_CACHING
+$EnableCAS = ConvertTo-Bool $env:INPUT_ENABLE_CAS
 $DebugInfo = ConvertTo-Bool $env:INPUT_DEBUG_INFO
 $BuildOS = $env:INPUT_BUILD_OS
 $BuildArch = $env:INPUT_BUILD_ARCH
@@ -554,6 +555,47 @@ switch ($OS) {
         # This indication allows it to understand that it can use `chrpath` to
         # change the RPATH on the dynamic libraries.
         Add-FlagsDefine $Defines CMAKE_EXECUTABLE_FORMAT "ELF"
+    }
+}
+
+if ($EnableCAS) {
+    if ($EnableCaching) {
+        throw "CAS and sccache cannot both be enabled"
+    }
+    if ($OS -ne "Windows") {
+        throw "CAS is currently supported only for Windows builds"
+    }
+    if ([string]::IsNullOrWhiteSpace($env:INPUT_CAS_PATH)) {
+        throw "cas-path is required when enable-cas is true"
+    }
+    $CasPath = [IO.Path]::GetFullPath($env:INPUT_CAS_PATH).Replace('\', '/')
+    New-Item -ItemType Directory -Path $CasPath -Force | Out-Null
+    $env:LLVM_CACHE_CAS_PATH = $CasPath
+    "LLVM_CACHE_CAS_PATH=$CasPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    foreach ($Entry in @(@("C", $CCompiler), @("CXX", $CXXCompiler))) {
+        $Language, $Compiler = $Entry
+        if ($null -eq $Compiler) { continue }
+        if ($Compiler.DriverStyle -eq [DriverStyle]::CL) {
+            throw "CAS requires Clang, but $Language uses MSVC"
+        }
+        $ClangCache = Join-Path (Split-Path $Compiler.Executable -Parent) "clang-cache.exe"
+        if (-not (Test-Path -LiteralPath $ClangCache -PathType Leaf)) {
+            throw "The selected $Language toolchain does not contain $ClangCache"
+        }
+        $LauncherKey = "CMAKE_${Language}_COMPILER_LAUNCHER"
+        if ($Defines.Contains($LauncherKey)) {
+            throw "$LauncherKey is already set; CAS requires clang-cache"
+        }
+        $Defines[$LauncherKey] = $ClangCache
+    }
+    if ($UseSwift) {
+        Add-FlagsDefine $Defines CMAKE_Swift_FLAGS @(
+            "-explicit-module-build",
+            "-cache-compile-job",
+            "-cas-path", $CasPath,
+            "-incremental-dependency-scan"
+        )
     }
 }
 
