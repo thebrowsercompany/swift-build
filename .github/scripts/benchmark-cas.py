@@ -268,8 +268,9 @@ def measure_restores(args, results, downloads):
                         verify_download(source, sparse)
                     destination = directory / "cas"
                     destination.mkdir()
+                    # GNU tar interprets backslash escapes in --directory when extracting.
                     _, sample["extraction_seconds"] = run([
-                        args.tar, "--force-local", "--extract", "--file", str(source), "--directory", str(destination)], env)
+                        args.tar, "--force-local", "--extract", "--file", str(source), "--directory", destination.as_posix()], env)
                     files = [path for path in destination.rglob("*") if path.is_file()]
                     restored = {path.relative_to(destination).as_posix(): path.stat().st_size for path in files}
                     if restored != expected:
