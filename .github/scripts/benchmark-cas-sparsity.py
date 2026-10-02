@@ -26,6 +26,75 @@ def run(command):
     return result.stdout, seconds
 
 
+def diagnostic_command(command, archive, cwd=None, unset_locale=False):
+    env = dict(os.environ, LC_ALL="C")
+    if unset_locale:
+        env.pop("LC_ALL", None)
+    result = {"command": command, "cwd": str(cwd or Path.cwd()), "lc_all": env.get("LC_ALL")}
+    print(f"Diagnostic: {subprocess.list2cmdline(command)}; cwd={result['cwd']}; LC_ALL={result['lc_all']!r}",
+          flush=True)
+    try:
+        process = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace", timeout=30)
+        result.update(returncode=process.returncode, stdout=process.stdout, stderr=process.stderr)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        result.update(returncode=None, error=str(error))
+        for stream in ("stdout", "stderr"):
+            value = getattr(error, stream, None) or ""
+            result[stream] = value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+    result["archive_bytes"] = archive.stat().st_size if archive.exists() else None
+    print(json.dumps(result, indent=2), flush=True)
+    return result
+
+
+def windows_creation_diagnostics(args, results, api):
+    executable = Path(args.bsd_tar).resolve(strict=True)
+    diagnostics = {"executable": str(executable), "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+                   "fixtures": {}, "probes": []}
+    results["windows_creation_diagnostics"] = diagnostics
+    with tempfile.TemporaryDirectory(prefix="tar-diagnostics-", dir=args.output) as directory:
+        root = Path(directory)
+        for kind in ("ordinary", "sparse"):
+            source = root / kind
+            source.mkdir()
+            fixture = source / "sample.bin"
+            fixture.write_bytes(b"CAS tar diagnostic\n")
+            try:
+                if kind == "sparse":
+                    import msvcrt
+                    with fixture.open("r+b") as file:
+                        returned = wintypes.DWORD()
+                        # FSCTL_SET_SPARSE must precede extending the fixture.
+                        if not api.api.DeviceIoControl(msvcrt.get_osfhandle(file.fileno()), 0x900C4,
+                                                       None, 0, None, 0, ctypes.byref(returned), None):
+                            raise ctypes.WinError(ctypes.get_last_error())
+                        file.seek(1024 * 1024 - 1)
+                        file.write(b"Z")
+                diagnostics["fixtures"][kind] = api.inspect(fixture)
+                if kind == "sparse" and not diagnostics["fixtures"][kind]["sparse"]:
+                    raise ValueError("Fixture does not have the sparse attribute")
+            except (OSError, ValueError) as error:
+                diagnostics["fixtures"][kind] = {"error": str(error)}
+                continue
+            variants = ["baseline", "working-directory", "unset-locale"]
+            if kind == "sparse":
+                variants.append("no-read-sparse")
+            for variant in variants:
+                archive = root / f"{kind}-{variant}.tar"
+                command = [str(executable), "-vv", "-cf", str(archive)]
+                if variant == "no-read-sparse":
+                    command.append("--no-read-sparse")
+                if variant != "working-directory":
+                    command.extend(["-C", str(source)])
+                command.append(".")
+                probe = diagnostic_command(command, archive,
+                                           cwd=source if variant == "working-directory" else None,
+                                           unset_locale=variant == "unset-locale")
+                probe.update(fixture=kind, variant=variant)
+                diagnostics["probes"].append(probe)
+                write_report(args.output, results)
+
+
 class FileStandardInfo(ctypes.Structure):
     _fields_ = [("allocation", ctypes.c_int64), ("length", ctypes.c_int64),
                 ("links", wintypes.DWORD), ("delete_pending", ctypes.c_ubyte),
@@ -239,6 +308,21 @@ def write_report(output, results):
                   "Timing excludes mount setup/cleanup, allocation inspection and validation; caches are not flushed.",
                   "Validation checks names, lengths, SHA-256 of every archived data range against the source, "
                   "and beginning/middle/end samples of each hole. It is not a full logical-file checksum.", ""])
+    if diagnostics := results.get("windows_creation_diagnostics"):
+        lines.extend(["## Windows tar creation diagnostics", "",
+                      f"Executable: `{diagnostics['executable']}`",
+                      f"SHA-256: `{diagnostics['sha256']}`", "",
+                      "These probes run after the benchmark and are excluded from its timings. "
+                      "The sparse fixture is only 1 MiB; --no-read-sparse is never used on the CAS. "
+                      "Full commands, working directories, LC_ALL, stdout/stderr and fixture allocation are in sparsity.json.", "",
+                      "| Fixture | Variant | Exit code | Archive bytes |",
+                      "|---|---|---:|---:|"])
+        for probe in diagnostics["probes"]:
+            lines.append(f"| {probe['fixture']} | {probe['variant']} | {probe['returncode']} | {probe['archive_bytes']} |")
+        lines.append("")
+        for kind, fixture in diagnostics["fixtures"].items():
+            if "error" in fixture:
+                lines.append(f"- {kind} fixture setup failed: {fixture['error']}")
     if results.get("trim_candidates"):
         lines.extend(["## Read-only inspection of Hiroshi's trimming proposal", "",
                       "| File | Logical bytes | Bump pointer | Potential logical bytes removed |",
@@ -278,7 +362,15 @@ def round_trips(args, results, api, source, manifest):
                         create = [args.bsd_tar, *flags, "-cf", str(archive), "-C", str(source), "."]
                         extract = [args.bsd_tar, "-xf", str(archive), "-C", str(destination)]
                     sample.update(create_command=create, extract_command=extract)
-                    _, sample["archive_seconds"] = run(create)
+                    try:
+                        _, sample["archive_seconds"] = run(create)
+                    except subprocess.CalledProcessError:
+                        if method.startswith("windows-") and trial == 1:
+                            failed_bytes = archive.stat().st_size if archive.exists() else None
+                            diagnostic = diagnostic_command([create[0], "-vv", *create[1:]], archive)
+                            diagnostic["failed_archive_bytes"] = failed_bytes
+                            sample["creation_diagnostic"] = diagnostic
+                        raise
                     sample["archive_bytes"] = archive.stat().st_size
                     _, sample["extraction_seconds"] = run(extract)
                     sample["archive_members"] = archive_manifest(archive, source, hash_data=False)
@@ -315,6 +407,7 @@ def experiment(args, results):
     validate(source, manifest, results["source"])
     if args.round_trip:
         round_trips(args, results, api, source, manifest)
+        windows_creation_diagnostics(args, results, api)
         return
     methods = ["gnu-current", "gnu-posix-path", "gnu-sparse-mount", "windows-bsdtar", "windows-bsdtar-S"]
     results["methods"] = methods
