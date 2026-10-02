@@ -1275,13 +1275,13 @@ jobs:
             --zstd "$env:MSYS2_LOCATION/usr/bin/zstd.exe"
           if ($LASTEXITCODE -ne 0) { throw 'CAS archive benchmark failed' }
 
-      - name: Compare sparse extraction methods
+      - name: Compare GNU and Windows tar round trips
         env:
           MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
           python SourceCache/ci-build/.github/scripts/benchmark-cas-sparsity.py `
             --cas-path "$env:CAS_PATH" --archive "$env:BENCHMARK_DIR/cas.tar" `
-            --output "$env:BENCHMARK_DIR" --repeats 3 `
+            --output "$env:BENCHMARK_DIR" --repeats 3 --round-trip `
             --gnu-tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
             --bsd-tar "$env:WINDIR/System32/tar.exe"
           if ($LASTEXITCODE -ne 0) { throw 'CAS sparsity experiment failed; see report for partial results' }

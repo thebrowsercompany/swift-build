@@ -132,7 +132,7 @@ def data_digest(path, ranges):
     return digest.hexdigest()
 
 
-def archive_manifest(archive, source):
+def archive_manifest(archive, source, hash_data=True):
     entries = {}
     with tarfile.open(archive, "r:") as tar:
         for member in tar:
@@ -150,8 +150,9 @@ def archive_manifest(archive, source):
                 if offset < end or length < 0 or offset + length > member.size:
                     raise ValueError(f"Invalid sparse map: {name}")
                 end = offset + length
-            entries[name] = {"logical_bytes": member.size, "data_ranges": ranges,
-                             "data_sha256": data_digest(source / name, ranges)}
+            entries[name] = {"logical_bytes": member.size, "data_ranges": ranges}
+            if hash_data:
+                entries[name]["data_sha256"] = data_digest(source / name, ranges)
     return entries
 
 
@@ -203,8 +204,12 @@ def write_report(output, results):
         lines.extend([f"Source: {source['file_count']} files; {source['logical_bytes']:,} logical bytes; "
                       f"{source['allocation_bytes']:,} allocated bytes; {source['sparse_files']} sparse files.",
                       f"Prior GetCompressedFileSizeW metric: {source['compressed_file_size_bytes']:,} bytes.", ""])
-    lines.extend(["| Extraction method | Passed trials | Median extraction (s) | Allocated bytes (min–max) | Sparse files (min–max) |",
-                  "|---|---:|---:|---:|---:|"])
+    if results.get("round_trip"):
+        lines.extend(["| Create → extract | Passed trials | Archive bytes (min–max) | Create (s) | Extract (s) | Combined (s) | Allocated bytes (min–max) | Sparse files (min–max) |",
+                      "|---|---:|---:|---:|---:|---:|---:|---:|"])
+    else:
+        lines.extend(["| Extraction method | Passed trials | Median extraction (s) | Allocated bytes (min–max) | Sparse files (min–max) |",
+                      "|---|---:|---:|---:|---:|"])
     for method in results.get("methods", []):
         trials = [trial for trial in results["trials"] if trial["method"] == method]
         good = [trial for trial in trials if trial["status"] == "complete"]
@@ -212,12 +217,25 @@ def write_report(output, results):
         def bounds(key):
             values = [trial["restored"][key] for trial in good]
             return f"{min(values):,}–{max(values):,}" if values else "—"
-        lines.append(f"| {method} | {len(good)}/{results['repeats']} | {duration} | "
-                     f"{bounds('allocation_bytes')} | {bounds('sparse_files')} |")
+        if results.get("round_trip"):
+            sizes = [trial["archive_bytes"] for trial in good]
+            archive_size = f"{min(sizes):,}–{max(sizes):,}" if sizes else "—"
+            creation = f"{statistics.median(trial['archive_seconds'] for trial in good):.3f}" if good else "—"
+            combined = f"{statistics.median(trial['archive_seconds'] + trial['extraction_seconds'] for trial in good):.3f}" if good else "—"
+            lines.append(f"| {method} | {len(good)}/{results['repeats']} | {archive_size} | {creation} | "
+                         f"{duration} | {combined} | {bounds('allocation_bytes')} | {bounds('sparse_files')} |")
+        else:
+            lines.append(f"| {method} | {len(good)}/{results['repeats']} | {duration} | "
+                         f"{bounds('allocation_bytes')} | {bounds('sparse_files')} |")
     lines.extend(["", "Allocation uses GetFileInformationByHandleEx(FileStandardInfo). JSON also includes "
                   "GetCompressedFileSizeW, sparse attributes, and every FSCTL_QUERY_ALLOCATED_RANGES result.",
                   "Range lengths describe possibly populated regions, not exact physical allocation.", "",
-                  "Each method extracts the same GNU sparse archive into a fresh directory. Trial order rotates. "
+                  ("Each method creates a fresh archive of the same source CAS and extracts it with the same tool. "
+                   "GNU uses --format=gnu --sparse; Windows uses its default format, with default or explicit --read-sparse. "
+                   "Restores are checked against the common source manifest from the GNU reference archive. "
+                   if results.get("round_trip") else
+                   "Each method extracts the same GNU sparse archive into a fresh directory. ") +
+                  "Trial order rotates. "
                   "Timing excludes mount setup/cleanup, allocation inspection and validation; caches are not flushed.",
                   "Validation checks names, lengths, SHA-256 of every archived data range against the source, "
                   "and beginning/middle/end samples of each hole. It is not a full logical-file checksum.", ""])
@@ -233,6 +251,47 @@ def write_report(output, results):
     for error in results.get("errors", []):
         lines.append(f"- {error}")
     (output / "sparsity.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def round_trips(args, results, api, source, manifest):
+    methods = ["gnu-sparse → gnu", "windows-default → windows", "windows-read-sparse → windows"]
+    results["methods"] = methods
+    write_report(args.output, results)
+    expected = {name: entry["logical_bytes"] for name, entry in manifest.items()}
+    for trial in range(1, args.repeats + 1):
+        offset = (trial - 1) % len(methods)
+        for method in methods[offset:] + methods[:offset]:
+            sample = {"trial": trial, "method": method, "status": "running"}
+            results["trials"].append(sample)
+            try:
+                with tempfile.TemporaryDirectory(prefix="round-trip-", dir=args.output) as directory:
+                    archive = Path(directory) / "cas.tar"
+                    destination = Path(directory) / "restored"
+                    destination.mkdir()
+                    if method.startswith("gnu-"):
+                        create = [args.gnu_tar, "--force-local", "--format=gnu", "--sort=name",
+                                  "--sparse", "--create", "--file", str(archive), "--directory", str(source), "."]
+                        extract = [args.gnu_tar, "--force-local", "--extract", "--file", str(archive),
+                                   "--directory", destination.as_posix()]
+                    else:
+                        flags = ["--read-sparse"] if method.startswith("windows-read-sparse") else []
+                        create = [args.bsd_tar, *flags, "-cf", str(archive), "-C", str(source), "."]
+                        extract = [args.bsd_tar, "-xf", str(archive), "-C", str(destination)]
+                    sample.update(create_command=create, extract_command=extract)
+                    _, sample["archive_seconds"] = run(create)
+                    sample["archive_bytes"] = archive.stat().st_size
+                    _, sample["extraction_seconds"] = run(extract)
+                    sample["archive_members"] = archive_manifest(archive, source, hash_data=False)
+                    if {name: entry["logical_bytes"] for name, entry in sample["archive_members"].items()} != expected:
+                        raise ValueError("Archive file names or logical sizes differ from source")
+                    sample["restored"] = snapshot(api, destination)
+                    validate(destination, manifest, sample["restored"])
+                    sample["status"] = "complete"
+            except (OSError, ValueError, tarfile.TarError, subprocess.CalledProcessError) as error:
+                sample.update(status="failed", error=str(error))
+                results["errors"].append(f"{method}, trial {trial}: {error}")
+            write_report(args.output, results)
+    results["status"] = "failed" if results["errors"] else "complete"
 
 
 def experiment(args, results):
@@ -254,6 +313,9 @@ def experiment(args, results):
     manifest = archive_manifest(archive, source)
     results["archive_members"] = manifest
     validate(source, manifest, results["source"])
+    if args.round_trip:
+        round_trips(args, results, api, source, manifest)
+        return
     methods = ["gnu-current", "gnu-posix-path", "gnu-sparse-mount", "windows-bsdtar", "windows-bsdtar-S"]
     results["methods"] = methods
     write_report(args.output, results)
@@ -311,11 +373,13 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--gnu-tar", required=True)
     parser.add_argument("--bsd-tar", required=True)
+    parser.add_argument("--round-trip", action="store_true")
     parser.add_argument("--repeats", type=int, choices=range(1, 6), default=3)
     args = parser.parse_args()
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
-    results = {"status": "running", "schema_version": 1, "repeats": args.repeats, "trials": [], "errors": []}
+    results = {"status": "running", "schema_version": 2, "round_trip": args.round_trip,
+               "repeats": args.repeats, "trials": [], "errors": []}
     try:
         experiment(args, results)
     except Exception as error:
