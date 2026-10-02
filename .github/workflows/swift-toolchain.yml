@@ -416,6 +416,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   bootstrap-libxml2:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -852,6 +853,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -935,6 +937,7 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
   build_tools:
+    if: ${{ false }}
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1089,6 +1092,10 @@ jobs:
   early_swift_driver:
     runs-on: ${{ inputs.default_build_runner }}
     needs: [bootstrap-sqlite]
+    timeout-minutes: 45
+    env:
+      CAS_PATH: ${{ github.workspace }}/cas
+      BENCHMARK_DIR: ${{ github.workspace }}/CASBenchmark-${{ github.run_id }}-${{ github.run_attempt }}
 
     strategy:
       fail-fast: false
@@ -1102,6 +1109,17 @@ jobs:
           ref: ${{ inputs.ci_build_revision }}
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
+
+      - name: Prepare CAS benchmark
+        run: |
+          if ($env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ARCH -ne 'X64') {
+            throw 'This benchmark requires a Windows x64 runner'
+          }
+          if (Test-Path -LiteralPath $env:CAS_PATH) {
+            throw 'The benchmark requires an empty, freshly generated CAS'
+          }
+          New-Item -ItemType Directory -Path $env:BENCHMARK_DIR -Force | Out-Null
+
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         id: setup-build
         with:
@@ -1112,6 +1130,11 @@ jobs:
         uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
         with:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -1157,13 +1180,48 @@ jobs:
           }
           Write-Output "sdkroot=${sdkRoot}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Record build environment
+        env:
+          PINNED_TOOLCHAIN: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+          DEBUG_INFO: ${{ inputs.debug_info }}
+        run: |
+          $Revisions = @{}
+          foreach ($Directory in @('ci-build', 'swift-toolchain-sqlite', 'llbuild', 'swift-tools-support-core', 'swift-argument-parser', 'swift-driver')) {
+            $Revision = git -C "SourceCache/$Directory" rev-parse HEAD
+            if ($LASTEXITCODE -ne 0) { throw "Cannot resolve $Directory revision" }
+            $Revisions[$Directory] = $Revision
+          }
+          $SwiftCompiler = (Get-Command swiftc.exe -CommandType Application -ErrorAction Stop).Source
+          $ToolchainBin = Split-Path $SwiftCompiler -Parent
+          $ClangCompiler = (Get-Command (Join-Path $ToolchainBin 'clang-cl.exe') -CommandType Application -ErrorAction Stop).Source
+          $ClangCache = (Get-Command (Join-Path $ToolchainBin 'clang-cache.exe') -CommandType Application -ErrorAction Stop).Source
+          $SwiftVersion = & $SwiftCompiler --version
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read Swift version' }
+          @{
+            run_url = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            run_attempt = $env:GITHUB_RUN_ATTEMPT
+            runner_name = $env:RUNNER_NAME
+            build_target = 'early-swift-driver'
+            pinned_toolchain = $env:PINNED_TOOLCHAIN
+            tool_paths = @{
+              swiftc = $SwiftCompiler
+              clang_cl = $ClangCompiler
+              clang_cache = $ClangCache
+            }
+            debug_info = $env:DEBUG_INFO -eq 'true'
+            swift_version = $SwiftVersion -join "`n"
+            revisions = $Revisions
+          } | ConvertTo-Json -Depth 5 | Set-Content "$env:BENCHMARK_DIR/build.json" -Encoding utf8
+
       # build.ps1: Build-EarlySwiftDriver
       - name: Configure early swift-driver
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Compilers
           swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
+          enable-caching: false
+          enable-cas: true
+          cas-path: ${{ env.CAS_PATH }}
           debug-info: ${{ inputs.debug_info }}
           build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
@@ -1192,30 +1250,63 @@ jobs:
 
       - name: Build early swift-driver
         run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/swift-driver
+          $Timer = [Diagnostics.Stopwatch]::StartNew()
+          cmake --build BinaryCache/swift-driver
+          $Timer.Stop()
+          if ($LASTEXITCODE -ne 0) { throw 'Early Swift Driver build failed' }
+          $Build = Get-Content "$env:BENCHMARK_DIR/build.json" -Raw | ConvertFrom-Json -AsHashtable
+          $Build.build_seconds = $Timer.Elapsed.TotalSeconds
+          $Build | ConvertTo-Json -Depth 5 | Set-Content "$env:BENCHMARK_DIR/build.json" -Encoding utf8
 
-      - name: Copy binaries
+      - name: Install GNU tar and Zstandard
+        id: msys2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+        with:
+          msystem: MSYS
+          install: tar zstd
+
+      - name: Measure sparse archiving and compression
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
-          $ExeSuffix = if ("${{ matrix.os }}" -eq "Windows") { ".exe" } else { "" }
-          $SourceBinDir = Join-Path "${{ github.workspace }}" "BinaryCache" "swift-driver" "bin"
-          $InstallBinDir = Join-Path "${{ github.workspace }}" "BuildRoot" "bin"
+          python SourceCache/ci-build/.github/scripts/benchmark-cas.py archive `
+            --cas-path "$env:CAS_PATH" --output "$env:BENCHMARK_DIR" `
+            --tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
+            --zstd "$env:MSYS2_LOCATION/usr/bin/zstd.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'CAS archive benchmark failed' }
 
-          # Create the target folder.
-          New-Item -ItemType Directory -Path $InstallBinDir -Force
+      - name: Compare sparse extraction methods
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          python SourceCache/ci-build/.github/scripts/benchmark-cas-sparsity.py `
+            --cas-path "$env:CAS_PATH" --archive "$env:BENCHMARK_DIR/cas.tar" `
+            --output "$env:BENCHMARK_DIR" --repeats 3 `
+            --gnu-tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
+            --bsd-tar "$env:WINDIR/System32/tar.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'CAS sparsity experiment failed; see report for partial results' }
 
-          # Copy binaries.
-          foreach ($bin in @("swift-driver", "swift-help")) {
-              $binName = "${bin}${ExeSuffix}"
-              $binPath = Join-Path $InstallBinDir $binName
-              Copy-Item -Path "${SourceBinDir}/${binName}" -Destination $binPath -Force
+      - name: Publish benchmark summary
+        if: always()
+        run: |
+          foreach ($Name in @('results.md', 'sparsity.md')) {
+            $Report = Join-Path $env:BENCHMARK_DIR $Name
+            if (Test-Path -LiteralPath $Report) {
+              Get-Content $Report -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
           }
 
-      - uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
-          path: ${{ github.workspace }}/BuildRoot
+          name: cas-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.BENCHMARK_DIR }}/*.json
+            ${{ env.BENCHMARK_DIR }}/*.md
+          if-no-files-found: warn
 
   stage1-compiler:
+    if: ${{ false }}
     needs: [bootstrap-libxml2, cmark_gfm, build_tools, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
