@@ -269,6 +269,9 @@ def write_report(output, results):
     if "error" in results:
         lines.extend([f"Error: {results['error']}", ""])
     source = results.get("source")
+    for name, binary in results.get("native_tar_binaries", {}).items():
+        lines.extend([f"{name}: `{binary['path']}`", f"Version: `{binary['version'].strip()}`",
+                      f"SHA-256: `{binary['sha256']}`", ""])
     if source:
         lines.extend([f"Source: {source['file_count']} files; {source['logical_bytes']:,} logical bytes; "
                       f"{source['allocation_bytes']:,} allocated bytes; {source['sparse_files']} sparse files.",
@@ -300,7 +303,8 @@ def write_report(output, results):
                   "GetCompressedFileSizeW, sparse attributes, and every FSCTL_QUERY_ALLOCATED_RANGES result.",
                   "Range lengths describe possibly populated regions, not exact physical allocation.", "",
                   ("Each method creates a fresh archive of the same source CAS and extracts it with the same tool. "
-                   "GNU uses --format=gnu --sparse; Windows uses its default format, with default or explicit --read-sparse. "
+                   "GNU uses --format=gnu --sparse; native bsdtar uses its default format and sparse handling "
+                   "unless the method explicitly specifies --read-sparse. "
                    "Restores are checked against the common source manifest from the GNU reference archive. "
                    if results.get("round_trip") else
                    "Each method extracts the same GNU sparse archive into a fresh directory. ") +
@@ -339,6 +343,8 @@ def write_report(output, results):
 
 def round_trips(args, results, api, source, manifest):
     methods = ["gnu-sparse → gnu", "windows-default → windows", "windows-read-sparse → windows"]
+    if args.standalone_tar:
+        methods[-1] = "standalone-default → standalone"
     results["methods"] = methods
     write_report(args.output, results)
     expected = {name: entry["logical_bytes"] for name, entry in manifest.items()}
@@ -359,13 +365,14 @@ def round_trips(args, results, api, source, manifest):
                                    "--directory", destination.as_posix()]
                     else:
                         flags = ["--read-sparse"] if method.startswith("windows-read-sparse") else []
-                        create = [args.bsd_tar, *flags, "-cf", str(archive), "-C", str(source), "."]
-                        extract = [args.bsd_tar, "-xf", str(archive), "-C", str(destination)]
+                        executable = args.standalone_tar if method.startswith("standalone-") else args.bsd_tar
+                        create = [executable, *flags, "-cf", str(archive), "-C", str(source), "."]
+                        extract = [executable, "-xf", str(archive), "-C", str(destination)]
                     sample.update(create_command=create, extract_command=extract)
                     try:
                         _, sample["archive_seconds"] = run(create)
                     except subprocess.CalledProcessError:
-                        if method.startswith("windows-") and trial == 1:
+                        if not method.startswith("gnu-") and trial == 1:
                             failed_bytes = archive.stat().st_size if archive.exists() else None
                             diagnostic = diagnostic_command([create[0], "-vv", *create[1:]], archive)
                             diagnostic["failed_archive_bytes"] = failed_bytes
@@ -399,6 +406,14 @@ def experiment(args, results):
     results["versions"] = {"gnu_tar": run([args.gnu_tar, "--version"])[0],
                            "bsd_tar": run([args.bsd_tar, "--version"])[0],
                            "msys": run([str(bin_dir / "uname.exe"), "-a"])[0]}
+    native_binaries = {"bsd_tar": args.bsd_tar}
+    if args.standalone_tar:
+        native_binaries["standalone_tar"] = args.standalone_tar
+        results["versions"]["standalone_tar"] = run([args.standalone_tar, "--version"])[0]
+    results["native_tar_binaries"] = {
+        name: {"path": str(Path(path).resolve(strict=True)), "version": results["versions"][name],
+               "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest()}
+        for name, path in native_binaries.items()}
     results["mounts_before"] = run([str(bin_dir / "mount.exe")])[0]
     results["source"] = snapshot(api, source)
     results["trim_candidates"] = header_candidates(source)
@@ -466,6 +481,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--gnu-tar", required=True)
     parser.add_argument("--bsd-tar", required=True)
+    parser.add_argument("--standalone-tar")
     parser.add_argument("--round-trip", action="store_true")
     parser.add_argument("--repeats", type=int, choices=range(1, 6), default=3)
     args = parser.parse_args()

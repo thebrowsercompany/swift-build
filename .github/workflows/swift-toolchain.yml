@@ -1265,6 +1265,48 @@ jobs:
           msystem: MSYS
           install: tar zstd
 
+      - name: Build native bsdtar 3.8.9
+        run: |
+          $Root = Join-Path $env:RUNNER_TEMP 'cas-libarchive-3.8.9'
+          New-Item -ItemType Directory -Path $Root -Force | Out-Null
+          $Zip = Join-Path $Root 'libarchive.zip'
+          $Url = 'https://github.com/libarchive/libarchive/releases/download/v3.8.9/libarchive-3.8.9.zip'
+          $ExpectedHash = '7b20200203d08866b62373dd51417798427ec67852928d71f142bfe578e9ea75'
+          Invoke-WebRequest -Uri $Url -OutFile $Zip
+          if ((Get-FileHash $Zip -Algorithm SHA256).Hash -ne $ExpectedHash) {
+            throw 'libarchive source checksum mismatch'
+          }
+          Expand-Archive -LiteralPath $Zip -DestinationPath $Root -Force
+          $BuildDir = Join-Path $Root 'build'
+          $Compiler = Join-Path $env:VCToolsInstallDir 'bin/Hostx64/x64/cl.exe'
+          $Options = @(
+            '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', "-DCMAKE_C_COMPILER=$Compiler",
+            '-DENABLE_TAR=ON', '-DENABLE_TAR_SHARED=OFF', '-DMSVC_USE_STATIC_CRT=ON'
+          )
+          foreach ($Feature in @('TEST', 'INSTALL', 'CPIO', 'CAT', 'UNZIP', 'OPENSSL', 'MBEDTLS',
+                                'NETTLE', 'LIBB2', 'LZ4', 'LZO', 'LZMA', 'ZSTD', 'ZLIB', 'BZip2',
+                                'LIBXML2', 'EXPAT', 'WIN32_XMLLITE', 'PCREPOSIX', 'PCRE2POSIX',
+                                'LIBGCC', 'ICONV')) {
+            $Options += "-DENABLE_${Feature}=OFF"
+          }
+          cmake -S "$Root/libarchive-3.8.9" -B $BuildDir @Options
+          if ($LASTEXITCODE -ne 0) { throw 'Native bsdtar configuration failed' }
+          cmake --build $BuildDir --target bsdtar --parallel 16
+          if ($LASTEXITCODE -ne 0) { throw 'Native bsdtar build failed' }
+          $Tar = Join-Path $BuildDir 'bin/bsdtar.exe'
+          $Version = & $Tar --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native bsdtar version probe failed' }
+          "STANDALONE_BSDTAR=$Tar" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          @{
+            source_url = $Url
+            source_sha256 = $ExpectedHash
+            compiler = $Compiler
+            cmake_options = $Options
+            executable = $Tar
+            executable_sha256 = (Get-FileHash $Tar -Algorithm SHA256).Hash
+            version = $Version
+          } | ConvertTo-Json -Depth 5 | Set-Content "$env:BENCHMARK_DIR/native-bsdtar.json" -Encoding utf8
+
       - name: Measure sparse archiving and compression
         env:
           MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
@@ -1275,7 +1317,7 @@ jobs:
             --zstd "$env:MSYS2_LOCATION/usr/bin/zstd.exe"
           if ($LASTEXITCODE -ne 0) { throw 'CAS archive benchmark failed' }
 
-      - name: Compare GNU and Windows tar round trips
+      - name: Compare GNU, bundled Windows and standalone bsdtar round trips
         env:
           MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
@@ -1283,7 +1325,8 @@ jobs:
             --cas-path "$env:CAS_PATH" --archive "$env:BENCHMARK_DIR/cas.tar" `
             --output "$env:BENCHMARK_DIR" --repeats 3 --round-trip `
             --gnu-tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
-            --bsd-tar "$env:WINDIR/System32/tar.exe"
+            --bsd-tar "$env:WINDIR/System32/tar.exe" `
+            --standalone-tar "$env:STANDALONE_BSDTAR"
           if ($LASTEXITCODE -ne 0) { throw 'CAS sparsity experiment failed; see report for partial results' }
 
       - name: Publish benchmark summary
