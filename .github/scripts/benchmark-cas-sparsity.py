@@ -263,6 +263,77 @@ def header_candidates(source):
     return candidates
 
 
+def native_tar_preflight(args):
+    if os.name != "nt":
+        raise ValueError("This preflight requires Windows")
+    api = WindowsFiles()
+    executable = Path(args.bsd_tar).resolve(strict=True)
+    report = {"status": "running", "executable": str(executable),
+              "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+              "version": run([str(executable), "--version"])[0], "probes": []}
+    cases = [("ordinary", 19, False)] + [
+        (f"{size // (1024 * 1024)}MiB-{'trailing-hole' if trailing else 'data-at-end'}", size, trailing)
+        for size in (1024 * 1024, 1024 * 1024 * 1024) for trailing in (False, True)]
+    for name, size, trailing in cases:
+        probe = {"name": name, "status": "running"}
+        report["probes"].append(probe)
+        try:
+            with tempfile.TemporaryDirectory(prefix="tar-preflight-", dir=args.output) as directory:
+                root = Path(directory)
+                source, restored = root / "source", root / "restored"
+                source.mkdir()
+                restored.mkdir()
+                fixture = source / "sample.bin"
+                fixture.write_bytes(b"CAS tar diagnostic\n")
+                if name != "ordinary":
+                    import msvcrt
+                    with fixture.open("r+b") as file:
+                        returned = wintypes.DWORD()
+                        if not api.api.DeviceIoControl(msvcrt.get_osfhandle(file.fileno()), 0x900C4,
+                                                       None, 0, None, 0, ctypes.byref(returned), None):
+                            raise ctypes.WinError(ctypes.get_last_error())
+                        file.write(bytes(range(256)) * 512)
+                        file.truncate(size)
+                        if not trailing:
+                            file.seek(size - 1)
+                            file.write(b"Z")
+                original = api.inspect(fixture)
+                probe["source"] = original
+                if name != "ordinary" and (not original["sparse"] or original["allocation_bytes"] >= size):
+                    raise ValueError("Source fixture is not sparse on disk")
+                ranges = original["allocated_ranges"]
+                manifest = {"sample.bin": {"logical_bytes": size, "data_ranges": ranges,
+                                           "data_sha256": data_digest(fixture, ranges)}}
+                archive = root / "sample.tar"
+                probe["create"] = diagnostic_command(
+                    [str(executable), "-vv", "-cf", str(archive), "-C", str(source), "."], archive)
+                if probe["create"]["returncode"] != 0:
+                    raise ValueError("Native tar creation failed; see command output")
+                probe["extract"] = diagnostic_command(
+                    [str(executable), "-vv", "-xf", str(archive), "-C", str(restored)], archive)
+                if probe["extract"]["returncode"] != 0:
+                    raise ValueError("Native tar extraction failed; see command output")
+                measured = snapshot(api, restored)
+                probe["restored"] = measured
+                validate(restored, manifest, measured)
+                if name != "ordinary" and (measured["sparse_files"] != 1 or measured["allocation_bytes"] >= size):
+                    raise ValueError("Restored fixture lost sparsity")
+                probe["status"] = "complete"
+        except (OSError, ValueError) as error:
+            probe.update(status="failed", error=str(error))
+        (args.output / "native-tar-preflight.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    report["status"] = "complete" if all(p["status"] == "complete" for p in report["probes"]) else "failed"
+    (args.output / "native-tar-preflight.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    lines = ["# Native bsdtar preflight", "", f"Status: **{report['status']}**", "",
+             "Checks file names, lengths, allocated-range hashes, hole samples, and restored sparse allocation.", "",
+             "| Fixture | Result |", "|---|---|"]
+    lines.extend(f"| {p['name']} | {p['status']} |" for p in report["probes"])
+    lines.extend(f"\n- {p['name']}: {p['error']}" for p in report["probes"] if "error" in p)
+    (args.output / "native-tar-preflight.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if report["status"] != "complete":
+        raise SystemExit(1)
+
+
 def write_report(output, results):
     (output / "sparsity.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
     lines = ["# CAS sparsity experiment", "", f"Status: **{results['status']}**", ""]
@@ -476,17 +547,23 @@ printf 'CAS_EXTRACT_END=%s\\n' "$EPOCHREALTIME"
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cas-path", type=Path, required=True)
-    parser.add_argument("--archive", type=Path, required=True)
+    parser.add_argument("--cas-path", type=Path)
+    parser.add_argument("--archive", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--gnu-tar", required=True)
+    parser.add_argument("--gnu-tar")
     parser.add_argument("--bsd-tar", required=True)
     parser.add_argument("--standalone-tar")
+    parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--round-trip", action="store_true")
     parser.add_argument("--repeats", type=int, choices=range(1, 6), default=3)
     args = parser.parse_args()
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
+    if args.preflight_only:
+        native_tar_preflight(args)
+        return
+    if not all((args.cas_path, args.archive, args.gnu_tar)):
+        parser.error("--cas-path, --archive and --gnu-tar are required for the CAS benchmark")
     results = {"status": "running", "schema_version": 2, "round_trip": args.round_trip,
                "repeats": args.repeats, "trials": [], "errors": []}
     try:
