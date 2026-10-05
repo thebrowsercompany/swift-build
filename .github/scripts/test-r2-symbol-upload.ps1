@@ -22,7 +22,9 @@ foreach ($Name in @('history.txt', 'server.txt', 'lastid.txt')) {
     if ($LASTEXITCODE) { throw "Could not read $Name" }
     if ($Name -eq 'server.txt') { $InitialETag = ($Metadata | ConvertFrom-Json).ETag }
 }
-& $Symstore add /r /o /f "$((Resolve-Path pdbs).Path)/*.pdb" /s $Store /t Swift-Toolchain /v 0.0.0 /c 810f68bbfc13794d267bf488f1e6fa84c267b002
+$SearchPath = Join-Path (Resolve-Path pdbs).Path '*.pdb'
+Write-Output "SymStore input: $SearchPath"
+& $Symstore add /r /o /f $SearchPath /s $Store /t Swift-Toolchain /v 0.0.0 /c 810f68bbfc13794d267bf488f1e6fa84c267b002 /d (Join-Path $Report.FullName 'symstore.log')
 if ($LASTEXITCODE) { throw 'SymStore failed' }
 $Files = @(Get-ChildItem $Store -Recurse -File)
 if (!($Files | Where-Object Extension -eq '.pdb')) { throw 'SymStore produced no PDBs' }
