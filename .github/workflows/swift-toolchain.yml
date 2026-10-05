@@ -332,16 +332,16 @@ permissions:
   attestations: write
 
 jobs:
-  bootstrap-sqlite:
+  cas-archive-replay:
     runs-on: ${{ inputs.default_build_runner }}
+    timeout-minutes: 30
+    name: Replay small CAS tar benchmark
     env:
-      BENCHMARK_DIR: ${{ github.workspace }}/native-tar-preflight
-
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(inputs.build_matrix) }}
-
-    name: ${{ matrix.os }} ${{ matrix.arch }} Bootstrap SQLite3
+      CAS_PATH: ${{ github.workspace }}/cas-replay
+      BENCHMARK_DIR: ${{ github.workspace }}/CASBenchmark-${{ github.run_id }}-${{ github.run_attempt }}
+      S3_BUCKET: toolchain-sccache-swift-build
+      S3_REGION: us-east-2
+      S3_KEY: cas-benchmark/36939575287/1/s5cmd-32/cas.tar
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -349,9 +349,51 @@ jobs:
           ref: ${{ inputs.ci_build_revision }}
           path: ${{ github.workspace }}/SourceCache/ci-build
           show-progress: false
-      - name: Prepare native tar preflight
+      - name: Prepare CAS replay
         run: |
+          if ($env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ARCH -ne 'X64') {
+            throw 'This benchmark requires a Windows x64 runner'
+          }
+          if (Test-Path -LiteralPath $env:CAS_PATH) { throw 'Replay requires a fresh CAS directory' }
           New-Item -ItemType Directory -Path $env:BENCHMARK_DIR -Force | Out-Null
+          Get-Command aws -ErrorAction Stop | Out-Null
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          role-to-assume: ${{ vars.SCCACHE_AWS_ARN }}
+          role-session-name: CASArchiveReplay
+          aws-region: ${{ env.S3_REGION }}
+
+      - name: Check retained CAS archive
+        run: |
+          aws s3api head-object --bucket $env:S3_BUCKET --key $env:S3_KEY --region $env:S3_REGION `
+            --output json --no-cli-pager | Set-Content "$env:BENCHMARK_DIR/source-object.json" -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Retained CAS is missing or inaccessible; stopping before tool setup' }
+          $Object = Get-Content "$env:BENCHMARK_DIR/source-object.json" -Raw | ConvertFrom-Json
+          if ($Object.ContentLength -ne 456181760) { throw 'Retained CAS size differs from the recorded benchmark' }
+
+      - name: Download and verify retained CAS
+        run: |
+          $Archive = Join-Path $env:BENCHMARK_DIR 'reference-cas.tar'
+          $Uri = "s3://$env:S3_BUCKET/$env:S3_KEY"
+          aws s3 cp $Uri $Archive --region $env:S3_REGION --only-show-errors --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Retained CAS download failed' }
+          $ExpectedHash = '43ee10b3001f9479e4ffd3a9932ce7abd05228dcf4463d052cb8f5b3f5be1987'
+          if ((Get-FileHash $Archive -Algorithm SHA256).Hash -ne $ExpectedHash) {
+            throw 'Retained CAS SHA-256 differs from the recorded benchmark'
+          }
+          @{
+            source_run = '36939575287'
+            source_uri = $Uri
+            archive_bytes = (Get-Item $Archive).Length
+            archive_sha256 = $ExpectedHash
+            restored_with = "$env:WINDIR/System32/tar.exe"
+          } | ConvertTo-Json | Set-Content "$env:BENCHMARK_DIR/replay-source.json" -Encoding utf8
+          New-Item -ItemType Directory -Path $env:CAS_PATH | Out-Null
+          & "$env:WINDIR/System32/tar.exe" -xf $Archive -C $env:CAS_PATH
+          if ($LASTEXITCODE -ne 0) { throw 'Retained CAS extraction failed' }
+
       - uses: compnerd/gha-setup-vsdevenv@5eb3eae1490d4f7875d574c4973539f69109700d # main
         with:
           host_arch: amd64
@@ -407,16 +449,29 @@ jobs:
             version = $Version
           } | ConvertTo-Json -Depth 5 | Set-Content "$env:BENCHMARK_DIR/native-bsdtar.json" -Encoding utf8
 
-      - name: Check native tar before Swift setup
+      - name: Install GNU tar
+        id: msys2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+        with:
+          msystem: MSYS
+          install: tar
+
+      - name: Compare tar round trips using retained CAS
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
           python SourceCache/ci-build/.github/scripts/benchmark-cas-sparsity.py `
-            --preflight-only --bsd-tar "$env:STANDALONE_BSDTAR" --output "$env:BENCHMARK_DIR"
-          if ($LASTEXITCODE -ne 0) { throw 'Native tar preflight failed; skipping Swift setup and builds' }
+            --cas-path "$env:CAS_PATH" --archive "$env:BENCHMARK_DIR/reference-cas.tar" `
+            --output "$env:BENCHMARK_DIR" --repeats 3 --round-trip --replay `
+            --gnu-tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
+            --bsd-tar "$env:WINDIR/System32/tar.exe" `
+            --standalone-tar "$env:STANDALONE_BSDTAR"
+          if ($LASTEXITCODE -ne 0) { throw 'CAS replay failed; see report for partial results' }
 
-      - name: Publish native tar preflight
+      - name: Publish replay report
         if: always()
         run: |
-          $Summary = Join-Path $env:BENCHMARK_DIR 'native-tar-preflight.md'
+          $Summary = Join-Path $env:BENCHMARK_DIR 'sparsity.md'
           if (Test-Path $Summary) {
             Get-Content $Summary -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
           }
@@ -427,23 +482,40 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-tar-preflight-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.BENCHMARK_DIR }}
-
-      - name: Package checked native tar
-        run: Copy-Item $env:STANDALONE_BSDTAR "$env:BENCHMARK_DIR/bsdtar.exe"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-native-bsdtar
+          name: cas-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ env.BENCHMARK_DIR }}/bsdtar.exe
-            ${{ env.BENCHMARK_DIR }}/native-bsdtar.json
+            ${{ env.BENCHMARK_DIR }}/*.json
+            ${{ env.BENCHMARK_DIR }}/*.md
+            ${{ env.BENCHMARK_DIR }}/*.txt
+            ${{ env.BENCHMARK_DIR }}/*.yaml
+          if-no-files-found: warn
 
+  bootstrap-sqlite:
+    if: ${{ false }}
+    runs-on: ${{ inputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.build_matrix) }}
+
+    name: ${{ matrix.os }} ${{ matrix.arch }} Bootstrap SQLite3
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         with:
           setup-vs-dev-env: true
           host-arch: ${{ matrix.arch }}
           swift-version: ${{ env.PINNED_BOOTSTRAP_TOOLCHAIN_VERSION }}
+
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -1178,6 +1250,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
     needs: [bootstrap-sqlite]
     timeout-minutes: 45
@@ -1207,21 +1280,6 @@ jobs:
             throw 'The benchmark requires an empty, freshly generated CAS'
           }
           New-Item -ItemType Directory -Path $env:BENCHMARK_DIR -Force | Out-Null
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-native-bsdtar
-          path: ${{ runner.temp }}/native-bsdtar
-      - name: Use checked native tar
-        run: |
-          $Tar = Join-Path $env:RUNNER_TEMP 'native-bsdtar/bsdtar.exe'
-          $Metadata = Join-Path $env:RUNNER_TEMP 'native-bsdtar/native-bsdtar.json'
-          $Build = Get-Content $Metadata -Raw | ConvertFrom-Json
-          if ((Get-FileHash $Tar -Algorithm SHA256).Hash -ne $Build.executable_sha256) {
-            throw 'Native bsdtar artifact checksum mismatch'
-          }
-          Copy-Item $Metadata $env:BENCHMARK_DIR
-          "STANDALONE_BSDTAR=$Tar" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: ./SourceCache/ci-build/.github/actions/setup-build
         id: setup-build

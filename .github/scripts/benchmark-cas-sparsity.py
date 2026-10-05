@@ -187,21 +187,25 @@ def snapshot(api, root):
 
 
 def data_digest(path, ranges):
-    digest = hashlib.sha256()
     with path.open("rb") as file:
-        for offset, length in ranges:
-            digest.update(struct.pack("<qq", offset, length))
-            file.seek(offset)
-            while length:
-                block = file.read(min(length, 1024 * 1024))
-                if not block:
-                    raise ValueError(f"Unexpected end of file: {path}")
-                digest.update(block)
-                length -= len(block)
+        return stream_digest(file, ranges)
+
+
+def stream_digest(file, ranges):
+    digest = hashlib.sha256()
+    for offset, length in ranges:
+        digest.update(struct.pack("<qq", offset, length))
+        file.seek(offset)
+        while length:
+            block = file.read(min(length, 1024 * 1024))
+            if not block:
+                raise ValueError("Unexpected end of file while hashing data ranges")
+            digest.update(block)
+            length -= len(block)
     return digest.hexdigest()
 
 
-def archive_manifest(archive, source, hash_data=True):
+def archive_manifest(archive, source, hash_data=True, hash_archive=False):
     entries = {}
     with tarfile.open(archive, "r:") as tar:
         for member in tar:
@@ -221,7 +225,11 @@ def archive_manifest(archive, source, hash_data=True):
                 end = offset + length
             entries[name] = {"logical_bytes": member.size, "data_ranges": ranges}
             if hash_data:
-                entries[name]["data_sha256"] = data_digest(source / name, ranges)
+                if hash_archive:
+                    with tar.extractfile(member) as file:
+                        entries[name]["data_sha256"] = stream_digest(file, ranges)
+                else:
+                    entries[name]["data_sha256"] = data_digest(source / name, ranges)
     return entries
 
 
@@ -339,6 +347,11 @@ def write_report(output, results):
     lines = ["# CAS sparsity experiment", "", f"Status: **{results['status']}**", ""]
     if "error" in results:
         lines.extend([f"Error: {results['error']}", ""])
+    if results.get("replay"):
+        lines.extend(["Input is a restored CAS from a previous run; provenance and the pinned archive checksum "
+                      "are recorded in replay-source.json. Setup/download/initial extraction are outside the timings. "
+                      "Data hashes come from the reference archive. The restored input must retain sparse allocation "
+                      "and gaps in its allocated ranges before any round-trip trials run.", ""])
     source = results.get("source")
     for name, binary in results.get("native_tar_binaries", {}).items():
         lines.extend([f"{name}: `{binary['path']}`", f"Version: `{binary['version'].strip()}`",
@@ -488,12 +501,24 @@ def experiment(args, results):
     results["mounts_before"] = run([str(bin_dir / "mount.exe")])[0]
     results["source"] = snapshot(api, source)
     results["trim_candidates"] = header_candidates(source)
-    manifest = archive_manifest(archive, source)
+    manifest = archive_manifest(archive, source, hash_archive=args.replay)
     results["archive_members"] = manifest
     validate(source, manifest, results["source"])
+    if args.replay:
+        sparse_names = [name for name, entry in manifest.items()
+                        if sum(length for _, length in entry["data_ranges"]) < entry["logical_bytes"]]
+        if not sparse_names:
+            raise ValueError("Replay archive has no sparse file maps")
+        for name in sparse_names:
+            measured = results["source"]["files"][name]
+            if (not measured["sparse"] or measured["allocation_bytes"] >= measured["logical_bytes"]
+                    or measured["range_bytes"] >= measured["logical_bytes"]):
+                raise ValueError(f"Replay source has lost sparse allocation or holes: {name}")
+        results["replay_source_validation"] = {"status": "complete", "sparse_files_checked": sparse_names}
     if args.round_trip:
         round_trips(args, results, api, source, manifest)
-        windows_creation_diagnostics(args, results, api)
+        if not args.replay:
+            windows_creation_diagnostics(args, results, api)
         return
     methods = ["gnu-current", "gnu-posix-path", "gnu-sparse-mount", "windows-bsdtar", "windows-bsdtar-S"]
     results["methods"] = methods
@@ -555,6 +580,7 @@ def main():
     parser.add_argument("--standalone-tar")
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--round-trip", action="store_true")
+    parser.add_argument("--replay", action="store_true")
     parser.add_argument("--repeats", type=int, choices=range(1, 6), default=3)
     args = parser.parse_args()
     args.output = args.output.resolve()
@@ -564,7 +590,7 @@ def main():
         return
     if not all((args.cas_path, args.archive, args.gnu_tar)):
         parser.error("--cas-path, --archive and --gnu-tar are required for the CAS benchmark")
-    results = {"status": "running", "schema_version": 2, "round_trip": args.round_trip,
+    results = {"status": "running", "schema_version": 2, "round_trip": args.round_trip, "replay": args.replay,
                "repeats": args.repeats, "trials": [], "errors": []}
     try:
         experiment(args, results)
