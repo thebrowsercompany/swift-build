@@ -1,19 +1,131 @@
-name: Test Publish Symbols
+name: Test R2 Symbol Upload
 
-# Manual-only. Will not fire on push, PR, or schedule.
 on:
   workflow_dispatch:
+    inputs:
+      pdb_run_id:
+        description: 'Reuse symbol-test-pdbs from a previous test run; leave empty to build'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  attestations: write
 
 jobs:
-  test:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+  sdk:
+    if: inputs.pdb_run_id == ''
+    uses: ./.github/workflows/swift-toolchain.yml
+    secrets: inherit
+    # Inputs from run 35937079538; only the existing Windows amd64 static SDK job runs.
+    with:
+      build_os: "Windows"
+      build_arch: "amd64"
+      build_matrix: "{}"
+      host_matrix: "{}"
+      compilers_matrix: "{}"
+      target_matrix: "{}"
+      curl_revision: "a05f34973e6c4bb629d018f7cb51487be1c904d8"
+      curl_version: "8.9.1"
+      ds2_revision: "12ac83f2dc523b8578a094cdc29887066081fae8"
+      indexstore_db_revision: "441ead7772cc391e2a0cc8318292bc4aaa8c3a6d"
+      libxml2_revision: "2b998a4ffbdfea04fc6a620721abc690a15743af"
+      libxml2_version: "2.11.5"
+      llvm_project_revision: "c4ee86439ffc5ae7d7c0981c297ba5498861fe41"
+      mimalloc_revision: "18b08671c9302247bfb682286e6bf3cc1773f801"
+      sourcekit_lsp_revision: "3ae5062da6e1522090b50c4d09b4ef6e2987cfa5"
+      swift_argument_parser_revision: "6a52f3251125d74daf04fcbd5e6f08a75d074382"
+      swift_asn1_revision: "a54383ada6cecde007d374f58f864e29370ba5c3"
+      swift_atomics_revision: "0442cb5a3f98ab802acb777929fdb446bda11a34"
+      swift_build_revision: "810f68bbfc13794d267bf488f1e6fa84c267b002"
+      swift_certificates_revision: "386001a92200c70fd06217b3ccad58d7226edb84"
+      swift_cmark_revision: "0c8947bbd58c491c54aae114aca40621cddc8357"
+      swift_cmark_version: "0.29.0.gfm.13"
+      swift_collections_revision: "c11818f3cae0780656baa430b49e7f163f08dffd"
+      swift_corelibs_foundation_revision: "bd50c2ea233ecc9de1b404d81a8d2186a3b0b332"
+      swift_corelibs_libdispatch_revision: "8a2c456a010d995cfa6a9efada08ea40be46b056"
+      swift_corelibs_xctest_revision: "80a3f9545d26c43d50ed1e0f377504ae00e759d2"
+      swift_crypto_revision: "d79c573e1b400d670ed12c0cb29d33f2c0f5ab70"
+      swift_docc_render_artifact_revision: "7546141b16075cdf83a22aff35d60504baae30f8"
+      swift_docc_revision: "ada32e135934e0ccbbd6ce5accb8db7c3fe65f9c"
+      swift_docc_symbolkit_revision: "e9a4c0f2ddad22ec3e7d1dc8d49061b5bd8a42ea"
+      swift_driver_revision: "22e61338191eccac5e4e8aba2a0a7a1da67efc7f"
+      swift_experimental_string_processing_revision: "db4678c731724222a8d379f55de3afb91cddaf68"
+      swift_format_revision: "b15dd59fad21f1770cdc888b1ca6e2937490001a"
+      swift_foundation_revision: "b898bbce74a46ce590791e0a4e3ff181a8b8af25"
+      swift_foundation_icu_revision: "e8538d259340dd5b8c261f539f2693d094fe2dac"
+      swift_installer_scripts_revision: "ff9989c3ab01ac010521fcf484fffdf71bd8f2f1"
+      swift_llbuild_revision: "54a6aca58deb943cc443650482545c58687f5378"
+      swift_lmdb_revision: "866bc2563f360a7d84f0e87feb27df23c8958537"
+      swift_markdown_revision: "75e3df1d7b664ef3c96595de36c243b98599b3bc"
+      swift_package_manager_revision: "1263a5f603ac135ea00d1c74a35fa5144cd2b46a"
+      swift_revision: "be45d2d41169b644c282273f8ab828495abef319"
+      swift_subprocess_revision: "11633673a41f509f8945f23c96c7acd4adafd679"
+      swift_syntax_revision: "e9289aa448b50d48e91832efd6e539f01b9e6f92"
+      swift_system_revision: "61e4ca4b81b9e09e2ec863b00c340eb13497dac6"
+      swift_testing_revision: "a866d2b21be6b29c48f32a0e3ef067008f1c80fa"
+      swift_toolchain_sarif_revision: "9d70de4a3a077b7bf4db18da1ec9884da83d32b1"
+      swift_toolchain_sqlite_revision: "c0ecc1e0fd1b4fbc38db1efa6113bc12c2a4e559"
+      swift_toolchain_sqlite_version: "3.46.0"
+      swift_tools_protocols_revision: "07d2884fab1fa6c9044d1cbec9ddf5f22775bfb5"
+      swift_tools_support_core_revision: "c574915fe88e942e4c4c93376f022daa2ecf05f9"
+      zlib_revision: "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf"
+      zlib_version: "1.3"
+      brotli_revision: "028fb5a23661f123017c060daa546b55cf4bde29"
+      brotli_version: "1.1.0"
+      ci_build_revision: "c4895cb661e200360bd2ed2a9bc166a52a93017d"
+      ANDROID_API_LEVEL: "28"
+      ANDROID_NDK_VERSION: "r28c"
+      ANDROID_CLANG_VERSION: "19"
+      debug_info: true
+      release: false
+      signed: false
+      swift_version: "0.0.0"
+      swift_tag: "20260924.0"
+      default_build_runner: "swift-build-windows-latest-8-cores"
+      compilers_build_runner: "swift-build-windows-latest-64-cores"
+      build_android: false
+      python_version: "3.10.1"
+      python_download_locations: "{}"
+      use_host_toolchain: true
 
-      - name: Invoke publish-symbols-azure
-        uses: ./.github/actions/publish-symbols-azure
+  compare:
+    needs: sdk
+    if: ${{ !cancelled() && (needs.sdk.result == 'success' || inputs.pdb_run_id != '') }}
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/download-artifact@v4
         with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}
-          searchPattern: '**/*.pdb'
+          name: symbol-test-pdbs
+          run-id: ${{ inputs.pdb_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Extract PDBs with their original timestamps
+        run: |
+          New-Item -ItemType Directory pdbs | Out-Null
+          tar xf symbol-test-pdbs.tar -C pdbs
+          if ($LASTEXITCODE) { throw 'PDB extraction failed' }
+      - name: Compare R2 uploads without writing
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ''
+          AWS_SECURITY_TOKEN: ''
+          AWS_REGION: auto
+          AWS_DEFAULT_REGION: auto
+          AWS_PAGER: ''
+          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: swift-toolchain
+        run: ./.github/scripts/test-r2-symbol-upload.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: symbol-test-report
+          path: symbol-test-report/
+          if-no-files-found: warn

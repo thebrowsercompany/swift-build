@@ -328,11 +328,15 @@ defaults:
     shell: pwsh
 
 permissions:
+  contents: read
+  actions: read
   id-token: write
   attestations: write
 
+# Temporary R2 experiment: only the existing static SDK job runs on this branch.
 jobs:
   bootstrap-sqlite:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -416,6 +420,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   bootstrap-libxml2:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -536,6 +541,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-libxml2-${{ inputs.libxml2_version }}/usr
 
   sqlite:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -624,6 +630,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     name: ds2 Build Tools
@@ -712,6 +719,7 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
   ds2:
+    if: ${{ false }}
     needs: [ds2_tools, stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -849,6 +857,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -932,6 +941,7 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
   build_tools:
+    if: ${{ false }}
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1090,6 +1100,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
     needs: [bootstrap-sqlite]
 
@@ -1239,6 +1250,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot
 
   stage1-compiler:
+    if: ${{ false }}
     needs: [bootstrap-libxml2, cmark_gfm, build_tools, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
@@ -1488,6 +1500,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
 
   bootstrap-macros:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1601,6 +1614,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bootstrap/Library
 
   stage2-libxml2:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -1704,6 +1718,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/stage2-libxml2-${{ inputs.libxml2_version }}/usr
 
   stage2-compiler:
+    if: ${{ false }}
     needs: [stage1-compiler, sdk, stage2-libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
@@ -2065,6 +2080,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   compiler-runtime:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2233,6 +2249,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   zlib:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2333,6 +2350,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   brotli:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2432,6 +2450,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
+    if: ${{ false }}
     needs: [stage1-compiler, zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2630,6 +2649,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2739,7 +2759,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   macros:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [stage2-compiler, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2904,7 +2924,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   sdk:
-    needs: [stage1-compiler, bootstrap-macros, zlib, brotli, curl, libxml2]
+    timeout-minutes: 90
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -2915,58 +2935,6 @@ jobs:
             arch: amd64
             triple: x86_64-unknown-windows-msvc
             static: true
-          - os: Windows
-            arch: amd64
-            triple: x86_64-unknown-windows-msvc
-            static: false
-          - os: Windows
-            arch: arm64
-            triple: aarch64-unknown-windows-msvc
-            static: true
-          - os: Windows
-            arch: arm64
-            triple: aarch64-unknown-windows-msvc
-            static: false
-          - os: Windows
-            arch: x86
-            triple: i686-unknown-windows-msvc
-            static: true
-          - os: Windows
-            arch: x86
-            triple: i686-unknown-windows-msvc
-            static: false
-          - os: Android
-            arch: arm64
-            triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
-          - os: Android
-            arch: armv7
-            triple: 'armv7-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
-          - os: Android
-            arch: i686
-            triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
-          - os: Android
-            arch: x86_64
-            triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: true
-          - os: Android
-            arch: arm64
-            triple: 'aarch64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: false
-          - os: Android
-            arch: armv7
-            triple: 'armv7-unknown-linux-androideabi${{ inputs.ANDROID_API_LEVEL }}'
-            static: false
-          - os: Android
-            arch: i686
-            triple: 'i686-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: false
-          - os: Android
-            arch: x86_64
-            triple: 'x86_64-unknown-linux-android${{ inputs.ANDROID_API_LEVEL }}'
-            static: false
 
     name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} SDK
 
@@ -2995,33 +2963,50 @@ jobs:
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
+          run-id: 35937079538
+          github-token: ${{ github.token }}
           name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
+          run-id: 35937079538
+          github-token: ${{ github.token }}
           name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
+          run-id: 35937079538
+          github-token: ${{ github.token }}
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
+          run-id: 35937079538
+          github-token: ${{ github.token }}
           name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
       - name: Download Stage1 Compiler
         if: matrix.os != 'Android' || inputs.build_android
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        uses: actions/download-artifact@v4
         with:
+          run-id: 35937079538
+          github-token: ${{ github.token }}
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
-          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+          path: ${{ runner.temp }}/stage1
+      - name: Extract Stage1 compiler
+        run: |
+          New-Item -ItemType Directory -Force BinaryCache/stage1/Library | Out-Null
+          & "$env:WINDIR/System32/tar.exe" xf "$env:RUNNER_TEMP/stage1/Windows-amd64-stage1-compiler.tar" -C BinaryCache/stage1/Library
+          if ($LASTEXITCODE) { throw 'Stage1 extraction failed' }
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
+          run-id: 35937079538
+          github-token: ${{ github.token }}
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
           path: ${{ github.workspace }}/BinaryCache/Library
 
@@ -3871,7 +3856,7 @@ jobs:
 
       - name: Upload PDBs to Azure
         uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        if: ${{ false }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
@@ -3880,7 +3865,7 @@ jobs:
 
       - name: Upload PDBs to Public Symbol Server
         uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && inputs.release && matrix.os == 'Windows' }}
+        if: ${{ false }}
         with:
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '*.pdb'
@@ -3894,15 +3879,30 @@ jobs:
 
       - name: Upload DLLs to Azure
         uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        if: ${{ false }}
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.dll'
 
+      - name: Save PDBs for repeated upload experiments
+        run: |
+          $Pdbs = @(Get-ChildItem BinaryCache -Filter *.pdb -Recurse -File)
+          if (!$Pdbs.Count) { throw 'No PDBs found' }
+          $Pdbs | ForEach-Object { [IO.Path]::GetRelativePath((Resolve-Path BinaryCache).Path, $_.FullName).Replace('\', '/') } | Set-Content "$env:RUNNER_TEMP/pdb-files.txt"
+          & "$env:WINDIR/System32/tar.exe" cf symbol-test-pdbs.tar -C BinaryCache -T "$env:RUNNER_TEMP/pdb-files.txt"
+          if ($LASTEXITCODE) { throw 'PDB archive failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbol-test-pdbs
+          path: symbol-test-pdbs.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+
   devtools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [sqlite, stage2-compiler, macros, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4835,7 +4835,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   debugging_tools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [stage1-compiler, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -5014,6 +5014,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_tools:
+    if: ${{ false }}
     name: Package Tools
     needs: [stage2-compiler, macros, debugging_tools, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -5933,6 +5934,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
+    if: ${{ false }}
     name: Package Windows SDK & Runtime
     needs: [sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6434,6 +6436,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
   package_android_platform:
+    if: ${{ false }}
     name: Package Android SDK & Runtime
     needs: [ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6781,7 +6784,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
 
   package_python:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     name: Package Embedded Python runtime
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -6914,7 +6917,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
 
   package_resources:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     name: Package Resources
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7005,7 +7008,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/res.cab
 
   installer:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [package_tools, package_windows_platform, package_android_platform, package_python, package_resources]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7302,7 +7305,7 @@ jobs:
             --acl private
 
   smoke_test:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
     env:
@@ -7421,7 +7424,7 @@ jobs:
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
     name: Redistributable smoke test (${{ matrix.arch }}, ${{ matrix.variant }})
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [package_windows_platform]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -7495,7 +7498,7 @@ jobs:
           }
 
   smoke_test_android:
-    if: inputs.build_os == 'Windows' && inputs.build_android
+    if: ${{ false }}
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7647,6 +7650,7 @@ jobs:
         run: cmake --build out
 
   swift_test:
+    if: ${{ false }}
     needs: [stage1-compiler, stage2-compiler, sdk]
     runs-on: ${{ inputs.compilers_build_runner }}
 
