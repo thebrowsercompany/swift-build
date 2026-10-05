@@ -32,7 +32,7 @@ on:
         description: 'Use this swift toolchain release version'
         required: false
         type: string
-        default: ''
+        default: '20261005.2'
       dry_run:
         description: 'Whether to generate data but skip uploads.'
         required: false
@@ -169,20 +169,16 @@ jobs:
 
       - name: Run google/bloaty
         id: bloaty
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.dry_run }}
         uses: thebrowsercompany/gha-google-bloaty@4a6a22aac0c6aba05eacb41a34e6a3c02737f10c # main
         with:
-          bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
+          bloaty-version: f1a83e63f36beb628dcf022e1201a2eb391a22a6
           bloaty-args: -w -n 0 -d inputfiles,segments -s file --csv
           bloaty-input-files: |
             ${{ env.SWIFT_INSTALL_ROOT }}/**/*.dll
             ${{ env.SWIFT_INSTALL_ROOT }}/**/*.exe
           bloaty-output-file: ${{ github.workspace }}/binary_sizes.csv
-          cache-bloaty: 'true'
-          # Normally the cache key includes `bloaty-version`. This ensures that
-          # all workflow runs for the same target arch use a single cache
-          # consuming minimal space.
-          cache-bloaty-key: google-bloaty-${{ matrix.arch }}
+          cache-bloaty: 'false'
           # Use MSVC (cl) for arm64 because:
           #  1. g++ is the default and fails on our arm64 vms because the Windows SDK isn't old enough to
           #     support g++11 (required by google/bloaty -> google/re2).
