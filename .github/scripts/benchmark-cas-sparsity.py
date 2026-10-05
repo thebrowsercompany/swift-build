@@ -373,7 +373,7 @@ def write_report(output, results):
                       f"{source['allocation_bytes']:,} allocated bytes; {source['sparse_files']} sparse files.",
                       f"Prior GetCompressedFileSizeW metric: {source['compressed_file_size_bytes']:,} bytes.", ""])
     if results.get("round_trip"):
-        lines.extend(["| Create → extract | Passed trials | Archive bytes (min–max) | Create (s) | Extract (s) | Combined (s) | Allocated bytes (min–max) | Sparse files (min–max) |",
+        lines.extend(["| Create → extract | Passed trials | Archive bytes (min–max) | Create (s) | Extract (s) | Create + extract (s) | Allocated bytes (min–max) | Sparse files (min–max) |",
                       "|---|---:|---:|---:|---:|---:|---:|---:|"])
     else:
         lines.extend(["| Extraction method | Passed trials | Median extraction (s) | Allocated bytes (min–max) | Sparse files (min–max) |",
@@ -395,10 +395,31 @@ def write_report(output, results):
         else:
             lines.append(f"| {method} | {len(good)}/{results['repeats']} | {duration} | "
                          f"{bounds('allocation_bytes')} | {bounds('sparse_files')} |")
+    if results.get("transfer_prefix"):
+        good = [trial for trial in results["trials"] if trial["status"] == "complete"]
+        lines.extend(["", "## GNU archive → s5cmd transfer → Windows extraction", "",
+                      f"S3 destination: `{results['transfer_prefix']}`. Each trial uses a separate object.",
+                      "s5cmd uses 32 concurrent parts of 8 MiB, with one worker. Downloads are verified by SHA-256 "
+                      "before extraction; all three large CAS files must retain sparse allocation after extraction.", "",
+                      "| Passed trials | Archive (s) | Upload (s) | Download (s) | Extract (s) | Save (s) | Restore (s) | Save + restore (s) |",
+                      "|---|---:|---:|---:|---:|---:|---:|---:|"])
+        def phase_median(*keys):
+            return f"{statistics.median(sum(trial[key] for key in keys) for trial in good):.3f}" if good else "—"
+        lines.append(f"| {len(good)}/{results['repeats']} | {phase_median('archive_seconds')} | "
+                     f"{phase_median('upload_seconds')} | {phase_median('download_seconds')} | "
+                     f"{phase_median('extraction_seconds')} | {phase_median('archive_seconds', 'upload_seconds')} | "
+                     f"{phase_median('download_seconds', 'extraction_seconds')} | "
+                     f"{phase_median('archive_seconds', 'upload_seconds', 'download_seconds', 'extraction_seconds')} |")
+        lines.extend(["", "Times are medians of successful trials. Totals sum phases within each trial before taking "
+                      "the median. No compression is used. Setup, checksums, content/allocation checks, and cleanup "
+                      "are excluded; command timings include process startup.", ""])
     lines.extend(["", "Allocation uses GetFileInformationByHandleEx(FileStandardInfo). JSON also includes "
                   "GetCompressedFileSizeW, sparse attributes, and every FSCTL_QUERY_ALLOCATED_RANGES result.",
                   "Range lengths describe possibly populated regions, not exact physical allocation.", "",
-                  ("Each method creates a fresh archive of the same source CAS and extracts it with the same tool. "
+                  ("Each trial creates a fresh GNU sparse archive, uploads and downloads it with s5cmd, "
+                   "then extracts the verified download with Windows bsdtar. "
+                   if results.get("transfer_prefix") else
+                   "Each method creates a fresh archive of the same source CAS and extracts it with the same tool. "
                    "GNU uses --format=gnu --sparse; native bsdtar uses its default format and sparse handling "
                    "unless the method explicitly specifies --read-sparse. "
                    "Restores are checked against the common source manifest from the GNU reference archive. "
@@ -441,6 +462,11 @@ def round_trips(args, results, api, source, manifest):
     methods = ["gnu-sparse → gnu", "windows-default → windows", "windows-read-sparse → windows"]
     if args.standalone_tar:
         methods[-1] = "standalone-default → standalone"
+    if args.transfer_prefix:
+        methods = ["gnu-sparse → windows"]
+        results["transfer_prefix"] = args.transfer_prefix
+        results["s5cmd_version"] = run([args.s5cmd, "version"])[0].strip()
+        results["transfer_settings"] = {"concurrency": 32, "part_size_mib": 8, "numworkers": 1}
     results["methods"] = methods
     write_report(args.output, results)
     expected = {name: entry["logical_bytes"] for name, entry in manifest.items()}
@@ -459,6 +485,8 @@ def round_trips(args, results, api, source, manifest):
                                   "--sparse", "--create", "--file", str(archive), "--directory", str(source), "."]
                         extract = [args.gnu_tar, "--force-local", "--extract", "--file", str(archive),
                                    "--directory", destination.as_posix()]
+                        if args.transfer_prefix:
+                            extract = [args.bsd_tar, "-xf", str(archive), "-C", str(destination)]
                     else:
                         flags = ["--read-sparse"] if method.startswith("windows-read-sparse") else []
                         executable = args.standalone_tar if method.startswith("standalone-") else args.bsd_tar
@@ -475,12 +503,35 @@ def round_trips(args, results, api, source, manifest):
                             sample["creation_diagnostic"] = diagnostic
                         raise
                     sample["archive_bytes"] = archive.stat().st_size
+                    if args.transfer_prefix:
+                        with archive.open("rb") as file:
+                            sample["archive_sha256"] = hashlib.file_digest(file, "sha256").hexdigest()
+                        uri = f"{args.transfer_prefix.rstrip('/')}/trial-{trial}/cas.tar"
+                        downloaded = Path(directory) / "downloaded.tar"
+                        copy = [args.s5cmd, "--numworkers", "1", "cp", "--concurrency", "32", "--part-size", "8"]
+                        sample.update(s3_uri=uri, upload_command=[*copy, str(archive), uri],
+                                      download_command=[*copy, uri, str(downloaded)])
+                        _, sample["upload_seconds"] = run(sample["upload_command"])
+                        _, sample["download_seconds"] = run(sample["download_command"])
+                        with downloaded.open("rb") as file:
+                            sample["download_sha256"] = hashlib.file_digest(file, "sha256").hexdigest()
+                        if (downloaded.stat().st_size != sample["archive_bytes"]
+                                or sample["download_sha256"] != sample["archive_sha256"]):
+                            raise ValueError("Downloaded archive differs from uploaded archive")
+                        extract = [args.bsd_tar, "-xf", str(downloaded), "-C", str(destination)]
+                        sample["extract_command"] = extract
                     _, sample["extraction_seconds"] = run(extract)
                     sample["archive_members"] = archive_manifest(archive, source, hash_data=False)
                     if {name: entry["logical_bytes"] for name, entry in sample["archive_members"].items()} != expected:
                         raise ValueError("Archive file names or logical sizes differ from source")
                     sample["restored"] = snapshot(api, destination)
                     validate(destination, manifest, sample["restored"])
+                    if args.transfer_prefix:
+                        for name in results["replay_source_validation"]["sparse_files_checked"]:
+                            measured = sample["restored"]["files"][name]
+                            if (not measured["sparse"] or measured["allocation_bytes"] >= measured["logical_bytes"]
+                                    or measured["range_bytes"] >= measured["logical_bytes"]):
+                                raise ValueError(f"Restored CAS has lost sparse allocation or holes: {name}")
                     sample["status"] = "complete"
             except (OSError, ValueError, tarfile.TarError, subprocess.CalledProcessError) as error:
                 sample.update(status="failed", error=str(error))
@@ -602,6 +653,8 @@ def main():
     parser.add_argument("--gnu-tar")
     parser.add_argument("--bsd-tar", required=True)
     parser.add_argument("--standalone-tar")
+    parser.add_argument("--s5cmd")
+    parser.add_argument("--transfer-prefix")
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--round-trip", action="store_true")
     parser.add_argument("--replay", action="store_true")
@@ -614,6 +667,9 @@ def main():
         return
     if not all((args.cas_path, args.archive, args.gnu_tar)):
         parser.error("--cas-path, --archive and --gnu-tar are required for the CAS benchmark")
+    if args.transfer_prefix and (not all((args.s5cmd, args.replay, args.round_trip))
+                                 or not args.transfer_prefix.startswith("s3://") or args.standalone_tar):
+        parser.error("--transfer-prefix requires an S3 URI, --s5cmd, --replay and --round-trip, without --standalone-tar")
     results = {"status": "running", "schema_version": 2, "round_trip": args.round_trip, "replay": args.replay,
                "repeats": args.repeats, "trials": [], "errors": []}
     try:

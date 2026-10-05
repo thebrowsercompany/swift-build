@@ -333,15 +333,16 @@ permissions:
 
 jobs:
   cas-archive-replay:
-    runs-on: ${{ inputs.default_build_runner }}
+    runs-on: ${{ inputs.compilers_build_runner }}
     timeout-minutes: 30
-    name: Replay small CAS tar benchmark
+    name: Replay Stage 1 CAS with GNU tar, s5cmd and Windows tar
     env:
       CAS_PATH: ${{ github.workspace }}/cas-replay
       BENCHMARK_DIR: ${{ github.workspace }}/CASBenchmark-${{ github.run_id }}-${{ github.run_attempt }}
       S3_BUCKET: toolchain-sccache-swift-build
       S3_REGION: us-east-2
-      S3_KEY: cas-benchmark/36939575287/1/s5cmd-32/cas.tar
+      S3_PREFIX: s3://toolchain-sccache-swift-build/cas-benchmark/${{ github.run_id }}/${{ github.run_attempt }}/gnu-windows
+      S3_KEY: cas-benchmark/37039527471/1/s5cmd-32/cas.tar
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -371,7 +372,7 @@ jobs:
             --output json --no-cli-pager | Set-Content "$env:BENCHMARK_DIR/source-object.json" -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw 'Retained CAS is missing or inaccessible; stopping before tool setup' }
           $Object = Get-Content "$env:BENCHMARK_DIR/source-object.json" -Raw | ConvertFrom-Json
-          if ($Object.ContentLength -ne 456181760) { throw 'Retained CAS size differs from the recorded benchmark' }
+          if ($Object.ContentLength -ne 6584924160) { throw 'Retained CAS size differs from the recorded benchmark' }
 
       - name: Download and verify retained CAS
         run: |
@@ -379,12 +380,12 @@ jobs:
           $Uri = "s3://$env:S3_BUCKET/$env:S3_KEY"
           aws s3 cp $Uri $Archive --region $env:S3_REGION --only-show-errors --no-progress
           if ($LASTEXITCODE -ne 0) { throw 'Retained CAS download failed' }
-          $ExpectedHash = '43ee10b3001f9479e4ffd3a9932ce7abd05228dcf4463d052cb8f5b3f5be1987'
+          $ExpectedHash = 'cbb9f948255c9a09827b1e63b1ceec551e5c5b38b0cfc76663e46b189f345222'
           if ((Get-FileHash $Archive -Algorithm SHA256).Hash -ne $ExpectedHash) {
             throw 'Retained CAS SHA-256 differs from the recorded benchmark'
           }
           @{
-            source_run = '36939575287'
+            source_run = '37039527471'
             source_uri = $Uri
             archive_bytes = (Get-Item $Archive).Length
             archive_sha256 = $ExpectedHash
@@ -394,60 +395,24 @@ jobs:
           & "$env:WINDIR/System32/tar.exe" -xf $Archive -C $env:CAS_PATH
           if ($LASTEXITCODE -ne 0) { throw 'Retained CAS extraction failed' }
 
-      - uses: compnerd/gha-setup-vsdevenv@5eb3eae1490d4f7875d574c4973539f69109700d # main
-        with:
-          host_arch: amd64
-          arch: amd64
-      - name: Install CMake ${{ env.CMAKE_VERSION }}
-        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
-        with:
-          cmakeVersion: ${{ env.CMAKE_VERSION }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           architecture: x64
 
-      - name: Build native bsdtar 3.8.9
+      - name: Install s5cmd 2.3.0
+        id: s5cmd
+        env:
+          S5CMD_DIR: ${{ runner.temp }}/s5cmd-2.3.0
         run: |
-          $Root = Join-Path $env:RUNNER_TEMP 'cas-libarchive-3.8.9'
-          New-Item -ItemType Directory -Path $Root -Force | Out-Null
-          $Zip = Join-Path $Root 'libarchive.zip'
-          $Url = 'https://github.com/libarchive/libarchive/releases/download/v3.8.9/libarchive-3.8.9.zip'
-          $ExpectedHash = '7b20200203d08866b62373dd51417798427ec67852928d71f142bfe578e9ea75'
-          Invoke-WebRequest -Uri $Url -OutFile $Zip
-          if ((Get-FileHash $Zip -Algorithm SHA256).Hash -ne $ExpectedHash) {
-            throw 'libarchive source checksum mismatch'
+          New-Item -ItemType Directory -Path $env:S5CMD_DIR -Force | Out-Null
+          $Archive = Join-Path $env:S5CMD_DIR 's5cmd.zip'
+          Invoke-WebRequest 'https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Windows-64bit.zip' -OutFile $Archive
+          if ((Get-FileHash $Archive -Algorithm SHA256).Hash -ne '9d8a98c1d9f6284c6d54aeec3daeb5f1412fd101850ae756c1e70dd8ffe52166') {
+            throw 's5cmd archive checksum mismatch'
           }
-          Expand-Archive -LiteralPath $Zip -DestinationPath $Root -Force
-          $BuildDir = Join-Path $Root 'build'
-          $Compiler = Join-Path $env:VCToolsInstallDir 'bin/Hostx64/x64/cl.exe'
-          $Options = @(
-            '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', "-DCMAKE_C_COMPILER=$Compiler",
-            '-DENABLE_TAR=ON', '-DENABLE_TAR_SHARED=OFF', '-DMSVC_USE_STATIC_CRT=ON'
-          )
-          foreach ($Feature in @('TEST', 'INSTALL', 'CPIO', 'CAT', 'UNZIP', 'OPENSSL', 'MBEDTLS',
-                                'NETTLE', 'LIBB2', 'LZ4', 'LZO', 'LZMA', 'ZSTD', 'ZLIB', 'BZip2',
-                                'LIBXML2', 'EXPAT', 'WIN32_XMLLITE', 'PCREPOSIX', 'PCRE2POSIX',
-                                'ICONV')) {
-            $Options += "-DENABLE_${Feature}=OFF"
-          }
-          cmake -S "$Root/libarchive-3.8.9" -B $BuildDir @Options
-          if ($LASTEXITCODE -ne 0) { throw 'Native bsdtar configuration failed' }
-          cmake --build $BuildDir --target bsdtar --parallel 16
-          if ($LASTEXITCODE -ne 0) { throw 'Native bsdtar build failed' }
-          $Tar = Join-Path $BuildDir 'bin/bsdtar.exe'
-          $Version = & $Tar --version
-          if ($LASTEXITCODE -ne 0) { throw 'Native bsdtar version probe failed' }
-          "STANDALONE_BSDTAR=$Tar" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          @{
-            source_url = $Url
-            source_sha256 = $ExpectedHash
-            compiler = $Compiler
-            cmake_options = $Options
-            executable = $Tar
-            executable_sha256 = (Get-FileHash $Tar -Algorithm SHA256).Hash
-            version = $Version
-          } | ConvertTo-Json -Depth 5 | Set-Content "$env:BENCHMARK_DIR/native-bsdtar.json" -Encoding utf8
+          Expand-Archive $Archive -DestinationPath $env:S5CMD_DIR -Force
+          "executable=$(Join-Path $env:S5CMD_DIR 's5cmd.exe')" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Install GNU tar
         id: msys2
@@ -456,16 +421,17 @@ jobs:
           msystem: MSYS
           install: tar
 
-      - name: Compare tar round trips using retained CAS
+      - name: Measure GNU archive, s5cmd transfers and Windows extraction
         env:
           MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+          S5CMD_PATH: ${{ steps.s5cmd.outputs.executable }}
         run: |
           python SourceCache/ci-build/.github/scripts/benchmark-cas-sparsity.py `
             --cas-path "$env:CAS_PATH" --archive "$env:BENCHMARK_DIR/reference-cas.tar" `
             --output "$env:BENCHMARK_DIR" --repeats 3 --round-trip --replay `
             --gnu-tar "$env:MSYS2_LOCATION/usr/bin/tar.exe" `
             --bsd-tar "$env:WINDIR/System32/tar.exe" `
-            --standalone-tar "$env:STANDALONE_BSDTAR"
+            --s5cmd "$env:S5CMD_PATH" --transfer-prefix "$env:S3_PREFIX"
           if ($LASTEXITCODE -ne 0) { throw 'CAS replay failed; see report for partial results' }
 
       - name: Publish replay report
@@ -474,10 +440,6 @@ jobs:
           $Summary = Join-Path $env:BENCHMARK_DIR 'sparsity.md'
           if (Test-Path $Summary) {
             Get-Content $Summary -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-          }
-          foreach ($Log in @('CMakeCache.txt', 'CMakeFiles/CMakeConfigureLog.yaml')) {
-            $Path = Join-Path "$env:RUNNER_TEMP/cas-libarchive-3.8.9/build" $Log
-            if (Test-Path $Path) { Copy-Item $Path $env:BENCHMARK_DIR }
           }
       - uses: actions/upload-artifact@v4
         if: always()
