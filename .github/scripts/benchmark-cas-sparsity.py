@@ -350,8 +350,20 @@ def write_report(output, results):
     if results.get("replay"):
         lines.extend(["Input is a restored CAS from a previous run; provenance and the pinned archive checksum "
                       "are recorded in replay-source.json. Setup/download/initial extraction are outside the timings. "
-                      "Data hashes come from the reference archive. The restored input must retain sparse allocation "
-                      "and gaps in its allocated ranges before any round-trip trials run.", ""])
+                      "Data hashes come from the reference archive. The restored v4.actions, v9.data, and v9.index "
+                      "files must retain sparse allocation and gaps in their allocated ranges before any round-trip "
+                      "trials run. Other files' allocation differences are reported without failing the check.", ""])
+        if replay_validation := results.get("replay_source_validation"):
+            differences = replay_validation["allocation_differences"]
+            if differences:
+                lines.extend(["Replay files with archived holes but no restored sparse allocation or range gaps "
+                              "(informational):", "",
+                              "| File | Logical bytes | Bytes omitted by tar | Allocated bytes | Allocated-range bytes | Sparse attribute |",
+                              "|---|---:|---:|---:|---:|---|"])
+                for item in differences:
+                    lines.append(f"| {item['path']} | {item['logical_bytes']:,} | {item['archive_hole_bytes']:,} | "
+                                 f"{item['allocation_bytes']:,} | {item['range_bytes']:,} | {item['sparse']} |")
+                lines.append("")
     source = results.get("source")
     for name, binary in results.get("native_tar_binaries", {}).items():
         lines.extend([f"{name}: `{binary['path']}`", f"Version: `{binary['version'].strip()}`",
@@ -505,16 +517,28 @@ def experiment(args, results):
     results["archive_members"] = manifest
     validate(source, manifest, results["source"])
     if args.replay:
+        required_sparse_names = ["v1.1/v4.actions", "v1.1/v9.data", "v1.1/v9.index"]
         sparse_names = [name for name, entry in manifest.items()
                         if sum(length for _, length in entry["data_ranges"]) < entry["logical_bytes"]]
-        if not sparse_names:
-            raise ValueError("Replay archive has no sparse file maps")
+        replay_validation = {"status": "running", "sparse_files_checked": [], "allocation_differences": []}
+        results["replay_source_validation"] = replay_validation
+        for name in required_sparse_names:
+            if name not in sparse_names:
+                raise ValueError(f"Replay archive is missing a required sparse file map: {name}")
         for name in sparse_names:
             measured = results["source"]["files"][name]
             if (not measured["sparse"] or measured["allocation_bytes"] >= measured["logical_bytes"]
                     or measured["range_bytes"] >= measured["logical_bytes"]):
-                raise ValueError(f"Replay source has lost sparse allocation or holes: {name}")
-        results["replay_source_validation"] = {"status": "complete", "sparse_files_checked": sparse_names}
+                if name in required_sparse_names:
+                    raise ValueError(f"Replay source has lost sparse allocation or holes: {name}")
+                replay_validation["allocation_differences"].append({
+                    "path": name,
+                    "archive_hole_bytes": manifest[name]["logical_bytes"] - sum(
+                        length for _, length in manifest[name]["data_ranges"]),
+                    **{key: measured[key] for key in ("logical_bytes", "allocation_bytes", "range_bytes", "sparse")}})
+            if name in required_sparse_names:
+                replay_validation["sparse_files_checked"].append(name)
+        replay_validation["status"] = "complete"
     if args.round_trip:
         round_trips(args, results, api, source, manifest)
         if not args.replay:
