@@ -1,0 +1,93 @@
+name: CAS storage
+description: Restore or save a sparse CAS archive in S3.
+
+inputs:
+  operation:
+    description: restore or save.
+    required: true
+  cache-key:
+    description: Cache identity for this build job and target.
+    required: true
+  toolchain-bin:
+    description: Compiler bin directory; defaults to the installed Swift toolchain.
+    required: false
+    default: ''
+  s3-bucket:
+    description: S3 bucket containing CAS archives.
+    required: true
+  aws-region:
+    description: AWS region containing the bucket.
+    required: true
+  aws-arn:
+    description: AWS role with read/write access to the bucket.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Select CAS compiler tools
+      if: inputs.operation == 'restore'
+      shell: pwsh
+      env:
+        CAS_TOOLCHAIN_BIN: ${{ inputs.toolchain-bin }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $ToolchainBin = $env:CAS_TOOLCHAIN_BIN
+        if (-not $ToolchainBin) {
+          $ToolchainBin = Split-Path (Get-Command swiftc.exe -ErrorAction Stop).Source
+          # Prefer Swift's clang-cl over the one bundled with Visual Studio.
+          $ToolchainBin | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+        }
+        $ClangCache = Join-Path $ToolchainBin 'clang-cache.exe'
+        if (-not (Test-Path $ClangCache -PathType Leaf)) { throw "Matching clang-cache not found: $ClangCache" }
+        "CAS_CLANG_CACHE=$ClangCache" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Install GNU tar
+      if: inputs.operation == 'restore'
+      id: msys2
+      uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+      with:
+        msystem: MSYS
+        install: tar
+
+    - name: Prepare CAS tools
+      if: inputs.operation == 'restore'
+      shell: pwsh
+      env:
+        MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $Root = Join-Path $env:RUNNER_TEMP 'cas-tools'
+        New-Item -ItemType Directory -Path $Root -Force | Out-Null
+        $Zip = Join-Path $Root 's5cmd.zip'
+        Invoke-WebRequest 'https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Windows-64bit.zip' -OutFile $Zip
+        if ((Get-FileHash $Zip -Algorithm SHA256).Hash -ne '9d8a98c1d9f6284c6d54aeec3daeb5f1412fd101850ae756c1e70dd8ffe52166') {
+          throw 's5cmd archive checksum mismatch'
+        }
+        Expand-Archive $Zip -DestinationPath $Root -Force
+        $GnuTar = Join-Path $env:MSYS2_LOCATION 'usr/bin/tar.exe'
+        $Version = & $GnuTar --version
+        if ($LASTEXITCODE -ne 0 -or $Version[0] -notmatch 'GNU tar') { throw 'GNU tar is required to save CAS' }
+        $Version | Write-Host
+        & "$env:WINDIR/System32/tar.exe" --version
+        if ($LASTEXITCODE -ne 0) { throw 'Windows tar is required to restore CAS' }
+        & "$Root/s5cmd.exe" version
+        if ($LASTEXITCODE -ne 0) { throw 's5cmd setup failed' }
+        "CAS_GNU_TAR=$GnuTar" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+        "CAS_S5CMD=$Root/s5cmd.exe" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Authenticate to AWS
+      uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+      with:
+        role-to-assume: ${{ inputs.aws-arn }}
+        role-session-name: SwiftToolchainCAS
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: ${{ inputs.operation }} CAS
+      shell: pwsh
+      env:
+        CAS_OPERATION: ${{ inputs.operation }}
+        CAS_KEY: ${{ inputs.cache-key }}
+        CAS_BUCKET: ${{ inputs.s3-bucket }}
+        CAS_REGION: ${{ inputs.aws-region }}
+      run: '& "$env:GITHUB_ACTION_PATH/action.ps1"'
