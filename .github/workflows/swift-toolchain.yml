@@ -299,6 +299,11 @@ on:
         type: boolean
         default: true
 
+      enable_cas:
+        required: false
+        type: boolean
+        default: false
+
     secrets:
       SYMBOL_SERVER_PAT:
         required: true
@@ -320,6 +325,7 @@ on:
         required: false
 
 env:
+  ENABLE_CAS: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_cas }}
   PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.4.x-DEVELOPMENT-SNAPSHOT-2026-08-01-a
   CMAKE_VERSION: 4.4.1
 
@@ -385,6 +391,16 @@ jobs:
           show-progress: false
 
       # build.ps1: Build-SQLite
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-sqlite-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure SQLite
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -402,9 +418,14 @@ jobs:
           use-msvc-host-toolchain: ${{ inputs.use_host_toolchain }}
           c-compiler: 'Host.C'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
       - name: Install SQLite
@@ -414,6 +435,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-sqlite-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   bootstrap-libxml2:
     runs-on: ${{ inputs.default_build_runner }}
@@ -469,6 +500,16 @@ jobs:
           show-progress: false
 
       # build.ps1: Build-XML2
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-libxml2-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure libxml2
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -487,7 +528,7 @@ jobs:
           c-compiler: 'Host.C'
           cxx-compiler: 'Host.CXX'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
               'LIBXML2_WITH_C14N' = "NO";
@@ -525,6 +566,12 @@ jobs:
               'LIBXML2_WITH_XPTR_LOCS' = "NO";
               'LIBXML2_WITH_ZLIB' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap-libxml2-${{ inputs.libxml2_version }}
       - name: Install libxml2
@@ -534,6 +581,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-bootstrap-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-libxml2-${{ inputs.libxml2_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-libxml2-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   sqlite:
     needs: [stage1-compiler]
@@ -594,6 +651,17 @@ jobs:
           show-progress: false
 
       # build.ps1: Build-SQLite
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-sqlite-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure SQLite
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -610,9 +678,14 @@ jobs:
           install-dir: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
           c-compiler: 'Stage1.C'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ inputs.swift_toolchain_sqlite_version }}
       - name: Install SQLite
@@ -622,6 +695,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-sqlite-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   ds2_tools:
     runs-on: ${{ inputs.default_build_runner }}
@@ -683,6 +766,16 @@ jobs:
         if: inputs.build_android
 
       # build.ps1: Build-RegsGen2
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure RegsGen2
         if: inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
@@ -701,6 +794,14 @@ jobs:
           c-compiler: 'Host.C'
           cxx-compiler: 'Host.CXX'
           cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
+          cmake-defines: |
+            $ProjectDefines = @{}
+            if ("${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build RegsGen2
         if: inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/RegsGen2 --config Release
@@ -711,6 +812,17 @@ jobs:
           name: Windows-${{ inputs.build_arch }}-regsgen2
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
   ds2:
     needs: [ds2_tools, stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
@@ -900,6 +1012,16 @@ jobs:
           show-progress: false
 
       # build.ps1: Build-CMark
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-cmark_gfm-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure cmark-gfm
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -918,11 +1040,17 @@ jobs:
           c-compiler: 'Host.C'
           cxx-compiler: 'Host.CXX'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'BUILD_TESTING' = "NO";
               'CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build cmark-gfm
         run: cmake --build ${{ github.workspace }}/BinaryCache/cmark-gfm-${{ inputs.swift_cmark_version }}
       - name: Install cmark-gfm
@@ -931,6 +1059,17 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-cmark_gfm-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
   build_tools:
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
@@ -1000,6 +1139,16 @@ jobs:
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
       # build.ps1: Build-BuildTools
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build_tools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Tools
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1018,7 +1167,7 @@ jobs:
           cxx-compiler: 'Host.CXX'
           use-asm-masm: ${{ inputs.use_host_toolchain }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'CMAKE_CROSSCOMPILING' = "NO";
               'CLANG_ENABLE_LIBXML2' = "NO";
               'LLDB_ENABLE_LIBXML2' = "NO";
@@ -1047,6 +1196,12 @@ jobs:
               'SWIFT_INCLUDE_TESTS' = "NO";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build llvm-tblgen
         run: cmake --build ${{ github.workspace }}/BinaryCache/BuildTools --target llvm-tblgen
       - name: Build clang-tblgen
@@ -1088,6 +1243,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-build-tools
           path: ${{ github.workspace }}/BuildRoot/bin
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build_tools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   early_swift_driver:
     runs-on: ${{ inputs.default_build_runner }}
@@ -1181,6 +1346,16 @@ jobs:
           Write-Output "sdkroot=${sdkRoot}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       # build.ps1: Build-EarlySwiftDriver
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early_swift_driver-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure early swift-driver
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1199,7 +1374,7 @@ jobs:
           cxx-compiler: 'Pinned.CXX'
           swift-compiler: 'Pinned.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'BUILD_TESTING' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -1212,6 +1387,14 @@ jobs:
               'FETCHCONTENT_SOURCE_DIR_LLBUILD' = "${{ github.workspace }}/SourceCache/llbuild";
               'FETCHCONTENT_SOURCE_DIR_TOOLSSUPPORTCORE' = "${{ github.workspace }}/SourceCache/swift-tools-support-core";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Build early swift-driver
         run: |
@@ -1237,6 +1420,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-early-swift-driver
           path: ${{ github.workspace }}/BuildRoot
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early_swift_driver-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   stage1-compiler:
     needs: [bootstrap-libxml2, cmark_gfm, build_tools, early_swift_driver]
@@ -1359,6 +1552,16 @@ jobs:
           "@
           Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Stage1 Compiler
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1381,7 +1584,7 @@ jobs:
           swift-compiler: 'Pinned.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/Windows-Bootstrap-Stage1-${{ steps.setup-context.outputs.cpu }}.cmake
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "NO";
               'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
               'SWIFT_BUILD_LIBEXEC' = "NO";
@@ -1424,9 +1627,21 @@ jobs:
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Install Stage1 Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/stage1/build --target install-distribution
+
+      - name: Install Stage1 clang-cache
+        if: env.ENABLE_CAS == 'true'
+        run: cmake --build ${{ github.workspace }}/BinaryCache/stage1/build --target install-clang-cache
 
       - name: Copy cmark-gfm shared libraries
         run: |
@@ -1487,6 +1702,16 @@ jobs:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
 
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
   bootstrap-macros:
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
@@ -1541,6 +1766,16 @@ jobs:
           $BinaryDir = cygpath -m ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
           (Get-Content $Module).Replace('<BINARY_DIR>', $BinaryDir) | Set-Content $Module
 
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Bootstrap Foundation Macros
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1558,9 +1793,15 @@ jobs:
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
           swift-compiler: 'Pinned.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Build Bootstrap Foundation Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/swift-foundation-macros
@@ -1582,9 +1823,15 @@ jobs:
           swift-sdk-path: ${{ steps.setup-context.outputs.sdkroot }}
           swift-compiler: 'Pinned.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/stage1/swift-syntax/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Build Bootstrap Testing Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap/swift-testing-macros
@@ -1599,6 +1846,16 @@ jobs:
         with:
           name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
           path: ${{ github.workspace }}/BuildRoot/bootstrap/Library
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && inputs.build_os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   stage2-libxml2:
     needs: [stage1-compiler]
@@ -1638,6 +1895,17 @@ jobs:
           show-progress: false
 
       # build.ps1: Build-XML2
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage2-libxml2-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Stage2 libxml2
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1655,7 +1923,7 @@ jobs:
           c-compiler: 'Stage1.C'
           cxx-compiler: 'Stage1.CXX'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
               'LIBXML2_WITH_C14N' = "NO";
@@ -1693,6 +1961,12 @@ jobs:
               'LIBXML2_WITH_XPTR_LOCS' = "NO";
               'LIBXML2_WITH_ZLIB' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build Stage2 libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/stage2-libxml2-${{ inputs.libxml2_version }}
       - name: Install Stage2 libxml2
@@ -1702,6 +1976,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-stage2-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/stage2-libxml2-${{ inputs.libxml2_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage2-libxml2-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   stage2-compiler:
     needs: [stage1-compiler, sdk, stage2-libxml2, build_tools, cmark_gfm, early_swift_driver]
@@ -1891,6 +2175,17 @@ jobs:
           Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       # build.ps1: Build-Compilers
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage2-compiler-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Stage2 Compiler
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1911,7 +2206,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "NO";
               'SWIFT_BUILD_DYNAMIC_STDLIB' = "NO";
               'SWIFT_BUILD_LIBEXEC' = "NO";
@@ -1975,6 +2270,14 @@ jobs:
               'LLVM_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
               'SWIFT_PARALLEL_LINK_JOBS' = "${{ steps.setup-context.outputs.link-jobs }}";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Install Stage2 Compiler Distribution
         run: cmake --build ${{ github.workspace }}/BinaryCache/stage2/build --target install-distribution
@@ -2064,6 +2367,16 @@ jobs:
           symbolsFolder: ${{ github.workspace }}/BinaryCache/stage2/build
           searchPattern: '**/*.exe'
 
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage2-compiler-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
   compiler-runtime:
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
@@ -2121,6 +2434,17 @@ jobs:
           python-version: ${{ inputs.python_version }}
           architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
 
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-compiler-runtime-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Compiler Runtime LLVM
         if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
@@ -2141,10 +2465,15 @@ jobs:
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'LLVM_ENABLE_ASSERTIONS' = "YES";
               'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
 
       - name: Get LLVM major version
         if: matrix.os != 'Android' || inputs.build_android
@@ -2179,11 +2508,17 @@ jobs:
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/compiler-runtime-llvm/lib/cmake/llvm";
               'LLVM_ENABLE_PER_TARGET_RUNTIME_DIR' = "YES";
               'COMPILER_RT_DEFAULT_TARGET_ONLY' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Install Compiler Runtime Builtins
         if: matrix.os != 'Android' || inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/compiler-runtime-builtins --target install-compiler-rt
@@ -2209,7 +2544,7 @@ jobs:
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/compiler-runtime-llvm/lib/cmake/llvm";
               'LLVM_ENABLE_PER_TARGET_RUNTIME_DIR' = "YES";
               'COMPILER_RT_DEFAULT_TARGET_ONLY' = "YES";
@@ -2221,6 +2556,12 @@ jobs:
               'COMPILER_RT_BUILD_PROFILE' = "YES";
               'COMPILER_RT_BUILD_SANITIZERS' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Install Compiler Runtime
         if: matrix.os != 'Android' || inputs.build_android
         run: cmake --build ${{ github.workspace }}/BinaryCache/compiler-runtime --target install-compiler-rt
@@ -2231,6 +2572,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-compiler-runtime
           path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-compiler-runtime-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   zlib:
     needs: [stage1-compiler]
@@ -2298,6 +2649,17 @@ jobs:
           local-cache: true
 
       # build.ps1: Build-Zlib
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-zlib-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure zlib
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -2318,10 +2680,16 @@ jobs:
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build zlib
         run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ inputs.zlib_version }}
       - name: Install zlib
@@ -2331,6 +2699,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-zlib-${{ inputs.zlib_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-zlib-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   brotli:
     needs: [stage1-compiler]
@@ -2398,6 +2776,17 @@ jobs:
           local-cache: true
 
       # build.ps1: Build-Brotli
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-brotli-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure brotli
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -2417,10 +2806,15 @@ jobs:
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build brotli
         run: cmake --build ${{ github.workspace }}/BinaryCache/brotli-${{ inputs.brotli_version }}
       - name: Install brotli
@@ -2430,6 +2824,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-brotli-${{ inputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-brotli-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   curl:
     needs: [stage1-compiler, zlib, brotli]
@@ -2508,6 +2912,17 @@ jobs:
           local-cache: true
 
       # build.ps1: Build-Curl
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-curl-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure curl
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -2527,7 +2942,7 @@ jobs:
           ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'BUILD_TESTING' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
@@ -2619,6 +3034,11 @@ jobs:
               'ZLIB_ROOT' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr";
               'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr/lib/zlibstatic.lib";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build curl
         run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ inputs.curl_version }}
       - name: Install curl
@@ -2628,6 +3048,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-curl-${{ inputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-curl-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   libxml2:
     needs: [stage1-compiler]
@@ -2697,6 +3127,17 @@ jobs:
           local-cache: true
 
       # build.ps1: Build-XML2
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-libxml2-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure libxml2
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -2717,7 +3158,7 @@ jobs:
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
               'LIBXML2_WITH_ICONV' = "NO";
@@ -2728,6 +3169,12 @@ jobs:
               'LIBXML2_WITH_THREADS' = "YES";
               'LIBXML2_WITH_ZLIB' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build libxml2
         run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ inputs.libxml2_version }}
       - name: Install libxml2
@@ -2737,6 +3184,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-libxml2-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   macros:
     if: inputs.build_os == 'Windows'
@@ -2811,6 +3268,17 @@ jobs:
           (Get-Content $Module).Replace('<BINARY_DIR>', $BinaryDir) | Set-Content $Module
 
       # build.ps1: Build-FoundationMacros
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-macros-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Foundation Macros
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with: 
@@ -2828,9 +3296,15 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/stage2/swift-syntax/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Build Foundation Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-foundation-macros
@@ -2853,9 +3327,15 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/stage2/swift-syntax/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Build Testing Macros
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-testing-macros
@@ -2902,6 +3382,16 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
           searchPattern: '**/*.dll'
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-macros-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   sdk:
     needs: [stage1-compiler, bootstrap-macros, zlib, brotli, curl, libxml2]
@@ -3116,6 +3606,17 @@ jobs:
           cmake -P Resync.cmake
 
       # build.ps1: Build-CDispatch
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-sdk-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure CDispatch
         if: matrix.os != 'Android' || inputs.build_android
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
@@ -3136,11 +3637,17 @@ jobs:
           c-compiler: ${{ matrix.os == 'Windows' && 'Stage1.C' || 'Stage1.GNUC' }}
           cxx-compiler: ${{ matrix.os == 'Windows' && 'Stage1.CXX' || 'Stage1.GNUCXX' }}
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'BUILD_TESTING' = "NO";
               'ENABLE_SWIFT' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build CDispatch
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3176,7 +3683,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3195,6 +3702,15 @@ jobs:
               # this should be enabled when building the dynamic runtime.
               'SwiftCore_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Runtime
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3227,7 +3743,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3238,6 +3754,15 @@ jobs:
               'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
               'SwiftOverlay_ENABLE_CXX_INTEROP' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Overlay
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3270,7 +3795,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3280,6 +3805,15 @@ jobs:
               # this should be enabled when building the dynamic runtime.
               'SwiftStringProcessing_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build String Processing
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3311,7 +3845,7 @@ jobs:
           c-compiler: 'Stage1.GNUC'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3322,6 +3856,14 @@ jobs:
               # this should be enabled when building the dynamic runtime.
               'SwiftSynchronization_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Synchronization
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3354,7 +3896,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3366,6 +3908,15 @@ jobs:
               # this should be enabled when building the dynamic runtime.
               'SwiftDistributed_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Distributed
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3397,7 +3948,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3410,6 +3961,14 @@ jobs:
               # this should be enabled when building the dynamic runtime.
               'SwiftObservation_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Observation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3442,7 +4001,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3453,6 +4012,15 @@ jobs:
               # this should be enabled when building the dynamic runtime.
               'SwiftDifferentiation_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Differentiation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3484,7 +4052,7 @@ jobs:
           c-compiler: 'Stage1.GNUC'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3496,6 +4064,14 @@ jobs:
               # this should be enabled when building the dynamic runtime.
               'SwiftVolatile_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Volatile
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3528,7 +4104,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
@@ -3542,6 +4118,15 @@ jobs:
               'SwiftRuntime_ENABLE_LIBRARY_EVOLUTION' = "NO";
               'SwiftRuntime_ENABLE_BACKTRACING' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build RuntimeModule
         if: matrix.os != 'Android' # Disabled for Android https://github.com/swiftlang/swift/issues/87445
         run: |
@@ -3576,7 +4161,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'CMAKE_Swift_FLAGS' = @("-static-stdlib");
@@ -3585,6 +4170,14 @@ jobs:
               'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/Cxx/cmake/SwiftCxxOverlay";
               'SwiftRuntime_DIR' = "${{ github.workspace }}/BinaryCache/RuntimeModule/cmake/SwiftRuntime";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Runtime Backtrace
         # NOTE: we only build this if static variants are enabled to ensure that we
         # can statically link the runtime.
@@ -3624,7 +4217,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
                'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
                'BUILD_TESTING' = "NO";
                'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
@@ -3633,6 +4226,15 @@ jobs:
                'ENABLE_SWIFT' = "YES";
                'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
               }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Dispatch
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3666,7 +4268,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
               'CMAKE_NINJA_FORCE_RESPONSE_FILE' = "YES";
               'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
@@ -3686,6 +4288,15 @@ jobs:
               '_SwiftCollections_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-collections";
               'SwiftFoundation_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Foundation
         if: matrix.os != 'Android' || inputs.build_android
         run: |
@@ -3811,13 +4422,21 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_INSTALL_BINDIR' = "${{ (matrix.arch == 'amd64' || matrix.arch == 'x86_64') && 'bin64' || matrix.arch == 'arm64' && 'bin64a' || matrix.arch == 'armv7' && 'bin32a' || 'bin32' }}";
               'CMAKE_Swift_FLAGS' = ${{ (matrix.os == 'Android') && format('@("-I{0}/BuildRoot/Library/Developer/Platforms/{1}.platform/Developer/SDKs/{1}.sdk/usr/include")', github.workspace, matrix.os) || '@()' }};
               'SwiftTesting_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin/TestingMacros.dll";
               'SwiftTesting_INSTALL_NESTED_SUBDIR' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Testing
         if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
         run: cmake --build ${{ github.workspace }}/BinaryCache/Testing
@@ -3848,7 +4467,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_INSTALL_BINDIR' = "${{ (matrix.arch == 'amd64' || matrix.arch == 'x86_64') && 'bin64' || matrix.arch == 'arm64' && 'bin64a' || matrix.arch == 'armv7' && 'bin32a' || 'bin32' }}";
               'CMAKE_Swift_FLAGS' = ${{ (matrix.os == 'Android') && format('@("-I{0}/BuildRoot/Library/Developer/Platforms/{1}.platform/Developer/SDKs/{1}.sdk/usr/include")', github.workspace, matrix.os) || '@()' }};
@@ -3856,6 +4475,13 @@ jobs:
               'XCTest_INSTALL_NESTED_SUBDIR' = "YES";
               'SwiftTesting_DIR' = "${{ github.workspace }}/BinaryCache/Testing/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build XCTest
         if: ${{ !matrix.static && (matrix.os != 'Android' || inputs.build_android) }}
         run: cmake --build ${{ github.workspace }}/BinaryCache/XCTest
@@ -3900,6 +4526,16 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.dll'
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-sdk-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   devtools:
     if: inputs.build_os == 'Windows'
@@ -4129,6 +4765,17 @@ jobs:
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # build.ps1: Build-ArgumentParser
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-devtools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure swift-argument-parser
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -4146,11 +4793,18 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'BUILD_TESTING' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-argument-parser
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
@@ -4173,10 +4827,18 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-collections
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-collections
 
@@ -4197,10 +4859,17 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-asn1
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-asn1
 
@@ -4225,11 +4894,20 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftASN1_DIR' = "${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-crypto
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-crypto
 
@@ -4253,12 +4931,21 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'LLBUILD_SUPPORT_BINDINGS' = "Swift";
               'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
               'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
-            }  
+            }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-llbuild
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-llbuild
 
@@ -4281,10 +4968,18 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-system
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-system
 
@@ -4307,11 +5002,19 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftSystem_DIR' = "${{ github.workspace }}/BinaryCache/swift-system/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-subprocess
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-subprocess
 
@@ -4334,12 +5037,20 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'Foundation_DIR' = "${{ github.workspace }}/BinaryCache/foundation/cmake/modules";
               'XCTest_DIR' = "${{ github.workspace }}/BinaryCache/xctest/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-tools-support-core
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-support-core
 
@@ -4363,7 +5074,7 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'TSC_DIR'="${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
@@ -4373,6 +5084,15 @@ jobs:
               'SQLite3_LIBRARY'="${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
               'SWIFT_DRIVER_BUILD_TOOLS' = "NO";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-driver
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-driver
 
@@ -4393,12 +5113,19 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftCrypto_DIR'="${{ github.workspace }}/BinaryCache/swift-crypto/cmake/modules";
               'SwiftASN1_DIR'="${{ github.workspace }}/BinaryCache/swift-asn1/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-certificates
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-certificates
 
@@ -4422,9 +5149,18 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-tools-protocols
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-tools-protocols
 
@@ -4448,7 +5184,7 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
@@ -4462,6 +5198,15 @@ jobs:
               'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
               'CMAKE_Swift_FLAGS' = "${{ matrix.arch == 'arm64' && '-use-ld=lld-link' || '' }}";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-build
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-build
 
@@ -4490,7 +5235,7 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_Swift_FLAGS' = @("-DCRYPTO_v2");
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
@@ -4510,6 +5255,14 @@ jobs:
               'SQLite3_INCLUDE_DIR' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/include";
               'SQLite3_LIBRARY' = "${{ github.workspace }}/BinaryCache/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr/lib/SQLite3.lib";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-package-manager
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-package-manager
 
@@ -4532,12 +5285,20 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build Markdown
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-markdown
 
@@ -4560,7 +5321,7 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
@@ -4568,6 +5329,14 @@ jobs:
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
               'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-format
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-format
 
@@ -4588,9 +5357,14 @@ jobs:
           swift-sdk-path: ${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk
           c-compiler: 'Stage1.C'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'CMAKE_C_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
+
       - name: Build swift-lmdb
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-lmdb
 
@@ -4613,7 +5387,7 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'CMAKE_C_FLAGS' =  @(
@@ -4624,6 +5398,15 @@ jobs:
                 "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include/Block");
               'LMDB_DIR' = "${{ github.workspace }}/BinaryCache/swift-lmdb/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build indexstore-db
         run: cmake --build ${{ github.workspace }}/BinaryCache/indexstore-db
 
@@ -4647,7 +5430,7 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'SwiftSyntax_DIR' = "${{ github.workspace }}/BinaryCache/swift-syntax/cmake/modules";
               'TSC_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-support-core/cmake/modules";
@@ -4662,6 +5445,15 @@ jobs:
               'IndexStoreDB_DIR' = "${{ github.workspace }}/BinaryCache/indexstore-db/cmake/modules";
               'SwiftToolsProtocols_DIR' = "${{ github.workspace }}/BinaryCache/swift-tools-protocols/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build sourcekit-lsp
         run: cmake --build ${{ github.workspace }}/BinaryCache/sourcekit-lsp
 
@@ -4685,10 +5477,18 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "NO";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-docc-symbolkit
         run: cmake --build ${{ github.workspace }}/BinaryCache/swift-docc-symbolkit
 
@@ -4713,7 +5513,7 @@ jobs:
           c-compiler: 'Stage1.C'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'BUILD_SHARED_LIBS' = "YES";
               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
@@ -4725,6 +5525,14 @@ jobs:
               'SymbolKit_DIR' = "${{ github.workspace }}/BinaryCache/swift-docc-symbolkit/cmake/modules";
               'cmark-gfm_DIR' = "${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr/lib/cmake";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
+
       - name: Build swift-docc
         #TODO: temporary until DocC has its own CI: https://github.com/compnerd/swift-build/issues/1086
         id: build-swift-docc
@@ -4833,6 +5641,16 @@ jobs:
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
           symbolsFolder: ${{ github.workspace }}/BinaryCache
           searchPattern: '**/*.exe'
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-devtools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   debugging_tools:
     if: inputs.build_os == 'Windows'
@@ -4944,6 +5762,17 @@ jobs:
           echo "SDKROOT=${SDKRoot}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # TODO: Make the SwiftOverlay CMake package relocatable across jobs.
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-debugging_tools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Regenerate Windows SDK overlay
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -4963,7 +5792,7 @@ jobs:
           cxx-compiler: 'Stage1.GNUCXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
               'SWIFT_ASSEMBLY_VERSION' = "${{ inputs.swift_version }}";
               'BUILD_SHARED_LIBS' = "YES";
@@ -4972,6 +5801,14 @@ jobs:
               'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
               'SwiftOverlay_ENABLE_CXX_INTEROP' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       # build.ps1: Build-Inspect
       - name: Configure swift-inspect
@@ -4993,7 +5830,7 @@ jobs:
           cxx-compiler: 'Stage1.CXX'
           swift-compiler: 'Stage1.Swift'
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'CMAKE_Swift_FLAGS' =  @(
                 "-Xcc", "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/include",
                 "-Xcc", "-I${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift",
@@ -5001,6 +5838,14 @@ jobs:
                 "-L${{ github.workspace }}/BinaryCache/Library/Developer/Platforms/${{ matrix.os }}.platform/Developer/SDKs/${{ matrix.os }}.sdk/usr/lib/swift/${{ matrix.os }}/${{ matrix.cpu }}");
               'ArgumentParser_DIR' = "${{ github.workspace }}/BinaryCache/swift-argument-parser/cmake/modules";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Build swift-inspect
         run: cmake --build ${{ github.workspace }}/BinaryCache/${{ matrix.arch }}/swift-inspect
@@ -5012,6 +5857,16 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-debugging_tools
           path: ${{ github.workspace }}/BuildRoot/Library
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-debugging_tools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   package_tools:
     name: Package Tools
@@ -5216,6 +6071,16 @@ jobs:
           ref: ${{ inputs.mimalloc_revision }}
           path: ${{ github.workspace }}/SourceCache/mimalloc
 
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-package_tools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure mimalloc
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -5235,7 +6100,7 @@ jobs:
           cxx-compiler: 'Host.CXX'
           use-msvc-host-toolchain: true
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'CMAKE_CXX_FLAGS' = @("${{ matrix.arch == 'arm64' && '/arch:armv8.1' || '/arch:AVX2' }}");
               'MI_BUILD_OBJECT' = "NO";
               'MI_BUILD_SHARED' = "YES";
@@ -5243,6 +6108,11 @@ jobs:
               'MI_BUILD_TESTS' = "NO";
               'MI_NO_OPT_ARCH' = "YES";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+            }
+            $ProjectDefines
 
       - name: Build and install mimalloc
         run: |
@@ -5931,6 +6801,16 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-package_tools-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
 
   package_windows_platform:
     name: Package Windows SDK & Runtime
@@ -7861,6 +8741,17 @@ jobs:
           Write-Output $Context | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       # build.ps1: Test-Compilers, with Get-CompilersDefines with -Test TestSwift
+      - name: Restore CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: restore
+          toolchain-bin: ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ inputs.swift_version }}+Asserts/usr/bin
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-swift_test-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
+
       - name: Configure Compilers for testing
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -7881,7 +8772,7 @@ jobs:
           swift-compiler: 'Stage1.Swift'
           cache-script: ${{ github.workspace }}/SourceCache/swift/cmake/caches/${{ matrix.os }}-${{ matrix.cpu }}.cmake
           cmake-defines: |
-            @{
+            $ProjectDefines = @{
               'SWIFT_BUILD_DYNAMIC_SDK_OVERLAY' = "YES";
               'SWIFT_BUILD_DYNAMIC_STDLIB' = "YES";
               'SWIFT_BUILD_LIBEXEC' = "YES";
@@ -7944,6 +8835,14 @@ jobs:
               'CMAKE_CXX_FLAGS' = "${{ !inputs.use_host_toolchain && '-fuse-ld=lld' || '' }}";
               'CMAKE_Swift_FLAGS' = "${{ !inputs.use_host_toolchain && '-use-ld=lld' || '' }}";
             }
+            if ("${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}" -eq "true") {
+              $ProjectDefines['CMAKE_C_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_CXX_COMPILER_LAUNCHER'] = $env:CAS_CLANG_CACHE
+              $ProjectDefines['CMAKE_Swift_FLAGS'] = @($ProjectDefines['CMAKE_Swift_FLAGS'] | Where-Object { $null -ne $_ }) + @(
+                '-explicit-module-build', '-cache-compile-job', '-cas-path', $env:LLVM_CACHE_CAS_PATH, '-incremental-dependency-scan'
+              )
+            }
+            $ProjectDefines
 
       - name: Test Compiler
         run: |
@@ -8074,3 +8973,13 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-test-stdlib
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target SwiftCompilerPlugin
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
+
+      - name: Save CAS
+        if: ${{ env.ENABLE_CAS == 'true' && matrix.os == 'Windows' }}
+        uses: ./SourceCache/ci-build/.github/actions/cas
+        with:
+          operation: save
+          cache-key: ${{ inputs.build_os }}-${{ inputs.build_arch }}-swift_test-${{ matrix.os }}-${{ matrix.arch }}
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          aws-region: ${{ vars.SCCACHE_AWS_REGION }}
+          aws-arn: ${{ vars.SCCACHE_AWS_ARN }}

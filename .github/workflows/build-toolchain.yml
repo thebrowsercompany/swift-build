@@ -61,6 +61,12 @@ on:
         default: true
         required: false
 
+      enable_cas:
+        description: 'Enable compiler CAS (requires use_host_toolchain=false)'
+        type: boolean
+        default: false
+        required: false
+
   workflow_call:
     inputs:
       # Source/Repository Configuration
@@ -255,6 +261,11 @@ jobs:
       windows_x64_compilers_matrix: ${{ steps.setup-matrix.outputs.windows_x64_compilers_matrix }}
       windows_x64_target_matrix: ${{ steps.setup-matrix.outputs.windows_x64_target_matrix }}
     steps:
+      - name: Validate CAS options
+        if: github.event_name == 'workflow_dispatch' && inputs.enable_cas && inputs.use_host_toolchain
+        run: |
+          echo '::error::enable_cas requires use_host_toolchain=false'
+          exit 1
       - id: context
         name: Generate Build Context
         env:
@@ -687,6 +698,7 @@ jobs:
       python_version: ${{ needs.context.outputs.python_version }}
       python_download_locations: ${{ needs.context.outputs.python_download_locations }}
       use_host_toolchain: ${{ inputs.use_host_toolchain }}
+      enable_cas: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_cas }}
     secrets:
       SYMBOL_SERVER_PAT: ${{ secrets.SYMBOL_SERVER_PAT }}
       CERTIFICATE: ${{ secrets.CERTIFICATE }}
