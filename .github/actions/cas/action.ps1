@@ -34,6 +34,8 @@ try {
             if ($Message -notmatch '\b404\b|NoSuchKey|Not Found') {
                 throw "CAS lookup failed: $Message"
             }
+            # The Actions PowerShell wrapper propagates LASTEXITCODE even for a handled miss.
+            $global:LASTEXITCODE = 0
             New-Item -ItemType Directory -Path $CasPath | Out-Null
             $Report.status = 'miss'
             Write-Host "CAS miss: $Uri"
