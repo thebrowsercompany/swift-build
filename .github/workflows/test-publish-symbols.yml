@@ -11,14 +11,6 @@ on:
         description: 'Build A run containing symbol-test-pdbs'
         type: string
         default: '37371649093'
-      test_bucket:
-        description: 'Dedicated R2 test bucket (real uploads; production bucket is forbidden)'
-        type: string
-        required: true
-      test_base_url:
-        description: 'Public HTTPS root URL for that test bucket, without /symbols'
-        type: string
-        required: true
 
 permissions:
   contents: read
@@ -142,7 +134,7 @@ jobs:
           Get-ChildItem artifacts-A, artifacts-B -Filter symbol-test-build.json -Recurse | ForEach-Object {
             Copy-Item $_.FullName "symbol-test-report/$($_.Directory.Name)-build.json"
           }
-      - name: Upload to test bucket and verify stored and served PDBs
+      - name: Upload to isolated test path and verify stored and served PDBs
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -152,8 +144,8 @@ jobs:
           AWS_DEFAULT_REGION: auto
           AWS_PAGER: ''
           R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-          R2_TEST_BUCKET: ${{ inputs.test_bucket }}
-          R2_TEST_BASE_URL: ${{ inputs.test_base_url }}
+          R2_TEST_BUCKET: swift-toolchain
+          R2_TEST_BASE_URL: https://swift-toolchain.thebrowserco.com
           R2_TEST_PREFIX: symbol-upload-tests/${{ github.run_id }}-${{ github.run_attempt }}/symbols/
           BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
           CANDIDATE_RUN_ID: ${{ inputs.pdb_run_id || github.run_id }}

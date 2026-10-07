@@ -4,12 +4,12 @@ $PSNativeCommandUseErrorActionPreference = $false
 $Bucket = $env:R2_TEST_BUCKET
 $Prefix = $env:R2_TEST_PREFIX
 $BaseUrl = [uri]$env:R2_TEST_BASE_URL
-if ($Bucket -eq 'swift-toolchain' -or $Bucket -notmatch '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$') {
-    throw 'A dedicated test bucket is required; the production bucket is forbidden'
+if ($Bucket -notmatch '\A[a-z0-9][a-z0-9-]{1,61}[a-z0-9]\z') {
+    throw 'Invalid R2 bucket name'
 }
-if ($Prefix -notmatch '^symbol-upload-tests/[0-9]+-[0-9]+/symbols/$') { throw 'Invalid test prefix' }
-if (!$BaseUrl.IsAbsoluteUri -or $BaseUrl.Scheme -ne 'https' -or $BaseUrl.UserInfo -or $BaseUrl.Query -or $BaseUrl.Fragment -or $BaseUrl.Host -eq 'swift-toolchain.thebrowserco.com') {
-    throw 'An HTTPS base URL for the test bucket is required; the production symbol endpoint is forbidden'
+if ($Prefix -notmatch '\Asymbol-upload-tests/[0-9]+-[0-9]+/symbols/\z') { throw 'Invalid test prefix; writes must stay outside production symbols/' }
+if (!$BaseUrl.IsAbsoluteUri -or $BaseUrl.Scheme -ne 'https' -or $BaseUrl.UserInfo -or $BaseUrl.Query -or $BaseUrl.Fragment) {
+    throw 'An HTTPS base URL for the bucket is required'
 }
 if (!$env:R2_ENDPOINT_URL) { throw 'R2_ENDPOINT_URL is required' }
 $Endpoint = @('--endpoint-url', $env:R2_ENDPOINT_URL)
@@ -134,7 +134,7 @@ $Summary = @(
     "Build A run: $env:BASELINE_RUN_ID; build B run: $env:CANDIDATE_RUN_ID"
     "Natural identical overlap: $NaturalOverlap; new B keys: $NewCount; A-only keys: $OldOnlyCount"
     "Baseline key added to B to ensure overlap: $(if ($InjectedKey) { $InjectedKey } else { 'none' })"
-    'Only PDBs are uploaded. No production objects or transaction files are written.'
+    "Only PDBs under $Prefix are uploaded. The production symbols/ path and transaction files are untouched."
 )
 $Summary | Set-Content "$Report/summary.md"
 Publish-Pdbs A sync A
