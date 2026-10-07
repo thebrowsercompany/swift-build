@@ -332,6 +332,85 @@ permissions:
   attestations: write
 
 jobs:
+  windows_signing_context:
+    name: Windows Signing Context
+    if: inputs.build_os == 'Windows'
+    runs-on: ${{ inputs.default_build_runner }}
+    outputs:
+      public_key_token: ${{ steps.identity.outputs.public_key_token }}
+      certificate_thumbprint: ${{ steps.identity.outputs.certificate_thumbprint }}
+
+    steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: inputs.signed
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - uses: actions/checkout@v4.2.2
+        if: inputs.signed
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        if: inputs.signed
+        with:
+          setup-vs-dev-env: true
+
+      - uses: azure/login@v2
+        if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+
+      - name: Resolve Windows SxS public key token
+        id: identity
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
+          CERTIFICATE: ${{ secrets.CERTIFICATE }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
+            "public_key_token=0000000000000000" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "certificate_thumbprint=" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            exit 0
+          }
+
+          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
+          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
+            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
+            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
+            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
+          } else {
+            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              [Convert]::FromBase64String($env:CERTIFICATE),
+              $env:PASSPHRASE,
+              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+            )
+            [IO.File]::WriteAllBytes(
+              $CertificatePath,
+              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+            )
+          }
+
+          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
+          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
+          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
+
+          $PublicCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($CertificatePath)
+          Write-Host "Using signing certificate publicKeyToken '$Token'."
+          "public_key_token=$Token" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "certificate_thumbprint=$($PublicCertificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
   bootstrap-sqlite:
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -5015,9 +5094,11 @@ jobs:
 
   package_build_tools_asserts:
     if: inputs.build_os == 'Windows'
-    needs: [stage2-compiler, macros, devtools]
+    needs: [windows_signing_context, stage2-compiler, macros, devtools]
     name: Package Build Tools (Asserts) (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      WINDOWS_SXS_PUBLIC_KEY_TOKEN: ${{ needs.windows_signing_context.outputs.public_key_token }}
 
     strategy:
       fail-fast: false
@@ -5090,43 +5171,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
-
-      - name: Resolve Windows SxS public key token
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
-        run: |
-          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
-            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          }
-
-          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
-          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
-            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
-            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
-          } else {
-            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-              $env:CERTIFICATE,
-              $env:PASSPHRASE,
-              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
-            )
-            [IO.File]::WriteAllBytes(
-              $CertificatePath,
-              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
-            )
-          }
-
-          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
-          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
-
-          Write-Host "Using signing certificate publicKeyToken '$Token'."
-          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install WixToolset.Sdk
         run: |
@@ -5372,9 +5416,11 @@ jobs:
 
   package_build_tools_noasserts:
     if: inputs.build_os == 'Windows'
-    needs: [stage2-compiler, macros, devtools]
+    needs: [windows_signing_context, stage2-compiler, macros, devtools]
     name: Package Build Tools (NoAsserts) (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      WINDOWS_SXS_PUBLIC_KEY_TOKEN: ${{ needs.windows_signing_context.outputs.public_key_token }}
 
     strategy:
       fail-fast: false
@@ -5447,43 +5493,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
-
-      - name: Resolve Windows SxS public key token
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
-        run: |
-          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
-            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          }
-
-          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
-          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
-            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
-            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
-          } else {
-            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-              $env:CERTIFICATE,
-              $env:PASSPHRASE,
-              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
-            )
-            [IO.File]::WriteAllBytes(
-              $CertificatePath,
-              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
-            )
-          }
-
-          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
-          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
-
-          Write-Host "Using signing certificate publicKeyToken '$Token'."
-          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install WixToolset.Sdk
         run: |
@@ -5753,9 +5762,11 @@ jobs:
 
   package_developer_tools:
     if: inputs.build_os == 'Windows'
-    needs: [stage2-compiler, devtools]
+    needs: [windows_signing_context, stage2-compiler, devtools]
     name: Package Developer Tools (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      WINDOWS_SXS_PUBLIC_KEY_TOKEN: ${{ needs.windows_signing_context.outputs.public_key_token }}
 
     strategy:
       fail-fast: false
@@ -5830,43 +5841,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
-
-      - name: Resolve Windows SxS public key token
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
-        run: |
-          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
-            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          }
-
-          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
-          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
-            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
-            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
-          } else {
-            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-              $env:CERTIFICATE,
-              $env:PASSPHRASE,
-              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
-            )
-            [IO.File]::WriteAllBytes(
-              $CertificatePath,
-              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
-            )
-          }
-
-          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
-          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
-
-          Write-Host "Using signing certificate publicKeyToken '$Token'."
-          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install WixToolset.Sdk
         run: |
@@ -6154,9 +6128,11 @@ jobs:
 
   package_debugging_tools:
     if: inputs.build_os == 'Windows'
-    needs: [stage2-compiler, debugging_tools]
+    needs: [windows_signing_context, stage2-compiler, debugging_tools]
     name: Package Debugging Tools (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      WINDOWS_SXS_PUBLIC_KEY_TOKEN: ${{ needs.windows_signing_context.outputs.public_key_token }}
 
     strategy:
       fail-fast: false
@@ -6224,43 +6200,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
-
-      - name: Resolve Windows SxS public key token
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
-        run: |
-          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
-            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          }
-
-          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
-          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
-            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
-            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
-          } else {
-            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-              $env:CERTIFICATE,
-              $env:PASSPHRASE,
-              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
-            )
-            [IO.File]::WriteAllBytes(
-              $CertificatePath,
-              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
-            )
-          }
-
-          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
-          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
-
-          Write-Host "Using signing certificate publicKeyToken '$Token'."
-          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install WixToolset.Sdk
         run: |
@@ -6480,9 +6419,12 @@ jobs:
 
   package_runtimes:
     if: inputs.build_os == 'Windows'
-    needs: [sdk]
+    needs: [windows_signing_context, sdk]
     name: Package Runtimes (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      WINDOWS_SXS_PUBLIC_KEY_TOKEN: ${{ needs.windows_signing_context.outputs.public_key_token }}
+      WINDOWS_SXS_CERTIFICATE_THUMBPRINT: ${{ needs.windows_signing_context.outputs.certificate_thumbprint }}
 
     strategy:
       fail-fast: false
@@ -6549,43 +6491,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
-
-      - name: Resolve Windows SxS public key token
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
-        run: |
-          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
-            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          }
-
-          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
-          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
-            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
-            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
-          } else {
-            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-              $env:CERTIFICATE,
-              $env:PASSPHRASE,
-              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
-            )
-            [IO.File]::WriteAllBytes(
-              $CertificatePath,
-              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
-            )
-          }
-
-          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
-          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
-
-          Write-Host "Using signing certificate publicKeyToken '$Token'."
-          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install WixToolset.Sdk
         run: |
@@ -6819,9 +6724,8 @@ jobs:
             throw "Unexpected runtime catalogs: $($UnexpectedCatalogs.FullName -join ', ')"
           }
 
-          $ExpectedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-            $env:WINDOWS_SXS_CERTIFICATE_PATH
-          )
+          $ExpectedCertificateThumbprint = $env:WINDOWS_SXS_CERTIFICATE_THUMBPRINT
+          if (-not $ExpectedCertificateThumbprint) { throw "WINDOWS_SXS_CERTIFICATE_THUMBPRINT is not set." }
           $ExpectedToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
           $VersionParts = @([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.'))
           while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
@@ -6838,7 +6742,7 @@ jobs:
             if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
               throw "'$($Catalog.FullName)' has an invalid signature: $($Signature.StatusMessage)"
             }
-            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificate.Thumbprint) {
+            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificateThumbprint) {
               throw "'$($Catalog.FullName)' was signed by an unexpected certificate."
             }
 
@@ -6904,8 +6808,11 @@ jobs:
 
   package_windows_platform:
     name: Package Windows SDK & Runtime
-    needs: [sdk]
+    needs: [windows_signing_context, sdk]
     runs-on: ${{ inputs.default_build_runner }}
+    env:
+      WINDOWS_SXS_PUBLIC_KEY_TOKEN: ${{ needs.windows_signing_context.outputs.public_key_token }}
+      WINDOWS_SXS_CERTIFICATE_THUMBPRINT: ${{ needs.windows_signing_context.outputs.certificate_thumbprint }}
     outputs:
       expected-dlls-amd64: ${{ steps.write-expectations.outputs.expected-dlls-amd64 }}
       expected-dlls-arm64: ${{ steps.write-expectations.outputs.expected-dlls-arm64 }}
@@ -7118,43 +7025,6 @@ jobs:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
 
-      - name: Resolve Windows SxS public key token
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
-        run: |
-          if (-not [System.Convert]::ToBoolean("${{ inputs.signed }}")) {
-            "WINDOWS_SXS_PUBLIC_KEY_TOKEN=0000000000000000" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          }
-
-          $CertificatePath = Join-Path $env:RUNNER_TEMP "sxs-signing-certificate.cer"
-          if ("${{ steps.signing_mode.outputs.azure_vault }}" -eq "true") {
-            $CertificateID = "$($env:AZURE_KEY_VAULT_URI.TrimEnd('/'))/certificates/$($env:AZURE_KEY_VAULT_CERTIFICATE_NAME)"
-            az keyvault certificate download --id $CertificateID --file $CertificatePath --encoding DER --only-show-errors
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the public signing certificate from Azure Key Vault." }
-          } else {
-            $Certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-              $env:CERTIFICATE,
-              $env:PASSPHRASE,
-              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
-            )
-            [IO.File]::WriteAllBytes(
-              $CertificatePath,
-              $Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert)
-            )
-          }
-
-          $TokenOutput = & pktextract.exe $CertificatePath 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "pktextract failed: $($TokenOutput -join "`n")" }
-          $Token = [regex]::Match(($TokenOutput -join "`n"), '(?im)\b[0-9a-f]{16}\b').Value.ToLower()
-          if (-not $Token) { throw "Could not extract a publicKeyToken from the signing certificate." }
-
-          Write-Host "Using signing certificate publicKeyToken '$Token'."
-          "WINDOWS_SXS_PUBLIC_KEY_TOKEN=$Token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "WINDOWS_SXS_CERTIFICATE_PATH=$CertificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Install WixToolset.Sdk
         run: |
           if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
@@ -7275,9 +7145,8 @@ jobs:
             throw "Unexpected runtime catalogs: $($UnexpectedCatalogs.FullName -join ', ')"
           }
 
-          $ExpectedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-            $env:WINDOWS_SXS_CERTIFICATE_PATH
-          )
+          $ExpectedCertificateThumbprint = $env:WINDOWS_SXS_CERTIFICATE_THUMBPRINT
+          if (-not $ExpectedCertificateThumbprint) { throw "WINDOWS_SXS_CERTIFICATE_THUMBPRINT is not set." }
           $ExpectedToken = $env:WINDOWS_SXS_PUBLIC_KEY_TOKEN
           $VersionParts = @([regex]::Replace("${{ inputs.swift_version }}", "[-+].*", "").Split('.'))
           while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
@@ -7293,7 +7162,7 @@ jobs:
             if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
               throw "'$($Catalog.FullName)' has an invalid signature: $($Signature.StatusMessage)"
             }
-            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificate.Thumbprint) {
+            if ($Signature.SignerCertificate.Thumbprint -ne $ExpectedCertificateThumbprint) {
               throw "'$($Catalog.FullName)' was signed by an unexpected certificate."
             }
 
