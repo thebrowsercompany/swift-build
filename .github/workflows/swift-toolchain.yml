@@ -3893,10 +3893,19 @@ jobs:
           $Pdbs | ForEach-Object { [IO.Path]::GetRelativePath((Resolve-Path BinaryCache).Path, $_.FullName).Replace('\', '/') } | Set-Content "$env:RUNNER_TEMP/pdb-files.txt"
           & "$env:WINDIR/System32/tar.exe" cf symbol-test-pdbs.tar -C BinaryCache -T "$env:RUNNER_TEMP/pdb-files.txt"
           if ($LASTEXITCODE) { throw 'PDB archive failed' }
+          $Revisions = [ordered]@{}
+          Get-ChildItem SourceCache -Directory | Where-Object { Test-Path (Join-Path $_.FullName '.git') } | ForEach-Object {
+            $Revision = git -C $_.FullName rev-parse HEAD
+            if ($LASTEXITCODE) { throw "Could not read revision for $($_.Name)" }
+            $Revisions[$_.Name] = $Revision
+          }
+          $Revisions | ConvertTo-Json | Set-Content symbol-test-build.json
       - uses: actions/upload-artifact@v4
         with:
           name: symbol-test-pdbs
-          path: symbol-test-pdbs.tar
+          path: |
+            symbol-test-pdbs.tar
+            symbol-test-build.json
           compression-level: 0
           if-no-files-found: error
           retention-days: 30

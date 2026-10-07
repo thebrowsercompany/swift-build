@@ -1,12 +1,24 @@
-name: Test R2 Symbol Upload
+name: Test R2 PDB Preservation
 
 on:
   workflow_dispatch:
     inputs:
       pdb_run_id:
-        description: 'Reuse symbol-test-pdbs from a previous test run; leave empty to build'
+        description: 'Reuse build B symbol-test-pdbs; leave empty to build the newer source snapshot'
         type: string
         default: ''
+      baseline_run_id:
+        description: 'Build A run containing symbol-test-pdbs'
+        type: string
+        default: '37371649093'
+      test_bucket:
+        description: 'Dedicated R2 test bucket (real uploads; production bucket is forbidden)'
+        type: string
+        required: true
+      test_base_url:
+        description: 'Public HTTPS root URL for that test bucket, without /symbols'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -19,7 +31,8 @@ jobs:
     if: inputs.pdb_run_id == ''
     uses: ./.github/workflows/swift-toolchain.yml
     secrets: inherit
-    # Inputs from run 35937079538; only the existing Windows amd64 static SDK job runs.
+    # Build B sources: stable.xml at main e61f38a3ff0a4982dd8c5369d09052a1022494ad.
+    # Reuse the compiler and prerequisite artifacts from run 35937079538.
     with:
       build_os: "Windows"
       build_arch: "amd64"
@@ -33,7 +46,7 @@ jobs:
       indexstore_db_revision: "441ead7772cc391e2a0cc8318292bc4aaa8c3a6d"
       libxml2_revision: "2b998a4ffbdfea04fc6a620721abc690a15743af"
       libxml2_version: "2.11.5"
-      llvm_project_revision: "c4ee86439ffc5ae7d7c0981c297ba5498861fe41"
+      llvm_project_revision: "6ccec847d81b6c153eb2b45c148a24e441eb98b8"
       mimalloc_revision: "18b08671c9302247bfb682286e6bf3cc1773f801"
       sourcekit_lsp_revision: "3ae5062da6e1522090b50c4d09b4ef6e2987cfa5"
       swift_argument_parser_revision: "6a52f3251125d74daf04fcbd5e6f08a75d074382"
@@ -44,28 +57,28 @@ jobs:
       swift_cmark_revision: "0c8947bbd58c491c54aae114aca40621cddc8357"
       swift_cmark_version: "0.29.0.gfm.13"
       swift_collections_revision: "c11818f3cae0780656baa430b49e7f163f08dffd"
-      swift_corelibs_foundation_revision: "bd50c2ea233ecc9de1b404d81a8d2186a3b0b332"
-      swift_corelibs_libdispatch_revision: "8a2c456a010d995cfa6a9efada08ea40be46b056"
+      swift_corelibs_foundation_revision: "44cd6163efc4d12bef854bed34bf17cda65747d4"
+      swift_corelibs_libdispatch_revision: "62d7ef9d2cd67d6e7138927847b97fd8edc58b32"
       swift_corelibs_xctest_revision: "80a3f9545d26c43d50ed1e0f377504ae00e759d2"
       swift_crypto_revision: "d79c573e1b400d670ed12c0cb29d33f2c0f5ab70"
       swift_docc_render_artifact_revision: "7546141b16075cdf83a22aff35d60504baae30f8"
       swift_docc_revision: "ada32e135934e0ccbbd6ce5accb8db7c3fe65f9c"
       swift_docc_symbolkit_revision: "e9a4c0f2ddad22ec3e7d1dc8d49061b5bd8a42ea"
       swift_driver_revision: "22e61338191eccac5e4e8aba2a0a7a1da67efc7f"
-      swift_experimental_string_processing_revision: "db4678c731724222a8d379f55de3afb91cddaf68"
+      swift_experimental_string_processing_revision: "a6ac4f725d0a28e8fa01ed2a2f23b97add65b776"
       swift_format_revision: "b15dd59fad21f1770cdc888b1ca6e2937490001a"
-      swift_foundation_revision: "b898bbce74a46ce590791e0a4e3ff181a8b8af25"
+      swift_foundation_revision: "a211bea22b6fa5b041c37592aaf50c7b3db5c354"
       swift_foundation_icu_revision: "e8538d259340dd5b8c261f539f2693d094fe2dac"
       swift_installer_scripts_revision: "ff9989c3ab01ac010521fcf484fffdf71bd8f2f1"
       swift_llbuild_revision: "54a6aca58deb943cc443650482545c58687f5378"
       swift_lmdb_revision: "866bc2563f360a7d84f0e87feb27df23c8958537"
       swift_markdown_revision: "75e3df1d7b664ef3c96595de36c243b98599b3bc"
       swift_package_manager_revision: "1263a5f603ac135ea00d1c74a35fa5144cd2b46a"
-      swift_revision: "be45d2d41169b644c282273f8ab828495abef319"
+      swift_revision: "56d55dd3f8526026aac0932cb1259db32a964156"
       swift_subprocess_revision: "11633673a41f509f8945f23c96c7acd4adafd679"
       swift_syntax_revision: "e9289aa448b50d48e91832efd6e539f01b9e6f92"
       swift_system_revision: "61e4ca4b81b9e09e2ec863b00c340eb13497dac6"
-      swift_testing_revision: "a866d2b21be6b29c48f32a0e3ef067008f1c80fa"
+      swift_testing_revision: "b5c410c06b1d1bf31b4d1baa27416b67fac2ab61"
       swift_toolchain_sarif_revision: "9d70de4a3a077b7bf4db18da1ec9884da83d32b1"
       swift_toolchain_sqlite_revision: "c0ecc1e0fd1b4fbc38db1efa6113bc12c2a4e559"
       swift_toolchain_sqlite_version: "3.46.0"
@@ -83,7 +96,7 @@ jobs:
       release: false
       signed: false
       swift_version: "0.0.0"
-      swift_tag: "20260924.0"
+      swift_tag: "20261005.2"
       default_build_runner: "swift-build-windows-latest-8-cores"
       compilers_build_runner: "swift-build-windows-latest-64-cores"
       build_android: false
@@ -101,17 +114,35 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4.2.2
-      - uses: actions/download-artifact@v4
+      - name: Download baseline PDBs
+        uses: actions/download-artifact@v4
+        with:
+          name: symbol-test-pdbs
+          run-id: ${{ inputs.baseline_run_id }}
+          github-token: ${{ github.token }}
+          path: artifacts-A
+      - name: Download candidate PDBs
+        uses: actions/download-artifact@v4
         with:
           name: symbol-test-pdbs
           run-id: ${{ inputs.pdb_run_id || github.run_id }}
           github-token: ${{ github.token }}
+          path: artifacts-B
       - name: Extract PDBs with their original timestamps
         run: |
-          New-Item -ItemType Directory pdbs | Out-Null
-          tar xf symbol-test-pdbs.tar -C pdbs
-          if ($LASTEXITCODE) { throw 'PDB extraction failed' }
-      - name: Compare R2 uploads without writing
+          foreach ($Build in @('A', 'B')) {
+            New-Item -ItemType Directory "pdbs-$Build" | Out-Null
+            tar xf "artifacts-$Build/symbol-test-pdbs.tar" -C "pdbs-$Build"
+            if ($LASTEXITCODE) { throw "PDB extraction failed for $Build" }
+          }
+      - name: Preserve build provenance
+        run: |
+          New-Item -ItemType Directory -Force symbol-test-report | Out-Null
+          Copy-Item .github/workflows/test-publish-symbols.yml symbol-test-report/workflow.yml
+          Get-ChildItem artifacts-A, artifacts-B -Filter symbol-test-build.json -Recurse | ForEach-Object {
+            Copy-Item $_.FullName "symbol-test-report/$($_.Directory.Name)-build.json"
+          }
+      - name: Upload to test bucket and verify stored and served PDBs
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -121,8 +152,12 @@ jobs:
           AWS_DEFAULT_REGION: auto
           AWS_PAGER: ''
           R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-          R2_BUCKET: swift-toolchain
-        run: ./.github/scripts/test-r2-symbol-upload.ps1
+          R2_TEST_BUCKET: ${{ inputs.test_bucket }}
+          R2_TEST_BASE_URL: ${{ inputs.test_base_url }}
+          R2_TEST_PREFIX: symbol-upload-tests/${{ github.run_id }}-${{ github.run_attempt }}/symbols/
+          BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
+          CANDIDATE_RUN_ID: ${{ inputs.pdb_run_id || github.run_id }}
+        run: ./.github/scripts/test-r2-symbol-roundtrip.ps1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
