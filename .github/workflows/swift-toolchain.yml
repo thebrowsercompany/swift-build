@@ -18,6 +18,7 @@ description: |
   comments to explain the differences between the GHA build and the `build.ps1`
   script.
 
+# Temporary build-tools replay harness for speednoisemovement/package_split.
 on:
   workflow_call:
     inputs:
@@ -320,6 +321,9 @@ on:
         required: false
 
 env:
+  PACKAGE_SOURCE_REPOSITORY: thebrowsercompany/swift-build
+  PACKAGE_SOURCE_RUN: '37306923447'
+  PACKAGE_BASELINE_RUN: '37470540240'
   PINNED_BOOTSTRAP_TOOLCHAIN_VERSION: 6.4.x-DEVELOPMENT-SNAPSHOT-2026-08-01-a
   CMAKE_VERSION: 4.4.1
 
@@ -328,11 +332,84 @@ defaults:
     shell: pwsh
 
 permissions:
+  actions: read
+  contents: read
   id-token: write
   attestations: write
 
 jobs:
+  package_replay_preflight:
+    name: Check build-tools replay inputs
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/speednoisemovement/package_split'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify pinned context and source artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_OS: ${{ inputs.build_os }}
+          BUILD_ARCH: ${{ inputs.build_arch }}
+          SWIFT_VERSION: ${{ inputs.swift_version }}
+          SIGNED: ${{ inputs.signed }}
+          DEBUG_INFO: ${{ inputs.debug_info }}
+          RELEASE: ${{ inputs.release }}
+          CI_REVISION: ${{ inputs.ci_build_revision }}
+          INSTALLER_REVISION: ${{ inputs.swift_installer_scripts_revision }}
+          MIMALLOC_REVISION: ${{ inputs.mimalloc_revision }}
+          HOST_MATRIX: ${{ inputs.host_matrix }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          repository = os.environ['PACKAGE_SOURCE_REPOSITORY']
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+
+          expected = {
+              'BUILD_OS': 'Windows', 'BUILD_ARCH': 'amd64', 'SWIFT_VERSION': '0.0.0',
+              'SIGNED': 'true', 'DEBUG_INFO': 'true', 'RELEASE': 'false',
+              'CI_REVISION': '6cc700163321a30047b7856d05d7a34a2974057d',
+              'INSTALLER_REVISION': '3861498ff3fd2856147597083f7f1f51349be323',
+              'MIMALLOC_REVISION': '18b08671c9302247bfb682286e6bf3cc1773f801',
+          }
+          for key, value in expected.items():
+              if os.environ[key] != value:
+                  raise SystemExit(f'{key}: expected {value}, got {os.environ[key]}')
+          hosts = json.loads(os.environ['HOST_MATRIX'])['include']
+          if len(hosts) != 2 or {(host['os'], host['arch']) for host in hosts} != {('Windows', 'amd64'), ('Windows', 'arm64')}:
+              raise SystemExit('Expected exactly AMD64 and ARM64 Windows hosts')
+
+          source_names = [f'Windows-{arch}-{kind}' for arch in ('amd64', 'arm64')
+                          for kind in ('Asserts-compilers', 'NoAsserts-compilers', 'devtools', 'macros')]
+          baseline_names = [f'Windows-{arch}-bld-{variant}-msi' for arch in ('amd64', 'arm64')
+                            for variant in ('asserts', 'noasserts')]
+          for run_id, expected_sha, names in [
+              (os.environ['PACKAGE_SOURCE_RUN'], 'b9dd679aa801d45e5f28d020d51691c11433590e', source_names),
+              (os.environ['PACKAGE_BASELINE_RUN'], '5a7a619b03be67be9562abfbe86ae17619721e2d', baseline_names),
+          ]:
+              run = api(f'repos/{repository}/actions/runs/{run_id}')
+              if run['status'] != 'completed' or run['conclusion'] != 'success' or run['head_sha'] != expected_sha or run['run_attempt'] != 1:
+                  raise SystemExit(f'Unexpected source run state: {run_id}')
+              pages = json.loads(subprocess.check_output([
+                  'gh', 'api', '--paginate', '--slurp',
+                  f'repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100',
+              ], text=True))
+              artifacts = [artifact for page in pages for artifact in page['artifacts']]
+              for name in names:
+                  matches = [artifact for artifact in artifacts if artifact['name'] == name]
+                  if len(matches) != 1 or matches[0]['expired']:
+                      raise SystemExit(f'Missing, expired or ambiguous artifact in run {run_id}: {name}')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write(f'Run [{run_id}]({run["html_url"]}): {len(names)} required artifacts available.\n')
+              print(f'Run {run_id}: {len(names)} artifacts verified')
+          PY
+
   windows_signing_context:
+    needs: [package_replay_preflight]
+    timeout-minutes: 15
     name: Windows Signing Context
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
@@ -411,6 +488,7 @@ jobs:
           "certificate_thumbprint=$($PublicCertificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
   bootstrap-sqlite:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -494,6 +572,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   bootstrap-libxml2:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -614,6 +693,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-libxml2-${{ inputs.libxml2_version }}/usr
 
   sqlite:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -702,6 +782,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     name: ds2 Build Tools
@@ -790,6 +871,7 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
   ds2:
+    if: ${{ false }}
     needs: [ds2_tools, stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -927,6 +1009,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1010,6 +1093,7 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
   build_tools:
+    if: ${{ false }}
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1168,6 +1252,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
+    if: ${{ false }}
     runs-on: ${{ inputs.default_build_runner }}
     needs: [bootstrap-sqlite]
 
@@ -1317,6 +1402,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot
 
   stage1-compiler:
+    if: ${{ false }}
     needs: [bootstrap-libxml2, cmark_gfm, build_tools, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
@@ -1566,6 +1652,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
 
   bootstrap-macros:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1679,6 +1766,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bootstrap/Library
 
   stage2-libxml2:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -1782,6 +1870,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/stage2-libxml2-${{ inputs.libxml2_version }}/usr
 
   stage2-compiler:
+    if: ${{ false }}
     needs: [stage1-compiler, sdk, stage2-libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
@@ -2143,6 +2232,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   compiler-runtime:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2311,6 +2401,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   zlib:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2411,6 +2502,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   brotli:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2510,6 +2602,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
+    if: ${{ false }}
     needs: [stage1-compiler, zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2708,6 +2801,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
+    if: ${{ false }}
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2817,7 +2911,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   macros:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [stage2-compiler, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2982,6 +3076,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   sdk:
+    if: ${{ false }}
     needs: [stage1-compiler, bootstrap-macros, zlib, brotli, curl, libxml2]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -3980,7 +4075,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   devtools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [sqlite, stage2-compiler, macros, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4913,7 +5008,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   debugging_tools:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [stage1-compiler, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -5092,9 +5187,10 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_build_tools:
-    needs: [windows_signing_context, stage2-compiler, macros, devtools]
+    needs: [windows_signing_context]
     name: Package Build Tools (${{ matrix.variant.name }}) (${{ matrix.host.arch }})
     runs-on: ${{ inputs.default_build_runner }}
+    timeout-minutes: 90
     env:
       WINDOWS_SXS_PUBLIC_KEY_TOKEN: ${{ needs.windows_signing_context.outputs.public_key_token }}
 
@@ -5139,22 +5235,67 @@ jobs:
           cmakeVersion: ${{ env.CMAKE_VERSION }}
 
       - name: Download Compilers (${{ matrix.variant.name }})
-        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        uses: actions/download-artifact@v4
         with:
+          repository: ${{ env.PACKAGE_SOURCE_REPOSITORY }}
+          run-id: ${{ env.PACKAGE_SOURCE_RUN }}
+          github-token: ${{ github.token }}
           name: Windows-${{ matrix.host.arch }}-${{ matrix.variant.name }}-compilers
-          path: ${{ github.workspace }}/BuildRoot/Library
+          path: ${{ runner.temp }}/packaging-compilers
+
+      - name: Extract compiler archive
+        run: |
+          $Archive = "${{ runner.temp }}/packaging-compilers/Windows-${{ matrix.host.arch }}-${{ matrix.variant.name }}-compilers.tar"
+          $Destination = "${{ github.workspace }}/BuildRoot/Library"
+          New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+          & "$env:WINDIR\System32\tar.exe" xf $Archive -C $Destination
+          if ($LASTEXITCODE -ne 0) { throw "Could not extract $Archive" }
+          Remove-Item -LiteralPath $Archive
 
       - name: Download Developer Tools
         uses: actions/download-artifact@v4
         with:
+          repository: ${{ env.PACKAGE_SOURCE_REPOSITORY }}
+          run-id: ${{ env.PACKAGE_SOURCE_RUN }}
+          github-token: ${{ github.token }}
           name: Windows-${{ matrix.host.arch }}-devtools
           path: ${{ github.workspace }}/BuildRoot/Library
 
       - name: Download Macros
         uses: actions/download-artifact@v4
         with:
+          repository: ${{ env.PACKAGE_SOURCE_REPOSITORY }}
+          run-id: ${{ env.PACKAGE_SOURCE_RUN }}
+          github-token: ${{ github.token }}
           name: Windows-${{ matrix.host.arch }}-macros
           path: ${{ github.workspace }}/MacroStaging
+
+      - name: Record expected toolchain layout
+        run: |
+          function Get-Inventory([string] $Root) {
+            if (-not (Test-Path -LiteralPath $Root -PathType Container)) { throw "Missing payload directory: $Root" }
+            $Files = @{}
+            foreach ($File in Get-ChildItem -LiteralPath $Root -File -Recurse) {
+              $Relative = [IO.Path]::GetRelativePath($Root, $File.FullName).Replace('\', '/')
+              $Files[$Relative] = (Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256).Hash
+            }
+            return $Files
+          }
+
+          $Root = "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains"
+          $Expected = Get-Inventory "$Root/${{ inputs.swift_version }}+${{ matrix.variant.name }}"
+          $Shared = Get-Inventory "$Root/${{ inputs.swift_version }}+Asserts"
+          $Macros = Get-Inventory "${{ github.workspace }}/MacroStaging/Developer/Toolchains/${{ inputs.swift_version }}+Asserts"
+          foreach ($Name in @('usr/bin/FoundationMacros.dll', 'usr/bin/TestingMacros.dll')) {
+            if (-not $Macros.ContainsKey($Name)) { throw "Missing macro input: $Name" }
+          }
+          foreach ($Name in $Macros.Keys) { $Shared[$Name] = $Macros[$Name] }
+          foreach ($Name in $Shared.Keys) {
+            if ("${{ matrix.variant.name }}" -eq 'Asserts' -or -not $Expected.ContainsKey($Name)) {
+              $Expected[$Name] = $Shared[$Name]
+            }
+          }
+          $Expected | ConvertTo-Json | Set-Content "${{ runner.temp }}/expected-layout.json"
 
       - name: Stage macros into toolchain
         run: |
@@ -5166,6 +5307,33 @@ jobs:
             throw "Staging macros failed with exit code $LASTEXITCODE"
           }
           exit 0
+
+      - name: Verify staged toolchain matches the original jobs
+        run: |
+          function Get-Inventory([string] $Root) {
+            if (-not (Test-Path -LiteralPath $Root -PathType Container)) { throw "Missing payload directory: $Root" }
+            $Files = @{}
+            foreach ($File in Get-ChildItem -LiteralPath $Root -File -Recurse) {
+              $Relative = [IO.Path]::GetRelativePath($Root, $File.FullName).Replace('\', '/')
+              $Files[$Relative] = (Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256).Hash
+            }
+            return $Files
+          }
+
+          $Expected = Get-Content "${{ runner.temp }}/expected-layout.json" -Raw | ConvertFrom-Json -AsHashtable
+          $Actual = Get-Inventory "${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ inputs.swift_version }}+${{ matrix.variant.name }}"
+          $Actual | ConvertTo-Json | Set-Content "${{ runner.temp }}/actual-layout.json"
+          $Differences = @(
+            foreach ($Name in $Expected.Keys) {
+              if (-not $Actual.ContainsKey($Name)) { "Missing: $Name" }
+              elseif ($Expected[$Name] -ne $Actual[$Name]) { "Changed: $Name" }
+            }
+            foreach ($Name in $Actual.Keys) {
+              if (-not $Expected.ContainsKey($Name)) { "Unexpected: $Name" }
+            }
+          )
+          if ($Differences.Count) { throw ($Differences -join "`n") }
+          "Staged layout: all $($Actual.Count) files match the original job's preparation." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -5415,6 +5583,20 @@ jobs:
               -p:ProductArchitecture=${{ matrix.host.arch }} `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/${{ matrix.variant.package }}/bld.${{ matrix.variant.package }}.wixproj
 
+      - name: Verify package signatures
+        env:
+          EXPECTED_THUMBPRINT: ${{ needs.windows_signing_context.outputs.certificate_thumbprint }}
+        run: |
+          if (-not $env:EXPECTED_THUMBPRINT) { throw "Missing signing certificate thumbprint" }
+          $Directory = "${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.host.arch }}"
+          foreach ($Extension in @('msi', 'cab')) {
+            $File = Get-Item -LiteralPath "$Directory/bld.${{ matrix.variant.package }}.$Extension" -ErrorAction Stop
+            $Signature = Get-AuthenticodeSignature -LiteralPath $File.FullName
+            if ($Signature.Status -ne 'Valid') { throw "Invalid signature for $($File.Name): $($Signature.StatusMessage)" }
+            if ($Signature.SignerCertificate.Thumbprint -ne $env:EXPECTED_THUMBPRINT) { throw "Unexpected signer for $($File.Name)" }
+            "$($File.Name): valid signature from $env:EXPECTED_THUMBPRINT" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+
       - if: ${{ inputs.release }}
         uses: actions/attest-build-provenance@v2
         with:
@@ -5430,7 +5612,19 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.host.arch }}/bld.${{ matrix.variant.package }}.msi
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.host.arch }}/bld.${{ matrix.variant.package }}.cab
 
+      - name: Upload staged-layout inventories
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-tools-layout-${{ matrix.host.arch }}-${{ matrix.variant.package }}
+          path: |
+            ${{ runner.temp }}/expected-layout.json
+            ${{ runner.temp }}/actual-layout.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   package_developer_tools:
+    if: ${{ false }}
     needs: [windows_signing_context, stage2-compiler, devtools]
     name: Package Developer Tools (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
@@ -5797,6 +5991,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
 
   package_debugging_tools:
+    if: ${{ false }}
     needs: [windows_signing_context, stage2-compiler, debugging_tools]
     name: Package Debugging Tools (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
@@ -6088,6 +6283,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.cab
 
   package_runtimes:
+    if: ${{ false }}
     needs: [windows_signing_context, sdk]
     name: Package Runtimes (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
@@ -6477,6 +6673,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
+    if: ${{ false }}
     name: Package Windows SDK & Runtime
     needs: [windows_signing_context, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6943,6 +7140,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
   package_android_platform:
+    if: ${{ false }}
     name: Package Android SDK & Runtime
     needs: [ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -7290,7 +7488,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
 
   package_python:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     name: Package Embedded Python runtime
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7423,7 +7621,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
 
   package_resources:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     name: Package Resources
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7514,7 +7712,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/res.cab
 
   installer:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [package_build_tools, package_developer_tools, package_debugging_tools, package_runtimes, package_windows_platform, package_android_platform, package_python, package_resources]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7811,7 +8009,7 @@ jobs:
             --acl private
 
   smoke_test:
-    if: inputs.build_os == 'Windows'
+    if: ${{ false }}
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
     env:
@@ -7860,8 +8058,6 @@ jobs:
           }
 
           try {
-            Write-Host "Waiting for 120 seconds before starting installer..."
-            Start-Sleep -Seconds 120
             Write-Host "Starting Install installer.exe..."
             $Process = Start-Process -FilePath ${{ github.workspace }}/tmp/installer.exe -ArgumentList ("-q") -Wait -PassThru
             $ExitCode = $Process.ExitCode
@@ -7929,8 +8125,8 @@ jobs:
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
+    if: ${{ false }}
     name: Redistributable smoke test (${{ matrix.arch }}, ${{ matrix.variant }})
-    if: inputs.build_os == 'Windows'
     needs: [package_windows_platform]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -8004,7 +8200,7 @@ jobs:
           }
 
   smoke_test_android:
-    if: inputs.build_os == 'Windows' && inputs.build_android
+    if: ${{ false }}
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -8156,6 +8352,7 @@ jobs:
         run: cmake --build out
 
   swift_test:
+    if: ${{ false }}
     needs: [stage1-compiler, stage2-compiler, sdk]
     runs-on: ${{ inputs.compilers_build_runner }}
 
@@ -8583,3 +8780,58 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target swift-test-stdlib
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target SwiftCompilerPlugin
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
+
+  verify_build_tools_payloads:
+    name: Compare build-tools payload (${{ matrix.arch }}, ${{ matrix.variant.name }})
+    needs:
+      - package_build_tools
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - arm64
+        variant:
+          - name: Asserts
+            package: asserts
+          - name: NoAsserts
+            package: noasserts
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Download previous successful package
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ env.PACKAGE_SOURCE_REPOSITORY }}
+          run-id: ${{ env.PACKAGE_BASELINE_RUN }}
+          github-token: ${{ github.token }}
+          name: Windows-${{ matrix.arch }}-bld-${{ matrix.variant.package }}-msi
+          path: baseline
+      - name: Download new package
+        uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-bld-${{ matrix.variant.package }}-msi
+          path: candidate
+      - name: Install MSI extraction tools
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends msitools
+      - name: Compare packaged files
+        shell: bash
+        run: |
+          python3 .github/packaging-test/compare_payloads.py \
+            --baseline baseline --candidate candidate \
+            --variant "${{ matrix.variant.name }}" --report payload-comparison.json
+      - name: Upload comparison report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-tools-comparison-${{ matrix.arch }}-${{ matrix.variant.package }}
+          path: |
+            payload-comparison.json
+            baseline/extraction.log
+            candidate/extraction.log
+          if-no-files-found: warn
+          retention-days: 7

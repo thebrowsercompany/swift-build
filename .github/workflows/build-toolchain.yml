@@ -1,4 +1,5 @@
 name: Development Snapshot
+# Temporary build-tools replay; dispatch this workflow on speednoisemovement/package_split.
 
 on:
   workflow_dispatch:
@@ -180,6 +181,7 @@ on:
 
 jobs:
   context:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/speednoisemovement/package_split'
     runs-on: ubuntu-latest
     outputs:
       brotli_revision: ${{ steps.context.outputs.brotli_revision }}
@@ -612,6 +614,7 @@ jobs:
     needs: [context]
     name: Windows Swift Toolchains Build
     permissions:
+      actions: read
       contents: read
       id-token: write
       attestations: write
@@ -619,7 +622,7 @@ jobs:
     uses: ./.github/workflows/swift-toolchain.yml
     with:
       build_os: Windows
-      build_arch: ${{ needs.context.outputs.windows_build_arch }}
+      build_arch: amd64
       build_matrix: ${{ needs.context.outputs[format('windows_{0}_build_matrix', needs.context.outputs.windows_build_cpu)] }}
       host_matrix: ${{ needs.context.outputs[format('windows_{0}_host_matrix', needs.context.outputs.windows_build_cpu)] }}
       target_matrix: ${{ needs.context.outputs[format('windows_{0}_target_matrix', needs.context.outputs.windows_build_cpu)] }}
@@ -629,12 +632,12 @@ jobs:
       ds2_revision: ${{ needs.context.outputs.ds2_revision }}
       brotli_revision: ${{ needs.context.outputs.brotli_revision }}
       brotli_version: ${{ needs.context.outputs.brotli_version }}
-      ci_build_revision: ${{ needs.context.outputs.ci_build_revision }}
+      ci_build_revision: 6cc700163321a30047b7856d05d7a34a2974057d
       indexstore_db_revision: ${{ needs.context.outputs.indexstore_db_revision }}
       libxml2_revision: ${{ needs.context.outputs.libxml2_revision }}
       libxml2_version: ${{ needs.context.outputs.libxml2_version }}
       llvm_project_revision: ${{ needs.context.outputs.llvm_project_revision }}
-      mimalloc_revision: ${{ needs.context.outputs.mimalloc_revision }}
+      mimalloc_revision: 18b08671c9302247bfb682286e6bf3cc1773f801
       sourcekit_lsp_revision: ${{ needs.context.outputs.sourcekit_lsp_revision }}
       swift_argument_parser_revision: ${{ needs.context.outputs.swift_argument_parser_revision }}
       swift_asn1_revision: ${{ needs.context.outputs.swift_asn1_revision }}
@@ -656,7 +659,7 @@ jobs:
       swift_format_revision: ${{ needs.context.outputs.swift_format_revision }}
       swift_foundation_revision: ${{ needs.context.outputs.swift_foundation_revision }}
       swift_foundation_icu_revision: ${{ needs.context.outputs.swift_foundation_icu_revision }}
-      swift_installer_scripts_revision: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+      swift_installer_scripts_revision: 3861498ff3fd2856147597083f7f1f51349be323
       swift_llbuild_revision: ${{ needs.context.outputs.swift_llbuild_revision }}
       swift_lmdb_revision: ${{ needs.context.outputs.swift_lmdb_revision }}
       swift_markdown_revision: ${{ needs.context.outputs.swift_markdown_revision }}
@@ -676,12 +679,12 @@ jobs:
       ANDROID_API_LEVEL: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
       ANDROID_CLANG_VERSION: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
       ANDROID_NDK_VERSION: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
-      debug_info: ${{ fromJSON(needs.context.outputs.debug_info) }}
-      release: ${{ inputs.create_release }}
-      signed: ${{ fromJSON(needs.context.outputs.signed) }}
-      swift_version: ${{ needs.context.outputs.swift_version }}
+      debug_info: true
+      release: false
+      signed: true
+      swift_version: '0.0.0'
       swift_tag: ${{ needs.context.outputs.swift_tag }}
-      default_build_runner: ${{ needs.context.outputs[format('windows_{0}_build_runner', needs.context.outputs.windows_build_cpu)] }}
+      default_build_runner: windows-latest
       compilers_build_runner: ${{ needs.context.outputs[format('windows_{0}_compilers_runner', needs.context.outputs.windows_build_cpu)] }}
       build_android: ${{ inputs.build_android }}
       python_version: ${{ needs.context.outputs.python_version }}
@@ -701,7 +704,7 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     needs: [context, windows-build]
-    if: inputs.create_snapshot == true && github.event_name == 'schedule'
+    if: ${{ false }}
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -726,7 +729,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [context, windows-build]
-    if: inputs.create_release == true
+    if: ${{ false }}
     steps:
       - uses: actions/download-artifact@v4
         with:
