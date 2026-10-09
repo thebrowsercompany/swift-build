@@ -1,19 +1,68 @@
-name: Test Publish Symbols
-
-# Manual-only. Will not fire on push, PR, or schedule.
+name: Test R2 Split Upload
 on:
   workflow_dispatch:
+    inputs:
+      baseline_run_id:
+        description: 'Build A run containing symbol-test-pdbs'
+        type: string
+        default: '37371649093'
+      pdb_run_id:
+        description: 'Build B run containing symbol-test-pdbs'
+        type: string
+        default: '37697884535'
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  test:
+  compare:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Invoke publish-symbols-azure
-        uses: ./.github/actions/publish-symbols-azure
+      - uses: actions/checkout@v4.2.2
+      - name: Download baseline PDBs
+        uses: actions/download-artifact@v4
         with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}
-          searchPattern: '**/*.pdb'
+          name: symbol-test-pdbs
+          run-id: ${{ inputs.baseline_run_id }}
+          github-token: ${{ github.token }}
+          path: artifacts-A
+      - name: Download candidate PDBs
+        uses: actions/download-artifact@v4
+        with:
+          name: symbol-test-pdbs
+          run-id: ${{ inputs.pdb_run_id }}
+          github-token: ${{ github.token }}
+          path: artifacts-B
+      - name: Extract saved PDBs
+        run: |
+          foreach ($Build in @('A', 'B')) {
+            New-Item -ItemType Directory "pdbs-$Build" | Out-Null
+            tar xf "artifacts-$Build/symbol-test-pdbs.tar" -C "pdbs-$Build"
+            if ($LASTEXITCODE) { throw "PDB extraction failed for $Build" }
+          }
+      - name: Compare full sync with the production action's split upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ''
+          AWS_SECURITY_TOKEN: ''
+          AWS_REGION: auto
+          AWS_DEFAULT_REGION: auto
+          AWS_PAGER: ''
+          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_TEST_BUCKET: swift-toolchain
+          R2_TEST_BASE_URL: https://swift-toolchain.thebrowserco.com
+          R2_TEST_PREFIX: symbol-upload-tests/${{ github.run_id }}-${{ github.run_attempt }}/symbols/
+          BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
+          CANDIDATE_RUN_ID: ${{ inputs.pdb_run_id }}
+        run: ./.github/scripts/test-r2-symbol-roundtrip.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: symbol-test-report
+          path: symbol-test-report/
+          if-no-files-found: warn
