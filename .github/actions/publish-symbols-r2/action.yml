@@ -186,7 +186,14 @@ runs:
 
             # 5. Upload remaining store files
             Write-Output "ℹ️ Uploading all symbol store files to R2..."
-            aws s3 sync "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
+            aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
+              --recursive `
+              --exclude "000Admin/*" `
+              --endpoint-url "${env:R2_ENDPOINT_URL}" `
+              --no-progress `
+              --acl private
+            if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol files to R2"; exit 1 }
+            aws s3 sync "$AdminDir" "s3://${env:R2_BUCKET}/symbols/000Admin/" `
               --endpoint-url "${env:R2_ENDPOINT_URL}" `
               --no-progress `
               --acl private
