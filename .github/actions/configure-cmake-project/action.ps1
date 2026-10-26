@@ -19,7 +19,6 @@ $ProjectName = $env:INPUT_PROJECT_NAME
 $SwiftVersion = $env:INPUT_SWIFT_VERSION
 $EnableCaching = ConvertTo-Bool $env:INPUT_ENABLE_CACHING
 $DebugInfo = ConvertTo-Bool $env:INPUT_DEBUG_INFO
-$BuildOS = $env:INPUT_BUILD_OS
 $BuildArch = $env:INPUT_BUILD_ARCH
 $OS = $env:INPUT_OS
 $Arch = $env:INPUT_ARCH
@@ -309,7 +308,7 @@ Add-KeyValueIfNew $Defines CMAKE_BUILD_TYPE Release
 
 # Avoid specifying `CMAKE_SYSTEM_NAME` and `CMAKE_SYSTEM_PROCESSOR` on
 # Windows and in the case that we are not cross-compiling.
-if ($OS -ne $BuildOS -or $Arch -ne $BuildArch) {
+if ($OS -ne "Windows" -or $Arch -ne $BuildArch) {
     Add-KeyValueIfNew $Defines CMAKE_SYSTEM_NAME $OS
     Add-KeyValueIfNew $Defines CMAKE_SYSTEM_PROCESSOR $CMakeArch
 }
@@ -440,7 +439,7 @@ switch ($OS) {
             default { throw "Unsupported architecture: $BuildArch" }
         }
         $AndroidNDKPath = $NDKPath
-        $AndroidPrebuiltRoot = "$AndroidNDKPath\toolchains\llvm\prebuilt\$($BuildOS.ToLowerInvariant())-$($AndroidArchLLVM)"
+        $AndroidPrebuiltRoot = "$AndroidNDKPath\toolchains\llvm\prebuilt\windows-$($AndroidArchLLVM)"
         $AndroidSysroot = "$AndroidPrebuiltRoot\sysroot"
 
         Add-KeyValueIfNew $Defines CMAKE_ANDROID_API "$AndroidAPILevel"

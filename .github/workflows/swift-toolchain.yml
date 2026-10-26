@@ -21,10 +21,6 @@ description: |
 on:
   workflow_call:
     inputs:
-      build_os:
-        required: true
-        type: string
-
       build_arch:
         required: true
         type: string
@@ -568,7 +564,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -655,7 +650,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
@@ -693,7 +688,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -756,7 +750,7 @@ jobs:
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2_tools
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-Windows-${{ inputs.build_arch }}-ds2_tools
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2_tools only on Windows X64 host only
         if: inputs.build_android
@@ -783,9 +777,8 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
-          os: ${{ inputs.build_os }}
+          os: Windows
           arch: ${{ inputs.build_arch }}
           src-dir: ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2
           bin-dir: ${{ github.workspace }}/BinaryCache/RegsGen2
@@ -848,7 +841,7 @@ jobs:
         if: inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
@@ -870,7 +863,7 @@ jobs:
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 1M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-ds2
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-Windows-${{ inputs.build_arch }}-ds2
       - uses: actions/checkout@v4.2.2
         # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
         if: inputs.build_android
@@ -910,7 +903,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -999,7 +991,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -1099,7 +1090,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -1280,7 +1270,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -1372,22 +1361,22 @@ jobs:
           aws-region: ${{ vars.SCCACHE_AWS_REGION }}
           aws-arn: ${{ vars.SCCACHE_AWS_ARN }}
           disk-max-size: 500M
-          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-Windows-${{ inputs.build_arch }}-stage1-compiler
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
+          name: Windows-${{ inputs.build_arch }}-build-tools
           path: ${{ github.workspace }}/BinaryCache/BuildTools/bin
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-libxml2-${{ inputs.libxml2_version }}
+          name: Windows-${{ inputs.build_arch }}-bootstrap-libxml2-${{ inputs.libxml2_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/bootstrap-libxml2-${{ inputs.libxml2_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
+          name: Windows-${{ inputs.build_arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
+          name: Windows-${{ inputs.build_arch }}-early-swift-driver
           path: ${{ github.workspace }}/BinaryCache/swift-driver
 
       - uses: actions/checkout@v4.2.2
@@ -1458,9 +1447,8 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
-          os: ${{ inputs.build_os }}
+          os: Windows
           arch: ${{ inputs.build_arch }}
           src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
           bin-dir: ${{ github.workspace }}/BinaryCache/stage1/build
@@ -1552,7 +1540,7 @@ jobs:
       - name: Upload Stage1 Compiler
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Extract Stage1 SwiftSyntax
@@ -1576,7 +1564,7 @@ jobs:
       - name: Upload Stage1 SwiftSyntax
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-swift-syntax
+          name: Windows-${{ inputs.build_arch }}-stage1-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
 
   bootstrap-macros:
@@ -1605,7 +1593,7 @@ jobs:
       - name: Download Stage1 SwiftSyntax
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-swift-syntax
+          name: Windows-${{ inputs.build_arch }}-stage1-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
 
       - uses: actions/checkout@v4.2.2
@@ -1640,9 +1628,8 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
-          os: ${{ inputs.build_os }}
+          os: Windows
           arch: ${{ inputs.build_arch }}
           src-dir: ${{ github.workspace }}/SourceCache/swift-foundation/Sources/FoundationMacros
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/swift-foundation-macros
@@ -1664,9 +1651,8 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
-          os: ${{ inputs.build_os }}
+          os: Windows
           arch: ${{ inputs.build_arch }}
           src-dir: ${{ github.workspace }}/SourceCache/swift-testing/Sources/TestingMacros
           bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap/swift-testing-macros
@@ -1689,7 +1675,7 @@ jobs:
       - name: Upload Bootstrap Macros
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
+          name: Windows-${{ inputs.build_arch }}-bootstrap-macros
           path: ${{ github.workspace }}/BuildRoot/bootstrap/Library
 
   stage2-libxml2:
@@ -1719,7 +1705,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - uses: actions/checkout@v4.2.2
@@ -1737,7 +1723,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -1844,11 +1829,11 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
+          name: Windows-${{ inputs.build_arch }}-build-tools
           path: ${{ github.workspace }}/BinaryCache/BuildTools/bin
       - uses: actions/download-artifact@v4
         with:
@@ -1860,7 +1845,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
+          name: Windows-${{ inputs.build_arch }}-early-swift-driver
           path: ${{ github.workspace }}/BinaryCache/swift-driver
       - uses: actions/download-artifact@v4
         with:
@@ -1990,7 +1975,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2189,7 +2173,7 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - uses: actions/checkout@v4.2.2
@@ -2221,7 +2205,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2258,7 +2241,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2288,7 +2270,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2353,7 +2334,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
@@ -2397,7 +2378,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2453,7 +2433,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
@@ -2497,7 +2477,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2553,7 +2532,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
@@ -2607,7 +2586,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2750,7 +2728,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Compute workspace hash
@@ -2796,7 +2774,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2831,7 +2808,6 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   macros:
-    if: inputs.build_os == 'Windows'
     needs: [stage2-compiler, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2859,7 +2835,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
       - name: Download Stage2 SwiftSyntax
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -2910,7 +2886,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: true
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -2935,7 +2910,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: true
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3109,12 +3083,12 @@ jobs:
         if: matrix.os != 'Android' || inputs.build_android
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
       - uses: actions/download-artifact@v4
         if: matrix.os != 'Android' || inputs.build_android
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-bootstrap-macros
+          name: Windows-${{ inputs.build_arch }}-bootstrap-macros
           path: ${{ github.workspace }}/BinaryCache/Library
 
       - uses: actions/checkout@v4.2.2
@@ -3216,7 +3190,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3240,7 +3213,7 @@ jobs:
 
       - name: Upload Host CDispatch
         uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
-        if: ${{ matrix.os == inputs.build_os && (matrix.arch == 'amd64' || matrix.arch == 'arm64') && !matrix.static }}
+        if: ${{ matrix.os == 'Windows' && (matrix.arch == 'amd64' || matrix.arch == 'arm64') && !matrix.static }}
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cdispatch
           path: ${{ github.workspace }}/BinaryCache/libdispatch-c
@@ -3254,7 +3227,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3305,7 +3277,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3348,7 +3319,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3390,7 +3360,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3432,7 +3401,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3476,7 +3444,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3520,7 +3487,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3563,7 +3529,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3606,7 +3571,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3655,7 +3619,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3701,7 +3664,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3743,7 +3705,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3889,7 +3850,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3927,7 +3887,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3994,7 +3953,6 @@ jobs:
           searchPattern: '**/*.dll'
 
   devtools:
-    if: inputs.build_os == 'Windows'
     needs: [sqlite, stage2-compiler, macros, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4046,7 +4004,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
       - name: Download Target SDK
         uses: actions/download-artifact@v4
@@ -4057,12 +4015,12 @@ jobs:
         uses: actions/download-artifact@v4
         if: matrix.arch != inputs.build_arch
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-shared-sdk
+          name: Windows-${{ inputs.build_arch }}-shared-sdk
           path: ${{ github.workspace }}/BinaryCache/HostSDK/Library/Developer/Platforms/Windows.platform
       - name: Download Host Macros
         uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-macros
+          name: Windows-${{ inputs.build_arch }}-macros
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
       - name: Download Stage2 SwiftSyntax
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
@@ -4228,7 +4186,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4254,7 +4211,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4280,7 +4236,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4304,7 +4259,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4333,7 +4287,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4362,7 +4315,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4388,7 +4340,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4415,7 +4366,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4443,7 +4393,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4476,7 +4425,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4502,7 +4450,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4528,7 +4475,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4571,7 +4517,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4613,7 +4558,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4641,7 +4585,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4671,7 +4614,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4694,7 +4636,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4727,7 +4668,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4766,7 +4706,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4794,7 +4733,6 @@ jobs:
           enable-caching: ${{ inputs.use_host_toolchain }}
           # TODO: Re-enable debug info once https://github.com/swiftlang/swift/issues/88563 is fixed.
           debug-info: false
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -4927,7 +4865,6 @@ jobs:
           searchPattern: '**/*.exe'
 
   debugging_tools:
-    if: inputs.build_os == 'Windows'
     needs: [stage1-compiler, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4984,7 +4921,7 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
       - name: Download Target SDK
         uses: actions/download-artifact@v4
@@ -4995,7 +4932,7 @@ jobs:
         uses: actions/download-artifact@v4
         if: matrix.arch != inputs.build_arch
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-shared-sdk
+          name: Windows-${{ inputs.build_arch }}-shared-sdk
           path: ${{ github.workspace }}/BinaryCache/HostSDK/Library/Developer/Platforms/Windows.platform
 
       - uses: actions/checkout@v4.2.2
@@ -5043,7 +4980,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -5073,7 +5009,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -5223,7 +5158,6 @@ jobs:
           # this build is a net negative.
           enable-caching: false
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.host.os }}
           arch: ${{ matrix.host.arch }}
@@ -7305,7 +7239,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/sdk.android.x86.cab
 
   package_python:
-    if: inputs.build_os == 'Windows'
     name: Package Embedded Python runtime
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7438,7 +7371,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
 
   package_resources:
-    if: inputs.build_os == 'Windows'
     name: Package Resources
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7529,7 +7461,6 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/res.cab
 
   installer:
-    if: inputs.build_os == 'Windows'
     needs: [package_build_tools, package_developer_tools, package_debugging_tools, package_runtimes, package_windows_platform, package_android_platform, package_python, package_resources]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7831,7 +7762,6 @@ jobs:
             --acl private
 
   smoke_test:
-    if: inputs.build_os == 'Windows'
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
     env:
@@ -7948,7 +7878,6 @@ jobs:
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
     name: Redistributable smoke test (${{ matrix.arch }}, ${{ matrix.variant }})
-    if: inputs.build_os == 'Windows'
     needs: [package_windows_platform]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -8022,7 +7951,7 @@ jobs:
           }
 
   smoke_test_android:
-    if: inputs.build_os == 'Windows' && inputs.build_android
+    if: inputs.build_android
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -8207,14 +8136,14 @@ jobs:
       - name: Download Stage1 Compiler
         uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-stage1-compiler
+          name: Windows-${{ inputs.build_arch }}-stage1-compiler
           path: ${{ github.workspace }}/BinaryCache/stage1/Library
 
       - name: Download Host SDK
         uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-shared-sdk
-          path: ${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/${{ inputs.build_os }}.platform
+          name: Windows-${{ inputs.build_arch }}-shared-sdk
+          path: ${{ github.workspace }}/BinaryCache/SDK/Library/Developer/Platforms/Windows.platform
 
       - name: Compute workspace hash
         id: workspace_hash
@@ -8238,7 +8167,7 @@ jobs:
           disk-cache-key: ${{ steps.workspace_hash.outputs.hash }}-${{ matrix.os }}-${{ matrix.arch }}-Asserts-compilers
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-build-tools
+          name: Windows-${{ inputs.build_arch }}-build-tools
           path: ${{ github.workspace }}/BinaryCache/0/bin
       - uses: actions/download-artifact@v4
         with:
@@ -8250,7 +8179,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
       - uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
         with:
-          name: ${{ inputs.build_os }}-${{ inputs.build_arch }}-early-swift-driver
+          name: Windows-${{ inputs.build_arch }}-early-swift-driver
           path: ${{ github.workspace }}/BinaryCache/swift-driver
 
       - name: Disable Git line ending conversion
@@ -8395,7 +8324,6 @@ jobs:
           swift-version: ${{ inputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
           debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
           build-arch: ${{ inputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
