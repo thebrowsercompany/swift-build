@@ -461,28 +461,42 @@ jobs:
           ref: ${{ inputs.swift_toolchain_sqlite_revision }}
           path: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
           show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift
+          ref: ${{ inputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          sparse-checkout: utils
+          show-progress: false
 
       # build.ps1: Build-SQLite
       - name: Configure SQLite
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: Bootstrap SQLite
-          swift-version: ${{ inputs.swift_version }}
-          enable-caching: ${{ inputs.use_host_toolchain }}
-          debug-info: ${{ inputs.debug_info }}
-          build-os: ${{ inputs.build_os }}
-          build-arch: ${{ inputs.build_arch }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite
-          bin-dir: ${{ github.workspace }}/BinaryCache/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
-          install-dir: ${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
-          use-msvc-host-toolchain: ${{ inputs.use_host_toolchain }}
-          c-compiler: 'Host.C'
-          cmake-defines: |
-            @{
-              'BUILD_SHARED_LIBS' = "NO";
-            }
+        run: |
+          cmake `
+            -B ${{ github.workspace }}/BinaryCache/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }} `
+            -S ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite `
+            -G Ninja `
+            -D CMAKE_INSTALL_PREFIX=${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr `
+            `
+            -D CMAKE_POLICY_DEFAULT_CMP0181=NEW `
+            -D CMAKE_POLICY_DEFAULT_CMP0214=NEW `
+            -D CMAKE_BUILD_TYPE=Release `
+            -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=YES `
+            `
+            ${{ inputs.use_host_toolchain && '-D CMAKE_C_COMPILER_LAUNCHER=sccache' || '' }} `
+            -D CMAKE_C_COMPILER=${{ inputs.use_host_toolchain && 'cl.exe' || 'clang-cl.exe' }} `
+            -D CMAKE_C_COMPILER_TARGET=${{ matrix.triple }} `
+            -D CMAKE_C_FLAGS="/GS- /Gw /Gy /Oy /Oi /Zc:inline${{ inputs.use_host_toolchain && ' /Zc:preprocessor /source-charset:utf-8' || '' }}" `
+            `
+            -D CMAKE_EXE_LINKER_FLAGS="LINKER:/INCREMENTAL:NO LINKER:/OPT:REF LINKER:/OPT:ICF${{ inputs.debug_info && ' LINKER:/DEBUG' || '' }}" `
+            -D CMAKE_SHARED_LINKER_FLAGS="LINKER:/INCREMENTAL:NO LINKER:/OPT:REF LINKER:/OPT:ICF LINKER:/MANIFEST:NO${{ inputs.debug_info && ' LINKER:/DEBUG' || '' }}" `
+            -D CMAKE_MODULE_LINKER_FLAGS="LINKER:/MANIFEST:NO" `
+            `
+            -D CMAKE_USER_MAKE_RULES_OVERRIDE=${{ github.workspace }}/SourceCache/swift/utils/windows-clang-overrides.cmake `
+            ${{ inputs.debug_info && '-D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded' || '' }} `
+            ${{ inputs.debug_info && '-D CMAKE_POLICY_DEFAULT_CMP0141=NEW' || '' }} `
+            `
+            -D BUILD_SHARED_LIBS=NO
       - name: Build SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}
       - name: Install SQLite
