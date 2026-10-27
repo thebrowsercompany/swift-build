@@ -1,0 +1,1876 @@
+name: Swift Android SDK build
+description: |
+  Workflow to build the Swift Android SDK on a Windows build machine and package
+  it for distribution.
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: JSON object with the inputs of the calling workflow.
+        required: true
+        type: string
+
+    secrets:
+      CERTIFICATE:
+        required: true
+      PASSPHRASE:
+        required: true
+      AZURE_SP_CREDENTIALS:
+        required: false
+      AZURE_KEY_VAULT_URI:
+        required: false
+      AZURE_KEY_VAULT_CERTIFICATE_NAME:
+        required: false
+
+# TODO: Pass this as input once the build and swift toolchain workflows are merged.
+env:
+  CMAKE_VERSION: 4.4.1
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  context:
+    name: Context
+    runs-on: ubuntu-latest
+    outputs:
+      ANDROID_API_LEVEL: ${{ fromJSON(inputs.context).ANDROID_API_LEVEL }}
+      ANDROID_CLANG_VERSION: ${{ fromJSON(inputs.context).ANDROID_CLANG_VERSION }}
+      ANDROID_NDK_VERSION: ${{ fromJSON(inputs.context).ANDROID_NDK_VERSION }}
+      brotli_revision: ${{ fromJSON(inputs.context).brotli_revision }}
+      brotli_version: ${{ fromJSON(inputs.context).brotli_version }}
+      build_arch: ${{ fromJSON(inputs.context).build_arch }}
+      ci_build_revision: ${{ fromJSON(inputs.context).ci_build_revision }}
+      curl_revision: ${{ fromJSON(inputs.context).curl_revision }}
+      curl_version: ${{ fromJSON(inputs.context).curl_version }}
+      debug_info: ${{ fromJSON(inputs.context).debug_info }}
+      default_build_runner: ${{ fromJSON(inputs.context).default_build_runner }}
+      ds2_revision: ${{ fromJSON(inputs.context).ds2_revision }}
+      libxml2_revision: ${{ fromJSON(inputs.context).libxml2_revision }}
+      libxml2_version: ${{ fromJSON(inputs.context).libxml2_version }}
+      llvm_project_revision: ${{ fromJSON(inputs.context).llvm_project_revision }}
+      python_version: ${{ fromJSON(inputs.context).python_version }}
+      release: ${{ fromJSON(inputs.context).release }}
+      signed: ${{ fromJSON(inputs.context).signed }}
+      swift_collections_revision: ${{ fromJSON(inputs.context).swift_collections_revision }}
+      swift_corelibs_foundation_revision: ${{ fromJSON(inputs.context).swift_corelibs_foundation_revision }}
+      swift_corelibs_libdispatch_revision: ${{ fromJSON(inputs.context).swift_corelibs_libdispatch_revision }}
+      swift_corelibs_xctest_revision: ${{ fromJSON(inputs.context).swift_corelibs_xctest_revision }}
+      swift_experimental_string_processing_revision: ${{ fromJSON(inputs.context).swift_experimental_string_processing_revision }}
+      swift_foundation_icu_revision: ${{ fromJSON(inputs.context).swift_foundation_icu_revision }}
+      swift_foundation_revision: ${{ fromJSON(inputs.context).swift_foundation_revision }}
+      swift_installer_scripts_revision: ${{ fromJSON(inputs.context).swift_installer_scripts_revision }}
+      swift_revision: ${{ fromJSON(inputs.context).swift_revision }}
+      swift_testing_revision: ${{ fromJSON(inputs.context).swift_testing_revision }}
+      swift_version: ${{ fromJSON(inputs.context).swift_version }}
+      zlib_revision: ${{ fromJSON(inputs.context).zlib_revision }}
+      zlib_version: ${{ fromJSON(inputs.context).zlib_version }}
+    steps:
+      - name: Show context
+        env:
+          CONTEXT: ${{ inputs.context }}
+        run: $env:CONTEXT | ConvertFrom-Json | ConvertTo-Json -Depth 4
+
+  ds2_tools:
+    needs: [context]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    name: ds2 Build Tools
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        # There is currently no Android NDK for Windows ARM64 so build ds2_tools only on Windows X64 host only
+        with:
+          repository: compnerd/ds2
+          ref: ${{ needs.context.outputs.ds2_revision }}
+          path: ${{ github.workspace }}/SourceCache/ds2
+          show-progress: false
+
+      # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
+      - uses: andrurogerz/ensure-chocolatey@v1
+
+      - name: Install Flex and Bison Tools
+        run: choco install winflexbison3
+
+      # build.ps1: Build-RegsGen2
+      # Note: On GHA, RegsGen2 is built with the stage1 compiler rather than the host toolchain.
+      - name: Configure RegsGen2
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: RegsGen2
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Windows
+          arch: ${{ needs.context.outputs.build_arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/ds2/Tools/RegsGen2
+          bin-dir: ${{ github.workspace }}/BinaryCache/RegsGen2
+          c-compiler: 'Stage1.C'
+          cxx-compiler: 'Stage1.CXX'
+          cache-script: ${{ github.workspace }}/SourceCache/ds2/cmake/caches/MSVCWarnings.cmake
+      - name: Build RegsGen2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/RegsGen2 --config Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-regsgen2
+          path: |
+            ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
+
+  ds2:
+    needs: [context, ds2_tools]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            module_triple: aarch64-unknown-linux-android
+          - arch: armv7
+            module_triple: armv7-unknown-linux-android
+          - arch: i686
+            module_triple: i686-unknown-linux-android
+          - arch: x86_64
+            module_triple: x86_64-unknown-linux-android
+
+    name: Android ${{ matrix.arch }} ds2
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        # There is currently no Android NDK for Windows ARM64 so build ds2 only on Windows X64 host only
+        with:
+          repository: compnerd/ds2
+          ref: ${{ needs.context.outputs.ds2_revision }}
+          path: ${{ github.workspace }}/SourceCache/ds2
+          show-progress: false
+
+      # TODO(issues/205): Preload Chocolatey package manager on Azure images so we can remove this step.
+      - uses: andrurogerz/ensure-chocolatey@v1
+
+      - name: Install Flex and Bison Tools
+        run: choco install winflexbison3
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-regsgen2
+          path: ${{ github.workspace }}/BinaryCache/RegsGen2
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      # build.ps1: Build-DS2
+      - name: Configure DS2
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: DS2
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/ds2
+          bin-dir: ${{ github.workspace }}/BinaryCache/ds2
+          install-dir: ${{ github.workspace }}/BinaryCache/Library/Developer/ds2/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          cmake-defines: |
+            @{
+              'DS2_REGSGEN2' = "${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe";
+              'DS2_PROGRAM_PREFIX' = "${{ matrix.module_triple }}-";
+            }
+      - name: Build DS2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ds2
+      - name: Install DS2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/ds2 --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-ds2
+          path: ${{ github.workspace }}/BinaryCache/Library/Developer
+
+  compiler-runtime:
+    needs: [context]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: i686
+            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+
+    name: Android ${{ matrix.arch }} Compiler Runtime
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/llvm-project
+          ref: ${{ needs.context.outputs.llvm_project_revision }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+          show-progress: false
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.context.outputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - name: Configure Compiler Runtime LLVM
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Compiler Runtime LLVM
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/llvm
+          bin-dir: ${{ github.workspace }}/BinaryCache/compiler-runtime-llvm
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          assembler: 'Stage1'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          cmake-defines: |
+            @{
+              'LLVM_ENABLE_ASSERTIONS' = "YES";
+              'LLVM_HOST_TRIPLE' = "${{ matrix.triple }}";
+            }
+
+      - name: Get LLVM major version
+        id: llvm-version
+        run: |
+          $LLVMConfigVersion = "${{ github.workspace }}/BinaryCache/compiler-runtime-llvm/lib/cmake/llvm/LLVMConfigVersion.cmake"
+          $Version = Select-String -Path $LLVMConfigVersion -Pattern 'set\(PACKAGE_VERSION "([0-9]+)\.'
+          if (-not $Version) {
+            throw "Could not read the LLVM version from $LLVMConfigVersion"
+          }
+          "major=$($Version.Matches[0].Groups[1].Value)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      # build.ps1: Build-CompilerRuntime
+      - name: Configure Compiler Runtime Builtins
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Compiler Runtime Builtins
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/compiler-rt/lib/builtins
+          bin-dir: ${{ github.workspace }}/BinaryCache/compiler-runtime-builtins
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ needs.context.outputs.swift_version }}+Asserts/usr/lib/clang/${{ steps.llvm-version.outputs.major }}
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          assembler: 'Stage1'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          cmake-defines: |
+            @{
+              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/compiler-runtime-llvm/lib/cmake/llvm";
+              'LLVM_ENABLE_PER_TARGET_RUNTIME_DIR' = "YES";
+              'COMPILER_RT_DEFAULT_TARGET_ONLY' = "YES";
+            }
+      - name: Install Compiler Runtime Builtins
+        run: cmake --build ${{ github.workspace }}/BinaryCache/compiler-runtime-builtins --target install-compiler-rt
+
+      - name: Configure Compiler Runtime
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Compiler Runtime
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/llvm-project/compiler-rt
+          bin-dir: ${{ github.workspace }}/BinaryCache/compiler-runtime
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Toolchains/${{ needs.context.outputs.swift_version }}+Asserts/usr/lib/clang/${{ steps.llvm-version.outputs.major }}
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          assembler: 'Stage1'
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          cmake-defines: |
+            @{
+              'LLVM_DIR' = "${{ github.workspace }}/BinaryCache/compiler-runtime-llvm/lib/cmake/llvm";
+              'LLVM_ENABLE_PER_TARGET_RUNTIME_DIR' = "YES";
+              'COMPILER_RT_DEFAULT_TARGET_ONLY' = "YES";
+              'COMPILER_RT_BUILD_BUILTINS' = "NO";
+              'COMPILER_RT_BUILD_CRT' = "NO";
+              'COMPILER_RT_BUILD_LIBFUZZER' = "NO";
+              'COMPILER_RT_BUILD_ORC' = "NO";
+              'COMPILER_RT_BUILD_XRAY' = "NO";
+              'COMPILER_RT_BUILD_PROFILE' = "YES";
+              'COMPILER_RT_BUILD_SANITIZERS' = "YES";
+            }
+      - name: Install Compiler Runtime
+        run: cmake --build ${{ github.workspace }}/BinaryCache/compiler-runtime --target install-compiler-rt
+
+      - name: Upload Compiler Runtime
+        uses: thebrowsercompany/gha-upload-tar-artifact@e18c33b1cd416d0d96a91dc6dce06219f98e4e27 # main
+        with:
+          name: Android-${{ matrix.arch }}-compiler-runtime
+          path: ${{ github.workspace }}/BuildRoot/Library
+
+  zlib:
+    needs: [context]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: i686
+            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+
+    name: Android ${{ matrix.arch }} zlib
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: madler/zlib
+          ref: ${{ needs.context.outputs.zlib_revision }}
+          path: ${{ github.workspace }}/SourceCache/zlib
+          show-progress: false
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      # build.ps1: Build-Zlib
+      - name: Configure zlib
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: zlib
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/zlib
+          bin-dir: ${{ github.workspace }}/BinaryCache/zlib-${{ needs.context.outputs.zlib_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+            }
+      - name: Build zlib
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ needs.context.outputs.zlib_version }}
+      - name: Install zlib
+        run: cmake --build ${{ github.workspace }}/BinaryCache/zlib-${{ needs.context.outputs.zlib_version }} --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+
+  brotli:
+    needs: [context]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: i686
+            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+
+    name: Android ${{ matrix.arch }} brotli
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: google/brotli
+          ref: ${{ needs.context.outputs.brotli_revision }}
+          path: ${{ github.workspace }}/SourceCache/brotli
+          show-progress: false
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      # build.ps1: Build-Brotli
+      - name: Configure brotli
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: brotli
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/brotli
+          bin-dir: ${{ github.workspace }}/BinaryCache/brotli-${{ needs.context.outputs.brotli_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+            }
+      - name: Build brotli
+        run: cmake --build ${{ github.workspace }}/BinaryCache/brotli-${{ needs.context.outputs.brotli_version }}
+      - name: Install brotli
+        run: cmake --build ${{ github.workspace }}/BinaryCache/brotli-${{ needs.context.outputs.brotli_version }} --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+
+  curl:
+    needs: [context, zlib, brotli]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: i686
+            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+
+    name: Android ${{ matrix.arch }} curl
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: curl/curl
+          ref: ${{ needs.context.outputs.curl_revision }}
+          path: ${{ github.workspace }}/SourceCache/curl
+          show-progress: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      # build.ps1: Build-Curl
+      - name: Configure curl
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: curl
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/curl
+          bin-dir: ${{ github.workspace }}/BinaryCache/curl-${{ needs.context.outputs.curl_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_TESTING' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'BROTLI_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/include";
+              'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/lib/libbrotlicommon.a";
+              'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/lib/libbrotlidec.a";
+              'BUILD_CURL_EXE' = "NO";
+              'BUILD_LIBCURL_DOCS' = "NO";
+              'BUILD_MISC_DOCS' = "NO";
+              'CURL_CA_BUNDLE' = "none";
+              'CURL_CA_FALLBACK' = "NO";
+              'CURL_CA_PATH' = "none";
+              'CURL_BROTLI' = "YES";
+              'CURL_DISABLE_ALTSVC' = "NO";
+              'CURL_DISABLE_AWS' = "YES";
+              'CURL_DISABLE_BASIC_AUTH' = "NO";
+              'CURL_DISABLE_BEARER_AUTH' = "NO";
+              'CURL_DISABLE_BINDLOCAL' = "NO";
+              'CURL_DISABLE_COOKIES' = "NO";
+              'CURL_DISABLE_DICT' = "YES";
+              'CURL_DISABLE_DIGEST_AUTH' = "NO";
+              'CURL_DISABLE_DOH' = "NO";
+              'CURL_DISABLE_FILE' = "YES";
+              'CURL_DISABLE_FORM_API' = "NO";
+              'CURL_DISABLE_FTP' = "YES";
+              'CURL_DISABLE_GETOPTIONS' = "NO";
+              'CURL_DISABLE_GOPHER' = "YES";
+              'CURL_DISABLE_HEADERS_API' = "YES";
+              'CURL_DISABLE_HSTS' = "NO";
+              'CURL_DISABLE_HTTP' = "NO";
+              'CURL_DISABLE_HTTP_AUTH' = "NO";
+              'CURL_DISABLE_IMAP' = "YES";
+              'CURL_DISABLE_KERBEROS_AUTH' = "NO";
+              'CURL_DISABLE_LDAP' = "YES";
+              'CURL_DISABLE_LDAPS' = "YES";
+              'CURL_DISABLE_MIME' = "NO";
+              'CURL_DISABLE_MQTT' = "YES";
+              'CURL_DISABLE_NEGOTIATE_AUTH' = "NO";
+              'CURL_DISABLE_NETRC' = "NO";
+              'CURL_DISABLE_NTLM' = "NO";
+              'CURL_DISABLE_PARSEDATE' = "NO";
+              'CURL_DISABLE_POP3' = "YES";
+              'CURL_DISABLE_PROGRESS_METER' = "YES";
+              'CURL_DISABLE_PROXY' = "NO";
+              'CURL_DISABLE_RTSP' = "YES";
+              'CURL_DISABLE_SHUFFLE_DNS' = "YES";
+              'CURL_DISABLE_SMB' = "YES";
+              'CURL_DISABLE_SMTP' = "YES";
+              'CURL_DISABLE_SOCKETPAIR' = "YES";
+              'CURL_DISABLE_SRP' = "NO";
+              'CURL_DISABLE_TELNET' = "YES";
+              'CURL_DISABLE_TFTP' = "YES";
+              'CURL_DISABLE_VERBOSE_STRINGS' = "NO";
+              'CURL_LTO' = "NO";
+              'CURL_USE_BEARSSL' = "NO";
+              'CURL_USE_GNUTLS' = "NO";
+              'CURL_USE_GSSAPI' = "NO";
+              'CURL_USE_LIBPSL' = "NO";
+              'CURL_USE_LIBSSH' = "NO";
+              'CURL_USE_LIBSSH2' = "NO";
+              'CURL_USE_MBEDTLS' = "NO";
+              'CURL_USE_OPENSSL' = "NO";
+              'CURL_USE_SCHANNEL' = "NO";
+              'CURL_USE_WOLFSSL' = "NO";
+              'CURL_WINDOWS_SSPI' = "NO";
+              'CURL_ZLIB' = "YES";
+              'CURL_ZSTD' = "NO";
+              'ENABLE_ARES' = "NO";
+              'ENABLE_CURLDEBUG' = "NO";
+              'ENABLE_CURL_MANUAL' = "NO";
+              'ENABLE_DEBUG' = "NO";
+              'ENABLE_IPV6' = "YES";
+              'ENABLE_THREADED_RESOLVER' = "NO";
+              'ENABLE_UNICODE' = "YES";
+              'ENABLE_UNIX_SOCKETS' = "NO";
+              'ENABLE_WEBSOCKETS' = "YES";
+              'HAVE_POLL_FINE' = "NO";
+              'USE_ECH' = "NO";
+              'USE_HTTPSRR' = "NO";
+              'USE_IDN2' = "NO";
+              'USE_MSH3' = "NO";
+              'USE_NGHTTP2' = "NO";
+              'USE_NGTCP2' = "NO";
+              'USE_QUICHE' = "NO";
+              'USE_OPENSSL_QUIC' = "NO";
+              'USE_WIN32_IDN' = "NO";
+              'USE_WIN32_LARGE_FILES' = "NO";
+              'USE_WIN32_LDAP' = "NO";
+              'ZLIB_ROOT' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr";
+              'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr/lib/zlibstatic.lib";
+            }
+      - name: Build curl
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ needs.context.outputs.curl_version }}
+      - name: Install curl
+        run: cmake --build ${{ github.workspace }}/BinaryCache/curl-${{ needs.context.outputs.curl_version }} --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+
+  libxml2:
+    needs: [context]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: i686
+            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+          - arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+
+    name: Android ${{ matrix.arch }} libxml2
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: gnome/libxml2
+          ref: ${{ needs.context.outputs.libxml2_revision }}
+          path: ${{ github.workspace }}/SourceCache/libxml2
+          show-progress: false
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      # build.ps1: Build-XML2
+      - name: Configure libxml2
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: libxml2
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/libxml2
+          bin-dir: ${{ github.workspace }}/BinaryCache/libxml2-${{ needs.context.outputs.libxml2_version }}
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'LIBXML2_WITH_ICONV' = "NO";
+              'LIBXML2_WITH_ICU' = "NO";
+              'LIBXML2_WITH_LZMA' = "NO";
+              'LIBXML2_WITH_PYTHON' = "NO";
+              'LIBXML2_WITH_TESTS' = "NO";
+              'LIBXML2_WITH_THREADS' = "YES";
+              'LIBXML2_WITH_ZLIB' = "NO";
+            }
+      - name: Build libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ needs.context.outputs.libxml2_version }}
+      - name: Install libxml2
+        run: cmake --build ${{ github.workspace }}/BinaryCache/libxml2-${{ needs.context.outputs.libxml2_version }} --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+
+  sdk:
+    needs: [context, curl, libxml2]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: true
+          - arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: true
+          - arch: i686
+            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: true
+          - arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: true
+          - arch: arm64
+            triple: 'aarch64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: false
+          - arch: armv7
+            triple: 'armv7-unknown-linux-androideabi${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: false
+          - arch: i686
+            triple: 'i686-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: false
+          - arch: x86_64
+            triple: 'x86_64-unknown-linux-android${{ needs.context.outputs.ANDROID_API_LEVEL }}'
+            static: false
+
+    name: Android ${{ matrix.arch }} ${{ matrix.static && 'static' || 'shared' }} SDK
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 # v4.4.1
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.context.outputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+
+      - name: Download Stage1 Compiler
+        uses: thebrowsercompany/gha-download-tar-artifact@59992d91335d4ecba543c8535f7d07238e42125d # main
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-stage1-compiler
+          path: ${{ github.workspace }}/BinaryCache/stage1/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-${{ needs.context.outputs.build_arch }}-bootstrap-macros
+          path: ${{ github.workspace }}/BinaryCache/Library
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift
+          ref: ${{ needs.context.outputs.swift_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/llvm-project
+          ref: ${{ needs.context.outputs.llvm_project_revision }}
+          path: ${{ github.workspace }}/SourceCache/llvm-project
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-collections
+          ref: ${{ needs.context.outputs.swift_collections_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-collections
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-corelibs-libdispatch
+          ref: ${{ needs.context.outputs.swift_corelibs_libdispatch_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-corelibs-foundation
+          ref: ${{ needs.context.outputs.swift_corelibs_foundation_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-foundation
+          ref: ${{ needs.context.outputs.swift_foundation_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: apple/swift-foundation-icu
+          ref: ${{ needs.context.outputs.swift_foundation_icu_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-foundation-icu
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-experimental-string-processing
+          ref: ${{ needs.context.outputs.swift_experimental_string_processing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-experimental-string-processing
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        if: ${{ !matrix.static }}
+        with:
+          repository: swiftlang/swift-testing
+          ref: ${{ needs.context.outputs.swift_testing_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-testing
+          show-progress: false
+      - uses: actions/checkout@v4.2.2
+        if: ${{ !matrix.static }}
+        with:
+          repository: swiftlang/swift-corelibs-xctest
+          ref: ${{ needs.context.outputs.swift_corelibs_xctest_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
+          show-progress: false
+
+      - name: Add Stage1 runtime to PATH
+        run: |
+          $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/${{ needs.context.outputs.swift_version }}+Asserts/usr/bin
+          echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ needs.context.outputs.ANDROID_NDK_VERSION }}
+          local-cache: true
+
+      - name: Run Resync
+        run: |
+          cd ${{ github.workspace }}/SourceCache/swift/Runtimes
+          cmake -P Resync.cmake
+
+      # build.ps1: Build-CDispatch
+      - name: Configure CDispatch
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: libdispatch-c
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          bin-dir: ${{ github.workspace }}/BinaryCache/libdispatch-c
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'BUILD_TESTING' = "NO";
+              'ENABLE_SWIFT' = "NO";
+            }
+      - name: Build CDispatch
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/libdispatch-c
+
+      - name: Configure Runtime
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Runtime
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Core
+          bin-dir: ${{ github.workspace }}/BinaryCache/Runtime
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/libdispatch-c/cmake/modules";
+              # FIXME(hjyamauchi) Should dynamic to libdispatch https://github.com/swiftlang/swift/issues/87548
+              'CMAKE_CXX_FLAGS' = ${{ matrix.static && '@("-Ddispatch_STATIC")' || '@()' }};
+              'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-Xcc", "-static-libclosure")' || '@()' }};
+              # FIXME(compnerd) remove this once the default option is flipped to `ON`.
+              'SwiftCore_ENABLE_BACKTRACING' = "YES";
+              # FIXME(compnerd) remove this once the default option is flipped to `ON`.
+              'SwiftCore_ENABLE_CONCURRENCY' = "YES";
+              # FIXME(compnerd) remove this once the default option is flipped to `ON`.
+              'SwiftCore_ENABLE_REMOTE_MIRROR' = "YES";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftCore_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Runtime
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Runtime
+      - name: Install Runtime
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Runtime --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Overlay
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Overlay
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Overlay
+          bin-dir: ${{ github.workspace }}/BinaryCache/Overlay
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftOverlay_ENABLE_LIBRARY_EVOLUTION' = "NO";
+              'SwiftOverlay_ENABLE_CXX_INTEROP' = "YES";
+            }
+      - name: Build Overlay
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Overlay
+      - name: Install Overlay
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Overlay --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure String Processing
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: StringProcessing
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StringProcessing
+          bin-dir: ${{ github.workspace }}/BinaryCache/StringProcessing
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftStringProcessing_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build String Processing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/StringProcessing
+      - name: Install String Processing
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/StringProcessing --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Synchronization
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Synchronization
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Synchronization
+          bin-dir: ${{ github.workspace }}/BinaryCache/Synchronization
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftSynchronization_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Synchronization
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Synchronization
+      - name: Install Synchronization
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Synchronization --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Distributed
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Distributed
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Distributed
+          bin-dir: ${{ github.workspace }}/BinaryCache/Distributed
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/Runtime/include";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftDistributed_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Distributed
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Distributed
+      - name: Install Distributed
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Distributed --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Observation
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Observation
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Observation
+          bin-dir: ${{ github.workspace }}/BinaryCache/Observation
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               # FIXME(#83449): avoid using `SwiftCMakeConfig.h`
+              'CMAKE_CXX_FLAGS' = "-I${{ github.workspace }}/BinaryCache/Runtime/include"
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftObservation_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Observation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Observation
+      - name: Install Observation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Observation --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Differentiation
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Differentiation
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Differentiation
+          bin-dir: ${{ github.workspace }}/BinaryCache/Differentiation
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftDifferentiation_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Differentiation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Differentiation
+      - name: Install Differentiation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Differentiation --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Volatile
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Volatile
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/Volatile
+          bin-dir: ${{ github.workspace }}/BinaryCache/Volatile
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
+              # FIXME(compnerd) this currently causes a build failure on Windows, but
+              # this should be enabled when building the dynamic runtime.
+              'SwiftVolatile_ENABLE_LIBRARY_EVOLUTION' = "NO";
+            }
+      - name: Build Volatile
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Volatile
+      - name: Install Volatile
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Volatile --target install
+
+      - name: Configure Dispatch
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Dispatch
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch
+          bin-dir: ${{ github.workspace }}/BinaryCache/Dispatch
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk
+          cmake-defines: |
+            @{
+               'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+               'BUILD_TESTING' = "NO";
+               'CMAKE_FIND_PACKAGE_PREFER_CONFIG' = "YES";
+               'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
+               'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+               'ENABLE_SWIFT' = "YES";
+               'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
+              }
+      - name: Build Dispatch
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Dispatch
+      - name: Install Dispatch
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Dispatch --target install
+
+      # build.ps1: Build-SDK
+      - name: Configure Foundation
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Foundation
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-foundation
+          bin-dir: ${{ github.workspace }}/BinaryCache/Foundation
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          c-compiler: 'Stage1.GNUC'
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "${{ matrix.static && 'NO' || 'YES' }}";
+              'CMAKE_NINJA_FORCE_RESPONSE_FILE' = "YES";
+              'CMAKE_Swift_FLAGS' = ${{ matrix.static && '@("-static-stdlib", "-Xfrontend", "-use-static-resource-dir")' || '@()' }};
+              'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
+              'ENABLE_TESTING' = "NO";
+              'FOUNDATION_BUILD_TOOLS' = "NO";
+              'CURL_DIR' = "${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr/lib/cmake/CURL";
+              'BROTLI_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/include";
+              'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/lib/libbrotlicommon.a";
+              'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/lib/libbrotlidec.a";
+              'LibXml2_DIR' = "${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr/lib/cmake/libxml2-${{ needs.context.outputs.libxml2_version }}";
+              'ZLIB_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr/include";
+              'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr/lib/libz.a";
+              'dispatch_DIR' = "${{ github.workspace }}/BinaryCache/Dispatch/cmake/modules";
+              '_SwiftFoundation_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation";
+              '_SwiftFoundationICU_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation-icu";
+              '_SwiftCollections_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-collections";
+              'SwiftFoundation_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ needs.context.outputs.swift_version }}+Asserts/usr/bin";
+            }
+      - name: Build Foundation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Foundation
+      - name: Install Foundation
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/Foundation --target install
+
+      - name: Repair SDK Headers
+        run: |
+          $SDKRoot = cygpath -w "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          foreach ($Module in ("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
+            foreach ($ResourceType in ("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot\usr\lib\$ResourceType\$Module"
+              if (Test-Path $ModuleDirectory) {
+                New-Item -ItemType Directory -Force "$SDKRoot\usr\include" | Out-Null
+                $Destination = "$SDKRoot\usr\include\$Module"
+                if (Test-Path $Destination) { Remove-Item -Recurse -Force $Destination }
+                Move-Item -Path $ModuleDirectory -Destination $Destination -Force
+              }
+            }
+          }
+
+      - name: Repair Dispatch VFS Overlay
+        run: |
+          $DispatchVFS = "${{ github.workspace }}/BinaryCache/Dispatch/dispatch-vfs-overlay.yaml"
+          if (Test-Path $DispatchVFS) {
+            $DispatchSrc = "${{ github.workspace }}/SourceCache/swift-corelibs-libdispatch/dispatch".Replace('\', '/')
+            $InstalledMap = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include/dispatch/module.modulemap".Replace('\', '/')
+            Set-Content -Path $DispatchVFS -Encoding UTF8 -Value @(
+              '---',
+              'version: 0',
+              'case-sensitive: false',
+              'use-external-names: false',
+              'roots:',
+              "  - name: '$DispatchSrc'",
+              '    type: directory',
+              '    contents:',
+              '      - name: module.modulemap',
+              '        type: file',
+              "        external-contents: '$InstalledMap'"
+            )
+          }
+
+      - uses: actions/setup-python@v5
+      - uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            import os
+            import plistlib
+
+            info_plist = r'${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Info.plist'
+            with open(os.path.normpath(info_plist), 'wb') as plist:
+              # TODO(compnerd) derive this from the install directory
+              plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
+
+      - name: Write SDK Settings
+        run: |
+          $SDKSettings = @{
+            CanonicalName = "android"
+            DisplayName = "Android"
+            IsBaseSDK = "YES"
+            Version = "${{ needs.context.outputs.swift_version }}"
+            VersionMap = @{}
+            HeaderSearchPaths = @( "usr/include" )
+            LibrarySearchPaths = @()
+            DefaultProperties = @{
+              PLATFORM_NAME = "android"
+            }
+            SupportedTargets = @{
+              android = @{
+                PlatformFamilyDisplayName = "Android"
+                PlatformFamilyName = "Android"
+                Archs = @("$(("${{ matrix.triple }}" -split '-')[0])")
+              }
+            }
+          }
+          $SDKSettings.SupportedTargets.android.LLVMTargetVendor = "unknown"
+          $SDKSettings.SupportedTargets.android.LLVMTargetSys = "linux"
+          $SDKSettings.SupportedTargets.android.LLVMTargetTripleEnvironment = "android${{ needs.context.outputs.ANDROID_API_LEVEL }}"
+          New-Item -ItemType Directory -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk" -Force | Out-Null
+          $SDKSettings | ConvertTo-JSON -Depth 4 | Out-File -FilePath "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/SDKSettings.json"
+
+          $PListFile = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/SDKSettings.plist"
+          python3 -c "import plistlib; print(str(plistlib.dumps($(($SDKSettings | ConvertTo-JSON -Compress -Depth 4) -replace '"', "'")), encoding='utf-8'))" | Out-File -FilePath $PListFile -Encoding utf8
+
+      # build.ps1: Build-SDK -> Build-Testing (shared SDK only).
+      - name: Configure Testing
+        if: ${{ !matrix.static }}
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: Testing
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-testing
+          bin-dir: ${{ github.workspace }}/BinaryCache/Testing
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library/Testing-${{ needs.context.outputs.swift_version }}/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_INSTALL_BINDIR' = "${{ (matrix.arch == 'amd64' || matrix.arch == 'x86_64') && 'bin64' || matrix.arch == 'arm64' && 'bin64a' || matrix.arch == 'armv7' && 'bin32a' || 'bin32' }}";
+              'CMAKE_Swift_FLAGS' = @("-I${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include");
+              'SwiftTesting_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ needs.context.outputs.swift_version }}+Asserts/usr/bin/TestingMacros.dll";
+              'SwiftTesting_INSTALL_NESTED_SUBDIR' = "YES";
+            }
+      - name: Build Testing
+        if: ${{ !matrix.static }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/Testing
+      - name: Install Testing
+        if: ${{ !matrix.static }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/Testing --target install
+
+      # build.ps1: Build-SDK -> Build-XCTest (shared SDK only).
+      # TODO(compnerd) correctly version XCTest
+      - name: Configure XCTest
+        if: ${{ !matrix.static }}
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: XCTest
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: Android
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift-corelibs-xctest
+          bin-dir: ${{ github.workspace }}/BinaryCache/XCTest
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library/XCTest-${{ needs.context.outputs.swift_version }}/usr
+          android-api-level: ${{ needs.context.outputs.ANDROID_API_LEVEL }}
+          android-clang-version: ${{ needs.context.outputs.ANDROID_CLANG_VERSION }}
+          ndk-path: ${{ steps.setup-ndk.outputs.ndk-path }}
+          swift-compiler: 'Stage1.Swift'
+          swift-sdk-path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "YES";
+              'CMAKE_INSTALL_BINDIR' = "${{ (matrix.arch == 'amd64' || matrix.arch == 'x86_64') && 'bin64' || matrix.arch == 'arm64' && 'bin64a' || matrix.arch == 'armv7' && 'bin32a' || 'bin32' }}";
+              'CMAKE_Swift_FLAGS' = @("-I${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/include");
+              'ENABLE_TESTING' = "NO";
+              'XCTest_INSTALL_NESTED_SUBDIR' = "YES";
+              'SwiftTesting_DIR' = "${{ github.workspace }}/BinaryCache/Testing/cmake/modules";
+            }
+      - name: Build XCTest
+        if: ${{ !matrix.static }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/XCTest
+      - name: Install XCTest
+        if: ${{ !matrix.static }}
+        run: cmake --build ${{ github.workspace }}/BinaryCache/XCTest --target install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+
+  package_android_platform:
+    name: Package Android SDK & Runtime
+    needs: [context, ds2, sdk]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: fromJSON(needs.context.outputs.signed)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.context.outputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/aarch64/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/aarch64/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/armv7/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/armv7/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/armv7/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/armv7/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/x86_64/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/x86_64/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/x86_64/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/x86_64/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/i686/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/i686/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/i686/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/i686/
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+          show-progress: false
+
+      - if: fromJSON(needs.context.outputs.signed) && steps.signing_mode.outputs.azure_vault == 'false'
+        run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil.exe -decode $CertificatePath $PFXPath
+          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
+      - name: Install WixToolset.Sdk
+        run: |
+          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
+            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
+          }
+
+      - name: Complete Android SDK layout
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          foreach ($Module in @("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
+            foreach ($ResourceType in @("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot/usr/lib/$ResourceType/$Module"
+              if (Test-Path $ModuleDirectory) {
+                Move-Item $ModuleDirectory "$SDKRoot/usr/include/"
+              }
+            }
+          }
+
+          # build.ps1: SwiftBuild's static resource directory also needs the Android headers and shims.
+          $DynamicResources = "$SDKRoot/usr/lib/swift"
+          $StaticResources = "$SDKRoot/usr/lib/swift_static"
+          New-Item -ItemType Directory -Path "$StaticResources/shims" -Force | Out-Null
+          Copy-Item -Path "$DynamicResources/shims/*" -Destination "$StaticResources/shims/" -Recurse -Force
+          foreach ($File in @("libcxxshim.h", "libcxxshim.modulemap", "libcxxstdlibshim.h")) {
+            Copy-Item -Path "$DynamicResources/android/$File" -Destination "$StaticResources/android/$File" -Force
+          }
+          foreach ($Architecture in @("aarch64", "armv7", "i686", "x86_64")) {
+            foreach ($File in @("android.modulemap", "SwiftAndroidNDK.h", "SwiftBionic.h")) {
+              Copy-Item -Path "$DynamicResources/android/$Architecture/$File" -Destination "$StaticResources/android/$Architecture/$File" -Force
+            }
+          }
+
+      - name: Update supported architectures in Android SDK settings
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          $Architectures = @("aarch64", "armv7", "i686", "x86_64")
+          $Settings = Get-Content "$SDKRoot/SDKSettings.json" -Raw | ConvertFrom-Json
+          $Settings.SupportedTargets.android.Archs = $Architectures
+
+          $PlistPath = "$SDKRoot/SDKSettings.plist"
+          $Settings | ConvertTo-Json -Depth 4 | Set-Content "$SDKRoot/SDKSettings.json" -Encoding utf8
+
+          # Use plistlib because PowerShell's XmlDocument adds an empty DTD subset that Swift rejects.
+          $UpdatePlist = @'
+          import plistlib
+          import sys
+
+          path = sys.argv[1]
+          with open(path, "rb") as stream:
+              settings = plistlib.load(stream)
+          settings["SupportedTargets"]["android"]["Archs"] = sys.argv[2:]
+          with open(path, "wb") as stream:
+              plistlib.dump(settings, stream)
+          '@
+          python3 -c $UpdatePlist $PlistPath $Architectures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install AzureSignTool
+        if: fromJSON(needs.context.outputs.signed) && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+        if: fromJSON(needs.context.outputs.signed) && steps.signing_mode.outputs.azure_vault == 'true'
+
+      - name: Package SDK
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
+              -p:ANDROID_INCLUDE_DS2=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductArchitecture=${{ needs.context.outputs.build_arch }} `
+              -p:AndroidArchitectures="`"x86_64;aarch64;i686;armv7`"" `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/android/android.wixproj
+
+      - if: ${{ fromJSON(needs.context.outputs.release) }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x86.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-platform-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x86.cab
