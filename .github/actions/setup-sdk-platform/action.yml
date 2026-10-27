@@ -1,0 +1,37 @@
+name: Setup SDK platform
+description: |
+  Sets up the per-platform build environment of a Swift SDK job from the
+  resolved `.github/sdk-platforms/<platform>.json` description: the Visual
+  Studio developer environment when the platform asks for it, and the Android
+  NDK when the platform names one.
+
+inputs:
+  platform:
+    description: Resolved platform description (compact JSON), as exported by the `context` job.
+    required: true
+  host-arch:
+    description: |
+      Target architecture of the Visual Studio developer environment, "x86", "amd64" or "arm64".
+      Only used when the platform sets `setup.vs_dev_env`.
+    required: false
+
+outputs:
+  ndk-path:
+    description: Path of the installed Android NDK. Empty when the platform does not use one.
+    value: ${{ steps.ndk.outputs.ndk-path }}
+
+runs:
+  using: composite
+  steps:
+    - uses: ./SourceCache/ci-build/.github/actions/setup-build
+      if: fromJSON(inputs.platform).setup.vs_dev_env
+      with:
+        setup-vs-dev-env: true
+        host-arch: ${{ inputs.host-arch }}
+
+    - uses: nttld/setup-ndk@v1
+      id: ndk
+      if: fromJSON(inputs.platform).setup.ndk_version != ''
+      with:
+        ndk-version: ${{ fromJSON(inputs.platform).setup.ndk_version }}
+        local-cache: true
