@@ -20,6 +20,11 @@ description: |
 
 on:
   workflow_dispatch:
+    inputs:
+      runtime_run_id:
+        description: 'Run containing prepared runtimes; leave blank to build and save them'
+        type: string
+        default: ''
   workflow_call:
     inputs:
       build_arch:
@@ -3109,6 +3114,20 @@ jobs:
           $RTLPath = cygpath -w ${{ github.workspace }}/BinaryCache/stage1/Library/Developer/Toolchains/0.0.0+Asserts/usr/bin
           echo ${RTLPath} | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Download prepared runtimes
+        if: ${{ inputs.runtime_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: Windows-arm64-foundation-prerequisites
+          run-id: ${{ inputs.runtime_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/foundation-prerequisites
+      - name: Restore prepared runtimes
+        if: ${{ inputs.runtime_run_id != '' }}
+        run: |
+          & "$env:WINDIR/System32/tar.exe" -xf "$env:RUNNER_TEMP/foundation-prerequisites/foundation-prerequisites.tar" -C "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to restore prepared runtimes" }
+
       - name: Run Resync
         run: |
           cd ${{ github.workspace }}/SourceCache/swift/Runtimes
@@ -3116,6 +3135,7 @@ jobs:
 
       # build.ps1: Build-CDispatch
       - name: Configure CDispatch
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: libdispatch-c
@@ -3138,10 +3158,12 @@ jobs:
               'ENABLE_SWIFT' = "NO";
             }
       - name: Build CDispatch
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/libdispatch-c
 
       - name: Configure Runtime
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Runtime
@@ -3180,14 +3202,17 @@ jobs:
               'SwiftCore_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build Runtime
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Runtime
       - name: Install Runtime
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Runtime --target install
 
       # build.ps1: Build-SDK
       - name: Configure Overlay
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Overlay
@@ -3218,14 +3243,17 @@ jobs:
               'SwiftOverlay_ENABLE_CXX_INTEROP' = "YES";
             }
       - name: Build Overlay
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Overlay
       - name: Install Overlay
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Overlay --target install
 
       # build.ps1: Build-SDK
       - name: Configure String Processing
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: StringProcessing
@@ -3255,14 +3283,17 @@ jobs:
               'SwiftStringProcessing_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build String Processing
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/StringProcessing
       - name: Install String Processing
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/StringProcessing --target install
 
       # build.ps1: Build-SDK
       - name: Configure Synchronization
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Synchronization
@@ -3292,14 +3323,17 @@ jobs:
               'SwiftSynchronization_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build Synchronization
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Synchronization
       - name: Install Synchronization
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Synchronization --target install
 
       # build.ps1: Build-SDK
       - name: Configure Distributed
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Distributed
@@ -3331,14 +3365,17 @@ jobs:
               'SwiftDistributed_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build Distributed
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Distributed
       - name: Install Distributed
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Distributed --target install
 
       # build.ps1: Build-SDK
       - name: Configure Observation
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Observation
@@ -3370,14 +3407,17 @@ jobs:
               'SwiftObservation_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build Observation
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Observation
       - name: Install Observation
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Observation --target install
 
       # build.ps1: Build-SDK
       - name: Configure Differentiation
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Differentiation
@@ -3408,14 +3448,17 @@ jobs:
               'SwiftDifferentiation_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build Differentiation
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Differentiation
       - name: Install Differentiation
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Differentiation --target install
 
       # build.ps1: Build-SDK
       - name: Configure Volatile
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Volatile
@@ -3446,14 +3489,17 @@ jobs:
               'SwiftVolatile_ENABLE_LIBRARY_EVOLUTION' = "NO";
             }
       - name: Build Volatile
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Volatile
       - name: Install Volatile
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Volatile --target install
 
       # build.ps1: Build-SDK
       - name: Configure RuntimeModule
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: RuntimeModule
@@ -3487,14 +3533,17 @@ jobs:
               'SwiftRuntime_ENABLE_BACKTRACING' = "YES";
             }
       - name: Build RuntimeModule
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/RuntimeModule
       - name: Install RuntimeModule
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/RuntimeModule --target install
 
       # build.ps1: Build-SDK
       - name: Configure Dispatch
+        if: ${{ inputs.runtime_run_id == '' }}
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
           project-name: Dispatch
@@ -3524,11 +3573,30 @@ jobs:
                'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
               }
       - name: Build Dispatch
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Dispatch
       - name: Install Dispatch
+        if: ${{ inputs.runtime_run_id == '' }}
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Dispatch --target install
+
+      - name: Pack prepared runtimes
+        if: ${{ inputs.runtime_run_id == '' }}
+        run: |
+          & "$env:WINDIR/System32/tar.exe" -cf "$env:RUNNER_TEMP/foundation-prerequisites.tar" -C "$env:GITHUB_WORKSPACE" `
+            BuildRoot/Library/Developer/Platforms/Windows.platform BinaryCache/Dispatch BinaryCache/libdispatch-c
+          if ($LASTEXITCODE -ne 0) { throw "Failed to pack prepared runtimes" }
+      - name: Save prepared runtimes
+        if: ${{ inputs.runtime_run_id == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-arm64-foundation-prerequisites
+          path: ${{ runner.temp }}/foundation-prerequisites.tar
+          if-no-files-found: error
+
+      - name: Clean Foundation build directory
+        run: cmake -E rm -rf "${{ github.workspace }}/BinaryCache/Foundation"
 
       # build.ps1: Build-SDK
       - name: Configure Foundation
