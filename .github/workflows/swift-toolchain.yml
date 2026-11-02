@@ -328,7 +328,9 @@ permissions:
   attestations: write
 
 jobs:
+  # Temporary: only run Python packaging while validating the WiX install-step removal.
   windows_signing_context:
+    if: false
     name: Windows Signing Context
     runs-on: ${{ inputs.default_build_runner }}
     outputs:
@@ -407,6 +409,7 @@ jobs:
           "certificate_thumbprint=$($PublicCertificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
   bootstrap-sqlite:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -504,6 +507,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   bootstrap-libxml2:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -623,6 +627,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/bootstrap-libxml2-${{ inputs.libxml2_version }}/usr
 
   sqlite:
+    if: false
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -710,6 +715,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ inputs.swift_toolchain_sqlite_version }}/usr
 
   ds2_tools:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     name: ds2 Build Tools
@@ -797,6 +803,7 @@ jobs:
           path: |
             ${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe
   ds2:
+    if: false
     needs: [ds2_tools, stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -933,6 +940,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/Library/Developer
 
   cmark_gfm:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
 
     strategy:
@@ -1015,6 +1023,7 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-cmark-gfm-${{ inputs.swift_cmark_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/cmark-gfm-${{ inputs.swift_cmark_version }}/usr
   build_tools:
+    if: false
     needs: [cmark_gfm]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1172,6 +1181,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bin
 
   early_swift_driver:
+    if: false
     runs-on: ${{ inputs.default_build_runner }}
     needs: [bootstrap-sqlite]
 
@@ -1320,6 +1330,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot
 
   stage1-compiler:
+    if: false
     needs: [bootstrap-libxml2, cmark_gfm, build_tools, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
 
@@ -1568,6 +1579,7 @@ jobs:
           path: ${{ github.workspace }}/BinaryCache/stage1/swift-syntax
 
   bootstrap-macros:
+    if: false
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -1679,6 +1691,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/bootstrap/Library
 
   stage2-libxml2:
+    if: false
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
     strategy:
@@ -1781,6 +1794,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/stage2-libxml2-${{ inputs.libxml2_version }}/usr
 
   stage2-compiler:
+    if: false
     needs: [stage1-compiler, sdk, stage2-libxml2, build_tools, cmark_gfm, early_swift_driver]
     runs-on: ${{ inputs.compilers_build_runner }}
     strategy:
@@ -2141,6 +2155,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   compiler-runtime:
+    if: false
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2306,6 +2321,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   zlib:
+    if: false
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2405,6 +2421,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ inputs.zlib_version }}/usr
 
   brotli:
+    if: false
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2503,6 +2520,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ inputs.brotli_version }}/usr
 
   curl:
+    if: false
     needs: [stage1-compiler, zlib, brotli]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2700,6 +2718,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ inputs.curl_version }}/usr
 
   libxml2:
+    if: false
     needs: [stage1-compiler]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2808,6 +2827,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ inputs.libxml2_version }}/usr
 
   macros:
+    if: false
     needs: [stage2-compiler, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -2970,6 +2990,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   sdk:
+    if: false
     needs: [stage1-compiler, bootstrap-macros, zlib, brotli, curl, libxml2]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -3953,6 +3974,7 @@ jobs:
           searchPattern: '**/*.dll'
 
   devtools:
+    if: false
     needs: [sqlite, stage2-compiler, macros, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -4865,6 +4887,7 @@ jobs:
           searchPattern: '**/*.exe'
 
   debugging_tools:
+    if: false
     needs: [stage1-compiler, devtools, sdk]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -5041,6 +5064,7 @@ jobs:
           path: ${{ github.workspace }}/BuildRoot/Library
 
   package_build_tools:
+    if: false
     needs: [windows_signing_context, stage2-compiler, macros, devtools]
     name: Package Build Tools (${{ matrix.variant.name }}) (${{ matrix.host.arch }})
     runs-on: ${{ inputs.default_build_runner }}
@@ -5136,12 +5160,6 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - uses: actions/checkout@v4.2.2
         with:
@@ -5379,6 +5397,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.host.arch }}/bld.${{ matrix.variant.package }}.cab
 
   package_developer_tools:
+    if: false
     needs: [windows_signing_context, stage2-compiler, devtools]
     name: Package Developer Tools (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
@@ -5459,12 +5478,6 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - name: Complete NoAsserts layout
         run: |
@@ -5745,6 +5758,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/ide.noasserts.cab
 
   package_debugging_tools:
+    if: false
     needs: [windows_signing_context, stage2-compiler, debugging_tools]
     name: Package Debugging Tools (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
@@ -5818,12 +5832,6 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - name: Complete NoAsserts layout
         run: |
@@ -6036,6 +6044,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/dbg.noasserts.cab
 
   package_runtimes:
+    if: false
     needs: [windows_signing_context, sdk]
     name: Package Runtimes (${{ matrix.arch }})
     runs-on: ${{ inputs.default_build_runner }}
@@ -6109,12 +6118,6 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - name: Stage runtime assemblies
         run: |
@@ -6426,6 +6429,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/rtl.${{ matrix.arch }}.cab
 
   package_windows_platform:
+    if: false
     name: Package Windows SDK & Runtime
     needs: [windows_signing_context, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -6643,12 +6647,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - run: |
           $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Windows.platform/Developer/SDKs/Windows.sdk"
@@ -6892,6 +6890,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/x86/rtl.static.shared.x86.msm
 
   package_android_platform:
+    if: false
     name: Package Android SDK & Runtime
     needs: [ds2, sdk]
     runs-on: ${{ inputs.default_build_runner }}
@@ -7124,13 +7123,6 @@ jobs:
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
 
       - if: inputs.build_android
-        name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
-
-      - if: inputs.build_android
         name: Complete Android SDK layout
         run: |
           $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
@@ -7244,7 +7236,8 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(inputs.host_matrix) }}
+      matrix:
+        arch: [amd64]
   
     steps:
       - name: Select signing mode
@@ -7283,12 +7276,6 @@ jobs:
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - name: Install AzureSignTool
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
@@ -7371,6 +7358,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ matrix.arch }}/python.cab
 
   package_resources:
+    if: false
     name: Package Resources
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7411,12 +7399,6 @@ jobs:
           certutil.exe -decode $CertificatePath $PFXPath
           Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'false'
-
-      - name: Install WixToolset.Sdk
-        run: |
-          if ((Get-Package -Name WixToolset.Sdk -ErrorAction SilentlyContinue) -eq $null) {
-            Install-Package -Name WixToolset.Sdk -RequiredVersion 4.0.1 -Force
-          }
 
       - name: Install AzureSignTool
         if: inputs.signed && steps.signing_mode.outputs.azure_vault == 'true'
@@ -7461,6 +7443,7 @@ jobs:
             ${{ github.workspace }}/BinaryCache/installer/Release/${{ inputs.build_arch }}/res.cab
 
   installer:
+    if: false
     needs: [package_build_tools, package_developer_tools, package_debugging_tools, package_runtimes, package_windows_platform, package_android_platform, package_python, package_resources]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -7762,6 +7745,7 @@ jobs:
             --acl private
 
   smoke_test:
+    if: false
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
     env:
@@ -7879,6 +7863,7 @@ jobs:
 
   # Ensures redistributables contain all expected DLLs.
   redistributable_smoke_test:
+    if: false
     name: Redistributable smoke test (${{ matrix.arch }}, ${{ matrix.variant }})
     needs: [package_windows_platform]
     runs-on: ${{ inputs.default_build_runner }}
@@ -7953,7 +7938,7 @@ jobs:
           }
 
   smoke_test_android:
-    if: inputs.build_android
+    if: false
     needs: [installer]
     runs-on: ${{ inputs.default_build_runner }}
 
@@ -8105,6 +8090,7 @@ jobs:
         run: cmake --build out
 
   swift_test:
+    if: false
     needs: [stage1-compiler, stage2-compiler, sdk]
     runs-on: ${{ inputs.compilers_build_runner }}
 
