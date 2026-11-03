@@ -98,8 +98,7 @@ runs:
         SYMSTORE_EXE: ${{ steps.install-debugtools.outputs.symstore-path }}
       run: |
         $SymstoreExe = $env:SYMSTORE_EXE
-        # Temporary destination for the symbols-on, release-off test run.
-        $StorePrefix = 'symbols-test-symbol-job'
+        $StorePrefix = 'symbols'
 
         $ErrorActionPreference = 'Stop'
         $PSNativeCommandUseErrorActionPreference = $false
@@ -108,7 +107,8 @@ runs:
         $SearchPath = Join-Path $SymbolsPath $env:SEARCH_PATTERN
         $PdbFiles = @(Get-ChildItem -Path $SearchPath -Recurse -File)
         if ($PdbFiles.Count -eq 0) {
-            throw "No PDB files found matching $env:SEARCH_PATTERN in $SymbolsPath"
+            Write-Output "::warning::No PDB files found matching $env:SEARCH_PATTERN in $SymbolsPath"
+            exit 0
         }
         Write-Output "Found $($PdbFiles.Count) PDB file(s) to publish"
 
