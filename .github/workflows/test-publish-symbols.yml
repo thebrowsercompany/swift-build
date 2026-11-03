@@ -1,19 +1,105 @@
-name: Test Publish Symbols
+name: Test Symbol Artifacts
 
 # Manual-only. Will not fire on push, PR, or schedule.
 on:
   workflow_dispatch:
 
-jobs:
-  test:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+permissions:
+  contents: read
 
-      - name: Invoke publish-symbols-azure
-        uses: ./.github/actions/publish-symbols-azure
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  upload:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [empty, dll-only, symbols]
+    env:
+      SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - name: Create test files
+        run: |
+          New-Item -ItemType Directory -Path payload/bin -Force | Out-Null
+          Set-Content payload/ignored.txt 'Not a symbol file' -NoNewline
+          if ($env:SCENARIO -ne 'empty') {
+            Set-Content payload/bin/example.dll 'dll fixture' -NoNewline
+          }
+          if ($env:SCENARIO -eq 'symbols') {
+            Set-Content payload/bin/example.pdb 'pdb fixture' -NoNewline
+            Set-Content payload/bin/example.exe 'exe fixture' -NoNewline
+          }
+
+      - name: Upload files for symbol publishing
+        uses: actions/upload-artifact@v4
         with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}
-          searchPattern: '**/*.pdb'
+          name: symbol-artifacts-${{ github.run_attempt }}-${{ matrix.scenario }}
+          path: |
+            ${{ github.workspace }}/payload/**/*.pdb
+            ${{ github.workspace }}/payload/**/*.dll
+            ${{ github.workspace }}/payload/**/*.exe
+          compression-level: 1
+          if-no-files-found: warn
+          retention-days: 1
+
+  download:
+    needs: [upload]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [empty, dll-only, symbols]
+    env:
+      SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: symbol-artifacts-${{ github.run_attempt }}-${{ matrix.scenario }}
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Exercise publishing condition
+        id: publish
+        if: steps.symbols.outputs.available == 'true'
+        run: Write-Output 'Publishing would run for this artifact.'
+
+      - name: Verify result
+        env:
+          SYMBOLS_AVAILABLE: ${{ steps.symbols.outputs.available }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+        run: |
+          if ($env:SCENARIO -eq 'empty') {
+            if ($env:SYMBOLS_AVAILABLE -eq 'true' -or $env:PUBLISH_OUTCOME -ne 'skipped') {
+              throw 'Empty symbol input must skip publishing'
+            }
+          } else {
+            if ($env:SYMBOLS_AVAILABLE -ne 'true' -or $env:PUBLISH_OUTCOME -ne 'success') {
+              throw 'Nonempty symbol input must reach publishing'
+            }
+            $Extensions = if ($env:SCENARIO -eq 'dll-only') { @('dll') } else { @('pdb', 'dll', 'exe') }
+            $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+            $Files = @(Get-ChildItem $SymbolsPath -Recurse -File)
+            if ($Files.Count -ne $Extensions.Count) {
+              throw "Expected $($Extensions.Count) files, found $($Files.Count)"
+            }
+            foreach ($Extension in $Extensions) {
+              $File = Join-Path $SymbolsPath "bin/example.$Extension"
+              if ([System.IO.File]::ReadAllText($File) -cne "$Extension fixture") {
+                throw "Unexpected contents in $File"
+              }
+            }
+          }
+          Write-Output "Verified $env:SCENARIO artifact transfer and publishing condition"
