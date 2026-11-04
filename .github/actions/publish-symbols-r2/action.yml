@@ -163,19 +163,38 @@ runs:
 
           # 4. Upload symbols and transaction files
           Write-Output "ℹ️ Uploading all symbol store files to R2..."
-          $RawLog = Join-Path $env:RUNNER_TEMP "r2-multipart-$Attempt.raw.log"
+          $SymbolGroups = Get-ChildItem -Path $TempRoot -Recurse -File -Filter '*.pdb' | ForEach-Object {
+            $Reference = Get-Content (Join-Path $_.DirectoryName 'refs.ptr') |
+              ConvertFrom-Csv -Header Id,Type,Source | Select-Object -First 1
+            [pscustomobject]@{
+              SourceGroup = [IO.Path]::GetRelativePath($SymbolsPath.Path, $Reference.Source).Split([IO.Path]::DirectorySeparatorChar)[0]
+              Key = [IO.Path]::GetRelativePath($TempRoot, $_.FullName).Replace('\', '/')
+            }
+          } | Group-Object SourceGroup
+          $UploadFailed = $false
+          $IncludeArgs = @('--include', 'pingme.txt')
           $Timer = [Diagnostics.Stopwatch]::StartNew()
-          aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/" `
-            --recursive `
-            --exclude "000Admin/*" `
-            --exclude "*/refs.ptr" `
-            --endpoint-url "${env:R2_ENDPOINT_URL}" `
-            --no-progress `
-            --acl private --debug *> $RawLog
-          $UploadExit = $LASTEXITCODE
+          foreach ($Group in $SymbolGroups) {
+            foreach ($Symbol in $Group.Group) {
+              $IncludeArgs += @('--include', $Symbol.Key)
+            }
+            $RawLog = Join-Path $env:RUNNER_TEMP "r2-multipart-$Attempt-$($Group.Name).raw.log"
+            $GroupTimer = [Diagnostics.Stopwatch]::StartNew()
+            aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/" `
+              --recursive `
+              --exclude "*" @IncludeArgs `
+              --endpoint-url "${env:R2_ENDPOINT_URL}" `
+              --no-progress `
+              --acl private --debug *> $RawLog
+            $UploadExit = $LASTEXITCODE
+            $GroupTimer.Stop()
+            Write-Output "$($Group.Name): $($Group.Count) PDBs, upload exit $UploadExit, $([math]::Round($GroupTimer.Elapsed.TotalSeconds, 1)) seconds"
+            if ($UploadExit) { $UploadFailed = $true }
+            $IncludeArgs = @()
+          }
           $Timer.Stop()
-          Write-Output "PDB upload exit $UploadExit, $([math]::Round($Timer.Elapsed.TotalSeconds, 1)) seconds"
-          if ($UploadExit) { Write-Output "::error::Failed to upload symbol files to R2"; exit 1 }
+          Write-Output "PDB upload total: $([math]::Round($Timer.Elapsed.TotalSeconds, 1)) seconds"
+          if ($UploadFailed) { Write-Output "::error::Failed to upload symbol files to R2"; exit 1 }
           aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/" `
             --recursive `
             --exclude "*" `
