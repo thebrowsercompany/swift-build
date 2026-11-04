@@ -1,105 +1,99 @@
-name: Test Symbol Artifacts
+name: Test R2 Symbol Publishing
 
-# Manual-only. Will not fire on push, PR, or schedule.
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 defaults:
   run:
     shell: pwsh
 
 jobs:
-  upload:
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario: [empty, dll-only, symbols]
-    env:
-      SCENARIO: ${{ matrix.scenario }}
+  publish:
+    runs-on: swift-build-windows-latest-8-cores
+    timeout-minutes: 180
+    concurrency:
+      group: r2-swift-toolchain-symbols-test-symbol-job
+      cancel-in-progress: false
+      queue: max
     steps:
-      - name: Create test files
+      - uses: actions/checkout@v4.2.2
+
+      - name: Check test store and available disk
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ''
+          AWS_SECURITY_TOKEN: ''
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
-          New-Item -ItemType Directory -Path payload/bin -Force | Out-Null
-          Set-Content payload/ignored.txt 'Not a symbol file' -NoNewline
-          if ($env:SCENARIO -ne 'empty') {
-            Set-Content payload/bin/example.dll 'dll fixture' -NoNewline
+          foreach ($Name in 'server.txt', 'history.txt', 'lastid.txt') {
+            aws s3api head-object --bucket swift-toolchain `
+              --key "symbols-test-symbol-job/000Admin/$Name" `
+              --endpoint-url $env:R2_ENDPOINT_URL --query ContentLength --output text
+            if ($LASTEXITCODE) { throw "Cannot read test store admin file: $Name" }
           }
-          if ($env:SCENARIO -eq 'symbols') {
-            Set-Content payload/bin/example.pdb 'pdb fixture' -NoNewline
-            Set-Content payload/bin/example.exe 'exe fixture' -NoNewline
+          "Source run: 41478561165" >> $env:GITHUB_STEP_SUMMARY
+          "Destination: swift-toolchain/symbols-test-symbol-job/" >> $env:GITHUB_STEP_SUMMARY
+          "Available disk before download:" >> $env:GITHUB_STEP_SUMMARY
+          Get-PSDrive -PSProvider FileSystem | Where-Object Name -Match '^[A-Z]$' | ForEach-Object {
+            "- $($_.Name): $([math]::Round($_.Free / 1GB, 2)) GiB free" >> $env:GITHUB_STEP_SUMMARY
           }
 
-      - name: Upload files for symbol publishing
-        uses: actions/upload-artifact@v4
+      - name: Download previous run's symbol artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: symbol-artifacts-${{ github.run_attempt }}-${{ matrix.scenario }}
-          path: |
-            ${{ github.workspace }}/payload/**/*.pdb
-            ${{ github.workspace }}/payload/**/*.dll
-            ${{ github.workspace }}/payload/**/*.exe
-          compression-level: 1
-          if-no-files-found: warn
-          retention-days: 1
-
-  download:
-    needs: [upload]
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario: [empty, dll-only, symbols]
-    env:
-      SCENARIO: ${{ matrix.scenario }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: symbol-artifacts-${{ github.run_attempt }}-${{ matrix.scenario }}
-          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: thebrowsercompany/swift-build
+          run-id: '41478561165'
+          pattern: '*-symbols'
+          merge-multiple: false
           path: ${{ github.workspace }}/symbols
 
-      - name: Check for symbol files
-        id: symbols
+      - name: Measure downloaded files and available disk
         run: |
-          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
-          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
-            "available=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Output "::warning::No files available for symbol publishing"
+          $Artifacts = @(Get-ChildItem -Path symbols -Directory)
+          if ($Artifacts.Count -ne 14) {
+            throw "Expected 14 symbol artifact directories, found $($Artifacts.Count)"
+          }
+          $Files = @(Get-ChildItem -Path symbols -Recurse -File)
+          foreach ($Group in ($Files | Group-Object Extension)) {
+            $Bytes = ($Group.Group | Measure-Object Length -Sum).Sum
+            "$($Group.Name): $($Group.Count) files, $([math]::Round($Bytes / 1GB, 2)) GiB" |
+              Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+          "Available disk after download:" >> $env:GITHUB_STEP_SUMMARY
+          Get-PSDrive -PSProvider FileSystem | Where-Object Name -Match '^[A-Z]$' | ForEach-Object {
+            "- $($_.Name): $([math]::Round($_.Free / 1GB, 2)) GiB free" >> $env:GITHUB_STEP_SUMMARY
           }
 
-      - name: Exercise publishing condition
-        id: publish
-        if: steps.symbols.outputs.available == 'true'
-        run: Write-Output 'Publishing would run for this artifact.'
+      - name: Upload PDBs to test symbol store
+        uses: ./.github/actions/publish-symbols-r2
+        with:
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '*.pdb'
+          swift-version: '0.0.0'
+          arch: all
+          build-revision: '0fc8344b4db72c0397fda3b28330ba7152959776'
+          r2-bucket: swift-toolchain
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
 
-      - name: Verify result
-        env:
-          SYMBOLS_AVAILABLE: ${{ steps.symbols.outputs.available }}
-          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+      - name: Measure symbol store and remaining disk
+        if: always()
         run: |
-          if ($env:SCENARIO -eq 'empty') {
-            if ($env:SYMBOLS_AVAILABLE -eq 'true' -or $env:PUBLISH_OUTCOME -ne 'skipped') {
-              throw 'Empty symbol input must skip publishing'
-            }
-          } else {
-            if ($env:SYMBOLS_AVAILABLE -ne 'true' -or $env:PUBLISH_OUTCOME -ne 'success') {
-              throw 'Nonempty symbol input must reach publishing'
-            }
-            $Extensions = if ($env:SCENARIO -eq 'dll-only') { @('dll') } else { @('pdb', 'dll', 'exe') }
-            $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
-            $Files = @(Get-ChildItem $SymbolsPath -Recurse -File)
-            if ($Files.Count -ne $Extensions.Count) {
-              throw "Expected $($Extensions.Count) files, found $($Files.Count)"
-            }
-            foreach ($Extension in $Extensions) {
-              $File = Join-Path $SymbolsPath "bin/example.$Extension"
-              if ([System.IO.File]::ReadAllText($File) -cne "$Extension fixture") {
-                throw "Unexpected contents in $File"
-              }
-            }
+          $Stores = @(Get-ChildItem -Path $env:TEMP -Directory -Filter 'symstore-*')
+          foreach ($Store in $Stores) {
+            $Bytes = (Get-ChildItem $Store.FullName -Recurse -File | Measure-Object Length -Sum).Sum
+            "SymStore working directory: $([math]::Round($Bytes / 1GB, 2)) GiB" |
+              Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
-          Write-Output "Verified $env:SCENARIO artifact transfer and publishing condition"
+          "Available disk after publishing:" >> $env:GITHUB_STEP_SUMMARY
+          Get-PSDrive -PSProvider FileSystem | Where-Object Name -Match '^[A-Z]$' | ForEach-Object {
+            "- $($_.Name): $([math]::Round($_.Free / 1GB, 2)) GiB free" >> $env:GITHUB_STEP_SUMMARY
+          }
