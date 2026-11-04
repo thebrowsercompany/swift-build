@@ -119,29 +119,19 @@ runs:
         }
         Write-Output "ℹ️ Found $($PdbFiles.Count) PDB file(s) to add to symbol store"
 
-        # Symstore.exe is ment to manage a local symbolstore or one on a network share. 
-        # Since we are using R2 directelly to write, we need to do some extra steps to manage the state of the store in the face of concurrent writes. 
-        # This step implements optimistic concurrency control to update the symbols store state in R2.
-        # corruption when multiple jobs attempt to upload symbols simultaneously.
-        # How it works:
-        # 1. Use 000Admin/server.txt as a "lock" by tracking its ETag
-        # 2. Download current state (get ETag of 000Admin/server.txt and download admin files)
-        # 3. Add symbols locally using symstore.exe
-        # 4. Attempt to upload 000Admin/server.txt with --if-match using the ETag we captured
-        #    - If successful (ETag matches), no one else modified it - proceed with full upload
-        #    - If failed with PreconditionFailed (412), someone else updated it - retry
-        # 5. Retry up to 5 times with random delay (1-30 seconds) between attempts     
+        # The calling workflow must serialize this action for the store.
+        # Publish server.txt only after its symbols and transaction files.
         $MaxRetries = 5
 
         for ($Attempt = 1; $Attempt -le $MaxRetries; $Attempt++) {
           Write-Output ""
           Write-Output "ℹ️ Attempt $Attempt of $MaxRetries..."
 
-          # 1. Get current ETag of server.txt as our lock
+          # 1. Get current ETag of server.txt
           Write-Output "ℹ️ Getting current ETag of server.txt..."
           $HeadOutput = aws s3api head-object `
             --bucket "${env:R2_BUCKET}" `
-            --key "symbols-test-symbol-job/000Admin/server.txt" `
+            --key "symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/000Admin/server.txt" `
             --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
 
           if ($LASTEXITCODE) {
@@ -154,7 +144,7 @@ runs:
 
           # 2. Download admin files
           Write-Output "ℹ️ Downloading symbol store admin files from R2..."
-          aws s3 cp "s3://${env:R2_BUCKET}/symbols-test-symbol-job/000Admin" "$AdminDir" `
+          aws s3 cp "s3://${env:R2_BUCKET}/symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/000Admin" "$AdminDir" `
             --endpoint-url "${env:R2_ENDPOINT_URL}" `
             --recursive `
             --exclude "*" `
@@ -171,12 +161,42 @@ runs:
           if ($LASTEXITCODE) { Write-Output "::error::symstore.exe failed ($LASTEXITCODE)"; exit 1 }
           Write-Output "✓ Symbols added successfully"
 
-          # 4. Conditional upload of server.txt (with ETag)
+          # 4. Upload symbols and transaction files
+          Write-Output "ℹ️ Uploading all symbol store files to R2..."
+          $RawLog = Join-Path $env:RUNNER_TEMP "r2-multipart-$Attempt.raw.log"
+          $Timer = [Diagnostics.Stopwatch]::StartNew()
+          aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/" `
+            --recursive `
+            --exclude "000Admin/*" `
+            --exclude "*/refs.ptr" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --acl private --debug *> $RawLog
+          $UploadExit = $LASTEXITCODE
+          $Timer.Stop()
+          Write-Output "PDB upload exit $UploadExit, $([math]::Round($Timer.Elapsed.TotalSeconds, 1)) seconds"
+          if ($UploadExit) { Write-Output "::error::Failed to upload symbol files to R2"; exit 1 }
+          aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/" `
+            --recursive `
+            --exclude "*" `
+            --include "*/refs.ptr" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --acl private
+          if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol references to R2"; exit 1 }
+          aws s3 sync "$AdminDir" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/000Admin/" `
+            --exclude "server.txt" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --acl private
+          if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol store to R2"; exit 1 }
+
+          # 5. Conditional upload of server.txt (with ETag)
           $ServerTxtLocal = Join-Path $AdminDir "server.txt"
           Write-Output "ℹ️ Attempting conditional upload of server.txt (ETag: $CurrentETag)..."
           $UploadOutput = aws s3api put-object `
             --bucket "${env:R2_BUCKET}" `
-            --key "symbols-test-symbol-job/000Admin/server.txt" `
+            --key "symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/000Admin/server.txt" `
             --body "$ServerTxtLocal" `
             --if-match "$CurrentETag" `
             --endpoint-url "${env:R2_ENDPOINT_URL}" 2>&1
@@ -184,20 +204,6 @@ runs:
           if (!$LASTEXITCODE) {
             Write-Output "✓ server.txt uploaded successfully (no concurrent modification)"
 
-            # 5. Upload remaining store files
-            Write-Output "ℹ️ Uploading all symbol store files to R2..."
-            aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/" `
-              --recursive `
-              --exclude "000Admin/*" `
-              --endpoint-url "${env:R2_ENDPOINT_URL}" `
-              --no-progress `
-              --acl private
-            if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol files to R2"; exit 1 }
-            aws s3 sync "$AdminDir" "s3://${env:R2_BUCKET}/symbols-test-symbol-job/000Admin/" `
-              --endpoint-url "${env:R2_ENDPOINT_URL}" `
-              --no-progress `
-              --acl private
-            if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol store to R2"; exit 1 }
             Write-Output "✓ Symbol store uploaded successfully to R2"
             exit 0
           }

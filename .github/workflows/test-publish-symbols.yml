@@ -1,4 +1,4 @@
-name: Test R2 Multipart Uploads
+name: Test R2 Symbol Publishing
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ defaults:
 jobs:
   publish:
     runs-on: swift-build-windows-latest-8-cores
-    timeout-minutes: 60
+    timeout-minutes: 180
     concurrency:
       group: r2-swift-toolchain-symbols-test-symbol-job
       cancel-in-progress: false
@@ -22,13 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-      - name: Diagnose multipart uploads of the four failed PDBs
+      - name: Initialize isolated test store and check available disk
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ''
           AWS_SECURITY_TOKEN: ''
-          AWS_REGION: auto
           AWS_DEFAULT_REGION: auto
           R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
@@ -39,63 +38,93 @@ jobs:
             if ($LASTEXITCODE) { $Value = '(unset; CLI default)' }
             Write-Output "${Setting}: $Value"
           }
-          $Keys = @(
-            'clang.pdb/4525B1FA5B2FAE9B4C4C44205044422E1/clang.pdb',
-            'dsymutil.pdb/8566F6F2DA960B864C4C44205044422E1/dsymutil.pdb',
-            'llvm-dwarfdump.pdb/CC91C268D201AFD84C4C44205044422E1/llvm-dwarfdump.pdb',
-            'llvm-objdump.pdb/FF49E85CFDAF4B7F4C4C44205044422E1/llvm-objdump.pdb'
-          )
-          New-Item -ItemType Directory -Path multipart-input, diagnostics -Force | Out-Null
-          $Hashes = @{}
-          foreach ($Key in $Keys) {
-            $Path = Join-Path multipart-input $Key
-            New-Item -ItemType Directory -Path (Split-Path $Path) -Force | Out-Null
-            aws s3 cp "s3://swift-toolchain/symbols-test-symbol-job/$Key" $Path `
-              --endpoint-url $env:R2_ENDPOINT_URL --no-progress
-            if ($LASTEXITCODE) { throw "Failed to download $Key" }
-            $Hashes[$Key] = (Get-FileHash $Path -Algorithm SHA256).Hash
-            Write-Output "$Key : $((Get-Item $Path).Length) bytes, SHA256 $($Hashes[$Key])"
+          $Prefix = "symbols-test-symbol-job/full-batch-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          foreach ($Name in 'server.txt', 'history.txt', 'lastid.txt') {
+            $Path = Join-Path $env:RUNNER_TEMP $Name
+            $Content = if ($Name -eq 'lastid.txt') { '0000000000' } else { '' }
+            [IO.File]::WriteAllText($Path, $Content, [Text.Encoding]::ASCII)
+            aws s3api put-object --bucket swift-toolchain --key "$Prefix/000Admin/$Name" `
+              --body $Path --if-none-match '*' --endpoint-url $env:R2_ENDPOINT_URL
+            if ($LASTEXITCODE) { throw "Cannot initialize test store admin file: $Name" }
           }
-          $Failures = 0
-          foreach ($Client in 'auto', 'classic') {
-            aws configure set default.s3.preferred_transfer_client $Client
-            if ($LASTEXITCODE) { throw "Cannot select $Client transfer client" }
-            # First pass creates objects; second pass overwrites the same keys.
-            foreach ($Pass in 1..2) {
-              $Prefix = "symbols-test-symbol-job/multipart-diagnostic/$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT/$Client"
-              $RawLog = Join-Path $env:RUNNER_TEMP "multipart-$Client-$Pass.raw.log"
-              $Timer = [Diagnostics.Stopwatch]::StartNew()
-              aws s3 cp multipart-input "s3://swift-toolchain/$Prefix/" `
-                --recursive --endpoint-url $env:R2_ENDPOINT_URL --no-progress --acl private --debug *> $RawLog
-              $UploadExit = $LASTEXITCODE
-              $Timer.Stop()
-              # Keep multipart tasks, responses, and retries; omit signed request headers.
-              Get-Content $RawLog | Where-Object {
-                $_ -match ' - (awscli\.customizations\.s3\.factory|s3transfer\.tasks|botocore\.parsers|botocore\.retries\.[^ ]+|botocore\.retryhandler|urllib3\.connectionpool) - DEBUG - |^b[''"]<|\[S3(MetaRequest|Client|Request)\]|^(upload:|upload failed:)'
-              } | ForEach-Object {
-                $_.Replace($env:AWS_ACCESS_KEY_ID, '[access-key]').Replace($env:AWS_SECRET_ACCESS_KEY, '[secret-key]').Replace(([uri]$env:R2_ENDPOINT_URL).Host, '[R2 host]')
-              } | Set-Content "diagnostics/multipart-$Client-$Pass.log"
-              Remove-Item $RawLog
-              "${Client} pass ${Pass}: upload exit $UploadExit, $([math]::Round($Timer.Elapsed.TotalSeconds, 1)) seconds; $Prefix" |
-                Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-              if ($UploadExit) { $Failures++ }
-              foreach ($Key in $Keys) {
-                aws s3api head-object --bucket swift-toolchain --key "$Prefix/$Key" `
-                  --endpoint-url $env:R2_ENDPOINT_URL --query '{Bytes:ContentLength,ETag:ETag}'
-                if ($LASTEXITCODE) { $Failures++; continue }
-                $Downloaded = Join-Path $env:RUNNER_TEMP 'multipart-roundtrip.pdb'
-                aws s3 cp "s3://swift-toolchain/$Prefix/$Key" $Downloaded `
-                  --endpoint-url $env:R2_ENDPOINT_URL --no-progress
-                if ($LASTEXITCODE) { $Failures++; continue }
-                $Matches = (Get-FileHash $Downloaded -Algorithm SHA256).Hash -eq $Hashes[$Key]
-                "${Client} pass ${Pass}: $Key SHA256 matches: $Matches" |
-                  Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-                if (!$Matches) { $Failures++ }
-                Remove-Item $Downloaded
-              }
-            }
+          "Source run: 41478561165" >> $env:GITHUB_STEP_SUMMARY
+          "Destination: swift-toolchain/$Prefix/" >> $env:GITHUB_STEP_SUMMARY
+          "Available disk before download:" >> $env:GITHUB_STEP_SUMMARY
+          Get-PSDrive -PSProvider FileSystem | Where-Object Name -Match '^[A-Z]$' | ForEach-Object {
+            "- $($_.Name): $([math]::Round($_.Free / 1GB, 2)) GiB free" >> $env:GITHUB_STEP_SUMMARY
           }
-          if ($Failures) { throw "$Failures upload or verification failures" }
+
+      - name: Download previous run's symbol artifacts
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: thebrowsercompany/swift-build
+          run-id: '41478561165'
+          pattern: '*-symbols'
+          merge-multiple: false
+          path: ${{ github.workspace }}/symbols
+
+      - name: Measure downloaded files and available disk
+        run: |
+          $Artifacts = @(Get-ChildItem -Path symbols -Directory)
+          if ($Artifacts.Count -ne 14) {
+            throw "Expected 14 symbol artifact directories, found $($Artifacts.Count)"
+          }
+          $Files = @(Get-ChildItem -Path symbols -Recurse -File)
+          foreach ($Group in ($Files | Group-Object Extension)) {
+            $Bytes = ($Group.Group | Measure-Object Length -Sum).Sum
+            "$($Group.Name): $($Group.Count) files, $([math]::Round($Bytes / 1GB, 2)) GiB" |
+              Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+          "Available disk after download:" >> $env:GITHUB_STEP_SUMMARY
+          Get-PSDrive -PSProvider FileSystem | Where-Object Name -Match '^[A-Z]$' | ForEach-Object {
+            "- $($_.Name): $([math]::Round($_.Free / 1GB, 2)) GiB free" >> $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Upload PDBs to test symbol store
+        uses: ./.github/actions/publish-symbols-r2
+        with:
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '*.pdb'
+          swift-version: '0.0.0'
+          arch: all
+          build-revision: '0fc8344b4db72c0397fda3b28330ba7152959776'
+          r2-bucket: swift-toolchain
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+
+      - name: Measure symbol store and remaining disk
+        if: always()
+        run: |
+          $Stores = @(Get-ChildItem -Path $env:TEMP -Directory -Filter 'symstore-*')
+          foreach ($Store in $Stores) {
+            $Bytes = (Get-ChildItem $Store.FullName -Recurse -File | Measure-Object Length -Sum).Sum
+            "SymStore working directory: $([math]::Round($Bytes / 1GB, 2)) GiB" |
+              Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+          "Available disk after publishing:" >> $env:GITHUB_STEP_SUMMARY
+          Get-PSDrive -PSProvider FileSystem | Where-Object Name -Match '^[A-Z]$' | ForEach-Object {
+            "- $($_.Name): $([math]::Round($_.Free / 1GB, 2)) GiB free" >> $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Collect multipart diagnostics
+        if: always()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          New-Item -ItemType Directory -Path diagnostics -Force | Out-Null
+          foreach ($RawLog in (Get-ChildItem $env:RUNNER_TEMP -Filter 'r2-multipart-*.raw.log')) {
+            # Keep multipart tasks, responses, and retries; omit signed request headers.
+            Get-Content $RawLog.FullName | Where-Object {
+              $_ -match ' - (awscli\.customizations\.s3\.factory|s3transfer\.tasks|botocore\.parsers|botocore\.retries\.[^ ]+|botocore\.retryhandler|urllib3\.connectionpool) - DEBUG - |^b[''"]<|\[S3(MetaRequest|Client|Request)\]|^(upload:|upload failed:)'
+            } | ForEach-Object {
+              $_.Replace($env:AWS_ACCESS_KEY_ID, '[access-key]').Replace($env:AWS_SECRET_ACCESS_KEY, '[secret-key]').Replace(([uri]$env:R2_ENDPOINT_URL).Host, '[R2 host]')
+            } | Set-Content (Join-Path diagnostics $RawLog.Name.Replace('.raw.log', '.log'))
+            Remove-Item $RawLog.FullName
+          }
 
       - name: Save multipart diagnostics
         if: always()
