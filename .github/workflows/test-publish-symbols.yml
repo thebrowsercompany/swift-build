@@ -33,6 +33,8 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
           aws --version
+          aws configure set default.s3.preferred_transfer_client classic
+          if ($LASTEXITCODE) { throw "Cannot select classic transfer client" }
           foreach ($Setting in 's3.preferred_transfer_client', 's3.max_concurrent_requests', 's3.multipart_threshold', 's3.multipart_chunksize', 'retry_mode', 'max_attempts', 'request_checksum_calculation', 'response_checksum_validation') {
             $Value = aws configure get $Setting
             if ($LASTEXITCODE) { $Value = '(unset; CLI default)' }
