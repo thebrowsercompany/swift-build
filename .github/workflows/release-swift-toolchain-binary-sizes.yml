@@ -169,10 +169,13 @@ jobs:
 
       - name: Run google/bloaty
         id: bloaty
-        continue-on-error: true
-        uses: thebrowsercompany/gha-google-bloaty@4a6a22aac0c6aba05eacb41a34e6a3c02737f10c # main
+        # TEST: fail loudly instead of hiding Bloaty errors.
+        # continue-on-error: true
+        uses: thebrowsercompany/gha-google-bloaty@c17deef088247cddb3c9abc27b00b937d659150d # use-fixed-bloaty
         with:
-          bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
+          # TEST: Jatapiaro/bloaty bump-zlib (zlib 1.3.2 + CMake 4 fixes)
+          bloaty-repository: Jatapiaro/bloaty
+          bloaty-version: 233ef8612c81939934d3e51d53f116cb28195209
           bloaty-args: -w -n 0 -d inputfiles,segments -s file --csv
           bloaty-input-files: |
             ${{ env.SWIFT_INSTALL_ROOT }}/**/*.dll
@@ -182,7 +185,8 @@ jobs:
           # Normally the cache key includes `bloaty-version`. This ensures that
           # all workflow runs for the same target arch use a single cache
           # consuming minimal space.
-          cache-bloaty-key: google-bloaty-${{ matrix.arch }}
+          # TEST: unique key so Bloaty is built from source instead of reusing an old cache.
+          cache-bloaty-key: test-bloaty-${{ matrix.arch }}-${{ github.run_id }}
           # Use MSVC (cl) for arm64 because:
           #  1. g++ is the default and fails on our arm64 vms because the Windows SDK isn't old enough to
           #     support g++11 (required by google/bloaty -> google/re2).
