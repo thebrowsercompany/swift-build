@@ -2099,20 +2099,114 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-swift-syntax
           path: ${{ github.workspace }}/BinaryCache/stage2/swift-syntax
 
-      - name: Upload PDBs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
+      - name: Upload files for symbol publishing
         if: ${{ inputs.debug_info }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compiler-symbols
+          path: |
+            ${{ github.workspace }}/BinaryCache/stage2/build/**/*.pdb
+            ${{ github.workspace }}/BinaryCache/stage2/build/**/*.dll
+            ${{ github.workspace }}/BinaryCache/stage2/build/**/*.exe
+          compression-level: 1
+          if-no-files-found: warn
+
+  stage2-compiler-symbols-azure:
+    name: Publish stage2-compiler symbols to Azure
+    permissions:
+      contents: read
+    needs: [stage2-compiler]
+    if: inputs.debug_info
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.compilers_matrix) }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compiler-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache/stage2/build
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '**/*.pdb'
 
-      - name: Upload PDBs to Public Symbol Server
-        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && inputs.release }}
+      - name: Upload DLLs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
-          symbolsFolder: ${{ github.workspace }}/BinaryCache/stage2/build
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '**/*.dll'
+
+      - name: Upload EXEs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '**/*.exe'
+
+  stage2-compiler-symbols-r2:
+    name: Publish stage2-compiler symbols to R2
+    permissions:
+      contents: read
+    needs: [stage2-compiler]
+    if: inputs.debug_info && inputs.release
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.compilers_matrix) }}
+    runs-on: windows-latest
+    concurrency:
+      group: r2-swift-toolchain-symbols
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: SourceCache/ci-build
+          show-progress: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.variant }}-compiler-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Public Symbol Server
+        if: steps.symbols.outputs.available == 'true'
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        with:
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '*.pdb'
           swift-version: ${{ inputs.swift_version }}
           arch: ${{ matrix.arch }}
@@ -2121,24 +2215,6 @@ jobs:
           r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-
-      - name: Upload DLLs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache/stage2/build
-          searchPattern: '**/*.dll'
-
-      - name: Upload EXEs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache/stage2/build
-          searchPattern: '**/*.exe'
 
   compiler-runtime:
     needs: [stage1-compiler]
@@ -2940,20 +3016,104 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-macros
           path: ${{ github.workspace }}/BuildRoot/Library
 
-      - name: Upload PDBs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
+      - name: Upload files for symbol publishing
         if: ${{ inputs.debug_info }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-macro-symbols
+          path: |
+            ${{ github.workspace }}/BinaryCache/swift-foundation-macros/**/*.pdb
+            ${{ github.workspace }}/BinaryCache/swift-foundation-macros/**/*.dll
+          compression-level: 1
+          if-no-files-found: warn
+
+  macros-symbols-azure:
+    name: Publish macros symbols to Azure
+    permissions:
+      contents: read
+    needs: [macros]
+    if: inputs.debug_info
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.os }}-${{ matrix.arch }}-macro-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '**/*.pdb'
 
-      - name: Upload PDBs to Public Symbol Server
-        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && inputs.release }}
+      - name: Upload DLLs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
-          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '**/*.dll'
+
+  macros-symbols-r2:
+    name: Publish macros symbols to R2
+    permissions:
+      contents: read
+    needs: [macros]
+    if: inputs.debug_info && inputs.release
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
+    runs-on: windows-latest
+    concurrency:
+      group: r2-swift-toolchain-symbols
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: SourceCache/ci-build
+          show-progress: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.os }}-${{ matrix.arch }}-macro-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Public Symbol Server
+        if: steps.symbols.outputs.available == 'true'
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        with:
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '*.pdb'
           swift-version: ${{ inputs.swift_version }}
           arch: ${{ matrix.arch }}
@@ -2962,15 +3122,6 @@ jobs:
           r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-
-      - name: Upload DLLs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache/swift-foundation-macros
-          searchPattern: '**/*.dll'
 
   sdk:
     needs: [stage1-compiler, bootstrap-macros, zlib, brotli, curl, libxml2]
@@ -3923,20 +4074,108 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-sdk
           path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/${{ matrix.os }}.platform
 
-      - name: Upload PDBs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
+      - name: Upload files for symbol publishing
         if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-sdk-symbols
+          path: |
+            ${{ github.workspace }}/BinaryCache/**/*.pdb
+            ${{ github.workspace }}/BinaryCache/**/*.dll
+          compression-level: 1
+          if-no-files-found: warn
+
+  sdk-symbols-azure:
+    name: Publish sdk symbols to Azure
+    permissions:
+      contents: read
+    needs: [sdk]
+    if: inputs.debug_info
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64, x86]
+        static: [true, false]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Windows-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-sdk-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '**/*.pdb'
 
-      - name: Upload PDBs to Public Symbol Server
-        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && inputs.release && matrix.os == 'Windows' }}
+      - name: Upload DLLs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '**/*.dll'
+
+  sdk-symbols-r2:
+    name: Publish sdk symbols to R2
+    permissions:
+      contents: read
+    needs: [sdk]
+    if: inputs.debug_info && inputs.release
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64, x86]
+        static: [true, false]
+    runs-on: windows-latest
+    concurrency:
+      group: r2-swift-toolchain-symbols
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: SourceCache/ci-build
+          show-progress: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Windows-${{ matrix.arch }}-${{ matrix.static && 'static' || 'shared' }}-sdk-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Public Symbol Server
+        if: steps.symbols.outputs.available == 'true'
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        with:
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '*.pdb'
           swift-version: ${{ inputs.swift_version }}
           arch: ${{ matrix.arch }}
@@ -3945,15 +4184,6 @@ jobs:
           r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-
-      - name: Upload DLLs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info && matrix.os == 'Windows' }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.dll'
 
   devtools:
     needs: [sqlite, stage2-compiler, macros, sdk]
@@ -4826,20 +5056,114 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.arch }}-swift-argument-parser
           path: ${{ github.workspace }}/BinaryCache/swift-argument-parser
 
-      - name: Upload PDBs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
+      - name: Upload files for symbol publishing
         if: ${{ inputs.debug_info }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-devtool-symbols
+          path: |
+            ${{ github.workspace }}/BinaryCache/**/*.pdb
+            ${{ github.workspace }}/BinaryCache/**/*.dll
+            ${{ github.workspace }}/BinaryCache/**/*.exe
+          compression-level: 1
+          if-no-files-found: warn
+
+  devtools-symbols-azure:
+    name: Publish devtools symbols to Azure
+    permissions:
+      contents: read
+    needs: [devtools]
+    if: inputs.debug_info
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.os }}-${{ matrix.arch }}-devtool-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
           accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
           personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '**/*.pdb'
 
-      - name: Upload PDBs to Public Symbol Server
-        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
-        if: ${{ inputs.debug_info && inputs.release }}
+      - name: Upload DLLs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
         with:
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '**/*.dll'
+
+      - name: Upload EXEs to Azure
+        if: steps.symbols.outputs.available == 'true'
+        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
+        with:
+          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
+          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
+          symbolsFolder: ${{ github.workspace }}/symbols
+          searchPattern: '**/*.exe'
+
+  devtools-symbols-r2:
+    name: Publish devtools symbols to R2
+    permissions:
+      contents: read
+    needs: [devtools]
+    if: inputs.debug_info && inputs.release
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.host_matrix) }}
+    runs-on: windows-latest
+    concurrency:
+      group: r2-swift-toolchain-symbols
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ inputs.ci_build_revision }}
+          path: SourceCache/ci-build
+          show-progress: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.os }}-${{ matrix.arch }}-devtool-symbols
+          merge-multiple: true
+          path: ${{ github.workspace }}/symbols
+
+      - name: Check for symbol files
+        id: symbols
+        run: |
+          $SymbolsPath = Join-Path $env:GITHUB_WORKSPACE 'symbols'
+          if ((Test-Path $SymbolsPath) -and (Get-ChildItem $SymbolsPath -Recurse -File)) {
+            "available=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::No files available for symbol publishing"
+          }
+
+      - name: Upload PDBs to Public Symbol Server
+        if: steps.symbols.outputs.available == 'true'
+        uses: ./SourceCache/ci-build/.github/actions/publish-symbols-r2
+        with:
+          symbolsFolder: ${{ github.workspace }}/symbols
           searchPattern: '*.pdb'
           swift-version: ${{ inputs.swift_version }}
           arch: ${{ matrix.arch }}
@@ -4848,24 +5172,6 @@ jobs:
           r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-
-      - name: Upload DLLs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.dll'
-
-      - name: Upload EXEs to Azure
-        uses: thebrowsercompany/action-publish-symbols@d5f4b06266463bf9a71ef6a4e3b0b8d79eaa82a4
-        if: ${{ inputs.debug_info }}
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}/BinaryCache
-          searchPattern: '**/*.exe'
 
   debugging_tools:
     needs: [stage1-compiler, devtools, sdk]
