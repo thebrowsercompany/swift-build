@@ -170,19 +170,19 @@ jobs:
       - name: Run google/bloaty
         id: bloaty
         continue-on-error: true
-        uses: thebrowsercompany/gha-google-bloaty@4a6a22aac0c6aba05eacb41a34e6a3c02737f10c # main
+        uses: thebrowsercompany/gha-google-bloaty@e05109bbebe9f61f43e3720235669ac02c378ed0 # main
         with:
-          bloaty-version: 34f4a66559ad4938c1e629e9b5f54630b2b4d7b0
+          # TODO(#368): Switch back to google/bloaty once
+          # https://github.com/google/bloaty/pull/530 is merged.
+          bloaty-repository: thebrowsercompany/bloaty
+          bloaty-version: 4a4fb505cb0ca9f2d716c7c79ddd2f87f20248e3
           bloaty-args: -w -n 0 -d inputfiles,segments -s file --csv
           bloaty-input-files: |
             ${{ env.SWIFT_INSTALL_ROOT }}/**/*.dll
             ${{ env.SWIFT_INSTALL_ROOT }}/**/*.exe
           bloaty-output-file: ${{ github.workspace }}/binary_sizes.csv
           cache-bloaty: 'true'
-          # Normally the cache key includes `bloaty-version`. This ensures that
-          # all workflow runs for the same target arch use a single cache
-          # consuming minimal space.
-          cache-bloaty-key: google-bloaty-${{ matrix.arch }}
+          cache-bloaty-key-prefix: google-bloaty-${{ matrix.arch }}
           # Use MSVC (cl) for arm64 because:
           #  1. g++ is the default and fails on our arm64 vms because the Windows SDK isn't old enough to
           #     support g++11 (required by google/bloaty -> google/re2).
