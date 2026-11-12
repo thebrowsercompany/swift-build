@@ -347,15 +347,36 @@ runs:
         winsdk: ${{ inputs.windows-sdk-version }}
         toolset_version: ${{ inputs.msvc-version }}
 
-    - name: Setup Swift toolchain (Upstream)
+    - name: Setup Swift toolchain (BCNY CAS test)
       if: inputs.swift-version != '' && inputs.swift-repo == ''
       uses: compnerd/gha-setup-swift@main
       with:
         cache: 'true'
-        source: 'swift.org'
-        swift-version: ${{ steps.sanitize-input.outputs.swift-branch }}
-        swift-build: ${{ steps.sanitize-input.outputs.swift-tag }}
-        build_arch: ${{ steps.sanitize-input.outputs.build-arch }}
+        source: 'custom'
+        github-repo: thebrowsercompany/swift-build
+        github-token: ${{ github.token }}
+        release-tag-name: '20261112.0'
+        release-asset-name: installer-${{ steps.sanitize-input.outputs.build-arch }}.exe
+
+    - name: Select BCNY bootstrap tools
+      if: inputs.swift-version != '' && inputs.swift-repo == ''
+      shell: pwsh
+      run: |
+        $ToolchainBin = Join-Path $env:LOCALAPPDATA 'Programs\Swift\Toolchains\0.0.0+Asserts\usr\bin'
+        # The installer omits clang-cache, which is an alias of clang.
+        Copy-Item (Join-Path $ToolchainBin 'clang.exe') (Join-Path $ToolchainBin 'clang-cache.exe')
+        $env:PATH = "$ToolchainBin;$env:PATH"
+        foreach ($Tool in 'swiftc.exe', 'clang-cl.exe', 'clang-cache.exe') {
+          $Expected = Join-Path $ToolchainBin $Tool
+          $Actual = (Get-Command $Tool -ErrorAction Stop).Source
+          if ($Actual -ne $Expected) { throw "Expected $Expected, found $Actual" }
+          Write-Host "$Tool`: $Actual"
+        }
+        & swiftc.exe --version
+        if ($LASTEXITCODE -ne 0) { throw 'BCNY bootstrap swiftc failed' }
+        & clang-cl.exe --version
+        if ($LASTEXITCODE -ne 0) { throw 'BCNY bootstrap clang-cl failed' }
+        $ToolchainBin | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Setup Swift toolchain (Custom)
       if: inputs.swift-version != '' && inputs.swift-repo != ''
