@@ -1,19 +1,66 @@
-name: Test Publish Symbols
+name: Test WinGet
 
-# Manual-only. Will not fire on push, PR, or schedule.
 on:
   workflow_dispatch:
 
-jobs:
-  test:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+permissions:
+  contents: read
 
-      - name: Invoke publish-symbols-azure
-        uses: ./.github/actions/publish-symbols-azure
-        with:
-          accountName: ${{ vars.SYMBOL_SERVER_ACCOUNT }}
-          personalAccessToken: ${{ secrets.SYMBOL_SERVER_PAT }}
-          symbolsFolder: ${{ github.workspace }}
-          searchPattern: '**/*.pdb'
+jobs:
+  flex-bison:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GitHub
+            runner: windows-latest
+          - name: CIRun
+            runner: ${{ format('cirun-win11-pro-x64-16--{0}', github.run_id) }}
+    name: Flex and Bison (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Install WinGet
+        shell: powershell
+        run: |
+          Install-PackageProvider -Name NuGet -Force | Out-Null
+          Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+          Repair-WinGetPackageManager -AllUsers
+          "$env:LOCALAPPDATA\Microsoft\WindowsApps" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Flex and Bison
+        run: |
+          winget --info
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          winget install --id WinFlexBison.win_flex_bison --exact --version 2.5.24 --source winget --scope user --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Generate parser and scanner
+        run: |
+          Set-Location $env:RUNNER_TEMP
+          $Bin = "$env:LOCALAPPDATA\Microsoft\WinGet\Links"
+          foreach ($Tool in @('win_bison', 'win_flex')) {
+            & "$Bin\$Tool.exe" --version
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+          @'
+          %%
+          input: 'x';
+          %%
+          '@ | Set-Content parser.y
+          @'
+          %option noyywrap
+          %%
+          x ECHO;
+          %%
+          '@ | Set-Content scanner.l
+
+          & "$Bin\win_bison.exe" --defines=parser.h --output=parser.c parser.y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$Bin\win_flex.exe" --outfile=scanner.c scanner.l
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Item parser.c, parser.h, scanner.c
