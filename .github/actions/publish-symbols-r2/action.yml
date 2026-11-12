@@ -96,6 +96,9 @@ runs:
         R2_ENDPOINT_URL: https://${{ inputs.r2-account-id }}.r2.cloudflarestorage.com
         R2_BUCKET: ${{ inputs.r2-bucket }}
       run: |   
+        aws configure set default.s3.preferred_transfer_client classic
+        if ($LASTEXITCODE) { Write-Output "::error::Failed to configure classic S3 transfer client"; exit 1 }
+
         # Create a temporary directory for the local symbol store
         $TempRoot = Join-Path $env:TEMP "symstore-$(New-Guid)"
         New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
@@ -127,10 +130,12 @@ runs:
         # 1. Use 000Admin/server.txt as a "lock" by tracking its ETag
         # 2. Download current state (get ETag of 000Admin/server.txt and download admin files)
         # 3. Add symbols locally using symstore.exe
-        # 4. Attempt to upload 000Admin/server.txt with --if-match using the ETag we captured
-        #    - If successful (ETag matches), no one else modified it - proceed with full upload
+        # 4. Upload PDBs
+        # 5. Attempt to upload 000Admin/server.txt with --if-match using the ETag we captured
+        #    - If successful (ETag matches), no one else modified it - proceed with metadata upload
         #    - If failed with PreconditionFailed (412), someone else updated it - retry
-        # 5. Retry up to 5 times with random delay (1-30 seconds) between attempts     
+        # 6. Upload remaining metadata
+        # Retry metadata conflicts up to 5 total attempts, with a random delay (30-59 seconds).
         $MaxRetries = 5
 
         for ($Attempt = 1; $Attempt -le $MaxRetries; $Attempt++) {
@@ -171,7 +176,18 @@ runs:
           if ($LASTEXITCODE) { Write-Output "::error::symstore.exe failed ($LASTEXITCODE)"; exit 1 }
           Write-Output "✓ Symbols added successfully"
 
-          # 4. Conditional upload of server.txt (with ETag)
+          # 4. Upload PDBs before publishing metadata
+          Write-Output "ℹ️ Uploading PDB files to R2..."
+          aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
+            --recursive `
+            --exclude "*" `
+            --include "*.pdb" `
+            --endpoint-url "${env:R2_ENDPOINT_URL}" `
+            --no-progress `
+            --acl private
+          if ($LASTEXITCODE) { Write-Output "::error::Failed to upload symbol files to R2"; exit 1 }
+
+          # 5. Conditional upload of server.txt (with ETag)
           $ServerTxtLocal = Join-Path $AdminDir "server.txt"
           Write-Output "ℹ️ Attempting conditional upload of server.txt (ETag: $CurrentETag)..."
           $UploadOutput = aws s3api put-object `
@@ -184,11 +200,12 @@ runs:
           if (!$LASTEXITCODE) {
             Write-Output "✓ server.txt uploaded successfully (no concurrent modification)"
 
-            # 5. Upload remaining store files
-            Write-Output "ℹ️ Uploading all symbol store files to R2..."
+            # 6. Upload remaining metadata
+            Write-Output "ℹ️ Uploading symbol store metadata to R2..."
             aws s3 cp "$TempRoot" "s3://${env:R2_BUCKET}/symbols/" `
               --recursive `
               --exclude "000Admin/*" `
+              --exclude "*.pdb" `
               --endpoint-url "${env:R2_ENDPOINT_URL}" `
               --no-progress `
               --acl private
