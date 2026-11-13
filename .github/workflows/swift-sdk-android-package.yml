@@ -1,0 +1,354 @@
+name: Swift Android SDK packaging
+description: |
+  Workflow to package the Swift Android SDK, runtime and ds2 into the Android
+  platform installer on a Windows build machine.
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: JSON object with the inputs of the calling workflow.
+        required: true
+        type: string
+
+    secrets:
+      CERTIFICATE:
+        required: true
+      PASSPHRASE:
+        required: true
+      AZURE_SP_CREDENTIALS:
+        required: false
+      AZURE_KEY_VAULT_URI:
+        required: false
+      AZURE_KEY_VAULT_CERTIFICATE_NAME:
+        required: false
+
+# TODO: Pass this as input once the build and swift toolchain workflows are merged.
+env:
+  AZURE_SIGN_TOOL_VERSION: 7.0.1
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  context:
+    name: Context
+    runs-on: ubuntu-latest
+    outputs:
+      brotli_version: ${{ fromJSON(inputs.context).brotli_version }}
+      build_arch: ${{ fromJSON(inputs.context).build_arch }}
+      ci_build_revision: ${{ fromJSON(inputs.context).ci_build_revision }}
+      curl_version: ${{ fromJSON(inputs.context).curl_version }}
+      default_build_runner: ${{ fromJSON(inputs.context).default_build_runner }}
+      libxml2_version: ${{ fromJSON(inputs.context).libxml2_version }}
+      python_version: ${{ fromJSON(inputs.context).python_version }}
+      release: ${{ fromJSON(inputs.context).release }}
+      signed: ${{ fromJSON(inputs.context).signed }}
+      swift_installer_scripts_revision: ${{ fromJSON(inputs.context).swift_installer_scripts_revision }}
+      swift_version: ${{ fromJSON(inputs.context).swift_version }}
+      zlib_version: ${{ fromJSON(inputs.context).zlib_version }}
+    steps:
+      - name: Show context
+        env:
+          CONTEXT: ${{ inputs.context }}
+        run: $env:CONTEXT | ConvertFrom-Json | ConvertTo-Json -Depth 4
+
+  package_android_platform:
+    name: Package Android SDK & Runtime
+    needs: [context]
+    runs-on: ${{ needs.context.outputs.default_build_runner }}
+
+    steps:
+      - name: Select signing mode
+        id: signing_mode
+        if: fromJSON(needs.context.outputs.signed)
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+        run: |
+          if ($env:AZURE_KEY_VAULT_URI) {
+            echo "azure_vault=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "azure_vault=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.ci_build_revision }}
+          path: ${{ github.workspace }}/SourceCache/ci-build
+          show-progress: false
+      - uses: ./SourceCache/ci-build/.github/actions/setup-build
+        with:
+          setup-vs-dev-env: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.context.outputs.python_version }}
+          architecture: x64 # FIXME(#1004): Remove workaround installing x64 Python on ARM64 CI hosts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-arm64-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/aarch64/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/aarch64/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/aarch64/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-armv7-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/armv7/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/armv7/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/armv7/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/armv7/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-x86_64-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/x86_64/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/x86_64/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/x86_64/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/x86_64/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-shared-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-static-sdk
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-ds2
+          path: ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/Library
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-brotli-${{ needs.context.outputs.brotli_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-curl-${{ needs.context.outputs.curl_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-libxml2-${{ needs.context.outputs.libxml2_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr
+      - uses: actions/download-artifact@v4
+        with:
+          name: Android-i686-zlib-${{ needs.context.outputs.zlib_version }}
+          path: ${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr
+      - run: |
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.so" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/i686/
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift/android/i686/
+
+          Move-Item -Path "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/lib*.a" -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/i686/
+
+          # build.ps1: Copy static dependencies (libbrotli/curl/xml2/z) into swift_static/<arch>
+          Get-ChildItem -Path "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr","${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr","${{ github.workspace }}/BuildRoot/Library/libxml2-${{ needs.context.outputs.libxml2_version }}/usr","${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr" -Recurse -Include libbrotlicommon.a,libbrotlidec.a,libcurl.a,libxml2.a,libz.a -ErrorAction Ignore | Copy-Item -Force -Destination ${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk/usr/lib/swift_static/android/i686/
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          repository: swiftlang/swift-installer-scripts
+          ref: ${{ needs.context.outputs.swift_installer_scripts_revision }}
+          path: ${{ github.workspace }}/SourceCache/swift-installer-scripts
+          show-progress: false
+
+      - if: fromJSON(needs.context.outputs.signed) && steps.signing_mode.outputs.azure_vault == 'false'
+        run: |
+          $CertificatePath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.b64
+          $PFXPath = Join-Path -Path ${env:RUNNER_TEMP} -ChildPath CodeSign.pfx
+          Set-Content -Path $CertificatePath -Value '${{ secrets.CERTIFICATE }}'
+          certutil.exe -decode $CertificatePath $PFXPath
+          Write-Output CERTIFICATE=$PFXPath | Out-File -FilePath ${env:GITHUB_ENV} -Encoding utf8 -Append
+
+      - name: Complete Android SDK layout
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          foreach ($Module in @("Block", "dispatch", "os", "_foundation_unicode", "_FoundationCShims", "_FoundationInternationalizationData")) {
+            foreach ($ResourceType in @("swift", "swift_static")) {
+              $ModuleDirectory = "$SDKRoot/usr/lib/$ResourceType/$Module"
+              if (Test-Path $ModuleDirectory) {
+                Move-Item $ModuleDirectory "$SDKRoot/usr/include/"
+              }
+            }
+          }
+
+          # build.ps1: SwiftBuild's static resource directory also needs the Android headers and shims.
+          $DynamicResources = "$SDKRoot/usr/lib/swift"
+          $StaticResources = "$SDKRoot/usr/lib/swift_static"
+          New-Item -ItemType Directory -Path "$StaticResources/shims" -Force | Out-Null
+          Copy-Item -Path "$DynamicResources/shims/*" -Destination "$StaticResources/shims/" -Recurse -Force
+          foreach ($File in @("libcxxshim.h", "libcxxshim.modulemap", "libcxxstdlibshim.h")) {
+            Copy-Item -Path "$DynamicResources/android/$File" -Destination "$StaticResources/android/$File" -Force
+          }
+          foreach ($Architecture in @("aarch64", "armv7", "i686", "x86_64")) {
+            foreach ($File in @("android.modulemap", "SwiftAndroidNDK.h", "SwiftBionic.h")) {
+              Copy-Item -Path "$DynamicResources/android/$Architecture/$File" -Destination "$StaticResources/android/$Architecture/$File" -Force
+            }
+          }
+
+      - name: Update supported architectures in Android SDK settings
+        run: |
+          $SDKRoot = "${{ github.workspace }}/BuildRoot/Library/Developer/Platforms/Android.platform/Developer/SDKs/Android.sdk"
+          $Architectures = @("aarch64", "armv7", "i686", "x86_64")
+          $Settings = Get-Content "$SDKRoot/SDKSettings.json" -Raw | ConvertFrom-Json
+          $Settings.SupportedTargets.android.Archs = $Architectures
+
+          $PlistPath = "$SDKRoot/SDKSettings.plist"
+          $Settings | ConvertTo-Json -Depth 4 | Set-Content "$SDKRoot/SDKSettings.json" -Encoding utf8
+
+          # Use plistlib because PowerShell's XmlDocument adds an empty DTD subset that Swift rejects.
+          $UpdatePlist = @'
+          import plistlib
+          import sys
+
+          path = sys.argv[1]
+          with open(path, "rb") as stream:
+              settings = plistlib.load(stream)
+          settings["SupportedTargets"]["android"]["Archs"] = sys.argv[2:]
+          with open(path, "wb") as stream:
+              plistlib.dump(settings, stream)
+          '@
+          python3 -c $UpdatePlist $PlistPath $Architectures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install AzureSignTool
+        if: fromJSON(needs.context.outputs.signed) && steps.signing_mode.outputs.azure_vault == 'true'
+        run: |
+          dotnet tool install AzureSignTool --version ${{ env.AZURE_SIGN_TOOL_VERSION }} --tool-path "${env:RUNNER_TEMP}\AzureSignTool" --add-source "https://api.nuget.org/v3/index.json"
+          dotnet tool list --tool-path "${env:RUNNER_TEMP}\AzureSignTool"
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_SP_CREDENTIALS }}
+        if: fromJSON(needs.context.outputs.signed) && steps.signing_mode.outputs.azure_vault == 'true'
+
+      - name: Package SDK
+        env:
+          AZURE_KEY_VAULT_URI: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_URI || '' }}
+          AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
+          AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
+        run: |
+          msbuild -nologo -restore -maxCpuCount `
+              -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
+              -p:Configuration=Release `
+              -p:SignOutput=${{ needs.context.outputs.signed }} `
+              -p:SignCommand="${env:AZURE_VAULT_SIGN_COMMAND}" `
+              -p:ANDROID_INCLUDE_DS2=true `
+              -p:CERTIFICATE=${env:CERTIFICATE} `
+              -p:PASSPHRASE=${{ secrets.PASSPHRASE }} `
+              -p:ImageRoot=${{ github.workspace }}/BuildRoot/Library/Developer `
+              -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
+              -p:ProductArchitecture=${{ needs.context.outputs.build_arch }} `
+              -p:AndroidArchitectures="`"x86_64;aarch64;i686;armv7`"" `
+              ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/platforms/android/android.wixproj
+
+      - if: ${{ fromJSON(needs.context.outputs.release) }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x86.cab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-platform-msi
+          path: |
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.msi
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/android.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.arm.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x64.cab
+            ${{ github.workspace }}/BinaryCache/installer/Release/${{ needs.context.outputs.build_arch }}/sdk.android.x86.cab
