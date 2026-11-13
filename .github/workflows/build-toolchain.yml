@@ -247,11 +247,9 @@ jobs:
       windows_arm64_build_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_build_matrix }}
       windows_arm64_host_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_host_matrix }}
       windows_arm64_compilers_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_compilers_matrix }}
-      windows_arm64_target_matrix: ${{ steps.setup-matrix.outputs.windows_arm64_target_matrix }}
       windows_x64_build_matrix: ${{ steps.setup-matrix.outputs.windows_x64_build_matrix }}
       windows_x64_host_matrix: ${{ steps.setup-matrix.outputs.windows_x64_host_matrix }}
       windows_x64_compilers_matrix: ${{ steps.setup-matrix.outputs.windows_x64_compilers_matrix }}
-      windows_x64_target_matrix: ${{ steps.setup-matrix.outputs.windows_x64_target_matrix }}
     steps:
       - id: context
         name: Generate Build Context
@@ -452,7 +450,6 @@ jobs:
       - name: Setup matrix
         id: setup-matrix
         env:
-          INPUT_ANDROID_API_LEVEL: ${{ inputs.android_api_level }}
           WINDOWS_X64_HOST_MATRIX: >-
             {
               "include": [
@@ -509,80 +506,7 @@ jobs:
                 }
               ]
             }
-          WINDOWS_X64_TARGET_MATRIX: >-
-            {
-              "include": [
-                {
-                  "arch": "amd64",
-                  "cpu": "x86_64",
-                  "os": "Windows",
-                  "triple": "x86_64-unknown-windows-msvc"
-                },
-                {
-                  "arch": "arm64",
-                  "cpu": "aarch64",
-                  "os": "Windows",
-                  "triple": "aarch64-unknown-windows-msvc"
-                },
-                {
-                  "arch": "x86",
-                  "cpu": "i686",
-                  "os": "Windows",
-                  "triple": "i686-unknown-windows-msvc"
-                },
-                {
-                  "arch": "arm64",
-                  "cpu": "aarch64",
-                  "os": "Android",
-                  "triple": "aarch64-unknown-linux-android__ANDROID_API_LEVEL__"
-                },
-                {
-                  "arch": "armv7",
-                  "cpu": "armv7",
-                  "os": "Android",
-                  "triple": "armv7-unknown-linux-androideabi__ANDROID_API_LEVEL__"
-                },
-                {
-                  "arch": "i686",
-                  "cpu": "i686",
-                  "os": "Android",
-                  "triple": "i686-unknown-linux-android__ANDROID_API_LEVEL__"
-                },
-                {
-                  "arch": "x86_64",
-                  "cpu": "x86_64",
-                  "os": "Android",
-                  "triple": "x86_64-unknown-linux-android__ANDROID_API_LEVEL__"
-                }
-              ]
-            }
-          WINDOWS_ARM64_TARGET_MATRIX: >-
-            {
-              "include": [
-                {
-                  "arch": "amd64",
-                  "cpu": "x86_64",
-                  "os": "Windows",
-                  "triple": "x86_64-unknown-windows-msvc"
-                },
-                {
-                  "arch": "arm64",
-                  "cpu": "aarch64",
-                  "os": "Windows",
-                  "triple": "aarch64-unknown-windows-msvc"
-                },
-                {
-                  "arch": "x86",
-                  "cpu": "i686",
-                  "os": "Windows",
-                  "triple": "i686-unknown-windows-msvc"
-                }
-              ]
-            }
         run: |
-          # Substitute the Android API level placeholder in the target matrix
-          WINDOWS_X64_TARGET_MATRIX="${WINDOWS_X64_TARGET_MATRIX//__ANDROID_API_LEVEL__/${INPUT_ANDROID_API_LEVEL}}"
-
           create_compilers_matrix() {
             local host_matrix=$1
             jq -n --argjson host_matrix "${host_matrix}" '
@@ -603,8 +527,6 @@ jobs:
           echo "windows_arm64_compilers_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_COMPILERS_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_x64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
           echo "windows_arm64_build_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_BUILD_MATRIX})" >> ${GITHUB_OUTPUT}
-          echo "windows_x64_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_X64_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
-          echo "windows_arm64_target_matrix=$(jq -r -c '.' <<< ${WINDOWS_ARM64_TARGET_MATRIX})" >> ${GITHUB_OUTPUT}
 
   windows-build:
     needs: [context]
@@ -619,7 +541,6 @@ jobs:
       build_arch: ${{ needs.context.outputs.windows_build_arch }}
       build_matrix: ${{ needs.context.outputs[format('windows_{0}_build_matrix', needs.context.outputs.windows_build_cpu)] }}
       host_matrix: ${{ needs.context.outputs[format('windows_{0}_host_matrix', needs.context.outputs.windows_build_cpu)] }}
-      target_matrix: ${{ needs.context.outputs[format('windows_{0}_target_matrix', needs.context.outputs.windows_build_cpu)] }}
       compilers_matrix: ${{ needs.context.outputs[format('windows_{0}_compilers_matrix', needs.context.outputs.windows_build_cpu)] }}
       curl_revision: ${{ needs.context.outputs.curl_revision }}
       curl_version: ${{ needs.context.outputs.curl_version }}
