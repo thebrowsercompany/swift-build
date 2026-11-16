@@ -47,16 +47,16 @@ Edit `default.xml` and update the following:
    any that might need release-specific branches. You can look at the `default.xml` file in the
    prior release branch to see which repos need custom conventions.
 
-### 3. Update `build-toolchain.yml`
+### 3. Update `swift-toolchain.yml`
 
-The `build-toolchain.yml` workflow needs several updates for the new release branch.
+The `swift-toolchain.yml` workflow needs several updates for the new release branch.
 
-Edit `.github/workflows/build-toolchain.yml`:
+Edit `.github/workflows/swift-toolchain.yml`:
 
 #### 3.1. Update `swift_version` Default
 
 The branch that the `repo` tool uses is inferred from the Swift version given to the workflow.
-For the `workflow_call` inputs section (around line 73), update:
+For the `workflow_call` inputs section, update:
 
 ```yaml
 swift_version:
@@ -68,7 +68,7 @@ swift_version:
 
 #### 3.2. Update Repository Revisions for Untagged Repos
 
-In the context job's script section where `INPUT_SWIFT_TAG` is set (around lines 355-376),
+In the context job's script section where `INPUT_SWIFT_TAG` is set,
 update the repositories that don't have tags to point to the release branch instead of main:
 
 ```bash
@@ -86,7 +86,7 @@ Change all instances from `refs/heads/main` to `refs/heads/release/X.Y`.
 
 #### 3.3. Update Snapshot Job Checkout Ref
 
-In the `snapshot` job (around line 850), update the checkout reference:
+In the `snapshot` job, update the checkout reference:
 
 ```yaml
 - uses: actions/checkout@v4.2.2
@@ -114,7 +114,7 @@ jobs:
     # Use local reference so this workflow can be dispatched directly from the release branch
     # for testing without any modifications. The @release/X.Y reference will be added when
     # copying to main for scheduled runs.
-    uses: ./.github/workflows/build-toolchain.yml
+    uses: ./.github/workflows/swift-toolchain.yml
     with:
       # Source/Repository Configuration
       ci_build_branch: ${{ github.ref }}
@@ -140,7 +140,7 @@ jobs:
 ```
 
 **Important Notes:**
-- The `uses:` line uses a local reference (`./.github/workflows/build-toolchain.yml`) on the
+- The `uses:` line uses a local reference (`./.github/workflows/swift-toolchain.yml`) on the
   release branch, which allows the workflow to be triggered directly for testing
 - The `swift_version` must match the release (use full semver: `"X.Y.0"`)
 - The `ci_build_branch` uses `github.ref` on the release branch so it automatically uses
@@ -154,12 +154,12 @@ jobs:
 ### 5. Commit and Push the Release Branch
 
 ```bash
-git add default.xml .github/workflows/build-toolchain.yml \
+git add default.xml .github/workflows/swift-toolchain.yml \
         .github/workflows/release-X-Y-swift-toolchain-schedule.yml
 git commit -m "Prepare release/X.Y branch
 
 - Update default.xml to use release/X.Y branches
-- Update build-toolchain.yml swift_version default to X.Y.0
+- Update swift-toolchain.yml swift_version default to X.Y.0
 - Update repository revisions for untagged repos
 - Update snapshot job to target release/X.Y branch
 - Add schedule workflow for release/X.Y"
@@ -186,7 +186,7 @@ Edit `.github/workflows/release-X-Y-swift-toolchain-schedule.yml`:
 
 1. **Change the `uses:` line** to reference the release branch explicitly:
    ```yaml
-   uses: compnerd/swift-build/.github/workflows/build-toolchain.yml@release/X.Y
+   uses: compnerd/swift-build/.github/workflows/swift-toolchain.yml@release/X.Y
    ```
 
 2. **Change `ci_build_branch`** to hardcode the release branch:
@@ -224,7 +224,7 @@ Create a PR to `main` with these changes.
 ## Testing Changes to a Release Branch
 
 The schedule workflow on the release branch is already configured to use a local reference
-(`./.github/workflows/build-toolchain.yml`), which means you can test changes directly without
+(`./.github/workflows/swift-toolchain.yml`), which means you can test changes directly without
 any workflow modifications.
 
 If you're making changes on a release branch (e.g., `release/X.Y`) and want to test before
@@ -237,7 +237,7 @@ merging:
    git checkout -b test/my-release-changes
    ```
 
-2. **Make your changes** to `build-toolchain.yml`, `swift-toolchain.yml`, or other files
+2. **Make your changes** to `swift-toolchain.yml` or other files
 
 3. **Commit and push your test branch:**
    ```bash
@@ -252,7 +252,7 @@ merging:
    - Select your test branch from the dropdown
    - Click "Run workflow"
 
-   The workflow will use the local `./.github/workflows/build-toolchain.yml` from your test
+   The workflow will use the local `./.github/workflows/swift-toolchain.yml` from your test
    branch, and `ci_build_branch` will automatically use your test branch via `github.ref`.
 
 5. **Once validated, create a PR to the release branch** targeting `release/X.Y`. After the PR is
@@ -275,10 +275,10 @@ merging:
 **On `release/X.Y` branch:**
 - [ ] Update `default.xml` default revision to `release/X.Y`
 - [ ] Update `default.xml` llvm-project revision to `swift/release/X.Y`
-- [ ] Update `build-toolchain.yml` swift_version default to `X.Y.0`
-- [ ] Update `build-toolchain.yml` untagged repo revisions to `refs/heads/release/X.Y`
-- [ ] Update `build-toolchain.yml` snapshot job checkout ref to `release/X.Y`
-- [ ] Update `build-toolchain.yml` snapshot job push target to `HEAD:release/X.Y`
+- [ ] Update `swift-toolchain.yml` swift_version default to `X.Y.0`
+- [ ] Update `swift-toolchain.yml` untagged repo revisions to `refs/heads/release/X.Y`
+- [ ] Update `swift-toolchain.yml` snapshot job checkout ref to `release/X.Y`
+- [ ] Update `swift-toolchain.yml` snapshot job push target to `HEAD:release/X.Y`
 - [ ] Create `release-X-Y-swift-toolchain-schedule.yml` on the release branch
 - [ ] Update runner labels to match your infrastructure
 - [ ] Commit and push release branch
