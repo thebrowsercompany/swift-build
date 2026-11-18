@@ -709,7 +709,29 @@ jobs:
       - uses: andrurogerz/ensure-chocolatey@v1
 
       - name: Install Flex and Bison Tools
-        run: choco install winflexbison3
+        run: |
+          $MaxAttempts = 3
+          for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+            try {
+              choco install winflexbison3
+              if ($LASTEXITCODE -ne 0) {
+                throw "Chocolatey exited with code $LASTEXITCODE."
+              }
+              foreach ($Tool in @('win_bison', 'win_flex')) {
+                & $Tool --version
+                if ($LASTEXITCODE -ne 0) {
+                  throw "$Tool exited with code $LASTEXITCODE."
+                }
+              }
+              exit 0
+            } catch {
+              if ($Attempt -eq $MaxAttempts) {
+                throw
+              }
+              Write-Warning "Flex and Bison installation failed (attempt $Attempt of $MaxAttempts): $_"
+              Start-Sleep -Seconds (10 * $Attempt)
+            }
+          }
 
       # RegsGen2 is a host tool built once by the calling workflow.
       - uses: actions/download-artifact@v4
