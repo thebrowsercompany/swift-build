@@ -212,6 +212,11 @@ defaults:
   run:
     shell: pwsh
 
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
 jobs:
   context:
     runs-on: ubuntu-latest
@@ -6954,20 +6959,46 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/1 --target check-swift
 
   # `snapshot` and `release` only run once the whole build succeeded, which is
-  # expressed by depending on every terminal job of the build. The symbol
-  # publishing and Android smoke test jobs are conditional, so the implicit
-  # `success()` check cannot be used: the conditions below accept skipped jobs
-  # but require the unconditional ones to have succeeded.
+  # expressed by depending on every terminal job of the build through this
+  # gate. The symbol publishing and Android smoke test jobs are conditional, so
+  # the implicit `success()` check cannot be used: each result is compared
+  # against what the job's own condition implies, so a job that was skipped
+  # because something upstream of it failed is rejected rather than accepted.
+  publish_gate:
+    name: Publish Gate
+    needs: [context, stage2-compiler-symbols-azure, stage2-compiler-symbols-r2, macros-symbols-azure, macros-symbols-r2, sdk-symbols-azure, sdk-symbols-r2, devtools-symbols-azure, devtools-symbols-r2, smoke_test, redistributable_smoke_test, smoke_test_android, swift_test]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          SYMBOLS_AZURE_EXPECTED: ${{ fromJSON(needs.context.outputs.debug_info) && 'success' || 'skipped' }}
+          SYMBOLS_R2_EXPECTED: ${{ fromJSON(needs.context.outputs.debug_info) && inputs.create_release && 'success' || 'skipped' }}
+          ANDROID_EXPECTED: ${{ inputs.build_android && 'success' || 'skipped' }}
+        run: |
+          $Results = $env:RESULTS | ConvertFrom-Json
+          $ExitCode = 0
+          foreach ($Job in $Results.PSObject.Properties) {
+            $Expected = switch -Wildcard ($Job.Name) {
+              '*-symbols-azure' { $env:SYMBOLS_AZURE_EXPECTED }
+              '*-symbols-r2' { $env:SYMBOLS_R2_EXPECTED }
+              'smoke_test_android' { $env:ANDROID_EXPECTED }
+              default { 'success' }
+            }
+            if ($Job.Value.result -ne $Expected) {
+              Write-Host "::error::$($Job.Name) finished with result '$($Job.Value.result)', expected '$Expected'."
+              $ExitCode = 1
+            }
+          }
+          exit $ExitCode
+
   snapshot:
     runs-on: ubuntu-latest
-    needs: [context, stage2-compiler-symbols-azure, stage2-compiler-symbols-r2, macros-symbols-azure, macros-symbols-r2, sdk-symbols-azure, sdk-symbols-r2, devtools-symbols-azure, devtools-symbols-r2, smoke_test, redistributable_smoke_test, smoke_test_android, swift_test]
-    if: >-
-      ${{ !cancelled() && inputs.create_snapshot == true && github.event_name == 'schedule' &&
-          needs.smoke_test.result == 'success' &&
-          needs.redistributable_smoke_test.result == 'success' &&
-          needs.swift_test.result == 'success' &&
-          !contains(needs.*.result, 'failure') &&
-          !contains(needs.*.result, 'cancelled') }}
+    permissions:
+      contents: write
+    needs: [context, publish_gate]
+    if: inputs.create_snapshot == true && github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -6992,14 +7023,10 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [context, stage2-compiler-symbols-azure, stage2-compiler-symbols-r2, macros-symbols-azure, macros-symbols-r2, sdk-symbols-azure, sdk-symbols-r2, devtools-symbols-azure, devtools-symbols-r2, smoke_test, redistributable_smoke_test, smoke_test_android, swift_test]
-    if: >-
-      ${{ !cancelled() && inputs.create_release == true &&
-          needs.smoke_test.result == 'success' &&
-          needs.redistributable_smoke_test.result == 'success' &&
-          needs.swift_test.result == 'success' &&
-          !contains(needs.*.result, 'failure') &&
-          !contains(needs.*.result, 'cancelled') }}
+    permissions:
+      contents: write
+    needs: [context, publish_gate]
+    if: inputs.create_release == true
     steps:
       - uses: actions/download-artifact@v4
         with:
