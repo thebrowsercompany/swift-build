@@ -6042,9 +6042,14 @@ jobs:
           swift build
           swift test -Xswiftc -DENABLE_TESTING
 
+      # TODO: swift-win32 currently fails to build until
+      # https://github.com/compnerd/swift-win32/pull/799 lands. Keep running the
+      # test for visibility, but do not fail the smoke tests on it. Restore the
+      # `SMOKE_TESTS_FAILED` recording once the fix is in. Tracked in
+      # https://github.com/thebrowsercompany/swift-build/issues/380.
       - name: Record swift-win32 failure
         if: ${{ steps.swift_win32.outcome == 'failure' }}
-        run: echo "SMOKE_TESTS_FAILED=true" >> $env:GITHUB_ENV
+        run: echo "::warning::swift-win32 build/test failed; ignored until compnerd/swift-win32#799 lands (thebrowsercompany/swift-build#380)"
 
       - name: Build compnerd/vigil
         id: vigil
