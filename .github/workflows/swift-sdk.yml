@@ -485,6 +485,8 @@ jobs:
           c-compiler: ${{ needs.context.outputs.c_compiler }}
           cmake-defines: |
             @{
+              # build.ps1: $PlatformDefines
+              ${{ needs.context.outputs.os == 'Android' && '''HAVE_FSEEKO'' = "0";' || '' }}
               'BUILD_SHARED_LIBS' = "NO";
               'BUILD_TESTING' = "NO";
               'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
@@ -492,17 +494,26 @@ jobs:
               'BROTLICOMMON_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/lib/${{ needs.context.outputs.brotlicommon_library }}";
               'BROTLIDEC_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr/lib/${{ needs.context.outputs.brotlidec_library }}";
               'BUILD_CURL_EXE' = "NO";
+              'BUILD_EXAMPLES' = "NO";
               'BUILD_LIBCURL_DOCS' = "NO";
               'BUILD_MISC_DOCS' = "NO";
+              'BUILD_STATIC_LIBS' = "YES";
+              'CURL_BROTLI' = "YES";
+              'CURL_BUILD_EVERYTHING' = "NO";
               'CURL_CA_BUNDLE' = "none";
+              'CURL_CA_EMBED' = "";
               'CURL_CA_FALLBACK' = "NO";
               'CURL_CA_PATH' = "none";
-              'CURL_BROTLI' = "YES";
+              'CURL_CA_SEARCH_SAFE' = "NO";
+              'CURL_CLANG_TIDY' = "NO";
+              'CURL_CODE_COVERAGE' = "NO";
+              'CURL_DEBUG_GLOBAL_MEM' = "NO";
               'CURL_DISABLE_ALTSVC' = "NO";
               'CURL_DISABLE_AWS' = "YES";
               'CURL_DISABLE_BASIC_AUTH' = "NO";
               'CURL_DISABLE_BEARER_AUTH' = "NO";
               'CURL_DISABLE_BINDLOCAL' = "NO";
+              'CURL_DISABLE_CA_SEARCH' = "YES";
               'CURL_DISABLE_COOKIES' = "NO";
               'CURL_DISABLE_DICT' = "YES";
               'CURL_DISABLE_DIGEST_AUTH' = "NO";
@@ -517,6 +528,8 @@ jobs:
               'CURL_DISABLE_HTTP' = "NO";
               'CURL_DISABLE_HTTP_AUTH' = "NO";
               'CURL_DISABLE_IMAP' = "YES";
+              'CURL_DISABLE_INSTALL' = "NO";
+              'CURL_DISABLE_IPFS' = "YES";
               'CURL_DISABLE_KERBEROS_AUTH' = "NO";
               'CURL_DISABLE_LDAP' = "YES";
               'CURL_DISABLE_LDAPS' = "YES";
@@ -524,56 +537,71 @@ jobs:
               'CURL_DISABLE_MQTT' = "YES";
               'CURL_DISABLE_NEGOTIATE_AUTH' = "NO";
               'CURL_DISABLE_NETRC' = "NO";
-              'CURL_DISABLE_NTLM' = "NO";
+              'CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG' = "YES";
               'CURL_DISABLE_PARSEDATE' = "NO";
               'CURL_DISABLE_POP3' = "YES";
               'CURL_DISABLE_PROGRESS_METER' = "YES";
               'CURL_DISABLE_PROXY' = "NO";
               'CURL_DISABLE_RTSP' = "YES";
+              'CURL_DISABLE_SHA512_256' = "NO";
               'CURL_DISABLE_SHUFFLE_DNS' = "YES";
-              'CURL_DISABLE_SMB' = "YES";
               'CURL_DISABLE_SMTP' = "YES";
               'CURL_DISABLE_SOCKETPAIR' = "YES";
               'CURL_DISABLE_SRP' = "NO";
               'CURL_DISABLE_TELNET' = "YES";
               'CURL_DISABLE_TFTP' = "YES";
+              'CURL_DISABLE_TYPECHECK' = "YES";
               'CURL_DISABLE_VERBOSE_STRINGS' = "NO";
+              'CURL_DISABLE_WEBSOCKETS' = "NO";
+              'CURL_DROP_UNUSED' = "YES";
+              'CURL_ENABLE_EXPORT_TARGET' = "YES";
+              'CURL_ENABLE_NTLM' = "NO";
+              'CURL_ENABLE_SMB' = "NO";
+              'CURL_ENABLE_SSL' = "YES";
+              'CURL_GCC_ANALYZER' = "NO";
               'CURL_LTO' = "NO";
-              'CURL_USE_BEARSSL' = "NO";
+              'CURL_NATIVE_CA' = "YES";
+              'CURL_STATIC_CRT' = "NO";
+              'CURL_USE_CMAKECONFIG' = "YES";
               'CURL_USE_GNUTLS' = "NO";
+              'CURL_USE_GSASL' = "NO";
               'CURL_USE_GSSAPI' = "NO";
+              'CURL_USE_LIBBACKTRACE' = "NO";
               'CURL_USE_LIBPSL' = "NO";
               'CURL_USE_LIBSSH' = "NO";
               'CURL_USE_LIBSSH2' = "NO";
+              'CURL_USE_LIBUV' = "NO";
               'CURL_USE_MBEDTLS' = "NO";
               'CURL_USE_OPENSSL' = "NO";
+              'CURL_USE_PKGCONFIG' = "NO";
+              'CURL_USE_RUSTLS' = "NO";
               'CURL_USE_SCHANNEL' = "${{ fromJSON(needs.context.outputs.platform).curl.CURL_USE_SCHANNEL }}";
-              'CURL_USE_WOLFSSL' = "NO";
               'CURL_WINDOWS_SSPI' = "${{ fromJSON(needs.context.outputs.platform).curl.CURL_WINDOWS_SSPI }}";
               'CURL_ZLIB' = "YES";
               'CURL_ZSTD' = "NO";
               'ENABLE_ARES' = "NO";
-              'ENABLE_CURLDEBUG' = "NO";
               'ENABLE_CURL_MANUAL' = "NO";
               'ENABLE_DEBUG' = "NO";
               'ENABLE_IPV6' = "YES";
               'ENABLE_THREADED_RESOLVER' = "NO";
               'ENABLE_UNICODE' = "YES";
               'ENABLE_UNIX_SOCKETS' = "NO";
-              'ENABLE_WEBSOCKETS' = "YES";
               'HAVE_POLL_FINE' = "NO";
+              'USE_APPLE_IDN' = "NO";
+              'USE_APPLE_SECTRUST' = "NO";
               'USE_ECH' = "NO";
               'USE_HTTPSRR' = "NO";
               'USE_IDN2' = "NO";
-              'USE_MSH3' = "NO";
+              'USE_IPV6' = "YES";
               'USE_NGHTTP2' = "NO";
               'USE_NGTCP2' = "NO";
               'USE_QUICHE' = "NO";
-              'USE_OPENSSL_QUIC' = "NO";
+              'USE_SSLS_EXPORT' = "NO";
               'USE_WIN32_IDN' = "${{ fromJSON(needs.context.outputs.platform).curl.USE_WIN32_IDN }}";
               'USE_WIN32_LARGE_FILES' = "${{ fromJSON(needs.context.outputs.platform).curl.USE_WIN32_LARGE_FILES }}";
               'USE_WIN32_LDAP' = "NO";
-              'ZLIB_ROOT' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr";
+              'USE_WINDOWS_SSPI' = "${{ fromJSON(needs.context.outputs.platform).curl.USE_WINDOWS_SSPI }}";
+              'ZLIB_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr/include";
               'ZLIB_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/zlib-${{ needs.context.outputs.zlib_version }}/usr/lib/${{ needs.context.outputs.zlib_library }}";
             }
       - name: Build curl
@@ -1347,57 +1375,6 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/RuntimeModule --target install
 
       # build.ps1: Build-SDK
-      - name: Configure Backtrace
-        # NOTE: we only build this if static variants are enabled to ensure that we
-        # can statically link the runtime.
-        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
-        # https://github.com/swiftlang/swift/issues/87499).
-        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: RuntimeBacktrace
-          swift-version: ${{ needs.context.outputs.swift_version }}
-          enable-caching: false
-          debug-info: ${{ needs.context.outputs.debug_info }}
-          build-arch: ${{ needs.context.outputs.build_arch }}
-          os: ${{ needs.context.outputs.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StackWalker
-          bin-dir: ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
-          install-dir: ${{ env.SDK_ROOT }}/usr
-          android-api-level: ${{ needs.context.outputs.android_api_level }}
-          android-clang-version: ${{ needs.context.outputs.android_clang_version }}
-          ndk-path: ${{ steps.platform.outputs.ndk-path }}
-          cxx-compiler: 'Stage1.GNUCXX'
-          swift-compiler: 'Stage1.Swift'
-          cmake-defines: |
-            @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
-              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
-              'CMAKE_Swift_FLAGS' = @("-static-stdlib");
-              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
-              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
-              'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/Cxx/cmake/SwiftCxxOverlay";
-              'SwiftRuntime_DIR' = "${{ github.workspace }}/BinaryCache/RuntimeModule/cmake/SwiftRuntime";
-            }
-      - name: Build Runtime Backtrace
-        # NOTE: we only build this if static variants are enabled to ensure that we
-        # can statically link the runtime.
-        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
-        # https://github.com/swiftlang/swift/issues/87499).
-        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
-      - name: Install Runtime Backtrace
-        # NOTE: we only build this if static variants are enabled to ensure that we
-        # can statically link the runtime.
-        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
-        # https://github.com/swiftlang/swift/issues/87499).
-        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace --target install
-
-      # build.ps1: Build-SDK
       - name: Configure Dispatch
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1487,6 +1464,57 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Foundation --target install
 
+      # build.ps1: Build-SDK
+      - name: Configure Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
+        # https://github.com/swiftlang/swift/issues/87499).
+        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: RuntimeBacktrace
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: ${{ needs.context.outputs.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StackWalker
+          bin-dir: ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
+          install-dir: ${{ env.SDK_ROOT }}/usr
+          android-api-level: ${{ needs.context.outputs.android_api_level }}
+          android-clang-version: ${{ needs.context.outputs.android_clang_version }}
+          ndk-path: ${{ steps.platform.outputs.ndk-path }}
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'CMAKE_Swift_FLAGS' = @("-static-stdlib");
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
+              'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/Cxx/cmake/SwiftCxxOverlay";
+              'SwiftRuntime_DIR' = "${{ github.workspace }}/BinaryCache/RuntimeModule/cmake/SwiftRuntime";
+            }
+      - name: Build Runtime Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
+        # https://github.com/swiftlang/swift/issues/87499).
+        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
+      - name: Install Runtime Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
+        # https://github.com/swiftlang/swift/issues/87499).
+        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace --target install
+
       - name: Repair SDK Headers
         run: |
           $SDKRoot = cygpath -w "${{ env.SDK_ROOT }}"
@@ -1523,17 +1551,25 @@ jobs:
             )
           }
 
+      # build.ps1: Write-PlatformInfoPlist
       - uses: actions/setup-python@v5
       - uses: jannekem/run-python-script-action@v1
+        env:
+          PLATFORM: ${{ needs.context.outputs.platform }}
         with:
           script: |
+            import json
             import os
             import plistlib
 
+            platform = json.loads(os.environ['PLATFORM'])
+            # TODO(compnerd) derive this from the install directory
+            properties = { 'XCTEST_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ needs.context.outputs.swift_version }}' }
+            properties.update(platform['info_plist']['default_properties'])
+
             info_plist = r'${{ env.PLATFORM_ROOT }}/Info.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
-              # TODO(compnerd) derive this from the install directory
-              plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
+              plistlib.dump({ 'DefaultProperties': properties }, plist)
 
       - name: Write SDK Settings
         env:
@@ -1590,7 +1626,7 @@ jobs:
           android-api-level: ${{ needs.context.outputs.android_api_level }}
           android-clang-version: ${{ needs.context.outputs.android_clang_version }}
           ndk-path: ${{ steps.platform.outputs.ndk-path }}
-          cxx-compiler: 'Stage1.GNUCXX'
+          cxx-compiler: ${{ needs.context.outputs.cxx_compiler }}
           swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ env.SDK_ROOT }}
           cmake-defines: |

@@ -74,15 +74,19 @@ update the repositories that don't have tags to point to the release branch inst
 ```bash
 swift_build_revision=refs/heads/release/X.Y
 swift_format_revision=refs/heads/release/X.Y
-swift_foundation_revison=refs/heads/release/X.Y
+swift_foundation_revision=refs/heads/release/X.Y
 swift_foundation_icu_revision=refs/heads/release/X.Y
 swift_installer_scripts_revision=refs/heads/release/X.Y
 swift_lmdb_revision=refs/heads/release/X.Y
-swift_subprocess_revision=refs/heads/release/X.Y
 swift_testing_revision=refs/heads/release/X.Y
+swift_toolchain_sarif_revision=refs/heads/release/X.Y
+swift_tools_protocols_revision=refs/heads/release/X.Y
 ```
 
 Change all instances from `refs/heads/main` to `refs/heads/release/X.Y`.
+
+The other revisions in that list are pinned to the same versions as `default.xml`. Whenever a
+pin changes in `default.xml`, update it there as well.
 
 #### 3.3. Update Snapshot Job Checkout Ref
 
