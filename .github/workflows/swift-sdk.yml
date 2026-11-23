@@ -1347,57 +1347,6 @@ jobs:
           cmake --build ${{ github.workspace }}/BinaryCache/RuntimeModule --target install
 
       # build.ps1: Build-SDK
-      - name: Configure Backtrace
-        # NOTE: we only build this if static variants are enabled to ensure that we
-        # can statically link the runtime.
-        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
-        # https://github.com/swiftlang/swift/issues/87499).
-        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
-        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
-        with:
-          project-name: RuntimeBacktrace
-          swift-version: ${{ needs.context.outputs.swift_version }}
-          enable-caching: false
-          debug-info: ${{ needs.context.outputs.debug_info }}
-          build-arch: ${{ needs.context.outputs.build_arch }}
-          os: ${{ needs.context.outputs.os }}
-          arch: ${{ matrix.arch }}
-          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StackWalker
-          bin-dir: ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
-          install-dir: ${{ env.SDK_ROOT }}/usr
-          android-api-level: ${{ needs.context.outputs.android_api_level }}
-          android-clang-version: ${{ needs.context.outputs.android_clang_version }}
-          ndk-path: ${{ steps.platform.outputs.ndk-path }}
-          cxx-compiler: 'Stage1.GNUCXX'
-          swift-compiler: 'Stage1.Swift'
-          cmake-defines: |
-            @{
-              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
-              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
-              'CMAKE_Swift_FLAGS' = @("-static-stdlib");
-              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
-              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
-              'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/Cxx/cmake/SwiftCxxOverlay";
-              'SwiftRuntime_DIR' = "${{ github.workspace }}/BinaryCache/RuntimeModule/cmake/SwiftRuntime";
-            }
-      - name: Build Runtime Backtrace
-        # NOTE: we only build this if static variants are enabled to ensure that we
-        # can statically link the runtime.
-        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
-        # https://github.com/swiftlang/swift/issues/87499).
-        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
-      - name: Install Runtime Backtrace
-        # NOTE: we only build this if static variants are enabled to ensure that we
-        # can statically link the runtime.
-        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
-        # https://github.com/swiftlang/swift/issues/87499).
-        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
-        run: |
-          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace --target install
-
-      # build.ps1: Build-SDK
       - name: Configure Dispatch
         uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
         with:
@@ -1487,6 +1436,57 @@ jobs:
         run: |
           cmake --build ${{ github.workspace }}/BinaryCache/Foundation --target install
 
+      # build.ps1: Build-SDK
+      - name: Configure Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
+        # https://github.com/swiftlang/swift/issues/87499).
+        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: RuntimeBacktrace
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: ${{ needs.context.outputs.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/swift/Runtimes/Supplemental/StackWalker
+          bin-dir: ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
+          install-dir: ${{ env.SDK_ROOT }}/usr
+          android-api-level: ${{ needs.context.outputs.android_api_level }}
+          android-clang-version: ${{ needs.context.outputs.android_clang_version }}
+          ndk-path: ${{ steps.platform.outputs.ndk-path }}
+          cxx-compiler: 'Stage1.GNUCXX'
+          swift-compiler: 'Stage1.Swift'
+          cmake-defines: |
+            @{
+              'SWIFT_PUBLIC_KEY_TOKEN' = "0000000000000000";
+              'SWIFT_ASSEMBLY_VERSION' = "${{ needs.context.outputs.swift_version }}";
+              'CMAKE_Swift_FLAGS' = @("-static-stdlib");
+              'SwiftCore_DIR' = "${{ github.workspace }}/BinaryCache/Runtime/cmake/SwiftCore";
+              'SwiftOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/cmake/SwiftOverlay";
+              'SwiftCxxOverlay_DIR' = "${{ github.workspace }}/BinaryCache/Overlay/Cxx/cmake/SwiftCxxOverlay";
+              'SwiftRuntime_DIR' = "${{ github.workspace }}/BinaryCache/RuntimeModule/cmake/SwiftRuntime";
+            }
+      - name: Build Runtime Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
+        # https://github.com/swiftlang/swift/issues/87499).
+        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace
+      - name: Install Runtime Backtrace
+        # NOTE: we only build this if static variants are enabled to ensure that we
+        # can statically link the runtime.
+        # Per-arch opt-out via `backtrace` in the platform file (e.g. Windows x86:
+        # https://github.com/swiftlang/swift/issues/87499).
+        if: matrix.static && matrix.backtrace && fromJSON(needs.context.outputs.platform).runtime_module
+        run: |
+          cmake --build ${{ github.workspace }}/BinaryCache/RuntimeBacktrace --target install
+
       - name: Repair SDK Headers
         run: |
           $SDKRoot = cygpath -w "${{ env.SDK_ROOT }}"
@@ -1523,17 +1523,25 @@ jobs:
             )
           }
 
+      # build.ps1: Write-PlatformInfoPlist
       - uses: actions/setup-python@v5
       - uses: jannekem/run-python-script-action@v1
+        env:
+          PLATFORM: ${{ needs.context.outputs.platform }}
         with:
           script: |
+            import json
             import os
             import plistlib
 
+            platform = json.loads(os.environ['PLATFORM'])
+            # TODO(compnerd) derive this from the install directory
+            properties = { 'XCTEST_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ needs.context.outputs.swift_version }}' }
+            properties.update(platform['info_plist']['default_properties'])
+
             info_plist = r'${{ env.PLATFORM_ROOT }}/Info.plist'
             with open(os.path.normpath(info_plist), 'wb') as plist:
-              # TODO(compnerd) derive this from the install directory
-              plistlib.dump({ 'DefaultProperties': { 'XCTEST_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFT_TESTING_VERSION': '${{ needs.context.outputs.swift_version }}', 'SWIFTC_FLAGS': ['-use-ld=lld'] } }, plist)
+              plistlib.dump({ 'DefaultProperties': properties }, plist)
 
       - name: Write SDK Settings
         env:
@@ -1590,7 +1598,7 @@ jobs:
           android-api-level: ${{ needs.context.outputs.android_api_level }}
           android-clang-version: ${{ needs.context.outputs.android_clang_version }}
           ndk-path: ${{ steps.platform.outputs.ndk-path }}
-          cxx-compiler: 'Stage1.GNUCXX'
+          cxx-compiler: ${{ needs.context.outputs.cxx_compiler }}
           swift-compiler: 'Stage1.Swift'
           swift-sdk-path: ${{ env.SDK_ROOT }}
           cmake-defines: |
