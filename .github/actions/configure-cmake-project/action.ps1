@@ -443,6 +443,9 @@ switch ($OS) {
         Add-KeyValueIfNew $Defines CMAKE_ANDROID_API "$AndroidAPILevel"
         Add-KeyValueIfNew $Defines CMAKE_ANDROID_ARCH_ABI "$AndroidArchABI"
         Add-KeyValueIfNew $Defines CMAKE_ANDROID_NDK "$AndroidNDKPath"
+        # Use the shared C++ runtime so that libraries like libswiftCore and
+        # _FoundationICU don't carry their own copy.
+        Add-KeyValueIfNew $Defines CMAKE_ANDROID_STL_TYPE c++_shared
         Add-KeyValueIfNew $Defines CMAKE_SYSROOT "$AndroidSysroot"
 
         if ($UseASM) {
