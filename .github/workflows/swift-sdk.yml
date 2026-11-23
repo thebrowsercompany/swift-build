@@ -792,6 +792,8 @@ jobs:
             @{
               'DS2_REGSGEN2' = "${{ github.workspace }}/BinaryCache/RegsGen2/regsgen2.exe";
               'DS2_PROGRAM_PREFIX' = "${{ matrix.ds2_program_prefix }}";
+              # ds2 is a standalone executable, so keep the static C++ runtime.
+              ${{ needs.context.outputs.os == 'Android' && '''CMAKE_ANDROID_STL_TYPE'' = "c++_static";' || '' }}
             }
       - name: Build DS2
         run: cmake --build ${{ github.workspace }}/BinaryCache/ds2
@@ -961,6 +963,9 @@ jobs:
               'BUILD_SHARED_LIBS' = "YES";
               'BUILD_TESTING' = "NO";
               'ENABLE_SWIFT' = "NO";
+              # libdispatch doesn't use libc++, but with the shared C++ runtime it would
+              # take `__emutls_get_address` from it and depend on libc++_shared.so.
+              ${{ needs.context.outputs.os == 'Android' && '''CMAKE_ANDROID_STL_TYPE'' = "c++_static";' || '' }}
             }
       - name: Build CDispatch
         run: |
@@ -1422,6 +1427,9 @@ jobs:
                'CMAKE_STATIC_LIBRARY_PREFIX_Swift' = "lib";
                'ENABLE_SWIFT' = "YES";
                'dispatch_INSTALL_ARCH_SUBDIR' = "YES";
+               # libdispatch doesn't use libc++, but with the shared C++ runtime it would
+               # take `__emutls_get_address` from it and depend on libc++_shared.so.
+               ${{ needs.context.outputs.os == 'Android' && '''CMAKE_ANDROID_STL_TYPE'' = "c++_static";' || '' }}
               }
       - name: Build Dispatch
         run: |

@@ -301,8 +301,6 @@ $Defines = $CMakeDefines.Clone()
 Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0181 NEW
 # Enable CMP0214: Honor CMAKE_EXE_LINKER_FLAGS for Swift executable targets.
 Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0214 NEW
-# Enable CMP0215: Ninja generators emit Swift modules separately from compilation.
-Add-KeyValueIfNew $Defines CMAKE_POLICY_DEFAULT_CMP0215 NEW
 
 Add-KeyValueIfNew $Defines CMAKE_BUILD_TYPE Release
 
@@ -445,6 +443,9 @@ switch ($OS) {
         Add-KeyValueIfNew $Defines CMAKE_ANDROID_API "$AndroidAPILevel"
         Add-KeyValueIfNew $Defines CMAKE_ANDROID_ARCH_ABI "$AndroidArchABI"
         Add-KeyValueIfNew $Defines CMAKE_ANDROID_NDK "$AndroidNDKPath"
+        # Use the shared C++ runtime so that libraries like libswiftCore and
+        # _FoundationICU don't carry their own copy.
+        Add-KeyValueIfNew $Defines CMAKE_ANDROID_STL_TYPE c++_shared
         Add-KeyValueIfNew $Defines CMAKE_SYSROOT "$AndroidSysroot"
 
         if ($UseASM) {
