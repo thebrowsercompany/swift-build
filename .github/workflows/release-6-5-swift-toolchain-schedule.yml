@@ -1,0 +1,30 @@
+name: Release 6.5 Toolchains
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 20 * * *"
+
+jobs:
+  build-release-6_5:
+    uses: thebrowsercompany/swift-build/.github/workflows/swift-toolchain.yml@release/6.5
+    with:
+      # Source/Repository Configuration
+      ci_build_branch: 'refs/heads/release/6.5'
+      swift_version: "6.5.0"
+      # Build Configuration
+      windows_build_arch: amd64
+      build_android: true
+      android_api_level: 28
+      # Output/Publishing
+      create_release: ${{ github.event_name == 'schedule' }}
+      create_snapshot: ${{ github.event_name == 'schedule' }}
+      # Infrastructure/Runners
+      windows_x64_default_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-x64-16-2025-10-15--{0}', github.run_id) || 'swift-build-windows-latest-8-cores' }}
+      windows_x64_compilers_runner: ${{ vars.USE_CIRUN == 'true' && format('cirun-win11-pro-x64-64-2025-10-15--{0}', github.run_id) || 'swift-build-windows-latest-64-cores' }}
+    secrets: inherit
+    permissions:
+      attestations: write
+      contents: write
+      packages: write
+      id-token: write
