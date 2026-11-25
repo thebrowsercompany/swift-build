@@ -4166,6 +4166,7 @@ jobs:
           AZURE_KEY_VAULT_CERTIFICATE_NAME: ${{ steps.signing_mode.outputs.azure_vault == 'true' && secrets.AZURE_KEY_VAULT_CERTIFICATE_NAME || '' }}
           AZURE_VAULT_SIGN_COMMAND: ${{ steps.signing_mode.outputs.azure_vault == 'true' && '"%RUNNER_TEMP%\AzureSignTool\AzureSignTool.exe" sign --azure-key-vault-url "%AZURE_KEY_VAULT_URI%" --azure-key-vault-managed-identity --azure-key-vault-certificate "%AZURE_KEY_VAULT_CERTIFICATE_NAME%" --file-digest sha256 --timestamp-rfc3161 "http://timestamp.digicert.com" --timestamp-digest sha256 --verbose' || '' }}
         run: |
+          # TODO: derive the version from the compiler build, as build.ps1 does (Get-LLVMDylibVersion).
           msbuild -nologo -restore -maxCpuCount `
               -p:BaseOutputPath=${{ github.workspace }}\BinaryCache\installer\ `
               -p:Configuration=Release `
@@ -4177,6 +4178,8 @@ jobs:
               -p:WORKAROUND_MIMALLOC_ISSUE_997=false `
               -p:ProductVersion=${{ needs.context.outputs.swift_version }} `
               -p:ProductArchitecture=${{ matrix.host.arch }} `
+              -p:IncludeLLVMDLL=True `
+              -p:LLVMVersion=23 `
               ${{ github.workspace }}/SourceCache/swift-installer-scripts/platforms/Windows/bld/${{ matrix.variant.package }}/bld.${{ matrix.variant.package }}.wixproj
 
       - if: ${{ inputs.create_release }}
