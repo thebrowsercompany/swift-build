@@ -27,6 +27,7 @@ jobs:
     name: Context
     runs-on: ubuntu-latest
     outputs:
+      boringssl_revision: ${{ fromJSON(inputs.context).boringssl_revision }}
       brotli_revision: ${{ fromJSON(inputs.context).brotli_revision }}
       brotli_version: ${{ fromJSON(inputs.context).brotli_version }}
       build_arch: ${{ fromJSON(inputs.context).build_arch }}
@@ -455,6 +456,14 @@ jobs:
           path: ${{ github.workspace }}/SourceCache/curl
           show-progress: false
 
+      - uses: actions/checkout@v4.2.2
+        if: fromJSON(needs.context.outputs.platform).boringssl
+        with:
+          repository: google/boringssl
+          ref: ${{ needs.context.outputs.boringssl_revision }}
+          path: ${{ github.workspace }}/SourceCache/boringssl
+          show-progress: false
+
       - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.context.outputs.os }}-${{ matrix.arch }}-zlib-${{ needs.context.outputs.zlib_version }}
@@ -464,6 +473,43 @@ jobs:
         with:
           name: ${{ needs.context.outputs.os }}-${{ matrix.arch }}-brotli-${{ needs.context.outputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+
+      # build.ps1: Build-BoringSSL
+      - name: Configure BoringSSL
+        if: fromJSON(needs.context.outputs.platform).boringssl
+        uses: ./SourceCache/ci-build/.github/actions/configure-cmake-project
+        with:
+          project-name: BoringSSL
+          swift-version: ${{ needs.context.outputs.swift_version }}
+          enable-caching: false
+          debug-info: ${{ needs.context.outputs.debug_info }}
+          build-arch: ${{ needs.context.outputs.build_arch }}
+          os: ${{ needs.context.outputs.os }}
+          arch: ${{ matrix.arch }}
+          src-dir: ${{ github.workspace }}/SourceCache/boringssl
+          bin-dir: ${{ github.workspace }}/BinaryCache/boringssl
+          install-dir: ${{ github.workspace }}/BuildRoot/Library/boringssl/usr
+          android-api-level: ${{ needs.context.outputs.android_api_level }}
+          android-clang-version: ${{ needs.context.outputs.android_clang_version }}
+          ndk-path: ${{ steps.platform.outputs.ndk-path }}
+          assembler: 'Stage1'
+          c-compiler: ${{ needs.context.outputs.c_compiler }}
+          cxx-compiler: ${{ needs.context.outputs.cxx_compiler }}
+          cmake-defines: |
+            @{
+              'BUILD_SHARED_LIBS' = "NO";
+              'BUILD_TESTING' = "NO";
+              'CMAKE_POSITION_INDEPENDENT_CODE' = "YES";
+              'INSTALL_ENABLED' = "YES";
+              'OPENSSL_NO_ASM' = "NO";
+              'RUST_BINDINGS' = "NO";
+            }
+      - name: Build BoringSSL
+        if: fromJSON(needs.context.outputs.platform).boringssl
+        run: cmake --build ${{ github.workspace }}/BinaryCache/boringssl
+      - name: Install BoringSSL
+        if: fromJSON(needs.context.outputs.platform).boringssl
+        run: cmake --build ${{ github.workspace }}/BinaryCache/boringssl --target install
 
       # build.ps1: Build-Curl
       - name: Configure curl
@@ -508,6 +554,7 @@ jobs:
               'CURL_CLANG_TIDY' = "NO";
               'CURL_CODE_COVERAGE' = "NO";
               'CURL_DEBUG_GLOBAL_MEM' = "NO";
+              'CURL_DEFAULT_SSL_BACKEND' = "${{ fromJSON(needs.context.outputs.platform).curl.CURL_DEFAULT_SSL_BACKEND }}";
               'CURL_DISABLE_ALTSVC' = "NO";
               'CURL_DISABLE_AWS' = "YES";
               'CURL_DISABLE_BASIC_AUTH' = "NO";
@@ -572,7 +619,7 @@ jobs:
               'CURL_USE_LIBSSH2' = "NO";
               'CURL_USE_LIBUV' = "NO";
               'CURL_USE_MBEDTLS' = "NO";
-              'CURL_USE_OPENSSL' = "NO";
+              'CURL_USE_OPENSSL' = "${{ fromJSON(needs.context.outputs.platform).curl.CURL_USE_OPENSSL }}";
               'CURL_USE_PKGCONFIG' = "NO";
               'CURL_USE_RUSTLS' = "NO";
               'CURL_USE_SCHANNEL' = "${{ fromJSON(needs.context.outputs.platform).curl.CURL_USE_SCHANNEL }}";
@@ -587,6 +634,11 @@ jobs:
               'ENABLE_UNICODE' = "YES";
               'ENABLE_UNIX_SOCKETS' = "NO";
               'HAVE_POLL_FINE' = "NO";
+              'OPENSSL_ROOT_DIR' = "${{ github.workspace }}/BuildRoot/Library/boringssl/usr/lib/cmake";
+              'OPENSSL_CRYPTO_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/boringssl/usr/lib/libcrypto.a";
+              'OPENSSL_INCLUDE_DIR' = "${{ github.workspace }}/BuildRoot/Library/boringssl/usr/include";
+              'OPENSSL_SSL_LIBRARY' = "${{ github.workspace }}/BuildRoot/Library/boringssl/usr/lib/libssl.a";
+              'OPENSSL_USE_STATIC_LIBS' = "YES";
               'USE_APPLE_IDN' = "NO";
               'USE_APPLE_SECTRUST' = "NO";
               'USE_ECH' = "NO";
@@ -596,6 +648,7 @@ jobs:
               'USE_NGHTTP2' = "NO";
               'USE_NGTCP2' = "NO";
               'USE_QUICHE' = "NO";
+              'USE_OPENSSL' = "${{ fromJSON(needs.context.outputs.platform).curl.USE_OPENSSL }}";
               'USE_SSLS_EXPORT' = "NO";
               'USE_WIN32_IDN' = "${{ fromJSON(needs.context.outputs.platform).curl.USE_WIN32_IDN }}";
               'USE_WIN32_LARGE_FILES' = "${{ fromJSON(needs.context.outputs.platform).curl.USE_WIN32_LARGE_FILES }}";
@@ -613,6 +666,12 @@ jobs:
         with:
           name: ${{ needs.context.outputs.os }}-${{ matrix.arch }}-curl-${{ needs.context.outputs.curl_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/curl-${{ needs.context.outputs.curl_version }}/usr
+
+      - uses: actions/upload-artifact@v4
+        if: fromJSON(needs.context.outputs.platform).boringssl
+        with:
+          name: ${{ needs.context.outputs.os }}-${{ matrix.arch }}-boringssl
+          path: ${{ github.workspace }}/BuildRoot/Library/boringssl/usr
 
   libxml2:
     needs: [context]
@@ -883,6 +942,11 @@ jobs:
         with:
           name: ${{ needs.context.outputs.os }}-${{ matrix.arch }}-brotli-${{ needs.context.outputs.brotli_version }}
           path: ${{ github.workspace }}/BuildRoot/Library/brotli-${{ needs.context.outputs.brotli_version }}/usr
+      - uses: actions/download-artifact@v4
+        if: fromJSON(needs.context.outputs.platform).boringssl
+        with:
+          name: ${{ needs.context.outputs.os }}-${{ matrix.arch }}-boringssl
+          path: ${{ github.workspace }}/BuildRoot/Library/boringssl/usr
 
       # The stage1 compiler and bootstrap macros always come from the Windows build host.
       - name: Download Stage1 Compiler
@@ -1456,6 +1520,12 @@ jobs:
               '_SwiftFoundationICU_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-foundation-icu";
               '_SwiftCollections_SourceDIR' = "${{ github.workspace }}/SourceCache/swift-collections";
               'SwiftFoundation_MACRO' = "${{ github.workspace }}/BinaryCache/Library/Developer/Toolchains/${{ needs.context.outputs.swift_version }}+Asserts/usr/bin";
+              # build.ps1: $PlatformDefines (curl is linked against BoringSSL on these platforms).
+              ${{ fromJSON(needs.context.outputs.platform).boringssl && format('''OPENSSL_ROOT_DIR'' = "{0}/BuildRoot/Library/boringssl/usr/lib/cmake";', github.workspace) || '' }}
+              ${{ fromJSON(needs.context.outputs.platform).boringssl && format('''OPENSSL_CRYPTO_LIBRARY'' = "{0}/BuildRoot/Library/boringssl/usr/lib/libcrypto.a";', github.workspace) || '' }}
+              ${{ fromJSON(needs.context.outputs.platform).boringssl && format('''OPENSSL_INCLUDE_DIR'' = "{0}/BuildRoot/Library/boringssl/usr/include";', github.workspace) || '' }}
+              ${{ fromJSON(needs.context.outputs.platform).boringssl && format('''OPENSSL_SSL_LIBRARY'' = "{0}/BuildRoot/Library/boringssl/usr/lib/libssl.a";', github.workspace) || '' }}
+              ${{ fromJSON(needs.context.outputs.platform).boringssl && '''OPENSSL_USE_STATIC_LIBS'' = "YES";' || '' }}
             }
       - name: Build Foundation
         run: |
