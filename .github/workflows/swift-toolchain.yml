@@ -928,6 +928,12 @@ jobs:
       - name: Install SQLite
         run: cmake --build ${{ github.workspace }}/BinaryCache/sqlite-${{ needs.context.outputs.swift_toolchain_sqlite_version }} --target install
 
+      # Note: On GHA, SQLite is consumed from its install tree rather than from
+      # its source tree. swift-toolchain-sqlite does not install its module map,
+      # without which swift-package-manager builds its own copy of SQLite.
+      - name: Install the SQLite module map
+        run: Copy-Item -Path ${{ github.workspace }}/SourceCache/swift-toolchain-sqlite/Sources/CSQLite/include/module.modulemap -Destination ${{ github.workspace }}/BuildRoot/Library/sqlite-${{ needs.context.outputs.swift_toolchain_sqlite_version }}/usr/include
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}-sqlite-${{ needs.context.outputs.swift_toolchain_sqlite_version }}
@@ -3414,8 +3420,7 @@ jobs:
           project-name: sourcekit-lsp
           swift-version: ${{ needs.context.outputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          # TODO: Re-enable debug info once https://github.com/swiftlang/swift/issues/94615 is fixed.
-          debug-info: false
+          debug-info: ${{ fromJSON(needs.context.outputs.debug_info) }}
           build-arch: ${{ needs.context.outputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
@@ -3479,8 +3484,7 @@ jobs:
           project-name: swift-docc
           swift-version: ${{ needs.context.outputs.swift_version }}
           enable-caching: ${{ inputs.use_host_toolchain }}
-          # TODO: Re-enable debug info once https://github.com/swiftlang/swift/issues/88563 is fixed.
-          debug-info: false
+          debug-info: ${{ fromJSON(needs.context.outputs.debug_info) }}
           build-arch: ${{ needs.context.outputs.build_arch }}
           os: ${{ matrix.os }}
           arch: ${{ matrix.arch }}
